@@ -123,6 +123,30 @@ isso desde a primeira migration.
 9. **Mapa** — PropriedadeMapa, MapaProjetos.
 10. **Dashboards** — Dashboard, DashboardExecutivo, DashboardComercial. Por último: agregam dado de todos os módulos anteriores.
 
+## Ambiente de banco
+
+**Sem Supabase local em Docker.** O desenvolvimento aponta direto para o
+projeto Supabase hospedado. O token da CLI (`SUPABASE_ACCESS_TOKEN`) vem do
+`direnv`, fora do repositório; a URL e a `anon key` do projeto ficam no
+`.env`.
+
+Consequências que precisam ser respeitadas:
+
+- **`supabase db reset` não é usado.** Contra um projeto hospedado ele apaga
+  o banco inteiro. Por isso não existe script `db:reset` no `package.json` —
+  se um dia for necessário, é comando digitado à mão.
+- **Migration aplicada é aplicada de verdade.** Não há ambiente descartável
+  para errar. Toda migration é revisada antes do `db:push`, e nenhum
+  subagente aplica nada no banco — quem aplica é o usuário.
+- **Os testes de isolamento de RLS rodam contra o banco real.** Para não
+  deixar sujeira, cada teste roda dentro de uma transação com `ROLLBACK` no
+  fim, e usa dados marcados como de teste. Isso vale enquanto o banco não
+  tiver dado de produção; quando o dado real do base44 entrar, os testes
+  passam a exigir um projeto separado de staging.
+- **O Auth Hook que escreve o `tenant_id` no JWT precisa ser ligado no
+  painel** (Authentication > Hooks). O `config.toml` sozinho só configura
+  ambiente local, que aqui não existe.
+
 ## Desvios do padrão do CLAUDE.md
 
 - **Sem etapa de protótipo HTML.** `projeto-original/` cumpre o papel de

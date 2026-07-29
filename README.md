@@ -38,23 +38,28 @@ backoffice que roda hoje na plataforma base44. O código do original está em
 
 ## Como rodar localmente
 
-Requisitos: Node 20+, Docker (para o Supabase local) e a
-[CLI do Supabase](https://supabase.com/docs/guides/cli).
+Requisitos: Node 20+ e a
+[CLI do Supabase](https://supabase.com/docs/guides/cli). **Não** usamos
+Supabase local em Docker — o banco é o projeto hospedado.
 
 ```bash
 npm install
 
-cp .env.example .env          # preencher com as chaves do Supabase local
-supabase start                # sobe Postgres, Auth e Studio em Docker
-npm run db:reset              # aplica as migrations e o seed
-npm run db:types              # gera src/lib/database.types.ts a partir do schema
+supabase link --project-ref <ref-do-projeto>   # uma vez por máquina
+cp .env.example .env                           # preencher com URL e anon key
+npm run db:push                                # aplica as migrations no projeto
+npm run db:types                               # gera src/lib/database.types.ts
 npm run dev
 ```
 
-`supabase start` imprime a `API URL` e a `anon key` do ambiente local — são
-elas que vão em `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env`.
-A `service_role key` **nunca** entra em variável com prefixo `VITE_`: esse
-prefixo publica o valor no bundle que vai para o navegador.
+O `SUPABASE_ACCESS_TOKEN` (token pessoal da CLI) vem do `direnv`, não do
+`.env` — é credencial da conta, não do projeto, e não pertence ao
+repositório.
+
+A URL e a `anon key` saem de `supabase projects api-keys --project-ref <ref>`
+ou do painel, em Settings > API. A `service_role key` **nunca** entra em
+variável com prefixo `VITE_`: esse prefixo publica o valor no bundle que vai
+para o navegador.
 
 ### Scripts
 
@@ -64,9 +69,13 @@ prefixo publica o valor no bundle que vai para o navegador.
 | `npm run build` | typecheck + build de produção |
 | `npm run typecheck` | só o typecheck |
 | `npm run lint` | oxlint |
-| `npm run db:reset` | recria o banco local com migrations + seed |
+| `npm run db:push` | aplica as migrations pendentes no projeto ligado |
+| `npm run db:diff` | mostra o que diverge entre as migrations e o banco |
 | `npm run db:types` | regenera os tipos TypeScript do schema |
-| `npm run db:test` | roda os testes de RLS e isolamento (pgTAP) |
+
+Não existe script de reset. `supabase db reset` apaga o banco inteiro, e o
+banco aqui é real — se precisar, é comando digitado à mão, com consciência
+do que faz.
 
 ### Stack
 

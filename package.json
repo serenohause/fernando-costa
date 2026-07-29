@@ -9,9 +9,9 @@
     "lint": "oxlint",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview",
-    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
-    "db:reset": "supabase db reset",
-    "db:test": "supabase test db"
+    "db:push": "supabase db push",
+    "db:diff": "supabase db diff --linked",
+    "db:types": "supabase gen types typescript --linked > src/lib/database.types.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
