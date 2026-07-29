@@ -107,10 +107,15 @@ igual para todo escritório):
 
 | Coluna | Tipo | Exemplo |
 |---|---|---|
-| `key` | text PK | `crm`, `pipeline`, `contracts`, `projects`, `project_flow`, `activities`, `suppliers`, `client_budget`, `map`, `receivables`, `payables`, `team`, `access_control`, `dashboard_overview`, `dashboard_executive`, `dashboard_commercial` |
+| `key` | text PK | 18 chaves — as 16 telas (`crm`, `pipeline`, `contracts`, `projects`, `project_flow`, `activities`, `suppliers`, `client_budget`, `map`, `receivables`, `payables`, `team`, `access_control`, `dashboard_overview`, `dashboard_executive`, `dashboard_commercial`) mais os 2 agrupadores (`financial`, `team_group`) |
 | `label_pt` | text | rótulo exibido na sidebar |
 | `sort_order` | int | ordem no menu |
-| `parent_key` | text FK → menus, nullable | `receivables` e `payables` ficam sob `financial` |
+| `parent_key` | text FK → menus, nullable | `receivables`/`payables` sob `financial`; `team`/`access_control` sob `team_group` |
+
+Os dois agrupadores reproduzem o `allNavigation` do `Layout.jsx` original,
+onde "Financeiro" e "Equipe" são itens com `subItems`. Agrupador não recebe
+linha de permissão: a sidebar o mostra quando algum filho tem `can_view`.
+A lista completa está em `docs/ENUM-MAP.md`.
 
 O `key` é o slug ASCII estável. O rótulo em português vive em `label_pt` e
 na UI — trocar o texto do menu nunca invalida uma permissão.

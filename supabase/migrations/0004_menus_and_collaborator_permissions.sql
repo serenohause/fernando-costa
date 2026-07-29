@@ -38,7 +38,7 @@ comment on column public.menus.key is
 comment on column public.menus.label_pt is
   'Rotulo exibido na sidebar. Copia inicial vem de docs/ENUM-MAP.md; a UI nao escreve esse texto a mao.';
 comment on column public.menus.parent_key is
-  'Agrupador da sidebar. Hoje so "financial" agrupa (recebiveis e pagamentos), reproduzindo o Layout.jsx do original.';
+  'Agrupador da sidebar. Dois agrupadores reproduzem o Layout.jsx do original: "financial" (recebiveis e pagamentos) e "team_group" (equipe e controle de acesso). Agrupador nao recebe permissao propria - a sidebar o exibe quando pelo menos um filho tem can_view.';
 
 create index menus_parent_key_sort_order_idx on public.menus (parent_key, sort_order);
 
@@ -46,10 +46,16 @@ create trigger menus_set_updated_at
   before update on public.menus
   for each row execute function public.set_updated_at();
 
--- Catalogo inicial: as 17 chaves de docs/ENUM-MAP.md, na ordem em que o
--- Layout.jsx do original renderiza a sidebar. "financial" e o unico agrupador
--- e nao existe como texto no base44 - la o agrupamento e so estrutura de
--- componente, sem permissao propria; quem manda sao os dois filhos.
+-- Catalogo inicial: as 18 chaves de docs/ENUM-MAP.md, na ordem em que o
+-- Layout.jsx do original renderiza a sidebar.
+--
+-- Duas delas sao agrupadores e nao existem como texto no base44: "financial"
+-- e "team_group". No original o agrupamento e so estrutura de componente
+-- (allNavigation com subItems), sem permissao propria - quem manda sao os
+-- filhos, e o grupo aparece quando pelo menos um deles tem can_view. O grupo
+-- "Equipe" e o item "Equipe" (Collaborators) tem o mesmo rotulo no original,
+-- e sao coisas diferentes: por isso team_group e team sao chaves separadas.
+--
 -- "Minhas Atividades" aparece na navegacao do original mas nao entra aqui:
 -- e liberado por funcao (Arquiteto, Estagiario, Coordenador) e nunca e
 -- checado contra PermissoesUsuario.
@@ -69,8 +75,9 @@ insert into public.menus (key, label_pt, sort_order, parent_key) values
   ('financial',            'Financeiro',           130, null),
   ('receivables',          'Recebíveis',           140, 'financial'),
   ('payables',             'Pagamentos',           150, 'financial'),
-  ('team',                 'Equipe',               160, null),
-  ('access_control',       'Controle de Acesso',   170, null);
+  ('team_group',           'Equipe',               160, null),
+  ('team',                 'Equipe',               170, 'team_group'),
+  ('access_control',       'Controle de Acesso',   180, 'team_group');
 
 -- collaborator_permissions: matriz colaborador x menu.
 

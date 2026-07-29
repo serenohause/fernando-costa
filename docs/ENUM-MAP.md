@@ -78,6 +78,14 @@ semânticas e dois valores corrompidos. A importação consolida.
 | Equipe / Colaboradores | `team` | Equipe |
 | Controle de Acesso / `Aprova​ções de Acesso` (zero-width space) | `access_control` | Controle de Acesso |
 | — (agrupador, não existe no original) | `financial` | Financeiro |
+| — (agrupador, não existe no original) | `team_group` | Equipe |
+
+Os dois agrupadores (`financial` e `team_group`) não têm texto correspondente
+no base44 e **nunca recebem linha de permissão**. No `Layout.jsx` original
+eles são só estrutura de componente (`subItems`): a sidebar mostra o grupo
+quando pelo menos um filho tem `can_view`. `team_group` e `team` têm o mesmo
+rótulo "Equipe" no original e são coisas diferentes — o grupo e o item
+Colaboradores dentro dele.
 
 Consolidação: quando as duas grafias existirem para o mesmo colaborador com
 valores diferentes de `can_view`/`can_edit`, **prevalece o mais permissivo**,
