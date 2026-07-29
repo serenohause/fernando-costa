@@ -229,6 +229,79 @@ provedor por enquanto. Consequências:
 - Quando um provedor for escolhido (Resend ou SMTP do escritório), a copy
   original volta junto com o envio.
 
+## Segurança — estado e decisões
+
+Auditoria do módulo 1 rodada antes do primeiro deploy. Resumo do que foi
+fechado e do que segue aberto por decisão.
+
+### Fechado
+
+**Tabelas abertas para a internet.** As tabelas criadas pelas migrations
+0002–0005 receberam privilégio total para `anon` e `authenticated` sem que
+nenhuma migration pedisse: o bootstrap do Supabase deixa um
+`alter default privileges ... grant all on tables to anon, authenticated`
+pendurado no papel `postgres`, e migration roda como `postgres`. Leitura,
+escrita e `DELETE` funcionavam com a chave publicável — a que vai no
+navegador. A 0007 revoga e desarma o default. **Regra que fica: RLS sem
+`GRANT` dá "permission denied"; `GRANT` sem RLS entrega a tabela. Precisa
+dos dois, escritos à mão, em toda tabela nova.**
+
+**Chaves JWT legadas.** O projeto nascia com o formato antigo (HS256,
+simétrico) ativo ao lado do novo. Consequências: a `service_role` legada era
+uma chave-mestra válida **até 2036**, sem rotação possível; e quem tivesse o
+segredo podia assinar um token qualquer, inclusive com `tenant_id` de outro
+escritório — ou seja, toda a RLS era contornável. Desligadas. O `.env` usa a
+chave `sb_secret_`, e o token de login sai em ES256 (assimétrico).
+
+**Escalação de privilégio na própria linha.** Policy não fecha isso: o
+`WITH CHECK` não enxerga o estado anterior da linha. Um gestor podia trocar a
+própria `role`, criar linha já vinculada ao próprio `user_id`, ou soltar o
+próprio `user_id` e colá-lo na linha de um Diretor. Fechado por trigger que
+compara antes e depois.
+
+**Gestão de equipe restrita a Diretor.** A matriz do `SCHEMA-PLAN.md` dizia
+"Diretor e Administrativo" — erro de leitura do original, onde `admin` é
+papel de plataforma do base44 e não o `Administrativo` do escritório.
+
+### Aberto por decisão do usuário
+
+**Cadastro aberto (`disable_signup: false`).** Qualquer pessoa cria conta no
+projeto. Hoje não enxerga nada — sem vínculo em `tenant_users` não há claim,
+e sem claim a RLS não devolve linha (provado em teste). Mantido enquanto o
+fluxo de criação de usuário não for definido.
+
+Risco que aparece com o domínio real, e que precisa ser resolvido **antes**
+da importação: `register-access-request` vincula automaticamente quem entra
+com um e-mail que já está em `collaborators`. Se essa linha estiver `active`,
+a pessoa entra **sem passar por aprovação de Diretor**. Hoje é teórico
+porque o domínio de teste é fictício e o Supabase recusa cadastro em domínio
+inexistente. Com o domínio do escritório, deixa de ser.
+
+### Ponto cego conhecido dos testes
+
+As suítes provam que a RLS segura **token legítimo**. Nenhuma exercita token
+forjado. Passavam 100% enquanto o sistema era falsificável pelo formato
+antigo de chave. Não é asserção vazia — é escopo faltando. Falta um caso que
+tente assinar HS256 e exija recusa, para acusar se alguém religar as chaves
+legadas.
+
+### Obrigatório antes da importação do dado real
+
+Nenhum destes bloqueia o deploy do escritório de teste, e todos bloqueiam a
+entrada de dado de produção:
+
+- Separar produção de desenvolvimento em dois projetos Supabase.
+- Restringir o acesso ao banco por rede — hoje aceita conexão de qualquer IP.
+- Apagar as contas de teste do seed (senhas conhecidas, em
+  `supabase/seed/credenciais.local`).
+- Resolver o cadastro aberto + auto-vínculo descrito acima.
+- Cadastrar o domínio de e-mail real em `tenant_email_domains` **antes** de
+  qualquer pessoa tentar entrar: sem ele, o Supabase recusa o cadastro e o
+  erro não explica o motivo.
+- Garantir mais de um Diretor no escritório. Diretor é o único papel que
+  gerencia equipe, e Diretor afastado não lê nada — escritório com um
+  Diretor só fica sem quem administre se ele se afastar.
+
 ## Fora de escopo (decisão do usuário)
 
 - **Páginas de marketing**: `LeadsMarketing`, `Campanhas`, `Conteudos`,
