@@ -395,6 +395,78 @@ async function main() {
   })();
   record('6.16', 'Chave de service_role nao aparece em src/ nem no bundle de dist/', 'ok', leaked);
 
+  // 6.17 e 6.18 - token forjado -----------------------------------------------
+  //
+  // POR QUE ESTES CASOS EXISTEM
+  //   A auditoria do modulo 1 encontrou um buraco que esta suite passava por
+  //   cima com nota cheia: as chaves JWT legadas (HS256, segredo simetrico)
+  //   estavam ativas. Quem tivesse o segredo assinava um token proprio, com
+  //   role service_role ou com o tenant_id de outro escritorio, e o PostgREST
+  //   aceitava - toda a RLS das migrations 0006 a 0013 virava contornavel.
+  //
+  //   Os casos 6.5 a 6.14 provam que a RLS nega a chave publicavel. Nenhum
+  //   deles provava que ela nega um token FORJADO. A suite media a fechadura
+  //   e ignorava que havia uma copia da chave circulando.
+  //
+  //   As chaves legadas foram desligadas e o projeto assina em ES256. Estes
+  //   dois casos existem para acusar se alguem religar o formato antigo - o
+  //   que reabriria o buraco em silencio, sem quebrar nada visivel.
+  // CUIDADO AO MEXER AQUI: um teste que assina com um segredo chutado passa
+  // sempre, ligado ou desligado o formato antigo - a assinatura errada e
+  // recusada antes de a pergunta ser feita. Seria um caso que da PASS sem
+  // provar nada, exatamente o tipo de teste que a auditoria criticou.
+  //
+  // O que discrimina de verdade e usar a chave legada REAL do projeto, que e
+  // ela mesma um token HS256 assinado com o segredo. Se as legacy keys forem
+  // religadas, ela volta a ler o banco inteiro e estes casos FALHAM. E o
+  // caminho de ataque de verdade, nao uma imitacao dele.
+  const legacyKeys = await (async () => {
+    const token = env.SUPABASE_ACCESS_TOKEN;
+    const ref = (URL.match(/https:\/\/([a-z0-9]+)\.supabase\./) ?? [])[1];
+    if (!token || !ref) return null;
+    try {
+      const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys?reveal=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      const keys = await res.json();
+      return {
+        service: keys.find((k) => k.id === 'service_role')?.api_key,
+        anon: keys.find((k) => k.id === 'anon')?.api_key,
+      };
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!legacyKeys?.service) {
+    // Sem SUPABASE_ACCESS_TOKEN no ambiente nao da para buscar a chave legada.
+    // Marcar como nao executado, e nao como aprovado: PASS aqui seria mentira.
+    record('6.17', 'chave legada HS256 recusada (NAO EXECUTADO: falta SUPABASE_ACCESS_TOKEN)',
+      'ok', 'nao executado');
+    record('6.18', 'chave legada anon recusada (NAO EXECUTADO: falta SUPABASE_ACCESS_TOKEN)',
+      'ok', 'nao executado');
+  } else {
+    for (const [id, desc, key] of [
+      ['6.17', 'chave legada service_role (HS256) e recusada pelo PostgREST', legacyKeys.service],
+      ['6.18', 'chave legada anon (HS256) e recusada pelo PostgREST', legacyKeys.anon],
+    ]) {
+      if (!key) {
+        record(id, `${desc} (NAO EXECUTADO: chave ausente)`, 'ok', 'nao executado');
+        continue;
+      }
+      const res = await fetch(`${URL}/rest/v1/collaborators?select=id`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+      });
+      const body = await res.text();
+      const readRows = res.ok && body.trim() !== '[]';
+      record(id, desc, 'ok',
+        readRows
+          ? `LEGACY KEYS RELIGADAS: a chave antiga leu o banco (HTTP ${res.status}). A RLS voltou a ser contornavel.`
+          : 'ok');
+    }
+  }
+
   // Caso 7 - escrita cruzada entre tenants ----------------------------------
 
   await check('7.1', 'Diretora A cadastra colaborador com tenant_id do escritorio B', 'ERR:42501',
