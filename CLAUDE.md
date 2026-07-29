@@ -195,9 +195,40 @@ combina com a descrição delas — não é obrigatório digitar o comando.
 
 ## [projeto] Domínio
 
-_Preenchido pelo `/start-project` na primeira etapa. Ver também
-`docs/ARCHITECTURE.md` para o detalhamento completo._
+_Ver `docs/ARCHITECTURE.md` para o detalhamento completo._
 
-- Tipo de sistema:
-- Modelo de tenant (o que representa um tenant neste projeto):
-- Entidades centrais:
+- **Tipo de sistema:** backoffice de gestão para escritório de arquitetura —
+  CRM, funil comercial, contratos, execução de projetos, atividades da
+  equipe, financeiro, fornecedores, orçamento por cliente e mapa de
+  propriedades.
+- **Modelo de tenant:** um escritório de arquitetura. O escritório Fernando
+  Costa é o primeiro tenant.
+- **Entidades centrais:** `tenants`, `Collaborator`, `PermissoesUsuario`,
+  `SolicitacaoAcesso`, `Client`, `Negociacao`, `ClientIntake`, `Contract`,
+  `Project`, `Task`, `Atividade`, `AccountReceivable`, `AccountPayable`,
+  `FinancialCategory`, `Fornecedor`, `ChecklistOrcamento`,
+  `PropriedadeMapa`.
+
+### Fonte da verdade visual: `projeto-original/`
+
+Este projeto é a migração de um backoffice que já roda na plataforma
+base44. O código-fonte do original está em `projeto-original/` e **ocupa o
+lugar de `prototypes/`** — as regras de fidelidade acima valem
+integralmente sobre ele, sem etapa de protótipo HTML. Cor, tipografia,
+espaçamento, hierarquia, breakpoints e microcopy migram como estão.
+Divergência sutil é bug de implementação. Se algo no original parecer
+errado, sinalizar ao usuário e esperar decisão — nunca corrigir
+silenciosamente.
+
+Decisões de migração já tomadas:
+
+- Multitenancy desde o início, apesar de o original ser single-tenant.
+- Tokens de tema portados do Tailwind v3 (`index.css`) para o `@theme` do
+  v4, com os mesmos valores HSL.
+- shadcn/ui + Radix entram no stack (o original é construído sobre eles).
+- Fora de escopo: páginas de marketing (stubs mortos) e
+  `Collaborator.senha_temporaria` (senha em texto puro).
+
+Trabalho é módulo a módulo, na ordem definida em `docs/ARCHITECTURE.md`.
+Cada módulo é uma fatia vertical: schema → RLS + teste de isolamento →
+hooks → UI.

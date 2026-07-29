@@ -1,16 +1,44 @@
-# [Nome do Projeto]
+# Backoffice Fernando Costa
 
-> Este topo é um placeholder. Ele é reescrito pelo `/start-project` na
-> etapa 1 (domínio) com o nome e a descrição reais do projeto, e
-> complementado nas etapas de scaffold e deploy. A seção **"Desenvolvimento
-> com IA"** mais abaixo é fixa — não é reescrita, é a documentação de como
-> este projeto é construído com Claude Code.
+Sistema de gestão para escritório de arquitetura: do primeiro contato com o
+lead até a última parcela recebida.
 
-_Descrição de uma frase do que o sistema faz, preenchida na etapa 1._
+## O que o sistema faz
+
+- **CRM** — cadastro de clientes, origem do lead, deduplicação por CPF/CNPJ.
+- **Pipeline comercial** — funil de negociações (Lead recebido → Qualificado
+  → Proposta enviada → Em negociação → Fechamento), com motivo de perda.
+- **Formulário de briefing** — link público com validade de 24h, preenchido
+  pelo próprio cliente, sem login.
+- **Contratos** — tipo de contrato, valor, forma de cobrança, parcelamento.
+- **Projetos** — execução por fases (Briefing → Layout → Perspectivas →
+  Projeto Legal → Executivo → Alvará), com responsável comercial e
+  responsável operacional separados.
+- **Atividades** — trabalho atribuído por colaborador, com prazo,
+  coordenador e relatório de produtividade.
+- **Financeiro** — contas a receber ligadas a contrato/projeto, contas a
+  pagar com categoria e recorrência, por centro de custo.
+- **Fornecedores** — cadastro por tipologia, com modelo de parceria e
+  comissão.
+- **Orçamento por cliente** — checklist com valor estimado, aprovado e
+  comissão prevista.
+- **Mapa de projetos** — terrenos e obras georreferenciados.
+- **Controle de acesso** — seis funções (Diretor, Coordenador,
+  Administrativo, Financeiro, Arquiteto, Estagiário), permissão por menu e
+  fila de aprovação de novos acessos.
+
+O sistema é multitenant: um tenant é um escritório de arquitetura.
+
+## Origem
+
+Esta é a reconstrução, em React + Vite + TypeScript + Supabase, de um
+backoffice que roda hoje na plataforma base44. O código do original está em
+`projeto-original/` e é a **fonte da verdade visual e de domínio** — ver
+`docs/ARCHITECTURE.md`.
 
 ## Como rodar localmente
 
-_Preenchido na etapa 4 (scaffold), com os comandos reais de instalação,
+_Preenchido na etapa de scaffold, com os comandos reais de instalação,
 variáveis de ambiente e `npm run dev`._
 
 ## Produção
