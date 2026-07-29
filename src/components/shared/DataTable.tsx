@@ -44,7 +44,7 @@ export default function DataTable<T extends { id?: string }>({
   if (isLoading) {
     return (
       /* v4: `shadow-xs` == `shadow-sm` do v3, que é o que o original usa aqui. */
-      <Card className="bg-white border-0 shadow-xs overflow-hidden">
+      <Card className="bg-card border-0 shadow-xs overflow-hidden">
         <div className="p-4 space-y-4">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-12 w-full" />
@@ -56,15 +56,15 @@ export default function DataTable<T extends { id?: string }>({
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-      <Card className="bg-white border-0 shadow-xs overflow-hidden">
+      <Card className="bg-card border-0 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           <Table className="min-w-full">
             <TableHeader>
-              <TableRow className="bg-slate-50 hover:bg-slate-50">
+              <TableRow className="bg-elevated hover:bg-elevated">
                 {columns.map((column, index) => (
                   <TableHead
                     key={index}
-                    className={`text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap ${
+                    className={`text-xs font-semibold text-soft uppercase tracking-wider whitespace-nowrap ${
                       MOBILE_HIDDEN_HEADERS.includes(column.header) ? 'hidden md:table-cell' : ''
                     }`}
                   >
@@ -76,19 +76,26 @@ export default function DataTable<T extends { id?: string }>({
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="text-center py-12 text-slate-500">
+                  <TableCell colSpan={columns.length} className="text-center py-12 text-muted-foreground">
                     {emptyMessage}
                   </TableCell>
                 </TableRow>
               ) : (
                 data.map((row, rowIndex) => (
+                  /*
+                    O hover da linha era `whileHover={{ backgroundColor: 'rgba(248,250,252,1)' }}`:
+                    slate-50 cravado em JS, que no tema escuro pintava a linha de
+                    quase branco sob texto claro. rgb(248,250,252) é exatamente o
+                    valor claro de `--elevated`, então `hover:bg-elevated` com o
+                    `transition-colors` que já existia dá o mesmo resultado no
+                    tema claro e passa a seguir o tema no escuro.
+                  */
                   <motion.tr
                     key={row.id ?? rowIndex}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: rowIndex * 0.05, duration: 0.2 }}
-                    whileHover={{ backgroundColor: 'rgba(248, 250, 252, 1)' }}
-                    className={`border-b border-slate-100 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
+                    className={`border-b border-border transition-colors hover:bg-elevated ${onRowClick ? 'cursor-pointer' : ''}`}
                     onClick={() => onRowClick && onRowClick(row)}
                   >
                     {columns.map((column, colIndex) => (

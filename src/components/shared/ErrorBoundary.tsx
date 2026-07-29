@@ -52,24 +52,24 @@ function ErrorFallback({ error, resetError }: { error: Error | null; resetError:
   return (
     <div className="min-h-[400px] flex items-center justify-center p-6">
       <Card className="max-w-md w-full p-8 text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-100 flex items-center justify-center">
-          <AlertCircle className="w-8 h-8 text-rose-600" />
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-100 dark:bg-rose-950/40 flex items-center justify-center">
+          <AlertCircle className="w-8 h-8 text-rose-600 dark:text-rose-400" />
         </div>
 
-        <h2 className="text-xl font-semibold text-slate-900 mb-2">
+        <h2 className="text-xl font-semibold text-foreground mb-2">
           Não foi possível carregar esta página
         </h2>
 
-        <p className="text-slate-600 mb-6">
+        <p className="text-soft mb-6">
           Ocorreu um erro ao tentar exibir o conteúdo. Tente voltar ou ir para a página inicial.
         </p>
 
         {error && (
           <details className="text-left mb-6">
-            <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">
+            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-soft">
               Detalhes técnicos
             </summary>
-            <pre className="mt-2 p-3 bg-slate-100 rounded text-xs text-slate-700 overflow-auto">
+            <pre className="mt-2 p-3 bg-muted rounded text-xs text-soft overflow-auto">
               {error.toString()}
             </pre>
           </details>
@@ -80,7 +80,7 @@ function ErrorFallback({ error, resetError }: { error: Error | null; resetError:
             <ArrowLeft className="w-4 h-4" />
             Voltar
           </Button>
-          <Button onClick={handleGoHome} className="gap-2 bg-slate-900 hover:bg-slate-800">
+          <Button onClick={handleGoHome} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Home className="w-4 h-4" />
             Ir para Visão Geral
           </Button>

@@ -64,7 +64,7 @@ export default function PullToRefresh({ onRefresh, children }: PullToRefreshProp
         style={{ height: scrollY, opacity: pullProgress, zIndex: 1 }}
       >
         <RefreshCw
-          className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${isRefreshing ? 'animate-spin' : ''}`}
+          className={`w-5 h-5 text-soft ${isRefreshing ? 'animate-spin' : ''}`}
         />
       </motion.div>
       {children}

@@ -192,9 +192,9 @@ export default function AppLayout() {
   // Loading state - mostrar skeleton enquanto carrega
   if (sessionQuery.isLoading || (currentUser && loadingPermissions)) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-elevated dark:bg-background">
         <div className="animate-pulse">
-          <div className="h-16 bg-white border-b border-slate-200" />
+          <div className="h-16 bg-card border-b border-border" />
           <div className="p-8">
             <LoadingPage />
           </div>
@@ -225,7 +225,16 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    /*
+      Fundo da página: no claro o original é slate-50, que é exatamente o valor
+      claro de `--elevated`; no escuro o que precisa aparecer é o degrau mais
+      baixo (`--background`), senão a página fica mais clara que os cartões e a
+      hierarquia inverte. Nenhum token cobre os dois casos sozinho — `bg-background`
+      deixaria o claro branco, e cartão branco sobre página branca apaga a
+      separação que o original tem. Ver relatório: um `--background: 210 40% 98%`
+      no `:root` dispensaria o `dark:` daqui.
+    */
+    <div className="min-h-screen bg-elevated dark:bg-background">
       {/* Mobile sidebar overlay */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -244,7 +253,7 @@ export default function AppLayout() {
       {/* Sidebar */}
       <aside
         className={`
-        fixed top-0 left-0 h-full w-72 bg-white border-r border-slate-200
+        fixed top-0 left-0 h-full w-72 bg-sidebar border-r border-sidebar-border
         transform transition-transform duration-300 ease-out
         lg:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -253,25 +262,25 @@ export default function AppLayout() {
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100">
+          <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
             <div className="text-center w-full py-2">
-              <h1 className="font-light text-slate-800 text-lg tracking-[0.15em] leading-tight">
+              <h1 className="font-light text-foreground text-lg tracking-[0.15em] leading-tight">
                 FERNANDO COSTA
               </h1>
-              <p className="text-[10px] text-slate-500 tracking-[0.3em] mt-1">BACKOFFICE</p>
+              <p className="text-[10px] text-muted-foreground tracking-[0.3em] mt-1">BACKOFFICE</p>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+              className="lg:hidden p-1.5 hover:bg-sidebar-accent rounded-lg transition-colors"
             >
-              <X className="w-5 h-5 text-slate-500" />
+              <X className="w-5 h-5 text-muted-foreground" />
             </button>
           </div>
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigationQuery.isEmpty && (
-              <p className="px-4 py-3 text-sm text-slate-500">
+              <p className="px-4 py-3 text-sm text-muted-foreground">
                 Nenhum menu liberado para o seu acesso.
               </p>
             )}
@@ -297,13 +306,13 @@ export default function AppLayout() {
                         transition-all duration-200 group select-none
                         ${
                           hasActiveSubItem
-                            ? 'text-slate-900 bg-slate-50'
-                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                            ? 'text-sidebar-accent-foreground bg-sidebar-accent'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                         }
                       `}
                     >
                       <item.icon
-                        className={`w-5 h-5 transition-all select-none ${hasActiveSubItem ? 'text-slate-600' : 'text-slate-400 group-hover:text-slate-600 group-hover:scale-110'}`}
+                        className={`w-5 h-5 transition-all select-none ${hasActiveSubItem ? 'text-sidebar-foreground' : 'text-faint group-hover:text-sidebar-foreground group-hover:scale-110'}`}
                       />
                       {item.name}
                       <motion.div
@@ -311,7 +320,7 @@ export default function AppLayout() {
                         transition={{ duration: 0.2 }}
                         className="ml-auto"
                       >
-                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                        <ChevronRight className="w-4 h-4 text-faint" />
                       </motion.div>
                     </motion.button>
                     <AnimatePresence>
@@ -339,13 +348,13 @@ export default function AppLayout() {
                                     transition-all duration-200 group select-none
                                     ${
                                       isActive
-                                        ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20'
-                                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-slate-900/20'
+                                        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                                     }
                                   `}
                                 >
                                   <subItem.icon
-                                    className={`w-4 h-4 transition-all select-none ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-600 group-hover:scale-110'}`}
+                                    className={`w-4 h-4 transition-all select-none ${isActive ? 'text-sidebar-primary-foreground' : 'text-faint group-hover:text-sidebar-foreground group-hover:scale-110'}`}
                                   />
                                   {subItem.name}
                                   {isActive && (
@@ -380,13 +389,13 @@ export default function AppLayout() {
                       transition-all duration-200 group select-none
                       ${
                         isActive
-                          ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                          ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-slate-900/20'
+                          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                       }
                     `}
                   >
                     <item.icon
-                      className={`w-5 h-5 transition-all select-none ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-600 group-hover:scale-110'}`}
+                      className={`w-5 h-5 transition-all select-none ${isActive ? 'text-sidebar-primary-foreground' : 'text-faint group-hover:text-sidebar-foreground group-hover:scale-110'}`}
                     />
                     {item.name}
                     {isActive && (
@@ -405,12 +414,12 @@ export default function AppLayout() {
           </nav>
 
           {/* User section */}
-          <div className="p-4 border-t border-slate-100">
+          <div className="p-4 border-t border-sidebar-border">
             {currentCollaborator && (
               <div className="mb-3 px-4">
-                <p className="text-xs text-slate-500 mb-1">Usuário</p>
-                <p className="text-sm font-medium text-slate-900">{currentCollaborator.name}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground mb-1">Usuário</p>
+                <p className="text-sm font-medium text-foreground">{currentCollaborator.name}</p>
+                <p className="text-xs text-muted-foreground">
                   {currentCollaborator.area
                     ? labelOf(COLLABORATOR_AREA, currentCollaborator.area)
                     : 'Sem área'}
@@ -433,7 +442,7 @@ export default function AppLayout() {
                   toast.error('Erro ao enviar solicitação. Tente novamente.')
                 }
               }}
-              className="w-full justify-start text-slate-600 hover:text-slate-900 hover:bg-slate-100 mb-2 select-none"
+              className="w-full justify-start text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent mb-2 select-none"
             >
               <Trash2 className="w-4 h-4 mr-2 select-none" />
               Excluir Conta
@@ -441,7 +450,7 @@ export default function AppLayout() {
             <Button
               variant="ghost"
               onClick={handleLogout}
-              className="w-full justify-start text-slate-600 hover:text-slate-900 hover:bg-slate-100 select-none"
+              className="w-full justify-start text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent select-none"
             >
               <LogOut className="w-4 h-4 mr-2 select-none" />
               Sair
@@ -454,15 +463,15 @@ export default function AppLayout() {
       <div className="lg:pl-72">
         {/* Top bar */}
         <header
-          className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0"
+          className="h-16 bg-card border-b border-border sticky top-0"
           style={{ paddingTop: 'env(safe-area-inset-top)', zIndex: 'var(--z-header)' }}
         >
           <div className="h-full flex items-center justify-between px-4 lg:px-8">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 hover:bg-slate-100 rounded-lg transition-colors select-none"
+              className="lg:hidden p-2 hover:bg-accent rounded-lg transition-colors select-none"
             >
-              <Menu className="w-5 h-5 text-slate-600 select-none" />
+              <Menu className="w-5 h-5 text-soft select-none" />
             </button>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
@@ -486,7 +495,7 @@ export default function AppLayout() {
 
         {/* Mobile Bottom Navigation */}
         <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 select-none"
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border select-none"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)', zIndex: 'var(--z-header)' }}
         >
           <div className="flex items-center justify-around h-16">
@@ -494,8 +503,8 @@ export default function AppLayout() {
               to={createPageUrl('Dashboard')}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
                 currentPageName === 'Dashboard'
-                  ? 'text-slate-900 dark:text-white'
-                  : 'text-slate-400 dark:text-slate-500'
+                  ? 'text-foreground'
+                  : 'text-faint'
               }`}
             >
               <LayoutDashboard className="w-6 h-6 mb-1 select-none" />
@@ -505,8 +514,8 @@ export default function AppLayout() {
               to={createPageUrl('Clients')}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
                 currentPageName === 'Clients'
-                  ? 'text-slate-900 dark:text-white'
-                  : 'text-slate-400 dark:text-slate-500'
+                  ? 'text-foreground'
+                  : 'text-faint'
               }`}
             >
               <Users className="w-6 h-6 mb-1 select-none" />
@@ -516,8 +525,8 @@ export default function AppLayout() {
               to={createPageUrl('Tasks')}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
                 currentPageName === 'Tasks'
-                  ? 'text-slate-900 dark:text-white'
-                  : 'text-slate-400 dark:text-slate-500'
+                  ? 'text-foreground'
+                  : 'text-faint'
               }`}
             >
               <CheckSquare className="w-6 h-6 mb-1 select-none" />
@@ -527,8 +536,8 @@ export default function AppLayout() {
               to={createPageUrl('Projects')}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
                 currentPageName === 'Projects'
-                  ? 'text-slate-900 dark:text-white'
-                  : 'text-slate-400 dark:text-slate-500'
+                  ? 'text-foreground'
+                  : 'text-faint'
               }`}
             >
               <FolderKanban className="w-6 h-6 mb-1 select-none" />

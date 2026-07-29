@@ -25,14 +25,20 @@ export default function PageHeader({
       className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8"
     >
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{title}</h1>
-        {subtitle && <p className="text-slate-500 mt-1">{subtitle}</p>}
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">{title}</h1>
+        {subtitle && <p className="text-muted-foreground mt-1">{subtitle}</p>}
       </div>
       {actionLabel && (
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          {/*
+            `shadow-slate-900/20` fica: é sombra projetada, não superfície. Sombra
+            escura funciona nos dois temas (no escuro ela desaparece no fundo),
+            enquanto `shadow-primary/20` viraria um halo claro em volta do botão —
+            invenção que o original não tem.
+          */}
           <Button
             onClick={onAction}
-            className="bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-slate-900/20 transition-all hover:shadow-xl hover:shadow-slate-900/30"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-slate-900/20 transition-all hover:shadow-xl hover:shadow-slate-900/30"
           >
             {Icon ? <Icon className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
             {actionLabel}

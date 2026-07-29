@@ -8,10 +8,10 @@ export default function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
   if (!items || items.length === 0) return null
 
   return (
-    <nav className="flex items-center gap-2 text-sm text-slate-600 mb-4">
+    <nav className="flex items-center gap-2 text-sm text-soft mb-4">
       <Link
         to={createPageUrl('Dashboard')}
-        className="flex items-center gap-1 hover:text-slate-900 transition-colors"
+        className="flex items-center gap-1 hover:text-foreground transition-colors"
       >
         <Home className="w-3.5 h-3.5" />
       </Link>
@@ -20,11 +20,11 @@ export default function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
 
         return (
           <Fragment key={index}>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+            <ChevronRight className="w-3.5 h-3.5 text-faint" />
             {isLast || !item.page ? (
-              <span className="text-slate-900 font-medium">{item.label}</span>
+              <span className="text-foreground font-medium">{item.label}</span>
             ) : (
-              <Link to={createPageUrl(item.page)} className="hover:text-slate-900 transition-colors">
+              <Link to={createPageUrl(item.page)} className="hover:text-foreground transition-colors">
                 {item.label}
               </Link>
             )}

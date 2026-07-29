@@ -67,6 +67,11 @@ export default function QuickActions({
                 >
                   <CheckSquare className="w-5 h-5" />
                   {atrasadas > 0 && (
+                    /*
+                      `text-white` fica: rose-500 é escuro o bastante para texto
+                      branco nos dois temas. `text-primary-foreground` inverteria
+                      no escuro (viraria texto quase preto sobre o rosa).
+                    */
                     <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-rose-500 text-white text-xs">
                       {atrasadas}
                     </Badge>
@@ -225,19 +230,25 @@ export default function QuickActions({
           onClick={() => setSearchOpen(false)}
         >
           <div
-            className="bg-white rounded-lg shadow-2xl w-full max-w-2xl p-6"
+            className="bg-card rounded-lg shadow-2xl w-full max-w-2xl p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 mb-4">
-              <Search className="w-5 h-5 text-slate-400" />
+              <Search className="w-5 h-5 text-faint" />
               <input
                 type="text"
                 placeholder="Buscar projetos, atividades, clientes..."
-                className="flex-1 outline-hidden text-lg"
+                /*
+                  Sem `bg-transparent`/`text-foreground` o input cai no estilo do
+                  navegador (fundo `field`, texto `fieldtext`): caixa branca com
+                  texto preto dentro do diálogo escuro. Em cima do cartão branco
+                  do tema claro o resultado é o mesmo de antes.
+                */
+                className="flex-1 outline-hidden text-lg bg-transparent text-foreground placeholder:text-faint"
                 autoFocus
               />
             </div>
-            <p className="text-sm text-slate-500">Digite para buscar em todo o sistema</p>
+            <p className="text-sm text-muted-foreground">Digite para buscar em todo o sistema</p>
           </div>
         </div>
       )}

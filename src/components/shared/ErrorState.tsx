@@ -24,17 +24,17 @@ export default function ErrorState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4">
-      <div className="w-16 h-16 rounded-2xl bg-rose-100 flex items-center justify-center mb-6">
-        <AlertCircle className="w-8 h-8 text-rose-600" />
+      <div className="w-16 h-16 rounded-2xl bg-rose-100 dark:bg-rose-950/40 flex items-center justify-center mb-6">
+        <AlertCircle className="w-8 h-8 text-rose-600 dark:text-rose-400" />
       </div>
-      <h3 className="text-lg font-semibold text-slate-900 mb-2">{title}</h3>
-      <p className="text-slate-500 text-center max-w-md mb-6">{description}</p>
+      <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
+      <p className="text-muted-foreground text-center max-w-md mb-6">{description}</p>
       {error != null && (
         <details className="text-left mb-6 max-w-md w-full">
-          <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">
+          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-soft">
             Detalhes técnicos
           </summary>
-          <pre className="mt-2 p-3 bg-slate-100 rounded text-xs text-slate-700 overflow-auto">
+          <pre className="mt-2 p-3 bg-muted rounded text-xs text-soft overflow-auto">
             {error instanceof Error ? error.message : String(error)}
           </pre>
         </details>
