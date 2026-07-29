@@ -38,8 +38,41 @@ backoffice que roda hoje na plataforma base44. O código do original está em
 
 ## Como rodar localmente
 
-_Preenchido na etapa de scaffold, com os comandos reais de instalação,
-variáveis de ambiente e `npm run dev`._
+Requisitos: Node 20+, Docker (para o Supabase local) e a
+[CLI do Supabase](https://supabase.com/docs/guides/cli).
+
+```bash
+npm install
+
+cp .env.example .env          # preencher com as chaves do Supabase local
+supabase start                # sobe Postgres, Auth e Studio em Docker
+npm run db:reset              # aplica as migrations e o seed
+npm run db:types              # gera src/lib/database.types.ts a partir do schema
+npm run dev
+```
+
+`supabase start` imprime a `API URL` e a `anon key` do ambiente local — são
+elas que vão em `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env`.
+A `service_role key` **nunca** entra em variável com prefixo `VITE_`: esse
+prefixo publica o valor no bundle que vai para o navegador.
+
+### Scripts
+
+| Comando | O que faz |
+|---|---|
+| `npm run dev` | servidor de desenvolvimento |
+| `npm run build` | typecheck + build de produção |
+| `npm run typecheck` | só o typecheck |
+| `npm run lint` | oxlint |
+| `npm run db:reset` | recria o banco local com migrations + seed |
+| `npm run db:types` | regenera os tipos TypeScript do schema |
+| `npm run db:test` | roda os testes de RLS e isolamento (pgTAP) |
+
+### Stack
+
+React 19 + Vite + TypeScript, Tailwind CSS v4, shadcn/ui sobre Radix,
+React Query, Zod, React Router, Lucide, Supabase (Postgres + Auth +
+Storage + Edge Functions).
 
 ## Produção
 
