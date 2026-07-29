@@ -479,17 +479,36 @@ select pg_temp.check('9.C5', 'CONTROLE: Administrativo A le a propria linha em t
 
 -- Caso 6 - service_role mantem bypass; anon nao alcanca nada ---------------
 
-select pg_temp.check('6.1', 'service_role le os dois escritorios em tenants', 'OK:2',
-  'service_role', null, 'select 1 from public.tenants');
+-- Estes quatro casos precisam contar SO as linhas da propria fixture.
+-- Contar a tabela inteira parece equivalente enquanto o banco esta so nosso,
+-- mas service_role enxerga tudo, inclusive o que qualquer outro processo
+-- estiver gravando no mesmo instante - outro agente rodando teste, um seed
+-- em andamento, o dado real do cliente depois da importacao. Ja aconteceu:
+-- 6.1 a 6.4 falharam numa execucao concorrente porque havia fixture de outro
+-- processo no banco, e o teste acusou "bypass quebrado" quando o bypass
+-- estava intacto. Teste que falha por motivo alheio ensina a ignorar teste.
+-- O escopo por tenant mantem a assercao (service_role atravessa a fronteira
+-- dos dois escritorios) sem depender de o banco estar vazio.
+
+select pg_temp.check('6.1', 'service_role le os dois escritorios da fixture em tenants', 'OK:2',
+  'service_role', null,
+  format('select 1 from public.tenants where id in (%L, %L)',
+    (select tenant_a from rls_ids), (select tenant_b from rls_ids)));
 
 select pg_temp.check('6.2', 'service_role le os 6 colaboradores dos dois escritorios', 'OK:6',
-  'service_role', null, 'select 1 from public.collaborators');
+  'service_role', null,
+  format('select 1 from public.collaborators where tenant_id in (%L, %L)',
+    (select tenant_a from rls_ids), (select tenant_b from rls_ids)));
 
 select pg_temp.check('6.3', 'service_role le access_requests dos dois escritorios', 'OK:3',
-  'service_role', null, 'select 1 from public.access_requests');
+  'service_role', null,
+  format('select 1 from public.access_requests where tenant_id in (%L, %L)',
+    (select tenant_a from rls_ids), (select tenant_b from rls_ids)));
 
 select pg_temp.check('6.4', 'service_role le tenant_email_domains', 'OK:2',
-  'service_role', null, 'select 1 from public.tenant_email_domains');
+  'service_role', null,
+  format('select 1 from public.tenant_email_domains where tenant_id in (%L, %L)',
+    (select tenant_a from rls_ids), (select tenant_b from rls_ids)));
 
 select pg_temp.check('6.5', 'service_role grava access_requests (papel da edge function register-access-request)', 'OK:1',
   'service_role', null,

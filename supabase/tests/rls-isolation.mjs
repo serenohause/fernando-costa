@@ -344,9 +344,20 @@ async function main() {
 
   // Caso 6 - service_role: bypass real, e so server-side ---------------------
 
-  await check('6.1', 'service_role le os dois escritorios', 'OK:2', admin.from('tenants').select('id'));
-  await check('6.2', 'service_role le os colaboradores dos dois escritorios', 'OK:5', admin.from('collaborators').select('id'));
-  await check('6.3', 'service_role le tenant_email_domains', 'OK:2', admin.from('tenant_email_domains').select('id'));
+  // Escopo por tenant da fixture, nao contagem da tabela inteira. service_role
+  // enxerga tudo, inclusive o que outro processo estiver gravando ao mesmo
+  // tempo - outro agente rodando teste, um seed, o dado real do cliente depois
+  // da importacao. Ja falhou por isso, acusando "bypass quebrado" com o bypass
+  // intacto. A assercao continua a mesma (service_role atravessa a fronteira
+  // dos dois escritorios); so deixa de exigir que o banco esteja vazio.
+  const fixtureTenants = [tenantA, tenantB];
+
+  await check('6.1', 'service_role le os dois escritorios', 'OK:2',
+    admin.from('tenants').select('id').in('id', fixtureTenants));
+  await check('6.2', 'service_role le os colaboradores dos dois escritorios', 'OK:5',
+    admin.from('collaborators').select('id').in('tenant_id', fixtureTenants));
+  await check('6.3', 'service_role le tenant_email_domains', 'OK:2',
+    admin.from('tenant_email_domains').select('id').in('tenant_id', fixtureTenants));
   await check('6.4', 'service_role grava access_requests (papel da edge function)', 'OK:1',
     admin.from('access_requests').insert({ tenant_id: tenantB, email: 'novo@rls-test-b.example.com', name: 'Novo Candidato' }).select());
 
