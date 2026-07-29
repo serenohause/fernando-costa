@@ -73,6 +73,22 @@
      filtro, linha de tabela em hover. No claro é quase o branco do cartão;
      no escuro precisa ser um degrau acima do cartão para não sumir. */
   --elevated: 210 40% 98%;
+
+  /*
+    TRÊS DEGRAUS DE TEXTO SECUNDÁRIO, e não um.
+
+    As telas do original usam quatro tons de slate para texto de apoio:
+    slate-400, -500, -600 e -700. Só o -500 casa com --muted-foreground
+    (46.9%). Mapear os quatro no mesmo token pareceria equivalente e não é:
+    slate-400 tem 65.1% de luminância contra 46.9% do token — quase vinte
+    pontos de diferença, visível em toda tela clara, em dezenas de lugares.
+
+    Então em vez de achatar a hierarquia, os degraus ganham nome. Os valores
+    do modo claro são os próprios slate que já estão na tela; o modo escuro
+    inverte a ordem mantendo a mesma distância relativa.
+  */
+  --text-soft: 215.3 19.3% 34.5%; /* slate-600/700 — texto de apoio com peso */
+  --text-faint: 215 20.2% 65.1%; /* slate-400 — ícone, placeholder, terciário */
 }
 
 .dark {
@@ -125,6 +141,12 @@
   --sidebar-ring: 217.2 91.2% 59.8%;
 
   --elevated: 222.2 40% 13%;
+
+  /* Ordem invertida em relação ao claro: aqui "soft" é MAIS claro que
+     muted-foreground (mais próximo do texto principal) e "faint" é mais
+     escuro. A distância entre os três é mantida. */
+  --text-soft: 215 20% 80%;
+  --text-faint: 215 16% 54%;
 }
 
 @theme inline {
@@ -161,6 +183,8 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
   --color-elevated: hsl(var(--elevated));
+  --color-soft: hsl(var(--text-soft));
+  --color-faint: hsl(var(--text-faint));
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
