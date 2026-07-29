@@ -1,0 +1,25 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Build / deps
+node_modules
+dist
+dist-ssr
+*.local
+
+# Ambiente
+.env
+.env.local
+
+# Editor / SO
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# Supabase CLI
+.supabase
+
+projeto-original
