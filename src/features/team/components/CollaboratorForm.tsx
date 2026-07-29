@@ -162,7 +162,7 @@ export default function CollaboratorForm({
                 </SelectContent>
               </Select>
               {variant === 'approval' && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Quem é aprovado entra sempre como Ativo. Depois dá para mudar em Equipe.
                 </p>
               )}
@@ -202,7 +202,7 @@ export default function CollaboratorForm({
               required
             />
             {variant === 'approval' && (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 É o e-mail que fez a solicitação — é por ele que o login é vinculado.
               </p>
             )}
@@ -223,7 +223,11 @@ export default function CollaboratorForm({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading} className="bg-slate-900 hover:bg-slate-800">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
               {isLoading ? 'Salvando...' : submitLabel}
             </Button>
           </div>

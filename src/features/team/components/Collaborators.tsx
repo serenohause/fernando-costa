@@ -163,10 +163,12 @@ export default function Collaborators() {
             <span className="font-semibold text-violet-600">{row.name?.charAt(0).toUpperCase()}</span>
           </div>
           <div>
-            <p className="font-medium text-slate-900">{row.name}</p>
-            <p className="text-sm text-slate-500">{labelOf(COLLABORATOR_ROLE, row.role)}</p>
+            <p className="font-medium text-foreground">{row.name}</p>
+            <p className="text-sm text-muted-foreground">{labelOf(COLLABORATOR_ROLE, row.role)}</p>
             {row.area && (
-              <p className="text-xs text-slate-400">{labelOf(COLLABORATOR_AREA, row.area)}</p>
+              <p className="text-xs text-muted-foreground">
+                {labelOf(COLLABORATOR_AREA, row.area)}
+              </p>
             )}
           </div>
         </div>
@@ -176,12 +178,12 @@ export default function Collaborators() {
       header: 'E-mail',
       cell: (row) =>
         row.email ? (
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Mail className="w-4 h-4 text-slate-400" />
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Mail className="w-4 h-4 text-muted-foreground" />
             {row.email}
           </div>
         ) : (
-          <span className="text-slate-400">-</span>
+          <span className="text-muted-foreground">-</span>
         ),
     },
     /*
@@ -192,12 +194,12 @@ export default function Collaborators() {
       header: 'Carga Horária',
       cell: (row) =>
         row.weekly_hours ? (
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Clock className="w-4 h-4 text-slate-400" />
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Clock className="w-4 h-4 text-muted-foreground" />
             {row.weekly_hours}h/semana
           </div>
         ) : (
-          <span className="text-slate-400">-</span>
+          <span className="text-muted-foreground">-</span>
         ),
     },
     {
@@ -227,7 +229,7 @@ export default function Collaborators() {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => handleDelete(row)}
-                className="text-rose-600 focus:text-rose-600"
+                className="text-rose-600 focus:text-rose-600 dark:text-rose-400 dark:focus:text-rose-400"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Remover
@@ -335,7 +337,10 @@ export default function Collaborators() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-rose-600 hover:bg-rose-700">
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+            >
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

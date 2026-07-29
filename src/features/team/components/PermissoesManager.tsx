@@ -104,15 +104,15 @@ export default function PermissoesManager({
     return (
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-5 h-5 text-slate-600" />
-          <h3 className="text-lg font-semibold text-slate-900">Controle de Acesso do Usuário</h3>
+          <Shield className="w-5 h-5 text-muted-foreground" />
+          <h3 className="text-lg font-semibold text-foreground">Controle de Acesso do Usuário</h3>
         </div>
-        <p className="text-sm text-slate-600 mb-4">
+        <p className="text-sm text-muted-foreground mb-4">
           Defina exatamente o que este usuário pode visualizar ou gerenciar no sistema.
         </p>
         <div className="animate-pulse space-y-2">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-8 bg-slate-200 rounded"></div>
+            <div key={i} className="h-8 bg-muted rounded"></div>
           ))}
         </div>
       </Card>
@@ -141,17 +141,17 @@ export default function PermissoesManager({
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Shield className="w-5 h-5 text-slate-600" />
-            <h3 className="text-lg font-semibold text-slate-900">Controle de Acesso do Usuário</h3>
+            <Shield className="w-5 h-5 text-muted-foreground" />
+            <h3 className="text-lg font-semibold text-foreground">Controle de Acesso do Usuário</h3>
           </div>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             Defina exatamente o que este usuário pode visualizar ou gerenciar no sistema.
           </p>
         </div>
         <Button
           onClick={salvar}
           disabled={salvarMutation.isPending}
-          className="bg-slate-900 hover:bg-slate-800"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Save className="w-4 h-4 mr-2" />
           {salvarMutation.isPending ? 'Salvando...' : 'Salvar Controle de Acesso'}
@@ -159,8 +159,8 @@ export default function PermissoesManager({
       </div>
 
       <div className="mb-6">
-        <p className="text-sm font-medium text-slate-700 mb-2">Perfis de Acesso Rápido</p>
-        <p className="text-xs text-slate-500 mb-3">
+        <p className="text-sm font-medium text-foreground mb-2">Perfis de Acesso Rápido</p>
+        <p className="text-xs text-muted-foreground mb-3">
           Aplicar um perfil padrão acelera a configuração inicial. Você pode personalizar depois.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -180,16 +180,16 @@ export default function PermissoesManager({
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b-2 border-slate-300 bg-slate-50">
-              <th className="text-left py-3 px-4 text-sm font-semibold text-slate-900">
+            <tr className="border-b-2 border-border bg-elevated">
+              <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">
                 Módulos do Sistema
               </th>
-              <th className="text-center py-3 px-4 text-sm font-semibold text-slate-900">Acesso</th>
-              <th className="text-center py-3 px-4 text-sm font-semibold text-slate-900">
+              <th className="text-center py-3 px-4 text-sm font-semibold text-foreground">Acesso</th>
+              <th className="text-center py-3 px-4 text-sm font-semibold text-foreground">
                 <span className="inline-flex items-center gap-1">
                   Gerenciar
                   <span
-                    className="text-xs text-slate-500 font-normal"
+                    className="text-xs text-muted-foreground font-normal"
                     title="Inclui criação, edição e exclusão de registros"
                   >
                     ⓘ
@@ -201,17 +201,17 @@ export default function PermissoesManager({
           <tbody>
             {GRUPOS_MODULOS.map(({ grupo, menuKeys }) => (
               <Fragment key={grupo}>
-                <tr className="bg-slate-100">
+                <tr className="bg-muted">
                   <td
                     colSpan={3}
-                    className="py-2 px-4 text-xs font-semibold text-slate-700 uppercase tracking-wide"
+                    className="py-2 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide"
                   >
                     {grupo}
                   </td>
                 </tr>
                 {menuKeys.map((menuKey) => (
-                  <tr key={menuKey} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-3 px-4 pl-8 text-sm text-slate-900">
+                  <tr key={menuKey} className="border-b border-border hover:bg-elevated">
+                    <td className="py-3 px-4 pl-8 text-sm text-foreground">
                       {labelPorChave[menuKey] ?? menuKey}
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -238,8 +238,8 @@ export default function PermissoesManager({
         </table>
       </div>
 
-      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <p className="text-xs text-blue-900">
+      <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/40 rounded-lg border border-blue-200 dark:border-blue-900">
+        <p className="text-xs text-blue-900 dark:text-blue-200">
           <strong>💡 Dica:</strong> A opção "Gerenciar" só pode ser habilitada se "Acesso" estiver
           marcado. Ao desmarcar "Acesso", a permissão de gerenciar será automaticamente removida.
         </p>

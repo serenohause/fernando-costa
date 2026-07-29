@@ -35,16 +35,16 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
       <Card className="max-w-md w-full p-8">
         <div className="flex items-center justify-center mb-6">
-          <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center">
-            <Lock className="w-6 h-6 text-white" />
+          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+            <Lock className="w-6 h-6 text-primary-foreground" />
           </div>
         </div>
 
-        <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Backoffice</h1>
-        <p className="text-slate-600 text-center mb-6">Entre com seu e-mail de trabalho</p>
+        <h1 className="text-2xl font-bold text-foreground text-center mb-2">Backoffice</h1>
+        <p className="text-muted-foreground text-center mb-6">Entre com seu e-mail de trabalho</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -74,7 +74,7 @@ export default function Login() {
 
           <Button
             type="submit"
-            className="w-full bg-slate-900 hover:bg-slate-800"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={signIn.isPending}
           >
             {signIn.isPending ? 'Entrando...' : 'Entrar'}
@@ -87,7 +87,7 @@ export default function Login() {
           )}
         </form>
 
-        <p className="text-xs text-center text-slate-500 mt-6">
+        <p className="text-xs text-center text-muted-foreground mt-6">
           Ainda não tem acesso? Fale com o administrador do escritório.
         </p>
       </Card>

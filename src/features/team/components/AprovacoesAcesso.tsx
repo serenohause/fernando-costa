@@ -174,8 +174,8 @@ export default function AprovacoesAcesso() {
         <div className="grid gap-4">
           {[...Array(3)].map((_, i) => (
             <Card key={i} className="p-6 animate-pulse">
-              <div className="h-6 bg-slate-200 rounded w-1/3 mb-4"></div>
-              <div className="h-4 bg-slate-200 rounded w-2/3"></div>
+              <div className="h-6 bg-muted rounded w-1/3 mb-4"></div>
+              <div className="h-4 bg-muted rounded w-2/3"></div>
             </Card>
           ))}
         </div>
@@ -201,13 +201,13 @@ export default function AprovacoesAcesso() {
         />
       ) : solicitacoes.length === 0 ? (
         <Card className="p-12 text-center">
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="w-8 h-8 text-slate-400" />
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">
+          <h3 className="text-lg font-semibold text-foreground mb-2">
             Nenhuma solicitação pendente
           </h3>
-          <p className="text-slate-500">Todas as solicitações foram processadas</p>
+          <p className="text-muted-foreground">Todas as solicitações foram processadas</p>
         </Card>
       ) : (
         <div className="grid gap-4">
@@ -216,20 +216,20 @@ export default function AprovacoesAcesso() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold text-slate-900">{solicitacao.name}</h3>
+                    <h3 className="text-lg font-semibold text-foreground">{solicitacao.name}</h3>
                     <Badge
                       variant="outline"
-                      className="bg-amber-50 text-amber-700 border-amber-200"
+                      className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900"
                     >
                       <Clock className="w-3 h-3 mr-1" />
                       Pendente
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-600 mb-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                     <Mail className="w-4 h-4" />
                     {solicitacao.email}
                   </div>
-                  <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded-lg p-2 mt-2">
+                  <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg p-2 mt-2">
                     ℹ️ Ao aprovar, será criado um colaborador ativo com permissões padrão (sem
                     acesso). Configure as permissões após aprovação.
                   </div>
@@ -238,7 +238,7 @@ export default function AprovacoesAcesso() {
                   <Button
                     size="sm"
                     onClick={() => handleAprovar(solicitacao)}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-green-600 text-white hover:bg-green-700"
                   >
                     <CheckCircle2 className="w-4 h-4 mr-1" />
                     Aprovar
@@ -247,7 +247,7 @@ export default function AprovacoesAcesso() {
                     size="sm"
                     variant="outline"
                     onClick={() => handleRecusar(solicitacao)}
-                    className="text-rose-600 border-rose-200 hover:bg-rose-50"
+                    className="text-rose-600 border-rose-200 hover:bg-rose-50 dark:text-rose-400 dark:border-rose-900 dark:hover:bg-rose-950/40"
                   >
                     <XCircle className="w-4 h-4 mr-1" />
                     Recusar
@@ -257,28 +257,28 @@ export default function AprovacoesAcesso() {
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-slate-500 mb-1">Data da solicitação</p>
-                  <p className="font-medium text-slate-900">
+                  <p className="text-muted-foreground mb-1">Data da solicitação</p>
+                  <p className="font-medium text-foreground">
                     {new Date(solicitacao.requested_at || solicitacao.created_at).toLocaleString(
                       'pt-BR',
                     )}
                   </p>
                 </div>
                 <div>
-                  <p className="text-slate-500 mb-1">Última tentativa</p>
-                  <p className="font-medium text-slate-900">
+                  <p className="text-muted-foreground mb-1">Última tentativa</p>
+                  <p className="font-medium text-foreground">
                     {new Date(solicitacao.last_attempt_at || solicitacao.created_at).toLocaleString(
                       'pt-BR',
                     )}
                   </p>
                 </div>
                 <div>
-                  <p className="text-slate-500 mb-1">Tentativas</p>
-                  <p className="font-medium text-slate-900">{solicitacao.attempts || 1}</p>
+                  <p className="text-muted-foreground mb-1">Tentativas</p>
+                  <p className="font-medium text-foreground">{solicitacao.attempts || 1}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500 mb-1">Origem</p>
-                  <p className="font-medium text-slate-900">{solicitacao.source || 'login'}</p>
+                  <p className="text-muted-foreground mb-1">Origem</p>
+                  <p className="font-medium text-foreground">{solicitacao.source || 'login'}</p>
                 </div>
               </div>
             </Card>
@@ -320,7 +320,10 @@ export default function AprovacoesAcesso() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAction} className="bg-rose-600 hover:bg-rose-700">
+            <AlertDialogAction
+              onClick={confirmAction}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+            >
               {recusarMutation.isPending ? 'Processando...' : 'Confirmar'}
             </AlertDialogAction>
           </AlertDialogFooter>

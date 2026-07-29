@@ -16,12 +16,14 @@ export default function AcessoNegado({ detalhe }: { detalhe: string }) {
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="text-center max-w-md">
-        <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Lock className="w-10 h-10 text-rose-600" />
+        <div className="w-20 h-20 bg-rose-100 dark:bg-rose-950/40 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Lock className="w-10 h-10 text-rose-600 dark:text-rose-400" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Acesso Negado</h2>
-        <p className="text-slate-600 mb-6">Você não tem permissão para acessar este módulo.</p>
-        <p className="text-sm text-slate-500">{detalhe}</p>
+        <h2 className="text-2xl font-bold text-foreground mb-2">Acesso Negado</h2>
+        <p className="text-muted-foreground mb-6">
+          Você não tem permissão para acessar este módulo.
+        </p>
+        <p className="text-sm text-muted-foreground">{detalhe}</p>
       </div>
     </div>
   )
