@@ -67,7 +67,9 @@ export function useCurrentCollaborator() {
   }
 }
 
-function useMenus(enabled: boolean) {
+/* Catálogo de menus: a sidebar usa para montar a navegação, e o PermissoesManager
+   para rotular a matriz de permissões — o rótulo nunca é escrito na tela à mão. */
+export function useMenus(enabled = true) {
   return useQuery({
     queryKey: authKeys.menus(),
     enabled,
