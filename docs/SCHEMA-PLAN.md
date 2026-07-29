@@ -251,14 +251,39 @@ Auth Hook → JWT → PostgREST → GRANT → policy). Ver `supabase/tests/READM
 Portadas de `base44/functions/`:
 
 - `approve-access-request` (de `aprovarColaborador`) — valida que quem chama
-  é Diretor, cria ou reativa o colaborador, semeia as permissões em `false`,
-  marca a solicitação como aprovada e dispara o convite do Supabase Auth.
-  No original a checagem de autorização é feita **dentro** da função, com
-  `service_role` fazendo o resto. Mantém-se essa forma, agora com a RLS
-  como segunda barreira.
-- `manage-collaborator` (de `gerenciarColaborador`).
+  é Diretor, cria ou reativa o colaborador, semeia as permissões em `false` e
+  marca a solicitação como aprovada. Tudo numa única função do Postgres
+  (`approve_access_request`, migration 0013), para não haver estado meio
+  gravado se algo falhar no meio. No original a checagem de autorização é
+  feita **dentro** da função, com `service_role` fazendo o resto — mantém-se
+  essa forma, agora com a RLS como segunda barreira, e a autorização é
+  reconferida dentro da transação: entre a leitura e a escrita, o Diretor
+  pode ter sido rebaixado.
+- `reject-access-request` — mesma checagem, marca a solicitação como
+  recusada.
 - `register-access-request` — nova, resolve o tenant pelo domínio do e-mail
-  (ver acima).
+  (ver acima). Também é ela que vincula o `user_id` de quem o Diretor
+  cadastrou antes de a pessoa entrar pela primeira vez.
+
+**`manage-collaborator` não foi escrita.** O plano original a previa, portada
+de `gerenciarColaborador`. Depois de a RLS ficar pronta ela virou redundante:
+a política já permite que o Diretor escreva em `collaborators` direto pela
+Data API, e uma edge function ali só acrescentaria superfície de ataque sem
+resolver nada que a policy não resolva. O que a função do base44 fazia de
+útil — conferir que quem chama é Diretor — agora é feito pelo banco, em toda
+requisição, sem depender de o frontend lembrar de chamar o caminho certo.
+
+Três coisas que o original fazia e que **não** foram portadas por serem
+falhas de autorização, não recursos:
+
+- `aprovadoPorId` e `aprovadoPorNome` vinham do corpo da requisição, então
+  dava para assinar uma aprovação com o nome de outra pessoa. Agora quem
+  aprovou é derivado do JWT.
+- `solicitacaoEmail` e `solicitacaoNome` também vinham do corpo. Agora o
+  e-mail que identifica o colaborador é o gravado na solicitação.
+- A lista de menus a semear era fixa e escrita à mão dentro da função (14
+  itens, desatualizada em relação à sidebar). Agora sai da tabela `menus`:
+  16 itens, todos os não-agrupadores.
 
 ---
 
