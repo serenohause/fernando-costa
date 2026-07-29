@@ -1,4 +1,11 @@
 @import 'tailwindcss';
+/*
+  O original usa o plugin `tailwindcss-animate` (Tailwind v3), que não roda no
+  v4. `tw-animate-css` é a porta oficial dele para v4 e expõe exatamente as
+  mesmas classes (animate-in/out, fade-in-0, zoom-in-95, slide-in-from-top-2…)
+  usadas por dialog, sheet, dropdown, select, popover e tooltip.
+*/
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
