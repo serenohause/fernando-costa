@@ -207,6 +207,7 @@ async function main() {
     { tenant_id: tenantA, collaborator_id: cDirA, menu_key: 'crm', can_view: true, can_edit: true },
     { tenant_id: tenantA, collaborator_id: cDirA, menu_key: 'team', can_view: true, can_edit: true },
     { tenant_id: tenantA, collaborator_id: cArchA, menu_key: 'crm', can_view: true, can_edit: false },
+    { tenant_id: tenantA, collaborator_id: cAdminA, menu_key: 'team', can_view: true, can_edit: false },
     { tenant_id: tenantB, collaborator_id: cDirB, menu_key: 'crm', can_view: true, can_edit: true },
   ]);
 
@@ -266,7 +267,7 @@ async function main() {
 
   await check('1.C1', 'CONTROLE: Diretora A ve os 4 colaboradores do escritorio', 'OK:4',
     as.dirA.from('collaborators').select('id'));
-  await check('1.C2', 'CONTROLE: Diretora A ve as 3 permissoes do escritorio', 'OK:3',
+  await check('1.C2', 'CONTROLE: Diretora A ve as 4 permissoes do escritorio', 'OK:4',
     as.dirA.from('collaborator_permissions').select('menu_key'));
   await check('1.C3', 'CONTROLE: Diretora A ve as 2 solicitacoes do escritorio', 'OK:2',
     as.dirA.from('access_requests').select('id'));
@@ -322,14 +323,18 @@ async function main() {
     as.archA.from('collaborators').insert({ tenant_id: tenantA, name: 'Intruso', role: 'director', email: 'intruso@rls-test-a.example.com' }));
   await check('5.3', 'Arquiteto A apaga a Diretora', 'OK:0',
     as.archA.from('collaborators').delete().eq('id', cDirA).select());
-  await check('5b.1', 'Administrativo A promove a si mesmo a director', 'ERR:42501',
-    as.adminA.from('collaborators').update({ role: 'director' }).eq('id', cAdminA).select());
-  await check('5b.2', 'Administrativo A cria linha director vinculada ao proprio login', 'ERR:42501',
-    as.adminA.from('collaborators').insert({ tenant_id: tenantA, user_id: users.adminA.id, name: 'Eu Diretor', role: 'director', email: 'eu-diretor@rls-test-a.example.com' }));
-  await check('5b.3', 'Administrativo A desvincula o proprio user_id', 'ERR:42501',
-    as.adminA.from('collaborators').update({ user_id: null }).eq('id', cAdminA).select());
-  await check('5b.4', 'Administrativo A cola o proprio user_id na linha da Diretora', 'ERR:42501',
-    as.adminA.from('collaborators').update({ user_id: users.adminA.id }).eq('id', cDirA).select());
+  // Desde a 0012 so o Diretor escreve em collaborators, entao ele e o unico que
+  // ainda alcanca o trigger collaborators_guard_self_service. ERR e nao OK:0:
+  // aqui a policy PASSA e quem barra e o trigger. OK:0 significaria policy
+  // restritiva demais; OK:1 significaria trigger sumido.
+  await check('5b.1', 'Diretora A rebaixa a si mesma para intern', 'ERR:42501',
+    as.dirA.from('collaborators').update({ role: 'intern' }).eq('id', cDirA).select());
+  await check('5b.2', 'Diretora A cria linha ja vinculada ao proprio login', 'ERR:42501',
+    as.dirA.from('collaborators').insert({ tenant_id: tenantA, user_id: users.dirA.id, name: 'Eu De Novo', role: 'director', email: 'eu-de-novo@rls-test-a.example.com' }));
+  await check('5b.3', 'Diretora A desvincula o proprio user_id', 'ERR:42501',
+    as.dirA.from('collaborators').update({ user_id: null }).eq('id', cDirA).select());
+  await check('5b.4', 'Diretora A cola o proprio user_id na linha do Arquiteto', 'ERR:42501',
+    as.dirA.from('collaborators').update({ user_id: users.dirA.id }).eq('id', cArchA).select());
   await check('5b.5', 'Diretora A apaga a propria linha de colaborador', 'OK:0',
     as.dirA.from('collaborators').delete().eq('id', cDirA).select());
   await check('5b.6', 'CONTROLE: Diretora A promove o Arquiteto a coordinator', 'OK:1',
@@ -404,8 +409,51 @@ async function main() {
     as.archA.from('access_requests').select('id'));
   await check('8.2', 'Arquiteto A cadastra colaborador', 'ERR:42501',
     as.archA.from('collaborators').insert({ tenant_id: tenantA, name: 'Contratado pelo Arquiteto', role: 'intern', email: 'estagiario@rls-test-a.example.com' }));
-  await check('8.3', 'CONTROLE: Administrativo A le a fila de aprovacao', 'OK:2',
+  // Caso 9 - Administrativo NAO gerencia equipe -----------------------------
+  //
+  // Ate a 0011 estes casos afirmavam o contrario: a matriz do SCHEMA-PLAN dizia
+  // "escreve: Diretor e Administrativo". A matriz e que estava errada. Em
+  // projeto-original/src/pages/Collaborators.jsx a pagina inteira e bloqueada
+  // para quem nao e Diretor, e o "Admin" aceito ao lado dele e o papel de
+  // plataforma do base44, nao o Administrativo do escritorio.
+
+  await check('9.1', 'Administrativo A cadastra colaborador', 'ERR:42501',
+    as.adminA.from('collaborators').insert({ tenant_id: tenantA, name: 'Contratado pelo Administrativo', role: 'intern', email: 'novo-estagiario@rls-test-a.example.com' }));
+  await check('9.2', 'Administrativo A promove a si mesmo a director', 'OK:0',
+    as.adminA.from('collaborators').update({ role: 'director' }).eq('id', cAdminA).select());
+  await check('9.3', 'Administrativo A promove o Arquiteto a director', 'OK:0',
+    as.adminA.from('collaborators').update({ role: 'director' }).eq('id', cArchA).select());
+  await check('9.4', 'Administrativo A altera o nome de um colega', 'OK:0',
+    as.adminA.from('collaborators').update({ name: 'Renomeado pelo Administrativo' }).eq('id', cArchA).select());
+  await check('9.5', 'Administrativo A apaga um colaborador', 'OK:0',
+    as.adminA.from('collaborators').delete().eq('id', cArchA).select());
+  await check('9.6', 'Administrativo A concede permissao a si mesmo', 'ERR:42501',
+    as.adminA.from('collaborator_permissions').insert({ tenant_id: tenantA, collaborator_id: cAdminA, menu_key: 'receivables', can_view: true }));
+  await check('9.7', 'Administrativo A eleva a propria permissao para can_edit', 'OK:0',
+    as.adminA.from('collaborator_permissions').update({ can_edit: true }).eq('collaborator_id', cAdminA).select());
+  await check('9.8', 'Administrativo A altera permissao de terceiro', 'OK:0',
+    as.adminA.from('collaborator_permissions').update({ can_view: false }).eq('collaborator_id', cArchA).select());
+  await check('9.9', 'Administrativo A apaga permissao de terceiro', 'OK:0',
+    as.adminA.from('collaborator_permissions').delete().eq('collaborator_id', cArchA).select());
+  await check('9.10', 'Administrativo A le permissao de terceiro', 'OK:0',
+    as.adminA.from('collaborator_permissions').select('menu_key').eq('collaborator_id', cDirA));
+  await check('9.11', 'Administrativo A le a fila de aprovacao', 'OK:0',
     as.adminA.from('access_requests').select('id'));
+
+  // Caso 9.C - o que o Administrativo AINDA precisa conseguir ---------------
+  // Sem estes, o aperto passaria de "nao gerencia equipe" para "nao usa o
+  // sistema", e nenhum caso acima acusaria.
+
+  await check('9.C1', 'CONTROLE: Administrativo A le a equipe do escritorio', 'OK:4',
+    as.adminA.from('collaborators').select('id'));
+  await check('9.C2', 'CONTROLE: Administrativo A le as PROPRIAS permissoes', 'OK:1',
+    as.adminA.from('collaborator_permissions').select('menu_key'));
+  await check('9.C3', 'CONTROLE: Administrativo A le o catalogo de menus', 'OK:18',
+    as.adminA.from('menus').select('key'));
+  await check('9.C4', 'CONTROLE: Administrativo A le o proprio escritorio', 'OK:1',
+    as.adminA.from('tenants').select('id'));
+  await check('9.C5', 'CONTROLE: Administrativo A le a propria linha em tenant_users', 'OK:1',
+    as.adminA.from('tenant_users').select('user_id'));
 }
 
 let exitCode = 0;

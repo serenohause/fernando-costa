@@ -242,8 +242,8 @@ provedor por enquanto. Consequências:
 - [x] Domínio definido
 - [ ] Plano de schema aprovado
 - [ ] Scaffold criado
-- [x] Auth + RLS + isolamento validado (módulo 1; 78 casos em
-      `supabase/tests/`, rodados contra o banco hospedado)
+- [x] Auth + RLS + isolamento validado (módulo 1; `supabase/tests/`, rodado
+      contra o banco hospedado — 95 casos em SQL, 93 ponta a ponta)
 - [ ] Primeira feature implementada
 - [ ] Auditoria de arquitetura rodada
 - [ ] Deploy em produção

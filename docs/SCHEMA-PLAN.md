@@ -173,18 +173,59 @@ desconhecido é recusado sem criar nada.
 
 ## Regras de RLS deste módulo
 
+> **Correção de 2026-07-29.** A versão anterior desta matriz dizia
+> "Diretor e Administrativo" nas linhas de escrita e em duas de leitura.
+> **Estava errada em relação ao original.** Em
+> `projeto-original/src/pages/Collaborators.jsx:61` o guarda é
+> `currentUser?.role === 'admin' || currentCollaborator?.role === 'Diretor'`,
+> e o `'admin'` desse OU é o papel de **plataforma do base44** (o dono da
+> conta), não o `Administrativo` do escritório — nomes parecidos, níveis
+> diferentes. A linha 318 bloqueia a página inteira para quem não passa nesse
+> teste ("Apenas Admin e Diretor podem gerenciar colaboradores"), e
+> `AprovacoesAcesso.jsx:153` repete o bloqueio para a fila de aprovação.
+> `Administrativo` nunca foi gestor de equipe. O equivalente do `'admin'` de
+> plataforma no modelo novo é o `service_role`, que já tem bypass.
+> Implementado na migration `0012`.
+
 | Tabela | Quem lê | Quem escreve |
 |---|---|---|
-| `tenants` | membros do tenant | ninguém pelo cliente (só `service_role`) |
-| `tenant_users` | o próprio usuário vê a sua linha | só `service_role` |
-| `collaborators` | qualquer colaborador ativo do tenant | Diretor e Administrativo |
-| `menus` | qualquer autenticado | ninguém (catálogo estático, via migration) |
-| `collaborator_permissions` | o colaborador vê as suas; Diretor/Administrativo veem todas | Diretor e Administrativo |
-| `access_requests` | Diretor e Administrativo | só `service_role` (via edge function) |
+| `tenants` | colaborador ativo do tenant | ninguém pelo cliente (só `service_role`) |
+| `tenant_users` | o próprio usuário ativo vê a sua linha | só `service_role` |
+| `tenant_email_domains` | ninguém pelo cliente | só `service_role` (edge function resolve o tenant por aqui) |
+| `collaborators` | qualquer colaborador ativo do tenant | **só Diretor** |
+| `menus` | qualquer colaborador ativo | ninguém (catálogo estático, via migration) |
+| `collaborator_permissions` | o colaborador vê as suas; **Diretor** vê todas | **só Diretor** |
+| `access_requests` | **só Diretor** | só `service_role` (via edge function) |
+
+Por que `collaborators` continua legível por todo colaborador ativo, mesmo a
+página Equipe sendo Diretor-only: a lista de colaboradores alimenta seletor de
+coordenador e de responsável no sistema inteiro (módulos 5 e 6). Quem esconde a
+tela Equipe de quem não é Diretor é a permissão de menu, não a RLS.
+
+O que o `Administrativo` mantém: ler a equipe, ler as próprias permissões, ler o
+próprio escritório. O que ele perde: escrever colaborador, escrever permissão,
+ler permissão alheia, ler a fila de aprovação.
+
+Duas leituras ficaram **mais apertadas** do que a matriz original pedia, e é
+proposital:
+
+- `menus` era "qualquer autenticado". A regra transversal (status ≠ ativo não lê
+  nada) é mais forte, e é teste obrigatório aqui embaixo — abrir exceção em
+  `menus` quebraria a invariante que todos os módulos seguintes herdam.
+- `tenant_users` era "o próprio usuário vê a sua linha", virou "o próprio
+  usuário **ativo**". Não custa funcionalidade: `tenant_id` e `tenant_role` já
+  viajam no JWT.
 
 Regra transversal: **colaborador com `status <> 'Ativo'` não lê nada** em
 nenhum módulo. Isso vira uma função `is_active_collaborator()` usada em
 todas as policies do sistema, não só nas deste módulo.
+
+Duas coisas que policy não expressa e por isso viraram trigger
+(`collaborators_guard_self_service`, migration `0009`): a comparação entre a
+linha antiga e a nova. `WITH CHECK` não enxerga a antiga e `USING` não enxerga a
+nova, então trocar a própria `role`, criar linha já vinculada ao próprio
+`auth.uid()` ou desvincular a própria linha para sequestrar outra só dá para
+barrar em `BEFORE INSERT OR UPDATE`. Vale inclusive para o Diretor.
 
 Testes de isolamento obrigatórios antes de seguir para o módulo 2:
 
@@ -195,6 +236,15 @@ Testes de isolamento obrigatórios antes de seguir para o módulo 2:
    nem as próprias.
 5. Arquiteto não consegue escalar a própria `role` para Diretor.
 6. `service_role` mantém bypass, e só server-side.
+7. Escrita cruzada entre tenants, não só leitura: ninguém grava linha com
+   `tenant_id` de outro escritório, nem move linha própria para lá.
+8. `Administrativo` não gerencia equipe — e **ainda consegue** ler a equipe e
+   as próprias permissões (o caso de controle importa tanto quanto a negação).
+9. Nem o Diretor troca a própria `role` ou o próprio `user_id`.
+
+Implementados em `supabase/tests/rls-isolation.sql` (policies, em transação com
+`ROLLBACK`) e `supabase/tests/rls-isolation.mjs` (ponta a ponta: login real →
+Auth Hook → JWT → PostgREST → GRANT → policy). Ver `supabase/tests/README.md`.
 
 ## Edge functions deste módulo
 

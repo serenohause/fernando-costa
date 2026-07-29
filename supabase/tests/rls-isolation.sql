@@ -97,6 +97,11 @@ insert into public.collaborator_permissions (tenant_id, collaborator_id, menu_ke
   ((select tenant_a from rls_ids), (select c_dir_a from rls_ids),  'crm',  true, true),
   ((select tenant_a from rls_ids), (select c_dir_a from rls_ids),  'team', true, true),
   ((select tenant_a from rls_ids), (select c_arch_a from rls_ids), 'crm',  true, false),
+  -- O Administrativo tem permissao propria de proposito: sem ela, "Administrativo
+  -- le so as proprias permissoes" e "Administrativo nao le permissao nenhuma"
+  -- dariam o mesmo OK:0, e o teste nao saberia distinguir aperto correto de
+  -- aperto demais.
+  ((select tenant_a from rls_ids), (select c_admin_a from rls_ids), 'team', true, false),
   ((select tenant_b from rls_ids), (select c_dir_b from rls_ids),  'crm',  true, true);
 
 insert into public.access_requests (tenant_id, email, name) values
@@ -217,7 +222,7 @@ select pg_temp.check('1.C1', 'CONTROLE: Diretora A ve os 5 colaboradores do prop
   'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
   'select 1 from public.collaborators');
 
-select pg_temp.check('1.C2', 'CONTROLE: Diretora A ve as 3 permissoes do proprio escritorio', 'OK:3',
+select pg_temp.check('1.C2', 'CONTROLE: Diretora A ve as 4 permissoes do proprio escritorio', 'OK:4',
   'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
   'select 1 from public.collaborator_permissions');
 
@@ -348,26 +353,33 @@ select pg_temp.check('5.4', 'Arquiteto A troca o proprio status de vacation para
   'authenticated', pg_temp.claims((select u_arch_a from rls_ids), (select tenant_a from rls_ids)),
   format('update public.collaborators set status = %L where id = %L', 'active', (select c_vac_a from rls_ids)));
 
--- Caso 5b - escalacao pelo Administrativo, que TEM permissao de escrita -----
--- Estes tres sao os caminhos que a policy sozinha nao fecha e que o trigger
--- collaborators_guard_self_service existe para barrar.
+-- Caso 5b - trigger anti-escalacao, exercitado contra o DIRETOR -------------
+--
+-- Desde a 0012 so o Diretor escreve em collaborators. Ele e, portanto, o unico
+-- que ainda alcanca o trigger collaborators_guard_self_service - e os quatro
+-- caminhos que o trigger fecha continuam ruins vindos dele: auto-rebaixamento
+-- sem volta e troca de identidade dentro do escritorio.
+--
+-- Todos esperam ERR:42501 e nao OK:0: aqui a policy PASSA (e Diretor, e do
+-- proprio tenant) e quem barra e o trigger. Se algum destes virar OK:0, a
+-- policy ficou restritiva demais; se virar OK:1, o trigger sumiu.
 
-select pg_temp.check('5b.1', 'Administrativo A promove a si mesmo a director', 'ERR:42501',
-  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
-  format('update public.collaborators set role = %L where id = %L', 'director', (select c_admin_a from rls_ids)));
+select pg_temp.check('5b.1', 'Diretora A rebaixa a si mesma para intern', 'ERR:42501',
+  'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
+  format('update public.collaborators set role = %L where id = %L', 'intern', (select c_dir_a from rls_ids)));
 
-select pg_temp.check('5b.2', 'Administrativo A cria uma linha director ja vinculada ao proprio login', 'ERR:42501',
-  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+select pg_temp.check('5b.2', 'Diretora A cria uma linha ja vinculada ao proprio login', 'ERR:42501',
+  'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
   format('insert into public.collaborators (tenant_id, user_id, name, role, email) values (%L, %L, %L, %L, %L)',
-         (select tenant_a from rls_ids), (select u_admin_a from rls_ids), 'Eu Diretor', 'director', 'eu-diretor@rls-test-a.example.test'));
+         (select tenant_a from rls_ids), (select u_dir_a from rls_ids), 'Eu De Novo', 'director', 'eu-de-novo@rls-test-a.example.test'));
 
-select pg_temp.check('5b.3', 'Administrativo A desvincula o proprio user_id (passo 1 do sequestro)', 'ERR:42501',
-  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
-  format('update public.collaborators set user_id = null where id = %L', (select c_admin_a from rls_ids)));
+select pg_temp.check('5b.3', 'Diretora A desvincula o proprio user_id (passo 1 da troca de identidade)', 'ERR:42501',
+  'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
+  format('update public.collaborators set user_id = null where id = %L', (select c_dir_a from rls_ids)));
 
-select pg_temp.check('5b.4', 'Administrativo A cola o proprio user_id na linha da Diretora (passo 2 do sequestro)', 'ERR:42501',
-  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
-  format('update public.collaborators set user_id = %L where id = %L', (select u_admin_a from rls_ids), (select c_dir_a from rls_ids)));
+select pg_temp.check('5b.4', 'Diretora A cola o proprio user_id na linha do Arquiteto (passo 2)', 'ERR:42501',
+  'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
+  format('update public.collaborators set user_id = %L where id = %L', (select u_dir_a from rls_ids), (select c_arch_a from rls_ids)));
 
 select pg_temp.check('5b.5', 'Diretora A apaga a propria linha de colaborador', 'OK:0',
   'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
@@ -376,6 +388,94 @@ select pg_temp.check('5b.5', 'Diretora A apaga a propria linha de colaborador', 
 select pg_temp.check('5b.6', 'CONTROLE: Diretora A promove o Arquiteto a coordinator (tem que funcionar)', 'OK:1',
   'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
   format('update public.collaborators set role = %L where id = %L', 'coordinator', (select c_arch_a from rls_ids)));
+
+select pg_temp.check('5b.7', 'CONTROLE: Diretora A altera o proprio nome (o trigger so barra role e user_id)', 'OK:1',
+  'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
+  format('update public.collaborators set name = %L where id = %L', 'Diretora A (nome novo)', (select c_dir_a from rls_ids)));
+
+-- Caso 9 - Administrativo NAO gerencia equipe ------------------------------
+--
+-- Ate a 0011 a matriz de docs/SCHEMA-PLAN.md dizia "escreve: Diretor e
+-- Administrativo", e estes casos afirmavam o contrario do que afirmam agora.
+-- A matriz e que estava errada: em projeto-original/src/pages/Collaborators.jsx
+-- a pagina inteira e bloqueada para quem nao e Diretor, e o "Admin" que ela
+-- aceita ao lado dele e o papel de plataforma do base44, nao o Administrativo
+-- do escritorio.
+--
+-- UPDATE e DELETE dao OK:0 e nao ERR: sem policy que case, o Postgres nao
+-- levanta erro, ele so nao encontra linha. INSERT da ERR:42501 porque a
+-- violacao de WITH CHECK e erro de verdade.
+
+select pg_temp.check('9.1', 'Administrativo A cadastra colaborador', 'ERR:42501',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('insert into public.collaborators (tenant_id, name, role, email) values (%L, %L, %L, %L)',
+         (select tenant_a from rls_ids), 'Contratado pelo Administrativo', 'intern', 'novo-estagiario@rls-test-a.example.test'));
+
+select pg_temp.check('9.2', 'Administrativo A promove a si mesmo a director', 'OK:0',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('update public.collaborators set role = %L where id = %L', 'director', (select c_admin_a from rls_ids)));
+
+select pg_temp.check('9.3', 'Administrativo A promove o Arquiteto a director', 'OK:0',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('update public.collaborators set role = %L where id = %L', 'director', (select c_arch_a from rls_ids)));
+
+select pg_temp.check('9.4', 'Administrativo A altera o nome de um colega', 'OK:0',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('update public.collaborators set name = %L where id = %L', 'Renomeado pelo Administrativo', (select c_arch_a from rls_ids)));
+
+select pg_temp.check('9.5', 'Administrativo A apaga um colaborador', 'OK:0',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('delete from public.collaborators where id = %L', (select c_arch_a from rls_ids)));
+
+select pg_temp.check('9.6', 'Administrativo A concede permissao a si mesmo', 'ERR:42501',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('insert into public.collaborator_permissions (tenant_id, collaborator_id, menu_key, can_view) values (%L, %L, %L, true)',
+         (select tenant_a from rls_ids), (select c_admin_a from rls_ids), 'receivables'));
+
+select pg_temp.check('9.7', 'Administrativo A eleva a propria permissao para can_edit', 'OK:0',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('update public.collaborator_permissions set can_edit = true where collaborator_id = %L', (select c_admin_a from rls_ids)));
+
+select pg_temp.check('9.8', 'Administrativo A altera permissao de terceiro', 'OK:0',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('update public.collaborator_permissions set can_view = false where collaborator_id = %L', (select c_arch_a from rls_ids)));
+
+select pg_temp.check('9.9', 'Administrativo A apaga permissao de terceiro', 'OK:0',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('delete from public.collaborator_permissions where collaborator_id = %L', (select c_arch_a from rls_ids)));
+
+select pg_temp.check('9.10', 'Administrativo A le permissao de terceiro', 'OK:0',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  format('select 1 from public.collaborator_permissions where collaborator_id = %L', (select c_dir_a from rls_ids)));
+
+select pg_temp.check('9.11', 'Administrativo A le a fila de aprovacao', 'OK:0',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  'select 1 from public.access_requests');
+
+-- Caso 9.C - o que o Administrativo AINDA precisa conseguir ----------------
+--
+-- Sem estes, o aperto passaria de "Administrativo nao gerencia equipe" para
+-- "Administrativo nao usa o sistema", e o teste nao acusaria.
+
+select pg_temp.check('9.C1', 'CONTROLE: Administrativo A le a equipe do escritorio', 'OK:5',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  'select 1 from public.collaborators');
+
+select pg_temp.check('9.C2', 'CONTROLE: Administrativo A le as PROPRIAS permissoes', 'OK:1',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  'select 1 from public.collaborator_permissions');
+
+select pg_temp.check('9.C3', 'CONTROLE: Administrativo A le o catalogo de menus', 'OK:18',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  'select 1 from public.menus');
+
+select pg_temp.check('9.C4', 'CONTROLE: Administrativo A le o proprio escritorio', 'OK:1',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  'select 1 from public.tenants');
+
+select pg_temp.check('9.C5', 'CONTROLE: Administrativo A le a propria linha em tenant_users', 'OK:1',
+  'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
+  'select 1 from public.tenant_users');
 
 -- Caso 6 - service_role mantem bypass; anon nao alcanca nada ---------------
 
