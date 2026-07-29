@@ -166,9 +166,7 @@ export default function Collaborators() {
             <p className="font-medium text-foreground">{row.name}</p>
             <p className="text-sm text-muted-foreground">{labelOf(COLLABORATOR_ROLE, row.role)}</p>
             {row.area && (
-              <p className="text-xs text-muted-foreground">
-                {labelOf(COLLABORATOR_AREA, row.area)}
-              </p>
+              <p className="text-xs text-faint">{labelOf(COLLABORATOR_AREA, row.area)}</p>
             )}
           </div>
         </div>
@@ -178,12 +176,12 @@ export default function Collaborators() {
       header: 'E-mail',
       cell: (row) =>
         row.email ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Mail className="w-4 h-4 text-muted-foreground" />
+          <div className="flex items-center gap-2 text-sm text-soft">
+            <Mail className="w-4 h-4 text-faint" />
             {row.email}
           </div>
         ) : (
-          <span className="text-muted-foreground">-</span>
+          <span className="text-faint">-</span>
         ),
     },
     /*
@@ -194,12 +192,12 @@ export default function Collaborators() {
       header: 'Carga Horária',
       cell: (row) =>
         row.weekly_hours ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="w-4 h-4 text-muted-foreground" />
+          <div className="flex items-center gap-2 text-sm text-soft">
+            <Clock className="w-4 h-4 text-faint" />
             {row.weekly_hours}h/semana
           </div>
         ) : (
-          <span className="text-muted-foreground">-</span>
+          <span className="text-faint">-</span>
         ),
     },
     {

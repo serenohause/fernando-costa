@@ -31,17 +31,17 @@ export default function AcessoIndisponivel({
           Não foi possível carregar seu acesso
         </h1>
 
-        <p className="text-muted-foreground text-center mb-6">
+        <p className="text-soft text-center mb-6">
           Ocorreu um erro ao consultar seu cadastro e suas permissões. Tente novamente ou saia e
           entre de novo.
         </p>
 
         {error != null && (
           <details className="text-left mb-6">
-            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-soft">
               Detalhes técnicos
             </summary>
-            <pre className="mt-2 p-3 bg-muted rounded text-xs text-muted-foreground overflow-auto">
+            <pre className="mt-2 p-3 bg-muted rounded text-xs text-soft overflow-auto">
               {String(error)}
             </pre>
           </details>

@@ -20,9 +20,7 @@ export default function AcessoNegado({ detalhe }: { detalhe: string }) {
           <Lock className="w-10 h-10 text-rose-600 dark:text-rose-400" />
         </div>
         <h2 className="text-2xl font-bold text-foreground mb-2">Acesso Negado</h2>
-        <p className="text-muted-foreground mb-6">
-          Você não tem permissão para acessar este módulo.
-        </p>
+        <p className="text-soft mb-6">Você não tem permissão para acessar este módulo.</p>
         <p className="text-sm text-muted-foreground">{detalhe}</p>
       </div>
     </div>

@@ -28,7 +28,7 @@ export default function AcessoPendente({ userEmail }: { userEmail: string | unde
           que promete e-mail e não manda faz a pessoa esperar por algo que não
           vem, então o texto passa a dizer só o que é verdade hoje.
         */}
-        <p className="text-muted-foreground text-center mb-6">
+        <p className="text-soft text-center mb-6">
           Seu e-mail foi validado com sucesso! Agora seu acesso precisa ser aprovado pelo
           administrador para que você possa utilizar o sistema.
         </p>

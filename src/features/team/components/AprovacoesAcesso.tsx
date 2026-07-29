@@ -174,8 +174,8 @@ export default function AprovacoesAcesso() {
         <div className="grid gap-4">
           {[...Array(3)].map((_, i) => (
             <Card key={i} className="p-6 animate-pulse">
-              <div className="h-6 bg-muted rounded w-1/3 mb-4"></div>
-              <div className="h-4 bg-muted rounded w-2/3"></div>
+              <div className="h-6 bg-border rounded w-1/3 mb-4"></div>
+              <div className="h-4 bg-border rounded w-2/3"></div>
             </Card>
           ))}
         </div>
@@ -202,7 +202,7 @@ export default function AprovacoesAcesso() {
       ) : solicitacoes.length === 0 ? (
         <Card className="p-12 text-center">
           <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
+            <CheckCircle2 className="w-8 h-8 text-faint" />
           </div>
           <h3 className="text-lg font-semibold text-foreground mb-2">
             Nenhuma solicitação pendente
@@ -225,7 +225,7 @@ export default function AprovacoesAcesso() {
                       Pendente
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                  <div className="flex items-center gap-2 text-sm text-soft mb-2">
                     <Mail className="w-4 h-4" />
                     {solicitacao.email}
                   </div>

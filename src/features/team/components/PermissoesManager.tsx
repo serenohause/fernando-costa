@@ -104,15 +104,15 @@ export default function PermissoesManager({
     return (
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-5 h-5 text-muted-foreground" />
+          <Shield className="w-5 h-5 text-soft" />
           <h3 className="text-lg font-semibold text-foreground">Controle de Acesso do Usuário</h3>
         </div>
-        <p className="text-sm text-muted-foreground mb-4">
+        <p className="text-sm text-soft mb-4">
           Defina exatamente o que este usuário pode visualizar ou gerenciar no sistema.
         </p>
         <div className="animate-pulse space-y-2">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-8 bg-muted rounded"></div>
+            <div key={i} className="h-8 bg-border rounded"></div>
           ))}
         </div>
       </Card>
@@ -141,10 +141,10 @@ export default function PermissoesManager({
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Shield className="w-5 h-5 text-muted-foreground" />
+            <Shield className="w-5 h-5 text-soft" />
             <h3 className="text-lg font-semibold text-foreground">Controle de Acesso do Usuário</h3>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-soft">
             Defina exatamente o que este usuário pode visualizar ou gerenciar no sistema.
           </p>
         </div>
@@ -159,7 +159,7 @@ export default function PermissoesManager({
       </div>
 
       <div className="mb-6">
-        <p className="text-sm font-medium text-foreground mb-2">Perfis de Acesso Rápido</p>
+        <p className="text-sm font-medium text-soft mb-2">Perfis de Acesso Rápido</p>
         <p className="text-xs text-muted-foreground mb-3">
           Aplicar um perfil padrão acelera a configuração inicial. Você pode personalizar depois.
         </p>
@@ -204,7 +204,7 @@ export default function PermissoesManager({
                 <tr className="bg-muted">
                   <td
                     colSpan={3}
-                    className="py-2 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                    className="py-2 px-4 text-xs font-semibold text-soft uppercase tracking-wide"
                   >
                     {grupo}
                   </td>

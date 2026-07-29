@@ -44,7 +44,7 @@ export default function Login() {
         </div>
 
         <h1 className="text-2xl font-bold text-foreground text-center mb-2">Backoffice</h1>
-        <p className="text-muted-foreground text-center mb-6">Entre com seu e-mail de trabalho</p>
+        <p className="text-soft text-center mb-6">Entre com seu e-mail de trabalho</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
