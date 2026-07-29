@@ -68,12 +68,24 @@ export default function CollaboratorForm({
   }, [initialData, open])
 
   /*
-    Como no original: o título e o botão saem de `initialData` existir, e não do
-    fluxo. Na aprovação isso faz a caixa dizer "Editar Colaborador" / "Salvar
-    Alterações", que é exatamente o que o original mostra ali — está no
-    relatório do módulo como ponto para o usuário decidir.
+    Divergência do original, decidida pelo usuário.
+
+    No original o título e o botão saem apenas de `initialData` existir, e não
+    do fluxo — a mesma caixa serve para editar e para aprovar. O efeito é que
+    quem clica em "Aprovar" na fila de acesso recebe uma janela escrita
+    "Editar Colaborador", com botão "Salvar Alterações". É economia de código
+    que vaza para quem usa. Aqui o texto acompanha o fluxo; layout, campos e
+    espaçamento continuam idênticos.
   */
   const isEditing = Boolean(initialData)
+  const isApproval = variant === 'approval'
+
+  const title = isApproval ? 'Aprovar Acesso' : isEditing ? 'Editar Colaborador' : 'Novo Colaborador'
+  const submitLabel = isApproval
+    ? 'Aprovar Acesso'
+    : isEditing
+      ? 'Salvar Alterações'
+      : 'Criar Colaborador'
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -91,9 +103,7 @@ export default function CollaboratorForm({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">
-            {isEditing ? 'Editar Colaborador' : 'Novo Colaborador'}
-          </DialogTitle>
+          <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5 mt-4">
@@ -214,7 +224,7 @@ export default function CollaboratorForm({
               Cancelar
             </Button>
             <Button type="submit" disabled={isLoading} className="bg-slate-900 hover:bg-slate-800">
-              {isLoading ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Criar Colaborador'}
+              {isLoading ? 'Salvando...' : submitLabel}
             </Button>
           </div>
         </form>

@@ -236,18 +236,18 @@ export default function Collaborators() {
           </DropdownMenu>
         ) : (
           /*
-            Ramo que o original tem e nunca alcança: a página inteira já foi
-            bloqueada acima para quem não é Diretor. Fica igual ao original.
+            O original mostra aqui um botão desabilitado com cadeado, porque lá
+            o Administrativo abre a tela e precisa entender por que não pode
+            agir. Aqui a página inteira é bloqueada antes (ver AcessoNegado
+            abaixo), então este ramo só existiria na janela entre a tabela
+            montar e o colaborador atual carregar — e nessa janela ainda não há
+            linha para renderizar célula.
+
+            Fica vazio em vez de reproduzir o cadeado: um controle bloqueado
+            visível anuncia uma ação que, neste sistema, quem chegou aqui já
+            tem. Seria dizer "você não pode" para o Diretor.
           */
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            disabled
-            title="Apenas o Diretor pode editar"
-          >
-            <Lock className="w-4 h-4 text-slate-400" />
-          </Button>
+          null
         ),
     },
   ]
