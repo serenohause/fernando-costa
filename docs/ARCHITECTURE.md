@@ -102,15 +102,36 @@ tela de acesso pendente.
 
 ## Ordem dos módulos
 
-Cada módulo é uma fatia vertical completa: schema → RLS + teste de
-isolamento → **seed de dados simulados** → hooks em
-`src/features/<modulo>/hooks.ts` → UI fiel ao original. Um commit por
-camada.
+Cada módulo é uma fatia vertical completa:
 
-O módulo só é dado por encerrado depois de o usuário ver a tela funcionando
-com o dado simulado. O dado real do base44 é importado **no fim de tudo**
-(ver `docs/SCHEMA-PLAN.md`) — as colunas `legacy_id` já nascem prontas para
-isso desde a primeira migration.
+1. schema (migration)
+2. RLS + teste de isolamento
+3. seed de dados simulados no escritório de teste
+4. hooks em `src/features/<modulo>/hooks.ts`
+5. UI fiel ao original
+6. auditoria de segurança
+7. **deploy**
+
+Um commit por camada. O módulo só é dado por encerrado depois de o usuário
+ver a tela funcionando com o dado simulado **e do deploy no ar**.
+
+A auditoria (6) não é opcional antes do deploy: é a condição que
+`.claude/skills/deploy/SKILL.md` impõe, e existe porque o deploy é o momento
+em que o sistema passa a ser alcançável por quem não foi convidado. Achado
+crítico ou alto em aberto trava o deploy até ser corrigido ou até o usuário
+reconhecer o risco explicitamente.
+
+O dado real do base44 é importado **no fim de tudo** (ver
+`docs/SCHEMA-PLAN.md`) — as colunas `legacy_id` já nascem prontas para isso
+desde a primeira migration.
+
+O ambiente de deploy é Vercel (frontend) sobre o mesmo projeto Supabase
+hospedado. Como não há ambiente de staging separado, **o que está no ar é o
+mesmo banco que o desenvolvimento usa**. Enquanto o banco só tem o
+escritório de teste, isso é aceitável. Deixa de ser no momento em que o dado
+real do cliente entrar: aí é obrigatório separar produção de
+desenvolvimento em dois projetos Supabase, e essa separação precisa
+acontecer **antes** da importação, não depois.
 
 1. **Fundação** — auth, tenants, Collaborator, PermissoesUsuario, SolicitacaoAcesso, shell de navegação.
 2. **CRM** — Client, ClientDetail.

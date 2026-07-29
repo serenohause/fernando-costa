@@ -230,5 +230,12 @@ Decisões de migração já tomadas:
   `Collaborator.senha_temporaria` (senha em texto puro).
 
 Trabalho é módulo a módulo, na ordem definida em `docs/ARCHITECTURE.md`.
-Cada módulo é uma fatia vertical: schema → RLS + teste de isolamento →
-hooks → UI.
+Cada módulo é uma fatia vertical, e **termina em deploy**:
+
+schema → RLS + teste de isolamento → seed → hooks → UI → auditoria de
+segurança → deploy.
+
+O módulo não é dado por encerrado antes de estar no ar. A auditoria antes do
+deploy é obrigatória (regra de `.claude/skills/deploy/SKILL.md`): achado
+crítico ou alto em aberto trava o deploy até ser corrigido ou até o usuário
+reconhecer o risco explicitamente.
