@@ -13,7 +13,8 @@
     "db:diff": "supabase db diff --linked",
     "db:types": "supabase gen types typescript --linked > src/lib/database.types.ts",
     "test:rls": "node supabase/tests/rls-isolation.mjs",
-    "test:rls:sql": "supabase/tests/run-sql-isolation.sh"
+    "test:rls:sql": "supabase/tests/run-sql-isolation.sh",
+    "test:functions": "node supabase/tests/edge-functions.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",

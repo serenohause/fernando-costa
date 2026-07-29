@@ -1,24 +1,32 @@
-# Testes de isolamento da RLS
+# Testes do módulo 1
 
-Dois testes, propositalmente redundantes, porque cobrem elos diferentes da
+Três testes, propositalmente redundantes, porque cobrem elos diferentes da
 mesma corrente.
 
 | Arquivo | O que exercita | O que NÃO cobre |
 |---|---|---|
 | `rls-isolation.sql` | a lógica das policies, por dentro do banco: `set local role` + `request.jwt.claims` reproduzem o que o PostgREST monta a cada request | se o JWT emitido no login realmente carrega o claim `tenant_id` |
 | `rls-isolation.mjs` | a corrente inteira pela rede: login real → Auth Hook → JWT assinado → PostgREST → GRANT → policy | nada além do módulo 1 |
+| `edge-functions.mjs` | o que roda com `service_role`, onde a RLS não protege nada: autorização lida do banco, tenant resolvido pelo domínio, atomicidade da aprovação | a RLS (é o irmão dos dois de cima, não substituto) |
 
 Um erro de `GRANT`, de RLS desligada ou de hook desativado no painel **some** no
 teste SQL e **aparece** no `.mjs`. Rodar os dois.
+
+O terceiro cobre o ângulo oposto: as edge functions têm a chave de bypass na
+mão, então nenhuma policy as barra. O que impede abuso ali é a checagem de
+autorização que elas fazem lendo o banco — e é isso que o arquivo exercita,
+inclusive pelos caminhos negados (Arquiteto, Diretor de outro escritório,
+Diretor afastado).
 
 ## Rodar
 
 ```bash
 npm run test:rls        # ponta a ponta (login real)
 npm run test:rls:sql    # policies, em transação com ROLLBACK
+npm run test:functions  # edge functions publicadas
 ```
 
-Os dois saem com código 1 se qualquer caso falhar.
+Os três saem com código 1 se qualquer caso falhar.
 
 ## Pré-requisitos
 
@@ -30,6 +38,10 @@ Os dois saem com código 1 se qualquer caso falhar.
 - **Auth Hook ligado** em Authentication > Hooks > Customize Access Token (JWT)
   Claims, apontando para `public.custom_access_token_hook`. Sem ele o JWT sai
   sem `tenant_id` e o caso 0.1 acusa.
+- Só para `test:functions`: as três funções publicadas
+  (`supabase functions deploy register-access-request approve-access-request
+  reject-access-request`) e a migration `0013` aplicada — sem
+  `public.approve_access_request` os casos 2.9 a 2.12 falham com 500.
 
 ## Como ler o resultado
 
@@ -56,10 +68,11 @@ Teste de RLS feito com a chave que ignora RLS não prova nada.
 
 ## Resíduo
 
-O `.sql` termina em `ROLLBACK`. O `.mjs` limpa no `finally`: apaga os dois
-tenants (que cascateiam colaboradores, permissões, solicitações e domínios) e
-os usuários de `auth.users` cujo e-mail começa com `rls-test-`. Se o processo
-morrer no meio, rodar de novo limpa antes de começar.
+O `.sql` termina em `ROLLBACK`. Os dois `.mjs` limpam no `finally`: apagam os
+tenants de teste (que cascateiam colaboradores, permissões, solicitações,
+domínios e vínculos) e os usuários de `auth.users` cujo e-mail começa com o
+prefixo fixo — `rls-test-` em um, `ef-test-` no outro. Se o processo morrer no
+meio, rodar de novo limpa antes de começar.
 
 Conferir à mão depois de rodar:
 
