@@ -35,7 +35,19 @@
   contraste suficiente para ser lido.
 */
 :root {
-  --background: 0 0% 100%;
+  /*
+    A PÁGINA NÃO É BRANCA, e isso é de propósito.
+
+    No original o shell pinta a área de conteúdo com `bg-slate-50` e os
+    cartões com `bg-white`. É essa diferença que faz cartão parecer cartão.
+    Deixar --background em branco puro apagaria a separação: cartão branco
+    sobre página branca vira uma superfície só.
+
+    Efeito colateral bem-vindo: as telas de autenticação usam
+    `from-background to-muted`, o que agora dá exatamente o
+    `from-slate-50 to-slate-100` do original.
+  */
+  --background: 210 40% 98%;
   --foreground: 222.2 84% 4.9%;
   --card: 0 0% 100%;
   --card-foreground: 222.2 84% 4.9%;
@@ -60,7 +72,12 @@
   --chart-4: 43 74% 66%;
   --chart-5: 27 87% 67%;
   --radius: 0.5rem;
-  --sidebar-background: 210 40% 98%;
+  /*
+    Sidebar branca sobre página slate-50 — é assim no original. Com a sidebar
+    também em slate-50 ela teria a mesma cor da página e sobraria só a borda
+    para separar as duas.
+  */
+  --sidebar-background: 0 0% 100%;
   --sidebar-foreground: 215.4 16.3% 36%;
   --sidebar-primary: 222.2 47.4% 11.2%;
   --sidebar-primary-foreground: 210 40% 98%;

@@ -192,7 +192,7 @@ export default function AppLayout() {
   // Loading state - mostrar skeleton enquanto carrega
   if (sessionQuery.isLoading || (currentUser && loadingPermissions)) {
     return (
-      <div className="min-h-screen bg-elevated dark:bg-background">
+      <div className="min-h-screen bg-background">
         <div className="animate-pulse">
           <div className="h-16 bg-card border-b border-border" />
           <div className="p-8">
@@ -226,15 +226,12 @@ export default function AppLayout() {
 
   return (
     /*
-      Fundo da página: no claro o original é slate-50, que é exatamente o valor
-      claro de `--elevated`; no escuro o que precisa aparecer é o degrau mais
-      baixo (`--background`), senão a página fica mais clara que os cartões e a
-      hierarquia inverte. Nenhum token cobre os dois casos sozinho — `bg-background`
-      deixaria o claro branco, e cartão branco sobre página branca apaga a
-      separação que o original tem. Ver relatório: um `--background: 210 40% 98%`
-      no `:root` dispensaria o `dark:` daqui.
+      `bg-background` resolve os dois temas sozinho porque `--background` é
+      slate-50 no claro (o valor do shell no original) e o degrau mais baixo no
+      escuro — ver o comentário no src/index.css. Cartão sempre um degrau acima
+      da página; a hierarquia nunca inverte.
     */
-    <div className="min-h-screen bg-elevated dark:bg-background">
+    <div className="min-h-screen bg-background">
       {/* Mobile sidebar overlay */}
       <AnimatePresence>
         {sidebarOpen && (
