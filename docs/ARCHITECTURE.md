@@ -145,7 +145,20 @@ Consequências que precisam ser respeitadas:
   passam a exigir um projeto separado de staging.
 - **O Auth Hook que escreve o `tenant_id` no JWT precisa ser ligado no
   painel** (Authentication > Hooks). O `config.toml` sozinho só configura
-  ambiente local, que aqui não existe.
+  ambiente local, que aqui não existe. **Já está ligado**, apontando para
+  `public.custom_access_token_hook`, e o caso 0.1 de
+  `supabase/tests/rls-isolation.mjs` acusa se alguém desligar.
+- **Tabela nova em `public` NÃO nasce fechada — nasce fechada só a partir da
+  migration 0007.** O bootstrap do Supabase deixa um `ALTER DEFAULT PRIVILEGES`
+  pendurado no papel `postgres` que concede `GRANT ALL` a `anon` e
+  `authenticated` em toda tabela criada em `public`. As migrations 0002–0005
+  caíram nessa: as sete tabelas da fundação ficaram legíveis e graváveis pela
+  chave publicável até a 0007 revogar tudo e desarmar o default. Consequência
+  para os próximos módulos: **`ENABLE ROW LEVEL SECURITY` sozinho não protege
+  nada se o `GRANT` estiver aberto, e `GRANT` sozinho não protege nada se a RLS
+  estiver desligada** — toda tabela nova precisa dos dois, escritos à mão ao
+  lado da policy, e de um teste que prove com a chave publicável que a tabela
+  não responde.
 
 ## Desvios do padrão do CLAUDE.md
 
@@ -229,7 +242,8 @@ provedor por enquanto. Consequências:
 - [x] Domínio definido
 - [ ] Plano de schema aprovado
 - [ ] Scaffold criado
-- [ ] Auth + RLS + isolamento validado
+- [x] Auth + RLS + isolamento validado (módulo 1; 78 casos em
+      `supabase/tests/`, rodados contra o banco hospedado)
 - [ ] Primeira feature implementada
 - [ ] Auditoria de arquitetura rodada
 - [ ] Deploy em produção
