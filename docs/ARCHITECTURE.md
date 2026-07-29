@@ -169,6 +169,32 @@ Consequências que precisam ser respeitadas:
   historicamente congelado (nome do cliente no contrato assinado), a cópia
   é mantida **de propósito** e documentada na migration.
 
+## Autenticação e notificações — decisões do usuário
+
+**Login por e-mail e senha.** O `projeto-original/` não tem tela de login: a
+plataforma base44 autenticava antes de o app carregar, e o código só recebia
+`base44.auth.me()`. A tela foi construída seguindo o padrão que o original já
+usa nas telas de autenticação fora do shell (`SolicitarAcesso.jsx`,
+`AcessoPendente.jsx`) — degradê slate, cartão `max-w-md`, bloco escuro com
+ícone, botão `slate-900` de largura cheia. Não é design novo; é a mesma
+linguagem aplicada a uma tela que faltava.
+
+**Sem provedor de e-mail, por ora.** O original manda e-mail em três momentos
+(solicitação de acesso registrada, acesso aprovado, convite de colaborador),
+todos via `base44.integrations.Core.SendEmail`. Não há equivalente no
+Supabase para e-mail transacional arbitrário, e a decisão foi seguir sem
+provedor por enquanto. Consequências:
+
+- A fila de solicitações continua funcionando: o pedido é registrado e
+  aparece na tela de Controle de Acesso. O que não acontece é o aviso.
+- Alguém precisa olhar a tela — ninguém é notificado.
+- **A copy das telas que prometiam e-mail foi alterada**, com aprovação do
+  usuário. É a única divergência deliberada de texto em relação ao original
+  até aqui: uma tela que promete e-mail e não manda faz a pessoa esperar
+  indefinidamente por algo que não vem.
+- Quando um provedor for escolhido (Resend ou SMTP do escritório), a copy
+  original volta junto com o envio.
+
 ## Fora de escopo (decisão do usuário)
 
 - **Páginas de marketing**: `LeadsMarketing`, `Campanhas`, `Conteudos`,

@@ -17,6 +17,17 @@ export default function AcessoPendente({ userEmail }: { userEmail: string | unde
 
         <h1 className="text-2xl font-bold text-slate-900 text-center mb-3">Aguardando Liberação</h1>
 
+        {/*
+          Copy alterada em relação ao original, com aprovação do usuário.
+
+          O original promete duas coisas que este sistema ainda não faz: que a
+          solicitação foi enviada ao administrador e que a pessoa receberá um
+          e-mail na aprovação. No base44 as duas dependiam da integração
+          Core.SendEmail, que não tem equivalente aqui — a decisão foi seguir
+          sem provedor de e-mail por enquanto (ver docs/ARCHITECTURE.md). Tela
+          que promete e-mail e não manda faz a pessoa esperar por algo que não
+          vem, então o texto passa a dizer só o que é verdade hoje.
+        */}
         <p className="text-slate-600 text-center mb-6">
           Seu e-mail foi validado com sucesso! Agora seu acesso precisa ser aprovado pelo
           administrador para que você possa utilizar o sistema.
@@ -28,12 +39,12 @@ export default function AcessoPendente({ userEmail }: { userEmail: string | unde
           </p>
           <div className="flex items-center gap-2 mb-3">
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-            <span className="text-sm font-medium text-blue-900">Solicitação Pendente</span>
+            <span className="text-sm font-medium text-blue-900">Aguardando liberação</span>
           </div>
           <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
-            <li>Sua solicitação foi enviada ao administrador</li>
-            <li>Você receberá um e-mail quando for aprovado</li>
-            <li>Após aprovação, basta recarregar a página</li>
+            <li>Um diretor do escritório precisa liberar seu acesso</li>
+            <li>Avise quem cuida do sistema para agilizar</li>
+            <li>Depois de liberado, basta recarregar a página</li>
           </ul>
         </div>
 

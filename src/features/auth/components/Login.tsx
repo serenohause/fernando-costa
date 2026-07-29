@@ -1,22 +1,23 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router'
+import { Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useSession, useSignInWithPassword } from '../hooks'
 
 /*
-  PENDENTE DE DECISÃO DO USUÁRIO.
+  O projeto-original/ não tem tela de login: a plataforma base44 autenticava
+  antes de o app carregar. O layout desta tela não foi inventado — segue o
+  padrão que o original já usa nas telas de autenticação fora do shell
+  (SolicitarAcesso.jsx e AcessoPendente.jsx): fundo em degradê slate, cartão
+  centralizado de max-w-md, bloco escuro com ícone, título e subtítulo
+  centralizados, botão slate-900 de largura cheia.
 
-  O `projeto-original/` não tem tela de login — a plataforma base44 cuidava da
-  autenticação e o app já recebia o usuário logado (`base44.auth.me()`).
-  Welcome.jsx, SolicitarAcesso.jsx e AcessoPendente.jsx são telas pós-login e
-  não servem de referência visual para esta.
-
-  Esta tela é só o mínimo para conseguir uma sessão do Supabase Auth durante o
-  desenvolvimento. Não foi desenhada e não deve ser tratada como aprovada:
-  falta decidir o provedor (e-mail/senha, magic link, Google), o que acontece
-  com quem não tem cadastro e como isso conversa com a solicitação de acesso.
+  Provedor definido com o usuário: e-mail e senha. A senha inicial vem do
+  convite do Supabase Auth, disparado na aprovação do acesso — ver
+  docs/ARCHITECTURE.md.
 */
 export default function Login() {
   const sessionQuery = useSession()
@@ -34,40 +35,62 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="email">E-mail</Label>
-          <Input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            required
-          />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+      <Card className="max-w-md w-full p-8">
+        <div className="flex items-center justify-center mb-6">
+          <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center">
+            <Lock className="w-6 h-6 text-white" />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="password">Senha</Label>
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </div>
+        <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">Backoffice</h1>
+        <p className="text-slate-600 text-center mb-6">Entre com seu e-mail de trabalho</p>
 
-        <Button type="submit" className="w-full" disabled={signIn.isPending}>
-          Entrar
-        </Button>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="email">E-mail</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="seu@email.com"
+              autoComplete="email"
+              required
+            />
+          </div>
 
-        {signIn.isError && (
-          <p className="text-sm text-destructive">{(signIn.error as Error).message}</p>
-        )}
-      </form>
+          <div>
+            <Label htmlFor="password">Senha</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full bg-slate-900 hover:bg-slate-800"
+            disabled={signIn.isPending}
+          >
+            {signIn.isPending ? 'Entrando...' : 'Entrar'}
+          </Button>
+
+          {signIn.isError && (
+            <p className="text-sm text-destructive text-center" role="alert">
+              Não foi possível entrar. Confira o e-mail e a senha.
+            </p>
+          )}
+        </form>
+
+        <p className="text-xs text-center text-slate-500 mt-6">
+          Ainda não tem acesso? Fale com o administrador do escritório.
+        </p>
+      </Card>
     </div>
   )
 }
