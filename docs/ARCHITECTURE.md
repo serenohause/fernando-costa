@@ -133,16 +133,23 @@ real do cliente entrar: aí é obrigatório separar produção de
 desenvolvimento em dois projetos Supabase, e essa separação precisa
 acontecer **antes** da importação, não depois.
 
-1. **Fundação** — auth, tenants, Collaborator, PermissoesUsuario, SolicitacaoAcesso, shell de navegação.
-2. **CRM** — Client, ClientDetail.
-3. **Pipeline** — Negociacao, ClientIntake (formulário público).
-4. **Contratos** — Contract.
-5. **Projetos** — Project, Task (fluxo do projeto).
-6. **Atividades** — Atividade, MinhasAtividades, RelatorioProdutividade.
-7. **Financeiro** — AccountReceivable, AccountPayable, FinancialCategory.
-8. **Fornecedores e Orçamento** — Fornecedor, ChecklistOrcamento.
-9. **Mapa** — PropriedadeMapa, MapaProjetos.
-10. **Dashboards** — Dashboard, DashboardExecutivo, DashboardComercial. Por último: agregam dado de todos os módulos anteriores.
+### Os dez módulos
+
+| # | Módulo | Entidades | Estado |
+|---|---|---|---|
+| 1 | **Fundação** | tenants, collaborators, menus, collaborator_permissions, access_requests | **no ar** |
+| 2 | CRM | Client, ClientDetail | a fazer |
+| 3 | Pipeline | Negociacao, ClientIntake (formulário público) | a fazer |
+| 4 | Contratos | Contract | a fazer |
+| 5 | Projetos | Project, Task (fluxo do projeto) | a fazer |
+| 6 | Atividades | Atividade, MinhasAtividades, RelatorioProdutividade | a fazer |
+| 7 | Financeiro | AccountReceivable, AccountPayable, FinancialCategory | a fazer |
+| 8 | Fornecedores e Orçamento | Fornecedor, ChecklistOrcamento | a fazer |
+| 9 | Mapa | PropriedadeMapa, MapaProjetos | a fazer |
+| 10 | Dashboards | Dashboard, DashboardExecutivo, DashboardComercial | a fazer |
+
+Dashboards ficam por último de propósito: agregam dado de todos os módulos
+anteriores, e construí-los antes significaria refazê-los a cada módulo novo.
 
 ## Ambiente de banco
 
