@@ -10,8 +10,8 @@ dist-ssr
 *.local
 
 # Ambiente
-.env
-.env.local
+.env*
+!.env.example
 
 # Editor / SO
 .vscode/*
@@ -23,3 +23,6 @@ dist-ssr
 .supabase
 
 projeto-original
+
+# Vercel CLI
+.vercel
