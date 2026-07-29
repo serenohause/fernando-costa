@@ -103,8 +103,14 @@ tela de acesso pendente.
 ## Ordem dos módulos
 
 Cada módulo é uma fatia vertical completa: schema → RLS + teste de
-isolamento → hooks em `src/features/<modulo>/hooks.ts` → UI fiel ao
-original. Um commit por camada.
+isolamento → **seed de dados simulados** → hooks em
+`src/features/<modulo>/hooks.ts` → UI fiel ao original. Um commit por
+camada.
+
+O módulo só é dado por encerrado depois de o usuário ver a tela funcionando
+com o dado simulado. O dado real do base44 é importado **no fim de tudo**
+(ver `docs/SCHEMA-PLAN.md`) — as colunas `legacy_id` já nascem prontas para
+isso desde a primeira migration.
 
 1. **Fundação** — auth, tenants, Collaborator, PermissoesUsuario, SolicitacaoAcesso, shell de navegação.
 2. **CRM** — Client, ClientDetail.
