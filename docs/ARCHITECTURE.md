@@ -340,4 +340,5 @@ entrada de dado de produção:
       contra o banco hospedado — 95 casos em SQL, 93 ponta a ponta)
 - [ ] Primeira feature implementada
 - [ ] Auditoria de arquitetura rodada
-- [ ] Deploy em produção
+- [x] Deploy em produção (módulo 1, https://fernando-costa.vercel.app — ver a
+      seção "Produção" do `README.md`)

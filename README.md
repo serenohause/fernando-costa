@@ -85,7 +85,65 @@ Storage + Edge Functions).
 
 ## Produção
 
-_Preenchido na etapa 8 (deploy), com URL e informações de ambiente._
+| Item | Valor |
+|---|---|
+| URL | https://fernando-costa.vercel.app |
+| Hospedagem do frontend | Vercel — projeto `fernando-costa` (org `serenohause-8780s-projects`) |
+| Build | preset Vite, `npm run build`, saída em `dist/` |
+| Backend | projeto Supabase `yctbmijdyjjcoydasndy`, migrations `0001`–`0013` aplicadas |
+| Módulo no ar | 1 — Fundação (auth, equipe, permissões, fila de acesso) |
+
+O que está publicado é o shell de navegação mais as telas de **Equipe** e
+**Controle de Acesso**. As demais rotas caem no placeholder até o módulo
+delas entrar.
+
+### Variáveis de ambiente na Vercel
+
+Apenas duas, configuradas em Production, Preview e Development:
+
+| Variável | Origem |
+|---|---|
+| `VITE_SUPABASE_URL` | URL do projeto Supabase |
+| `VITE_SUPABASE_ANON_KEY` | chave publicável (`sb_publishable_…`) |
+
+A `SUPABASE_SERVICE_ROLE_KEY` **não está na Vercel**, com ou sem prefixo.
+O frontend não precisa dela: quem usa `service_role` são as Edge Functions,
+que rodam no Supabase e recebem a chave da própria plataforma. Tudo que tem
+prefixo `VITE_` é embutido no bundle e fica legível para qualquer visitante.
+
+### `vercel.json`
+
+O `rewrites` que joga tudo em `/index.html` é o que faz o roteamento
+client-side sobreviver a um refresh: as rotas do original são caminhos reais
+(`/Collaborators`, `/AprovacoesAcesso`) e, sem o fallback, a Vercel
+devolveria 404 para qualquer acesso direto.
+
+### Deploy
+
+O projeto está conectado ao repositório GitHub, então um push na `main`
+dispara build de produção. Para publicar a partir da máquina, sem passar
+pelo Git:
+
+```bash
+vercel deploy --prod
+```
+
+O `VERCEL_TOKEN` vem do `direnv`, junto com o `SUPABASE_ACCESS_TOKEN` — nenhum
+dos dois pertence ao repositório.
+
+### Ambiente: produção e desenvolvimento no mesmo banco
+
+Não há projeto Supabase separado para produção. **O que está no ar lê e
+escreve o mesmo banco que o desenvolvimento usa**, e ele contém apenas o
+escritório de teste. Isso é aceitável enquanto for assim, e deixa de ser no
+instante em que o dado real do escritório entrar — a separação em dois
+projetos precisa acontecer **antes** da importação. A lista completa do que é
+obrigatório antes desse momento está em `docs/ARCHITECTURE.md`, na seção
+"Segurança — estado e decisões".
+
+Consequência prática: as contas de teste em `supabase/seed/credenciais.local`
+têm senha conhecida e estão acessíveis pela URL pública. São contas de
+desenvolvimento e precisam ser apagadas antes de o sistema receber dado real.
 
 ---
 
