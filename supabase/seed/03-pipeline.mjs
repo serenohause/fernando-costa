@@ -308,11 +308,49 @@ async function main() {
         created_at: hoursFromNow(0),
         expires_at: hoursFromNow(24),
       }),
+      /*
+        O briefing enviado vem PREENCHIDO, e com dado que DIVERGE do cadastro.
+
+        Sem isso a tela de conferência mostra "Nada a aplicar" e não dá para ver
+        se ela funciona. O que ela existe para resolver é justamente a
+        divergência: o cliente corrige o telefone, acrescenta o CPF que faltava,
+        e informa o endereço da obra que ninguém tinha.
+
+        Comparando com o cadastro do Eduardo no seed do CRM:
+        - telefone: DIFERENTE (ele trocou de número)
+        - e-mail: IGUAL (não deve aparecer como mudança)
+        - CPF: IGUAL, mas escrito com pontuação diferente — a tela precisa
+          saber que 816.247.390-25 e 81624739025 são o mesmo documento, senão
+          oferece "aplicar" para algo que não mudou
+        - data de nascimento e endereço da obra: NOVOS, o cadastro não tem
+      */
       intakeFor('Reforma de apartamento', {
         status: 'submitted',
         created_at: hoursFromNow(-64),
         expires_at: hoursFromNow(-40),
         submitted_at: hoursFromNow(-44),
+        full_name: 'Eduardo Sampaio Vilhena',
+        phone: '(62) 99614-2280',
+        email: 'eduardo.vilhena@outlook.com',
+        city: 'Goiânia',
+        state: 'GO',
+        country: 'Brasil',
+        client_type: 'individual',
+        tax_id: '816.247.390-25',
+        birth_date: '1979-08-23',
+        address_zipcode: '74810-100',
+        address_street: 'Avenida Portugal',
+        address_number: '1240',
+        address_complement: 'Apto 1802',
+        address_district: 'Setor Marista',
+        address_city: 'Goiânia',
+        address_state: 'GO',
+        site_zipcode: '74265-090',
+        site_street: 'Rua C-140',
+        site_number: '77',
+        site_district: 'Jardim América',
+        site_city: 'Goiânia',
+        site_state: 'GO',
       }),
       intakeFor('Geminadas Cidade', {
         status: 'expired',
