@@ -418,6 +418,29 @@ verify_jwt = true
 enabled = true
 verify_jwt = true
 
+# Edge Functions do modulo 3 (Pipeline) - formulario publico de briefing.
+#
+# AS DUAS UNICAS FUNCOES DO SISTEMA COM verify_jwt = false, e isso e o desenho,
+# nao um descuido: quem preenche o formulario e o cliente final do escritorio,
+# que nao tem login e nunca tera. A credencial daquela superficie e o token do
+# link, e ele e conferido no BANCO (public.open_client_intake /
+# public.submit_client_intake, migrations 0025 e 0026), nunca aqui e nunca no
+# navegador.
+#
+# Nao confundir "sem JWT" com "sem controle": as duas funcoes tem limite de
+# requisicoes por origem (_shared/rate-limit.ts), o token e uuid v4 gerado pelo
+# banco, e a resposta e recortada pela assinatura da funcao de banco - id
+# interno, tenant_id e campo de briefing ja preenchido nao tem caminho de saida.
+# anon continua sem GRANT em client_intakes e sem EXECUTE nas duas funcoes.
+
+[functions.open-client-intake]
+enabled = true
+verify_jwt = false
+
+[functions.submit-client-intake]
+enabled = true
+verify_jwt = false
+
 
 # Experimental features may be deprecated any time
 [experimental]
