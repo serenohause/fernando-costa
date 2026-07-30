@@ -34,12 +34,13 @@ import ClientForm, { toFormValues } from './ClientForm'
 import {
   DuplicateClientError,
   describeDatabaseError,
+  fetchClient,
   useClients,
   useCreateClient,
   useDeleteClient,
   useUpdateClient,
 } from '../hooks'
-import type { Client, ClientInput } from '../types'
+import type { Client, ClientInput, ClientListRow } from '../types'
 
 /*
   Porta de projeto-original/src/pages/Clients.jsx.
@@ -60,7 +61,7 @@ import type { Client, ClientInput } from '../types'
 export default function Clients() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; client: Client | null }>({
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; client: ClientListRow | null }>({
     open: false,
     client: null,
   })
@@ -132,7 +133,7 @@ export default function Clients() {
     })
   }
 
-  const openClient = (client: Client) => {
+  const openClient = (client: ClientListRow) => {
     navigate(createPageUrl('ClientDetail') + `?id=${client.id}`)
   }
 
@@ -142,10 +143,20 @@ export default function Clients() {
     setFormOpen(true)
   }
 
-  const handleEdit = (client: Client) => {
-    setEditingClient(client)
+  /*
+    A listagem lê só as colunas que exibe, então a linha da tabela não tem
+    endereço, documento nem observações. O formulário precisa do cadastro
+    inteiro: busca no clique. Abrir o formulário com a linha reduzida gravaria
+    nulo em tudo que não veio.
+  */
+  const handleEdit = async (client: ClientListRow) => {
     setDuplicate(null)
-    setFormOpen(true)
+    try {
+      setEditingClient(await fetchClient(client.id))
+      setFormOpen(true)
+    } catch (error) {
+      toast.error('Não foi possível carregar o cadastro: ' + describeDatabaseError(error))
+    }
   }
 
   const confirmDelete = () => {
@@ -163,7 +174,7 @@ export default function Clients() {
     })
   }
 
-  const columns: Column<Client>[] = [
+  const columns: Column<ClientListRow>[] = [
     {
       header: 'Cliente',
       cell: (row) => (

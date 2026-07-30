@@ -339,6 +339,48 @@ antigo de chave. Não é asserção vazia — é escopo faltando. Falta um caso 
 tente assinar HS256 e exija recusa, para acusar se alguém religar as chaves
 legadas.
 
+### Módulo 2 (CRM) — auditoria e o que ficou registrado
+
+Auditoria focada, sem achado crítico ou alto. Os invariantes do padrão não
+foram reauditados: têm suíte automatizada validada por mutação.
+
+Fechado nesta rodada:
+
+- **Cache do navegador atravessava troca de usuário.** `queryClient.clear()`
+  só rodava no botão Sair. Sessão que termina por token expirado emite
+  `SIGNED_OUT` sem passar por mutation, e o cache ficava de pé — outro
+  colaborador logando na mesma aba dentro de 5 minutos recebia os dados do
+  anterior enquanto o refetch corria. Não atravessa RLS; atravessa memória.
+  Hoje o dano seria intra-escritório; com o segundo escritório seria dado
+  pessoal cruzando tenant sem nenhuma falha de policy.
+- **A listagem lia o cadastro inteiro.** `select('*')` mandava CPF, data de
+  nascimento, endereços e observações de todos os clientes para qualquer
+  colaborador ativo — inclusive para quem o redirecionamento de rota manda
+  para fora do CRM, porque a API não redireciona ninguém. A listagem passou a
+  pedir as oito colunas que exibe; editar busca o cadastro no clique.
+- **`*` não era escapado na busca.** O PostgREST traduz `*` em `%` nos
+  operadores `like`/`ilike`, então digitar `*` listava o escritório inteiro.
+- **Mensagem crua do Postgres aparecia na tela de erro**, descrevendo schema.
+  Passou a mostrar o código; a mensagem vai para o console.
+- **Trava do seed filtrava no cliente**, dependendo de a lista de tenants vir
+  inteira. Passou a perguntar ao banco.
+- **"Diretor afastado não escreve" existia só em comentário.** Agora tem
+  quatro casos de teste, incluindo Diretor de férias e a recusa da própria
+  policy.
+
+Aberto e registrado como decisão:
+
+- **O termo de busca viaja na query string**, e o campo pede explicitamente
+  CPF/CNPJ. Isso põe documento de cliente nos logs de request do projeto
+  Supabase, com a retenção dele. Não é exposto a usuário — é log de quem
+  administra o projeto. Com dado real isso é assunto de proteção de dados
+  pessoais, não de RLS. A saída é mover a busca para RPC via POST; fica
+  registrado como pendência da etapa de importação, não do módulo.
+- **Leitura de cliente é larga**: qualquer colaborador ativo lê nome, CPF,
+  telefone, e-mail, data de nascimento e os dois endereços de todos os
+  clientes. É o recorte aprovado e é o que o original faz. O caso 6.C2 de
+  `crm-rls.sql` é o que vai acusar se alguém apertar isso um dia.
+
 ### Obrigatório antes da importação do dado real
 
 Nenhum destes bloqueia o deploy do escritório de teste, e todos bloqueiam a

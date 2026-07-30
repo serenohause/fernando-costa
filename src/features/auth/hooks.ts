@@ -18,7 +18,33 @@ export function useSession() {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      /*
+        Limpar o cache aqui, e não só no botão de sair.
+
+        `useSignOut` chama queryClient.clear(), mas só quando alguém clica em
+        Sair. Sessão também termina por outro caminho: refresh token expirado
+        ou falha ao renovar, que emitem SIGNED_OUT sem passar por mutation
+        nenhuma. Nesse caso o cache continuava de pé, e outro colaborador
+        logando na mesma aba dentro dos 5 minutos de gcTime recebia os dados do
+        usuário anterior enquanto o refetch corria — as chaves de dado não
+        carregam o usuário dentro.
+
+        Hoje o dano seria dentro do mesmo escritório, onde a leitura já é larga
+        por decisão. No dia em que existir o segundo escritório, isso é
+        vazamento de dado pessoal entre tenants sem nenhuma falha de policy: a
+        RLS nem é consultada, o dado já está na memória do navegador.
+
+        Troca de usuário sem SIGNED_OUT no meio (raro, mas possível com sessão
+        restaurada) é coberta pela comparação de id.
+      */
+      const previous = queryClient.getQueryData<Session | null>(authKeys.session())
+      const userChanged = previous?.user?.id && previous.user.id !== session?.user?.id
+
+      if (event === 'SIGNED_OUT' || userChanged) {
+        queryClient.clear()
+      }
+
       queryClient.setQueryData(authKeys.session(), session)
     })
     return () => data.subscription.unsubscribe()

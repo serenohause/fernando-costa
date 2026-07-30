@@ -8,7 +8,7 @@ import {
 } from '@/lib/db-errors'
 import { useCurrentCollaborator } from '@/features/auth/hooks'
 import { clientInputSchema, viaCepResponseSchema } from './schemas'
-import type { Client, ClientInput, DuplicateField, ZipcodeAddress } from './types'
+import type { Client, ClientInput, ClientListRow, DuplicateField, ZipcodeAddress } from './types'
 
 export const crmKeys = {
   all: ['crm'] as const,
@@ -116,15 +116,33 @@ function useTenantId() {
   qualquer colaborador ativo do escritório lê. A lista não é escondida de ninguém
   — quem esconde o menu CRM de quem não deve vê-lo é a permissão de menu.
 
-  LIMITE CONHECIDO, relatado ao usuário e não resolvido aqui: `search_text` grava
-  o documento só em dígitos e o telefone COM pontuação. Então "81624739025" acha
-  o cliente gravado como "816.247.390-25", mas o contrário não — quem colar o CPF
-  formatado não encontra nada, e no original encontrava (lá a comparação era
-  contra `cpf_cnpj` como digitado). O conserto é na coluna, não aqui: normalizar
-  o termo para dígitos consertaria o documento e quebraria a busca por telefone
-  pontuado, que hoje funciona. Decisão de schema, e `supabase/` não é deste
-  módulo.
+  `search_text` grava o documento nas DUAS formas, como digitado e só dígitos
+  (migration 0020), além de nome, e-mail, telefone e cidade. Então tanto
+  "81624739025" quanto "816.247.390-25" encontram o cliente, e o telefone
+  formatado continua encontrando. Os dois gestos são comuns e legítimos:
+  digitar só números, e colar o documento de uma planilha.
 */
+
+/*
+  Colunas explícitas, e não `select('*')`.
+
+  A tabela exibe oito campos. `select('*')` mandava também CPF, data de
+  nascimento, os dois endereços completos, observações e as quatro colunas
+  derivadas de deduplicação — de TODOS os clientes, para qualquer colaborador
+  ativo. A leitura larga é o recorte aprovado e a policy autoriza, então isso
+  não atravessa autorização nenhuma. Mas o redirecionamento de rota que manda
+  Arquiteto para fora do CRM é cosmético: a API não redireciona ninguém, e um
+  único GET entregava o cadastro inteiro de todo mundo a quem a tela nem deixa
+  entrar.
+
+  `search_text`, `client_key`, `tax_id_digits` e `email_normalized` não têm
+  motivo para chegar ao navegador em nenhuma tela — existem para o banco
+  comparar e indexar. `select('*')` continua no detalhe, onde o cadastro
+  inteiro é justamente o que se está olhando.
+*/
+const CLIENTS_LIST_COLUMNS =
+  'id, name, client_type, email, phone, address_city, address_state, address_country, lead_source'
+
 export function useClients(search: string) {
   const term = search.trim()
 
@@ -132,10 +150,10 @@ export function useClients(search: string) {
     queryKey: crmKeys.clients(term),
     /* Mantém a tabela anterior na tela enquanto a busca nova não volta. */
     placeholderData: keepPreviousData,
-    queryFn: async (): Promise<Client[]> => {
+    queryFn: async (): Promise<ClientListRow[]> => {
       let query = supabase
         .from('clients')
-        .select('*')
+        .select(CLIENTS_LIST_COLUMNS)
         .order('name', { ascending: true })
         .limit(CLIENTS_LIST_LIMIT)
 
@@ -149,12 +167,16 @@ export function useClients(search: string) {
 }
 
 /*
-  `%`, `_` e `\` digitados no campo são texto que o usuário quer encontrar, não
-  curinga. Sem escapar, digitar "%" listaria o escritório inteiro e "_" casaria
-  qualquer caractere.
+  Curinga digitado é texto que a pessoa quer encontrar, não instrução de busca.
+
+  `%`, `_` e `\` são os curingas do LIKE do Postgres. `*` entra na lista porque
+  o PostgREST traduz `*` em `%` nos operadores `like`/`ilike` antes de chegar ao
+  banco — sem ele na lista, digitar "*" listava o escritório inteiro, medido.
+  É custo e confusão, não falha de confidencialidade: o filtro de escritório
+  vive na policy, não no padrão, e nenhum termo escapa dele.
 */
 function escapeLikePattern(term: string): string {
-  return term.replace(/[\\%_]/g, (character) => `\\${character}`)
+  return term.replace(/[\\%_*]/g, (character) => `\\${character}`)
 }
 
 /*
@@ -162,6 +184,21 @@ function escapeLikePattern(term: string): string {
   (ClientDetail.jsx:25). Aqui é consulta por chave primária: mesmo resultado, sem
   trazer 500 linhas para exibir uma.
 */
+/*
+  Carrega o cadastro inteiro de um cliente, sob demanda.
+
+  Existe porque a LISTAGEM lê só as oito colunas que exibe (ver
+  CLIENTS_LIST_COLUMNS). Editar a partir da lista precisa do resto — endereços,
+  documento, observações — e buscar isso no clique é melhor que mandar o
+  cadastro completo de 500 clientes para toda pessoa que abre a tela. Um pedido
+  a mais, no momento em que ele é de fato necessário.
+*/
+export async function fetchClient(id: string): Promise<Client> {
+  const { data, error } = await supabase.from('clients').select('*').eq('id', id).single()
+  if (error) throw error
+  return data
+}
+
 export function useClient(id: string | undefined) {
   return useQuery({
     queryKey: crmKeys.client(id),

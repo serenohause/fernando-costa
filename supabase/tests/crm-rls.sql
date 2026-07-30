@@ -647,17 +647,42 @@ select pg_temp.check_val('12.C2', 'CONTROLE: Coordenador com apenas can_view con
 
 -- O atalho depende de auth_collaborator_id(), que ja exige status active.
 -- Promover o Afastado a Diretor prova que o atalho NAO passa por cima do
--- status: se passasse, Diretor de ferias escreveria.
+-- status. Sem estes casos, a afirmacao "Diretor afastado nao escreve" existia
+-- apenas no COMMENT da 0019 - e este projeto ja colecionou afirmacao sem teste.
 update public.collaborators
 set role = 'director'
 where id = (select c_leave_a from crm_ids);
 
+update public.collaborators
+set role = 'director'
+where id = (select c_vac_a from crm_ids);
+
 delete from public.collaborator_permissions
-where collaborator_id = (select c_leave_a from crm_ids);
+where collaborator_id in ((select c_leave_a from crm_ids), (select c_vac_a from crm_ids));
 
 select pg_temp.check_val('12.C3', 'CONTROLE: Diretor Afastado NAO edita (status manda sobre o atalho)', 'false',
   'authenticated', pg_temp.claims((select u_leave_a from crm_ids), (select tenant_a from crm_ids)),
   $q$select public.can_edit_menu('crm')::text$q$);
+
+select pg_temp.check_val('12.C3b', 'CONTROLE: Diretor de Ferias NAO edita', 'false',
+  'authenticated', pg_temp.claims((select u_vac_a from crm_ids), (select tenant_a from crm_ids)),
+  $q$select public.can_edit_menu('crm')::text$q$);
+
+-- Nao basta o helper devolver false: a policy tem que recusar de fato. Sem este
+-- caso, um erro que fizesse a policy ignorar o helper passaria sem acusar.
+select pg_temp.check('12.C3c', 'CONTROLE: Diretor Afastado nao cria cliente', 'ERR:42501',
+  'authenticated', pg_temp.claims((select u_leave_a from crm_ids), (select tenant_a from crm_ids)),
+  format($q$
+    insert into public.clients (tenant_id, name, phone, address_city, address_state)
+    values (%L, 'Cliente do Diretor Afastado', '(62) 90000-0098', 'Goiania', 'GO')
+  $q$, (select tenant_a from crm_ids)));
+
+-- Diretor de OUTRO escritorio nao ganha nada no escritorio A.
+-- Sonda de CONTAGEM, nao de valor: `select 1 from ... where` sem linha devolve
+-- nulo na sonda de valor, e nulo nao distingue "nao encontrou" de "falhou".
+select pg_temp.check('12.C3d', 'CONTROLE: Diretor de B nao alcanca cliente de A', 'OK:0',
+  'authenticated', pg_temp.claims((select u_edit_b from crm_ids), (select tenant_b from crm_ids)),
+  format($q$select 1 from public.clients where id = %L$q$, (select cli_a1 from crm_ids)));
 
 -- Chave inexistente falha alto ANTES do atalho: erro de digitacao na policy de
 -- um modulo futuro nao pode virar "so Diretor escreve" em silencio.

@@ -237,10 +237,20 @@ async function main() {
   console.log(`\nSeed do módulo 2 (CRM) — ${URL}\n`)
 
   // 1. Trava de segurança -----------------------------------------------------
-  const { data: tenants, error: tenantsError } = await db.from('tenants').select('id, slug, name')
-  if (tenantsError) fail(`não consegui ler tenants: ${tenantsError.message}`)
+  //
+  // A pergunta é feita ao banco como "existe tenant diferente do de teste?", e
+  // não lendo a lista para filtrar aqui. Filtrar no cliente depende de a lista
+  // vir inteira: com `max-rows` configurado no projeto, ou com muitos tenants,
+  // um tenant estranho fora da primeira página passaria sem ser visto e o seed
+  // seguiria escrevendo. Trava que falha em silêncio é pior que trava ausente.
+  const { data: foreign, error: foreignError } = await db
+    .from('tenants')
+    .select('slug, name')
+    .neq('slug', TEST_TENANT_SLUG)
+    .limit(5)
 
-  const foreign = tenants.filter((t) => t.slug !== TEST_TENANT_SLUG)
+  if (foreignError) fail(`não consegui verificar os tenants: ${foreignError.message}`)
+
   if (foreign.length > 0) {
     fail(
       `existe tenant que não é o de teste no banco:\n` +
@@ -249,7 +259,13 @@ async function main() {
     )
   }
 
-  const tenant = tenants.find((t) => t.slug === TEST_TENANT_SLUG)
+  const { data: tenant, error: tenantError } = await db
+    .from('tenants')
+    .select('id, slug, name')
+    .eq('slug', TEST_TENANT_SLUG)
+    .maybeSingle()
+
+  if (tenantError) fail(`não consegui ler o escritório de teste: ${tenantError.message}`)
   if (!tenant) {
     fail(
       `o escritório de teste "${TEST_TENANT_SLUG}" não existe.\n` +

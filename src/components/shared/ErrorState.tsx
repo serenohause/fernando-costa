@@ -35,7 +35,7 @@ export default function ErrorState({
             Detalhes técnicos
           </summary>
           <pre className="mt-2 p-3 bg-muted rounded text-xs text-soft overflow-auto">
-            {error instanceof Error ? error.message : String(error)}
+            {technicalDetail(error)}
           </pre>
         </details>
       )}
@@ -47,4 +47,33 @@ export default function ErrorState({
       )}
     </div>
   )
+}
+
+/*
+  O que aparece em "Detalhes técnicos" — e o que NÃO aparece.
+
+  A mensagem crua do Postgres descreve o schema: "permission denied for table
+  clients", "violates check constraint clients_email_format_check". Serve para
+  quem depura e não serve para quem usa; e este componente é a tela de erro de
+  todos os módulos, inclusive os que ainda não existem.
+
+  Então a tela mostra o CÓDIGO, que é o que identifica o problema numa conversa
+  com quem mantém o sistema, e a mensagem completa vai para o console, onde
+  quem depura já olha. Erro sem código (rede, por exemplo) mostra o nome do
+  tipo, que também não descreve estrutura interna.
+*/
+function technicalDetail(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code
+  const detail =
+    typeof code === 'string' && code
+      ? `Código: ${code}`
+      : error instanceof Error
+        ? `Tipo: ${error.name}`
+        : 'Erro sem código'
+
+  if (import.meta.env.DEV) {
+    console.error('[ErrorState]', error)
+  }
+
+  return `${detail}\n\nSe o problema continuar, informe este código a quem mantém o sistema.`
 }

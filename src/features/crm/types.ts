@@ -4,6 +4,31 @@ import type { ClientType, LeadSource } from '@/lib/enums'
 export type Client = Tables<'clients'>
 
 /*
+  O recorte que a LISTAGEM lê — não o cadastro inteiro.
+
+  A tabela exibe oito campos, e é só isso que sai do banco (ver
+  CLIENTS_LIST_COLUMNS em hooks.ts). CPF, data de nascimento, endereços,
+  observações e as colunas derivadas ficam para a tela de detalhe, onde o
+  cadastro completo é o que se está olhando.
+
+  Tipo próprio, e não `Partial<Client>`: assim o compilador acusa se alguma
+  coluna nova for usada na listagem sem ter sido pedida na consulta — que
+  apareceria como `undefined` em produção, não como erro.
+*/
+export type ClientListRow = Pick<
+  Client,
+  | 'id'
+  | 'name'
+  | 'client_type'
+  | 'email'
+  | 'phone'
+  | 'address_city'
+  | 'address_state'
+  | 'address_country'
+  | 'lead_source'
+>
+
+/*
   O que o formulário de cliente do original edita, já em valores do banco.
 
   As quatro colunas GERADAS de `clients` — `tax_id_digits`, `email_normalized`,
