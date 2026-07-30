@@ -489,6 +489,24 @@ Consequências que o desenho precisa sustentar:
   `ultimo_erro_link`, `ultimo_acesso_em`, `ultimo_status_validacao`), mas o
   registro é server-side e a resposta ao visitante não muda.
 
+#### O envio NÃO sobrescreve o cadastro do CRM
+
+Decisão do usuário. O original faz o contrário: ao enviar o formulário, os
+dados digitados pelo cliente sobrescrevem o registro dele em `Client`.
+
+Isso é escrita sem sessão em dado de negócio que a equipe cura. Um CPF
+digitado errado substitui o certo, e ninguém fica sabendo — não há histórico
+do que mudou nem quem mudou.
+
+Aqui o briefing fica guardado como foi preenchido, em `client_intakes`, e a
+tela de Pipeline mostra o que difere do cadastro para alguém da equipe
+decidir aplicar. O dado do cliente continua chegando; o que deixa de existir
+é a substituição automática e silenciosa.
+
+Consequência para a UI do módulo: a tela precisa de uma comparação entre o
+briefing recebido e o cadastro atual, com aplicação campo a campo. Isso não
+existe no original e é trabalho novo.
+
 #### O que precisa de teste próprio, porque o padrão não cobre
 
 A suíte de invariantes afirma "anon não lê e não escreve", e isso continua
@@ -496,8 +514,18 @@ valendo aqui. O que ela não sabe testar é a via pública legítima:
 
 1. Token válido abre e devolve **uma** linha — nunca duas.
 2. A resposta não contém id interno nem `tenant_id`.
-3. Token inexistente, expirado e já enviado devolvem recusas
-   indistinguíveis entre si.
+3. ~~Token inexistente, expirado e já enviado devolvem recusas
+   indistinguíveis entre si.~~ **Revisado pelo usuário na migration 0026.**
+   Só "não encontrado" fica genérico; expirado e já enviado têm desfecho
+   próprio, como no original.
+
+   O motivo da revisão: a indistinguibilidade protegia contra descobrir
+   token válido por tentativa, e o token é uuid v4 — 122 bits — com limite
+   de requisição na frente. Protegia um ataque que já era inviável por outro
+   motivo, e cobrava o preço de quem tem o link legitimamente: o cliente que
+   preencheu e reabre o próprio link via a mesma recusa seca de quem digitou
+   endereço errado, quando o original mostra "Dados Enviados com Sucesso".
+   Trocar usabilidade certa por proteção teórica é mau negócio.
 4. Envio depois de expirado é recusado, mesmo que a abertura tenha
    funcionado.
 5. Envio duas vezes com o mesmo token: o segundo é recusado.

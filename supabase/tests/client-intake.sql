@@ -175,7 +175,7 @@ $q$, (select tk_second from ids)));
 
 -- 2. A resposta nao contem id interno nem tenant_id ----------------------------
 
-select pg_temp.as_role('2.1', 'chaves da resposta, em execucao', 'client_name,expires_at',
+select pg_temp.as_role('2.1', 'chaves da resposta, em execucao', 'client_name,expires_at,outcome',
   'service_role', null, format($q$
   select (select string_agg(k, ',' order by k) from jsonb_object_keys(to_jsonb(x)) k)
   from public.open_client_intake(%L) x
@@ -184,7 +184,7 @@ $q$, (select tk_ok from ids)));
 -- O mesmo pelo catalogo: a assinatura e o contrato, e e ela que impede alguem de
 -- acrescentar 'id' ao retorno sem quebrar um teste.
 select pg_temp.val('2.2', 'assinatura declarada de open_client_intake',
-  'TABLE(client_name text, expires_at timestamp with time zone)', $q$
+  'TABLE(outcome client_intake_outcome, client_name text, expires_at timestamp with time zone)', $q$
   select pg_get_function_result('public.open_client_intake(uuid)'::regprocedure)
 $q$);
 
@@ -197,25 +197,51 @@ $q$);
 
 -- 3. Inexistente, expirado e ja enviado recusam do MESMO jeito -----------------
 
-select pg_temp.as_role('3.1', 'token inexistente: recusa', '0',
+-- MUDOU NA 0026, por decisao do usuario: token que EXISTE tem desfecho proprio.
+-- O raciocinio esta no cabecalho da migration. Em resumo: a indistinguibilidade
+-- protegia contra descoberta de token por tentativa, e o token e uuid v4 - 122
+-- bits - com limite de requisicao na frente. Protecao teorica, custo real para
+-- quem tem o link legitimamente e reabre depois de enviar.
+--
+-- O que a suite passa a afirmar: cada estado tem o SEU desfecho (senao a tela
+-- nao consegue diferenciar), e nenhum deles vaza id nem campo do briefing.
+
+select pg_temp.as_role('3.1', 'token inexistente: outcome not_found', 'not_found',
+  'service_role', null, format($q$
+  select outcome::text from public.open_client_intake(%L)
+$q$, (select tk_inexistente from ids)));
+
+select pg_temp.as_role('3.2', 'token expirado: outcome expired', 'expired',
+  'service_role', null, format($q$
+  select outcome::text from public.open_client_intake(%L)
+$q$, (select tk_expired from ids)));
+
+select pg_temp.as_role('3.3', 'token ja enviado: outcome already_submitted', 'already_submitted',
+  'service_role', null, format($q$
+  select outcome::text from public.open_client_intake(%L)
+$q$, (select tk_submitted from ids)));
+
+-- CONTROLE contra a volta do defeito oposto: token inexistente NAO pode devolver
+-- nome de cliente. Sem este caso, uma versao que devolvesse o nome junto do
+-- not_found passaria nos tres acima.
+select pg_temp.as_role('3.1b', 'CONTROLE: token inexistente nao devolve nome de cliente', '<null>',
+  'service_role', null, format($q$
+  select coalesce(client_name, '<null>') from public.open_client_intake(%L)
+$q$, (select tk_inexistente from ids)));
+
+-- CONTROLE: sempre UMA linha, em todos os desfechos. Zero linha voltaria a
+-- impedir a tela de distinguir, e mais de uma seria token colidindo.
+select pg_temp.as_role('3.1c', 'CONTROLE: token inexistente devolve exatamente uma linha', '1',
   'service_role', null, format($q$
   select count(*)::text from public.open_client_intake(%L)
 $q$, (select tk_inexistente from ids)));
 
-select pg_temp.as_role('3.2', 'token expirado: recusa', '0',
-  'service_role', null, format($q$
-  select count(*)::text from public.open_client_intake(%L)
-$q$, (select tk_expired from ids)));
-
-select pg_temp.as_role('3.3', 'token ja enviado: recusa', '0',
-  'service_role', null, format($q$
-  select count(*)::text from public.open_client_intake(%L)
-$q$, (select tk_submitted from ids)));
-
--- A afirmacao que importa: os tres deram a MESMA resposta. Erro distinto por
--- caso (uma excecao aqui, zero linhas ali) transforma o endpoint em oraculo de
+-- A afirmacao que importa agora e a inversa da que existia ate a 0026: os tres
+-- precisam ser DIFERENTES entre si, senao a tela publica nao consegue mostrar
+-- "seus dados ja foram enviados" em vez de uma recusa seca. O oraculo que a
+-- versao anterior evitava era
 -- "este token existe?".
-select pg_temp.val('3.4', 'as tres recusas sao indistinguiveis entre si', '1', $q$
+select pg_temp.val('3.4', 'os tres desfechos sao distintos entre si', '3', $q$
   select count(distinct observed)::text from res where caso in ('3.1', '3.2', '3.3')
 $q$);
 
@@ -383,7 +409,7 @@ select pg_temp.as_role('7.7', 'CONTROLE: o colaborador logado NAO le a do outro 
   select count(*)::text from public.client_intakes where tenant_id = %L
 $q$, (select tenant_b from ids)));
 
-select pg_temp.as_role('7.8', 'CONTROLE: service_role executa a porta publica', '0',
+select pg_temp.as_role('7.8', 'CONTROLE: service_role executa a porta publica', '1',
   'service_role', null, format($q$
   select count(*)::text from public.open_client_intake(%L)
 $q$, (select tk_inexistente from ids)));
