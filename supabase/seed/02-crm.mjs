@@ -220,14 +220,16 @@ const CLIENTS = [
     notes: 'Sede administrativa da fazenda. Decisão passa por dois sócios, prazo costuma escorregar.',
   },
   {
+    // Sem documento E sem e-mail: client_key fica nulo e este cliente sai da
+    // deduplicação. É o caso que justifica os índices únicos serem parciais, e
+    // sem ele o seed não exercitaria chave nula em nenhuma linha.
     name: 'Thiago Moreira Bastos',
     phone: '(62) 99288-7741',
-    email: 'thiago.bastos@hotmail.com',
     client_type: 'individual',
     lead_source: 'other',
     address_city: 'Anápolis',
     address_state: 'GO',
-    notes: 'Contato de evento. Sem documento e sem definição de escopo.',
+    notes: 'Contato de evento, só o telefone anotado. Sem documento e sem e-mail.',
   },
 ]
 
