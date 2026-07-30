@@ -292,12 +292,94 @@ falhas de autorização, não recursos:
 Só os nomes de tabela, as relações e as decisões que já dá para fixar.
 Cada um será detalhado no seu módulo.
 
-## Módulo 2 — CRM
+## Módulo 2 — CRM (detalhado)
 
-`clients` (de `Client`). Guarda `tax_id` (CPF/CNPJ como digitado) e
-`tax_id_normalized` (só dígitos) + `email_normalized` — os dois campos
-normalizados existem no original e servem à deduplicação. Vira
-`unique (tenant_id, tax_id_normalized)` parcial, onde não nulo.
+Uma tabela: `clients`, de `Client` (26 campos).
+
+### Colunas
+
+| Coluna | Origem | Nota |
+|---|---|---|
+| `id`, `tenant_id`, `legacy_id`, `created_at`, `updated_at` | — | padrão de toda tabela |
+| `name` | `name` | not null |
+| `phone` | `phone` | not null — é o WhatsApp, canal principal do escritório |
+| `email` | `email` | citext, nullable |
+| `client_type` | `client_type` | enum `client_type` (`individual`, `company`) |
+| `lead_source` | `lead_source` | enum `lead_source` |
+| `tax_id` | `cpf_cnpj` | como a pessoa digitou, com pontuação |
+| `birth_date` | `birth_date` | date |
+| `notes` | `notes` | text |
+
+**Endereço, duas vezes.** O original tem dois blocos completos: residência
+(`current_*`) e obra (`construction_*`). Não viram tabela separada: são 1:1
+com o cliente, sempre existem juntos, e o formulário do original os mostra
+lado a lado. Normalizar aqui daria um join a mais em toda tela para ganhar
+nada.
+
+| Residência | Obra |
+|---|---|
+| `address_zipcode`, `address_street`, `address_number`, `address_district`, `address_complement`, `address_city`, `address_state`, `address_country` | `site_zipcode`, `site_street`, `site_number`, `site_district`, `site_complement`, `site_city`, `site_state` |
+
+`address_city`, `address_state` e `address_country` são not null (o original
+os exige). O bloco da obra é todo nullable — cliente pode existir antes de
+haver terreno.
+
+### Deduplicação: o ponto que o original quase acertou
+
+O original mantém três campos derivados — `cpf_cnpj_norm` (só dígitos),
+`email_norm` (minúsculo, sem espaço) e `cliente_key` (`doc:xxx` ou
+`email:xxx`) — e os preenche **no código do frontend**, a cada gravação.
+
+A intenção está certa: comparar documento com pontuação (`123.456.789-00`)
+contra o mesmo documento sem (`12345678900`) nunca casa, então precisa de uma
+forma normalizada. O problema é onde a conta é feita. Campo derivado escrito
+pela aplicação só está correto enquanto **toda** gravação passar pelo mesmo
+caminho. Qualquer importação, correção manual no painel ou tela nova que
+esqueça de recalcular deixa o campo desalinhado do original — e a
+deduplicação passa a não ver duplicata que existe.
+
+Aqui os três viram **colunas geradas pelo Postgres**:
+
+- `tax_id_digits` — `tax_id` sem nada que não seja dígito
+- `email_normalized` — `email` em minúsculas, sem espaço nas pontas
+- `client_key` — `doc:<tax_id_digits>` quando há documento, senão
+  `email:<email_normalized>`, senão nulo
+
+Coluna gerada não pode ser escrita nem esquecida: o banco recalcula em todo
+INSERT e UPDATE. A regra de unicidade passa a valer de verdade:
+
+- `unique (tenant_id, tax_id_digits)` parcial, onde não nulo
+- `unique (tenant_id, client_key)` parcial, onde não nulo
+
+O original **não tem** essas restrições — ele calcula a chave e nunca a usa
+para impedir a duplicata, só para procurar. Ou seja: hoje dá para cadastrar
+o mesmo CPF duas vezes.
+
+### Índices
+
+`(tenant_id, name)` para a listagem ordenada, `(tenant_id, created_at desc)`
+para "mais recentes", e um índice de busca textual sobre nome, e-mail e
+telefone — a tela de listagem tem campo de busca livre.
+
+### RLS
+
+Sem novidade estrutural: qualquer colaborador ativo do tenant lê; escrita
+para quem tem `can_edit` no menu `crm`. É o primeiro módulo em que a
+permissão de menu vira regra de escrita no banco, e não só item escondido na
+sidebar — vale testar isso explicitamente.
+
+### Dependências para frente (ficam marcadas, entram depois)
+
+A tela de CRM do original toca duas coisas que ainda não existem:
+
+1. **"Criar Oportunidade"** (`Clients.jsx:137`) cria uma `Negociacao` a
+   partir do cliente. Entra no módulo 3.
+2. **Histórico do cliente** (`components/clients/ClientHistory.jsx`) lista
+   `Project` e `AccountReceivable` daquele cliente, na tela de detalhe.
+   Entra nos módulos 5 e 7.
+
+Nenhuma das duas é motivo para adiar o CRM. Ficam como marcação explícita no
+código — não como comentário vago, mas apontando o módulo que as liga.
 
 ## Módulo 3 — Pipeline
 
