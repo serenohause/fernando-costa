@@ -1,4 +1,6 @@
-# Testes do módulo 1
+# Testes
+
+## Módulo 1 — fundação
 
 Três testes, propositalmente redundantes, porque cobrem elos diferentes da
 mesma corrente.
@@ -18,15 +20,28 @@ autorização que elas fazem lendo o banco — e é isso que o arquivo exercita,
 inclusive pelos caminhos negados (Arquiteto, Diretor de outro escritório,
 Diretor afastado).
 
+## Módulo 2 — CRM
+
+| Arquivo | O que exercita | O que NÃO cobre |
+|---|---|---|
+| `crm-schema.sql` | o schema de `clients` por dentro: as três colunas geradas de deduplicação, as duas unicidades parciais, os checks, e que a tabela nasceu sem `GRANT` para `anon`/`authenticated` | RLS — os casos 5.3 e 5.4 afirmam de propósito que ela **ainda não existe**, e passam a afirmar o contrário quando o `rls-guardian` entrar |
+
+Roda contra o schema já aplicado (não recria a tabela), então serve como
+regressão: se alguém trocar uma coluna gerada por trigger, afrouxar um check ou
+soltar um `GRANT`, um caso acusa.
+
 ## Rodar
 
 ```bash
-npm run test:rls        # ponta a ponta (login real)
-npm run test:rls:sql    # policies, em transação com ROLLBACK
-npm run test:functions  # edge functions publicadas
+npm run test:rls          # ponta a ponta (login real)
+npm run test:rls:sql      # policies, em transação com ROLLBACK
+npm run test:functions    # edge functions publicadas
+npm run test:schema:crm   # schema de clients, em transação com ROLLBACK
 ```
 
-Os três saem com código 1 se qualquer caso falhar.
+Todos saem com código 1 se qualquer caso falhar. `run-sql.sh` é o runner genérico
+dos testes `.sql` (recebe o caminho do arquivo); `run-sql-isolation.sh` ficou como
+está, com o arquivo do módulo 1 fixo.
 
 ## Pré-requisitos
 
