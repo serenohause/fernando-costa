@@ -1,0 +1,39 @@
+-- Modulo 2 (CRM) - corrige o COMMENT da policy de UPDATE de clients.
+--
+-- Migration de comentario, e nao de comportamento: nenhuma policy, funcao ou
+-- privilegio muda aqui. Existe porque migration ja aplicada nao e editada (regra
+-- de docs/ARCHITECTURE.md, secao "Ambiente de banco"), nem para consertar texto -
+-- o arquivo passaria a divergir do que o banco recebeu.
+--
+-- O QUE ESTAVA ERRADO
+--
+-- O comentario da 0017 afirmava que "so com USING, quem edita CRM pegaria um
+-- cliente do proprio escritorio e reescreveria tenant_id para outro". Isso
+-- descreve mal o Postgres em dois pontos, e os dois foram medidos com mutacao de
+-- policy dentro de transacao com ROLLBACK, nao deduzidos:
+--
+--   1. Policy de UPDATE sem WITH CHECK nao fica sem verificacao da linha nova: o
+--      Postgres usa a propria expressao do USING para checar o resultado. Ou
+--      seja, remover o WITH CHECK daqui NAO abre a mudanca de tenant_id.
+--
+--   2. Mesmo com "with check (true)" - que e pior do que ausente - a mudanca de
+--      tenant_id continuou sendo recusada com 42501 ("new row violates row-level
+--      security policy"). Quem barrou foi a policy de SELECT: a linha resultante
+--      precisa continuar visivel, e clients_select_active_collaborator filtra por
+--      tenant. A tentativa so passou quando as DUAS foram afrouxadas ao mesmo
+--      tempo.
+--
+-- POR QUE O WITH CHECK EXPLICITO FICA
+--
+-- Nao por redundancia decorativa: ele e a metade que sobrevive a um aperto ou
+-- afrouxamento futuro da leitura. Se algum modulo adiante trocar a policy de
+-- SELECT de clients por algo mais largo (por exemplo, leitura por cliente de
+-- outro escritorio compartilhado num projeto conjunto), o WITH CHECK e o unico
+-- predicado que ainda impede empurrar a linha para fora do proprio escritorio. E
+-- o caso 11.4 de supabase/tests/crm-rls.sql que garante que ele nao desapareca:
+-- o caso de comportamento (7.4) passa com ou sem ele, entao afirmar que 7.4
+-- "prova o WITH CHECK" seria justamente o tipo de assercao vazia que este projeto
+-- ja colecionou tres vezes.
+
+comment on policy clients_update_crm_editor on public.clients is
+  'USING escolhe quais linhas podem ser alteradas: as do proprio escritorio, e so por quem tem can_edit no menu crm. O WITH CHECK repete o predicado para restringir como a linha pode ficar depois. Ele NAO e o que hoje impede mover um cliente para outro escritorio - medido: com "with check (true)" a tentativa continua sendo 42501, porque a linha resultante tambem precisa passar pela policy de SELECT, que filtra por tenant. O WITH CHECK e a metade que sobrevive se a leitura de clients for afrouxada algum dia, e a ausencia dele e acusada pelo caso 11.4 de supabase/tests/crm-rls.sql, nao por um caso de comportamento.';

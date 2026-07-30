@@ -24,19 +24,46 @@ Diretor afastado).
 
 | Arquivo | O que exercita | O que NÃO cobre |
 |---|---|---|
-| `crm-schema.sql` | o schema de `clients` por dentro: as três colunas geradas de deduplicação, as duas unicidades parciais, os checks, e que a tabela nasceu sem `GRANT` para `anon`/`authenticated` | RLS — os casos 5.3 e 5.4 afirmam de propósito que ela **ainda não existe**, e passam a afirmar o contrário quando o `rls-guardian` entrar |
+| `crm-schema.sql` | o schema de `clients` por dentro: as três colunas geradas de deduplicação, as duas unicidades parciais, os checks, e a **configuração** de acesso (RLS ligada, 4 policies, `GRANT` de `authenticated`, nada para `anon`) | o comportamento das policies — quem lê e quem escreve é assunto dos dois arquivos abaixo |
+| `crm-rls.sql` | as policies de `clients` por dentro do banco, com papel e claim simulados: isolamento entre escritórios, status `on_leave`/`vacation`, e a regra nova do módulo — escrita só para quem tem `can_edit` no menu `crm` | se o JWT do login real carrega o claim |
+| `crm-rls.mjs` | a corrente inteira pela rede para `clients`: login real → hook → JWT → PostgREST → `GRANT` → policy, mais `can_edit_menu` chamado por RPC e a **chave publicável** batendo na tabela | nada além do módulo 2 |
 
-Roda contra o schema já aplicado (não recria a tabela), então serve como
-regressão: se alguém trocar uma coluna gerada por trigger, afrouxar um check ou
-soltar um `GRANT`, um caso acusa.
+`crm-schema.sql` roda contra o schema já aplicado (não recria a tabela), então
+serve como regressão: se alguém trocar uma coluna gerada por trigger, afrouxar um
+check ou soltar um `GRANT`, um caso acusa.
+
+Os casos 5.2, 5.3 e 5.4 de `crm-schema.sql` eram um marcador de etapa — afirmavam
+que `clients` **não** tinha RLS nem `GRANT`, o estado em que a migration 0015 a
+deixou. A 0017 inverteu os três. `5.1` (anon sem privilégio algum) é o único que
+nunca muda.
+
+### A suíte de RLS do CRM foi testada contra ela mesma
+
+`crm-rls.sql` foi rodada contra sete versões **erradas** da 0017, injetadas na
+própria transação e desfeitas no `ROLLBACK`. O cabeçalho do arquivo tem a tabela
+de qual defeito derruba qual caso. Dois resultados que mudaram o arquivo:
+
+- Policy de `UPDATE` **sem** `WITH CHECK` não fica sem verificação: o Postgres
+  reusa a expressão do `USING`.
+- Mesmo com `with check (true)`, mover um cliente para outro escritório continua
+  sendo `42501` — quem barra é a policy de `SELECT`, porque a linha resultante
+  precisa continuar visível. A tentativa só passa quando as duas são afrouxadas
+  juntas.
+
+Ou seja, o caso de comportamento passa com ou sem a cláusula. Quem guarda a
+existência dela é uma asserção de catálogo (`11.4` no `crm-rls.sql`, `5.6` no
+`crm-schema.sql`), não um caso de comportamento — está registrado na migration
+`0018`.
 
 ## Rodar
 
 ```bash
-npm run test:rls          # ponta a ponta (login real)
-npm run test:rls:sql      # policies, em transação com ROLLBACK
-npm run test:functions    # edge functions publicadas
-npm run test:schema:crm   # schema de clients, em transação com ROLLBACK
+npm run test:rls           # módulo 1, ponta a ponta (login real)
+npm run test:rls:sql       # módulo 1, policies, em transação com ROLLBACK
+npm run test:functions     # edge functions publicadas
+npm run test:schema:crm    # schema de clients, em transação com ROLLBACK
+npm run test:rls:crm       # policies de clients, em transação com ROLLBACK
+npm run test:rls:crm:e2e   # clients ponta a ponta, com login real e chave publicável
 ```
 
 Todos saem com código 1 se qualquer caso falhar. `run-sql.sh` é o runner genérico
@@ -83,17 +110,31 @@ Teste de RLS feito com a chave que ignora RLS não prova nada.
 
 ## Resíduo
 
-O `.sql` termina em `ROLLBACK`. Os dois `.mjs` limpam no `finally`: apagam os
+Os `.sql` terminam em `ROLLBACK`. Os três `.mjs` limpam no `finally`: apagam os
 tenants de teste (que cascateiam colaboradores, permissões, solicitações,
-domínios e vínculos) e os usuários de `auth.users` cujo e-mail começa com o
-prefixo fixo — `rls-test-` em um, `ef-test-` no outro. Se o processo morrer no
-meio, rodar de novo limpa antes de começar.
+domínios, vínculos e **clientes**) e os usuários de `auth.users` cujo e-mail
+começa com o prefixo fixo — `rls-test-`, `ef-test-` e `crm-rls-test-`. Se o
+processo morrer no meio, rodar de novo limpa antes de começar.
 
-Conferir à mão depois de rodar:
+**Nenhum caso afirma contagem absoluta de tabela.** Toda fixture vive em tenants
+próprios (`rls-test-*`, `crm-rls-*`) e toda contagem é escopada neles ou feita sob
+um claim que a própria RLS restringe. O motivo é histórico: quatro casos do módulo
+1 falharam acusando "bypass quebrado" quando havia fixture de outro processo no
+banco, e o bypass estava intacto. Com o seed do módulo 2 no ar, `public.clients`
+passa a ter linhas permanentes — caso que depende de tabela vazia passa hoje e
+falha depois, longe da causa.
+
+Conferir à mão depois de rodar (o escritório de teste do seed **fica**; o que não
+pode sobrar é fixture):
 
 ```sql
-select (select count(*) from public.tenants), (select count(*) from auth.users);
--- esperado: 0, 0  (enquanto não houver dado real)
+select slug, (select count(*) from public.collaborators c where c.tenant_id = t.id) as colaboradores
+from public.tenants t order by slug;
+-- esperado: só fernando-costa-teste (ou nada, se o seed ainda não rodou)
+
+select count(*) from auth.users where email like 'rls-test-%' or email like 'ef-test-%'
+                                   or email like 'crm-rls-test-%';
+-- esperado: 0
 ```
 
 ## Quando o banco tiver dado de produção

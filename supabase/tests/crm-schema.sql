@@ -233,29 +233,55 @@ select pg_temp.val('4.9', 'default de pais aplicado', 'Brasil',
 
 -- 5. Superficie de acesso ----------------------------------------------------
 --
--- Enquanto a RLS do modulo nao existir, o esperado e ZERO privilegio para anon e
--- authenticated: e o que a 0007 garantiu ao desarmar o DEFAULT PRIVILEGE do papel
--- postgres. Se 5.1 ou 5.2 deixarem de ser nulos sem que haja policy, a tabela
--- esta exposta pela chave publicavel.
+-- ATUALIZADO PELA 0017 (RLS do modulo 2). Antes dela, 5.2, 5.3 e 5.4 afirmavam
+-- que a tabela nao tinha privilegio para authenticated, nem RLS, nem policy - o
+-- estado em que a 0015 a deixou de proposito, marcado como etapa pendente. Com a
+-- 0017 aplicada, os tres passariam a mentir; foram invertidos para afirmar o
+-- estado correto.
 --
--- 5.3 e 5.4 sao um marcador de etapa, nao uma afirmacao de seguranca: valem
--- 'false' e '0' so ate o rls-guardian entrar. Quando ele entrar, viram 'true' e
--- o numero de policies - e a atualizacao destes dois casos e parte daquele
--- trabalho.
+-- As duas metades sao independentes e as duas precisam existir: RLS ligada sem
+-- GRANT deixa a tabela inalcancavel ("permission denied for table"); GRANT sem
+-- RLS entrega a tabela inteira para a chave publicavel. 5.1 e o caso que continua
+-- valendo exatamente o que valia antes - anon nao tem nada, e nao pode ganhar
+-- nada: nenhuma tela de CRM e publica.
+--
+-- O comportamento das policies (quem le, quem escreve, quem nao) e assunto de
+-- supabase/tests/crm-rls.sql. Aqui fica so a configuracao, que e o que este
+-- arquivo pode acusar sem montar usuario nenhum.
 
-select pg_temp.val('5.1', 'privilegios de anon em public.clients', '<null>',
-  $q$select nullif(string_agg(privilege_type, ','), '') from information_schema.role_table_grants
+select pg_temp.val('5.1', 'privilegios de anon em public.clients (nenhum, e nao pode mudar)', '<null>',
+  $q$select nullif(string_agg(privilege_type, ',' order by privilege_type), '')
+     from information_schema.role_table_grants
      where table_schema = 'public' and table_name = 'clients' and grantee = 'anon'$q$);
 
-select pg_temp.val('5.2', 'privilegios de authenticated em public.clients', '<null>',
-  $q$select nullif(string_agg(privilege_type, ','), '') from information_schema.role_table_grants
+-- ORDER BY explicito: sem ele o string_agg devolve a ordem em que o catalogo
+-- entregar, e o caso quebraria por motivo nenhum. Enquanto o esperado era
+-- '<null>' isso nao aparecia.
+select pg_temp.val('5.2', 'privilegios de authenticated em public.clients', 'DELETE,INSERT,SELECT,UPDATE',
+  $q$select nullif(string_agg(privilege_type, ',' order by privilege_type), '')
+     from information_schema.role_table_grants
      where table_schema = 'public' and table_name = 'clients' and grantee = 'authenticated'$q$);
 
-select pg_temp.val('5.3', 'RLS ligada? (false ate o rls-guardian entrar)', 'false',
+select pg_temp.val('5.3', 'RLS ligada em public.clients', 'true',
   $q$select relrowsecurity::text from pg_class where oid = 'public.clients'::regclass$q$);
 
-select pg_temp.val('5.4', 'policies existentes (0 ate o rls-guardian entrar)', '0',
+select pg_temp.val('5.4', 'policies existentes (uma por comando, desde a 0017)', '4',
   $q$select count(*)::text from pg_policies where schemaname = 'public' and tablename = 'clients'$q$);
+
+select pg_temp.val('5.5', 'quais policies, e para qual comando',
+  'clients_delete_crm_editor/DELETE,clients_insert_crm_editor/INSERT,clients_select_active_collaborator/SELECT,clients_update_crm_editor/UPDATE',
+  $q$select string_agg(policyname || '/' || cmd, ',' order by policyname) from pg_policies
+     where schemaname = 'public' and tablename = 'clients'$q$);
+
+-- Guarda a existencia do WITH CHECK. Medido por mutacao (ver o cabecalho de
+-- crm-rls.sql): remover a clausula do UPDATE nao derruba nenhum caso de
+-- comportamento, porque o Postgres reusa a expressao do USING e a policy de
+-- SELECT tambem barra a linha resultante. Se este caso nao existisse, ninguem
+-- notaria a remocao.
+select pg_temp.val('5.6', 'INSERT e UPDATE tem WITH CHECK declarado',
+  'clients_insert_crm_editor,clients_update_crm_editor',
+  $q$select string_agg(policyname, ',' order by policyname) from pg_policies
+     where schemaname = 'public' and tablename = 'clients' and with_check is not null$q$);
 
 -- 6. Indices e busca ---------------------------------------------------------
 --
