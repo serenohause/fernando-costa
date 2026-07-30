@@ -115,41 +115,54 @@ Cada módulo é uma fatia vertical completa:
 Um commit por camada. O módulo só é dado por encerrado depois de o usuário
 ver a tela funcionando com o dado simulado **e do deploy no ar**.
 
-### Do módulo 4 em diante: quatro blocos, não sete módulos
+### Do módulo 4 em diante: o que se testa, e o que parou de se testar
 
-Decisão do usuário depois do módulo 3, e o motivo é medido: os três primeiros
-módulos custaram cerca de doze horas, e a maior parte foi rigor aplicado a
-coisa que já estava provada.
+O trabalho continua **módulo a módulo**, na ordem da tabela acima. O que muda
+é a validação, e o motivo é medido: os três primeiros módulos custaram cerca
+de doze horas, e boa parte foi rigor aplicado ao que já estava provado. O
+módulo 2 produziu 189 casos de teste e o módulo 3 produziu 213 — para o mesmo
+padrão, aplicado a tabelas diferentes.
 
-O que era genuinamente novo já aconteceu — multitenancy, permissão de menu
-virando regra de escrita, e a porta pública sem autenticação. **Nenhum dos
-módulos restantes abre superfície nova de ataque.** São tabela com
-`tenant_id`, leitura por colaborador ativo, escrita por `can_edit_menu`, e
-telas. O padrão está provado e tem suíte própria validada por mutação.
+O que era genuinamente novo já aconteceu: multitenancy, permissão de menu
+virando regra de escrita no banco, e a porta pública sem autenticação.
+**Nenhum módulo restante abre superfície nova.** São tabela com `tenant_id`,
+leitura por colaborador ativo, escrita por `can_edit_menu`, e telas.
 
-Os sete módulos restantes viram quatro blocos, agrupados por dependência
-real entre as telas:
+#### O que continua
 
-| Bloco | Contém | Por que junto |
-|---|---|---|
-| **A — Entrega** | Contratos, Projetos, Tarefas, Atividades | Contrato gera projeto, projeto tem tarefas, atividade referencia projeto. As telas se citam; fazer separado obriga a voltar em cada uma |
-| **B — Financeiro** | Recebíveis, Pagamentos, Categorias | Recebível nasce do parcelamento do contrato, então depende do bloco A |
-| **C — Suprimentos** | Fornecedores, Orçamento por Cliente, Mapa | Independentes do resto e entre si; agrupados por serem pequenos |
-| **D — Painéis** | Visão Geral, Executivo, Comercial | Agregam tudo. Por último, senão são refeitos a cada bloco |
+**A suíte de invariantes** (`npm run test:pattern`). Módulo novo acrescenta
+uma linha em `pattern_tables` e ganha 26 asserções: RLS ligada, anônimo sem
+privilégio, policy nos quatro comandos, `WITH CHECK` declarado, `tenant_id`
+not null, `unique (id, tenant_id)`, índice por `tenant_id`, isolamento entre
+escritórios nos dois sentidos, colaborador afastado sem leitura, escrita
+presa ao menu certo, e a chave de menu sendo de fato lida.
 
-**Auditoria de segurança: uma só, no fim do bloco D**, antes do deploy final.
-Não é afrouxamento — é reconhecer que auditar de novo o mesmo padrão a cada
-bloco reencontra o que a suíte de invariantes já afirma. O que substitui a
-auditoria por bloco:
+Ela é o que sustenta todo o resto do corte, e por isso foi validada por
+mutação: acesso anônimo derruba 2 casos, RLS desligada derruba 9, leitor
+ganhando permissão derruba 3. Se ela deixar de cair quando o padrão quebra,
+o corte deixa de ser seguro.
 
-- `npm run test:pattern` roda sobre toda tabela nova, e a suíte cai quando o
-  padrão quebra (validada por mutação).
-- Conferência minha, curta, do que é específico do bloco.
-- Qualquer coisa que fuja do padrão — escrita sem sessão, dado de terceiro,
-  cálculo financeiro que vira decisão — sai do bloco e ganha tratamento
-  próprio, como o formulário público ganhou.
+**Teste próprio do módulo, curto** — só a regra de negócio que a suíte não
+tem como conhecer: coluna gerada, restrição de unicidade, check de domínio,
+valor calculado. Alvo de 10 a 15 casos, não 44.
 
-Deploy continua a cada bloco.
+#### O que parou
+
+- **Suíte de RLS por módulo.** As 71 do CRM mais as 52 de ponta a ponta
+  reafirmavam o que a suíte de invariantes já afirma sobre a mesma tabela.
+- **Injeção de defeito por módulo.** Vale uma vez, para validar o padrão —
+  e já valeu. Repetir por módulo reprova o que já foi provado.
+- **Agente de auditoria por módulo.** Só quando algo sai do padrão.
+
+#### Quando o corte não vale
+
+Qualquer coisa que fuja do padrão volta ao tratamento completo, com auditoria
+dedicada e injeção de defeito: escrita sem sessão autenticada, dado vindo de
+terceiro, superfície pública, ou cálculo cujo erro só apareceria no dinheiro
+de alguém. Foi assim que o formulário público do módulo 3 ganhou suíte
+própria — e foi lá que apareceu o achado que travou o deploy.
+
+O julgamento é meu, e é declarado antes de começar o módulo, não depois.
 
 ### Como os módulos 3 a 9 são feitos (mudou depois do 2)
 
