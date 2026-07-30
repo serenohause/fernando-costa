@@ -355,6 +355,29 @@ O original **não tem** essas restrições — ele calcula a chave e nunca a usa
 para impedir a duplicata, só para procurar. Ou seja: hoje dá para cadastrar
 o mesmo CPF duas vezes.
 
+**Documento continua opcional** (decisão do usuário, e é o que o original
+faz: só nome, telefone, cidade, estado e país são obrigatórios). Lead que
+chega pelo Instagram não traz CPF, e exigir na entrada travaria o cadastro
+justamente no momento em que ele é mais útil. Consequência aceita: cliente
+sem documento e sem e-mail tem `client_key` nulo e fica fora da
+deduplicação — os índices são parciais por isso.
+
+### O que a tela faz quando a duplicata é barrada
+
+Decisão do usuário: **não basta recusar.** Ao esbarrar na restrição, a tela
+mostra qual cliente já ocupa aquele documento, com link para abri-lo.
+
+O motivo é que o erro quase nunca significa "quis criar duplicata". Significa
+"procurei e não achei" — porque digitou o CPF com pontuação diferente da
+cadastrada, ou porque o cliente está gravado com outro nome. Devolver só
+"CPF já cadastrado" deixa a pessoa exatamente onde ela já estava: sem achar
+o cliente.
+
+Implicação para o hook do módulo: ao capturar violação de unicidade
+(código `23505` do Postgres), a mutação precisa **consultar** quem tem
+aquele `tax_id_digits` e devolver o cliente junto do erro. Sem isso a tela
+não tem o que mostrar. É a diferença entre tratar o erro e apenas repassá-lo.
+
 ### Índices
 
 `(tenant_id, name)` para a listagem ordenada, `(tenant_id, created_at desc)`
