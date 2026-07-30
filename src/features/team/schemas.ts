@@ -44,9 +44,5 @@ export const approveAccessRequestSchema = z.object({
 
 export type ApproveAccessRequestInput = z.infer<typeof approveAccessRequestSchema>
 
-export function firstIssueMessage(error: unknown): string | null {
-  if (error instanceof z.ZodError) {
-    return error.issues[0]?.message ?? 'Dados inválidos.'
-  }
-  return null
-}
+/* `firstIssueMessage` mora em src/lib/db-errors.ts desde o módulo 2: a tradução
+   de erro de Zod e de Postgres em texto de tela é a mesma em toda feature. */

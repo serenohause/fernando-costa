@@ -101,6 +101,44 @@ export function useCollaboratorPermissions(collaboratorId: string | undefined) {
 }
 
 /*
+  Porta de projeto-original/src/components/shared/usePermissions.jsx, que o
+  original chama por rótulo de menu (`usePermissions('CRM')`) e aqui é chamado
+  pela chave estável (`useMenuPermissions('crm')`).
+
+  A regra é a MESMA do banco, e isso é o ponto: `can_edit_menu()` (migration
+  0019) libera Diretor sem consultar a matriz e, para os demais, exige a linha
+  gravada. É a regra do original (usePermissions.jsx:36-49) portada literalmente.
+  Se a tela usasse outro critério, o resultado seria frontend e banco discordando
+  sobre quem escreve — a tela prometendo o botão e o banco devolvendo 403, ou o
+  contrário.
+
+  O que continua não sendo trabalho daqui: autorizar. Quem autoriza é a RLS.
+  Isto só decide o que aparece na tela — e o `status !== 'active'` reproduz o
+  `auth_collaborator_id()`, que devolve nulo para quem está em Férias ou
+  Afastado.
+
+  Não custa requisição nova: a chave de `useCollaboratorPermissions` é a mesma
+  que o AppLayout já usa para montar a sidebar.
+*/
+export function useMenuPermissions(menuKey: string) {
+  const collaboratorQuery = useCurrentCollaborator()
+  const collaborator = collaboratorQuery.data ?? null
+  const isActive = collaborator?.status === 'active'
+
+  const permissionsQuery = useCollaboratorPermissions(isActive ? collaborator!.id : undefined)
+  const row = permissionsQuery.data?.find((permission) => permission.menu_key === menuKey)
+  const isDirector = isActive && collaborator?.role === 'director'
+
+  return {
+    canView: Boolean(isDirector || row?.can_view),
+    canEdit: Boolean(isDirector || row?.can_edit),
+    isDirector,
+    isLoading: collaboratorQuery.isLoading || permissionsQuery.isLoading,
+    isError: Boolean(collaboratorQuery.error ?? permissionsQuery.error),
+  }
+}
+
+/*
   Menu montado: `menus` cruzado com as permissões do colaborador logado,
   respeitando parent_key, sort_order, can_view e as regras por função.
   Os três estados (carregando / vazio / erro) saem daqui prontos para a UI.

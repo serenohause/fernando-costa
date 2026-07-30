@@ -3,6 +3,8 @@ import AppLayout from '@/components/layout/AppLayout'
 import Login from '@/features/auth/components/Login'
 import Collaborators from '@/features/team/components/Collaborators'
 import AprovacoesAcesso from '@/features/team/components/AprovacoesAcesso'
+import Clients from '@/features/crm/components/Clients'
+import ClientDetail from '@/features/crm/components/ClientDetail'
 
 /*
   O shell já está de pé; as telas de conteúdo entram módulo a módulo, na ordem
@@ -18,6 +20,9 @@ export function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<AppLayout />}>
+        <Route path="/Clients" element={<Clients />} />
+        {/* Detalhe por query string (`?id=`), como no original — ver ClientDetail.jsx:19. */}
+        <Route path="/ClientDetail" element={<ClientDetail />} />
         <Route path="/Collaborators" element={<Collaborators />} />
         <Route path="/AprovacoesAcesso" element={<AprovacoesAcesso />} />
         <Route path="*" element={<PagePlaceholder />} />

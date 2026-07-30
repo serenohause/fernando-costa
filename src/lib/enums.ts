@@ -68,6 +68,25 @@ export const TENANT_ROLE = {
 
 export type TenantRole = keyof typeof TENANT_ROLE
 
+// ── CRM ─────────────────────────────────────────────────────────────────
+
+export const CLIENT_TYPE = {
+  individual: 'Pessoa Física',
+  company: 'Pessoa Jurídica',
+} as const satisfies LabelMap<string>
+
+export type ClientType = keyof typeof CLIENT_TYPE
+
+/* Ordem do select de ClientForm.jsx do original, não alfabética. */
+export const LEAD_SOURCE = {
+  instagram: 'Instagram',
+  referral: 'Indicação',
+  website: 'Site',
+  other: 'Outros',
+} as const satisfies LabelMap<string>
+
+export type LeadSource = keyof typeof LEAD_SOURCE
+
 /*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
   original, que redireciona Arquiteto e Estagiário para MinhasAtividades e

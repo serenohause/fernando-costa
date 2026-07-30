@@ -105,6 +105,119 @@ export type Database = {
           },
         ]
       }
+      clients: {
+        Row: {
+          address_city: string
+          address_complement: string | null
+          address_country: string
+          address_district: string | null
+          address_number: string | null
+          address_state: string
+          address_street: string | null
+          address_zipcode: string | null
+          birth_date: string | null
+          client_key: string | null
+          client_type: Database["public"]["Enums"]["client_type"] | null
+          created_at: string
+          email: string | null
+          email_normalized: string | null
+          id: string
+          lead_source: Database["public"]["Enums"]["lead_source"] | null
+          legacy_id: string | null
+          name: string
+          notes: string | null
+          phone: string
+          search_text: string | null
+          site_city: string | null
+          site_complement: string | null
+          site_district: string | null
+          site_number: string | null
+          site_state: string | null
+          site_street: string | null
+          site_zipcode: string | null
+          tax_id: string | null
+          tax_id_digits: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          address_city: string
+          address_complement?: string | null
+          address_country?: string
+          address_district?: string | null
+          address_number?: string | null
+          address_state: string
+          address_street?: string | null
+          address_zipcode?: string | null
+          birth_date?: string | null
+          client_key?: string | null
+          client_type?: Database["public"]["Enums"]["client_type"] | null
+          created_at?: string
+          email?: string | null
+          email_normalized?: string | null
+          id?: string
+          lead_source?: Database["public"]["Enums"]["lead_source"] | null
+          legacy_id?: string | null
+          name: string
+          notes?: string | null
+          phone: string
+          search_text?: string | null
+          site_city?: string | null
+          site_complement?: string | null
+          site_district?: string | null
+          site_number?: string | null
+          site_state?: string | null
+          site_street?: string | null
+          site_zipcode?: string | null
+          tax_id?: string | null
+          tax_id_digits?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          address_city?: string
+          address_complement?: string | null
+          address_country?: string
+          address_district?: string | null
+          address_number?: string | null
+          address_state?: string
+          address_street?: string | null
+          address_zipcode?: string | null
+          birth_date?: string | null
+          client_key?: string | null
+          client_type?: Database["public"]["Enums"]["client_type"] | null
+          created_at?: string
+          email?: string | null
+          email_normalized?: string | null
+          id?: string
+          lead_source?: Database["public"]["Enums"]["lead_source"] | null
+          legacy_id?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string
+          search_text?: string | null
+          site_city?: string | null
+          site_complement?: string | null
+          site_district?: string | null
+          site_number?: string | null
+          site_state?: string | null
+          site_street?: string | null
+          site_zipcode?: string | null
+          tax_id?: string | null
+          tax_id_digits?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collaborator_permissions: {
         Row: {
           can_edit: boolean
@@ -354,12 +467,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_access_request: {
+        Args: {
+          p_approver_user_id: string
+          p_area?: Database["public"]["Enums"]["collaborator_area"]
+          p_coordinator_id?: string
+          p_name: string
+          p_request_id: string
+          p_role: Database["public"]["Enums"]["collaborator_role"]
+          p_weekly_hours?: number
+        }
+        Returns: Json
+      }
+      auth_collaborator_id: { Args: never; Returns: string }
+      auth_collaborator_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["collaborator_role"]
+      }
       auth_tenant_id: { Args: never; Returns: string }
+      can_edit_menu: { Args: { p_menu_key: string }; Returns: boolean }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       is_active_collaborator: { Args: never; Returns: boolean }
+      is_tenant_director: { Args: never; Returns: boolean }
     }
     Enums: {
       access_request_status: "pending" | "approved" | "rejected"
+      client_type: "individual" | "company"
       collaborator_area:
         | "commercial"
         | "projects"
@@ -374,6 +507,7 @@ export type Database = {
         | "architect"
         | "intern"
       collaborator_status: "active" | "vacation" | "on_leave"
+      lead_source: "instagram" | "referral" | "website" | "other"
       tenant_role: "owner" | "member"
       tenant_status: "active" | "suspended"
     }
@@ -507,6 +641,7 @@ export const Constants = {
   public: {
     Enums: {
       access_request_status: ["pending", "approved", "rejected"],
+      client_type: ["individual", "company"],
       collaborator_area: [
         "commercial",
         "projects",
@@ -523,6 +658,7 @@ export const Constants = {
         "intern",
       ],
       collaborator_status: ["active", "vacation", "on_leave"],
+      lead_source: ["instagram", "referral", "website", "other"],
       tenant_role: ["owner", "member"],
       tenant_status: ["active", "suspended"],
     },

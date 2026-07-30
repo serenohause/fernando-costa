@@ -1,13 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { PostgrestError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { invokeEdgeFunction } from '@/lib/edge-functions'
+import {
+  assertRowAffected,
+  describeDatabaseError as describeError,
+  WriteError,
+  type DatabaseErrorMessages,
+} from '@/lib/db-errors'
 import { authKeys, useCurrentCollaborator } from '@/features/auth/hooks'
 import { MENUS_SISTEMA } from './permissions-matrix'
 import {
   approveAccessRequestSchema,
   collaboratorInputSchema,
-  firstIssueMessage,
   type ApproveAccessRequestInput,
 } from './schemas'
 import type { AccessRequest, Collaborator, CollaboratorInput, PermissionDraftMap } from './types'
@@ -19,45 +23,18 @@ export const teamKeys = {
 }
 
 /*
-  Mensagem para o usuário a partir do erro do Postgres. O original mostra
-  `error.message` cru, que aqui viraria nome de constraint na tela — e
-  descrever o schema para quem estiver sondando é justamente o que
-  supabase/functions/_shared/http.ts evita do outro lado.
+  As constraints desta feature, em português. A mecânica (Zod primeiro, SQLSTATE
+  depois, `error.message` como último recurso) mora em src/lib/db-errors.ts e é a
+  mesma de todos os módulos — aqui ficam só as frases que dependem das tabelas
+  daqui.
 */
-function describeDatabaseError(error: unknown): string {
-  const message = firstIssueMessage(error)
-  if (message) return message
-
-  const pgError = error as Partial<PostgrestError>
-  switch (pgError?.code) {
-    case '23505':
-      return 'Já existe um colaborador com esse e-mail no escritório.'
-    case '23514':
-      return 'Algum campo está fora do formato aceito. Confira e-mail e carga horária.'
-    case '42501':
-      return 'Você não tem permissão para executar esta ação.'
-    default:
-      return error instanceof Error && error.message
-        ? error.message
-        : 'Não foi possível concluir a operação.'
-  }
+const TEAM_ERROR_MESSAGES: DatabaseErrorMessages = {
+  '23505': 'Já existe um colaborador com esse e-mail no escritório.',
+  '23514': 'Algum campo está fora do formato aceito. Confira e-mail e carga horária.',
 }
 
-export class TeamWriteError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'TeamWriteError'
-  }
-}
-
-/*
-  Escrita negada pela RLS em UPDATE/DELETE não vira erro: a linha simplesmente
-  não é alcançada e o PostgREST devolve zero linhas. Sem conferir isso, apagar
-  o próprio cadastro (que a policy 0012 proíbe) mostraria "excluído com
-  sucesso" e nada teria acontecido.
-*/
-function assertRowAffected(rows: unknown[] | null, message: string) {
-  if (!rows || rows.length === 0) throw new TeamWriteError(message)
+export function describeDatabaseError(error: unknown): string {
+  return describeError(error, TEAM_ERROR_MESSAGES)
 }
 
 function useTenantId() {
@@ -87,7 +64,7 @@ export function useCreateCollaborator() {
 
   return useMutation({
     mutationFn: async (input: CollaboratorInput) => {
-      if (!tenantId) throw new TeamWriteError('Escritório não identificado na sua sessão.')
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
       const parsed = collaboratorInputSchema.parse(input)
 
       const { data, error } = await supabase
@@ -171,7 +148,7 @@ export function useSaveCollaboratorPermissions(collaborator: Collaborator | null
 
   return useMutation({
     mutationFn: async (draft: PermissionDraftMap) => {
-      if (!collaborator) throw new TeamWriteError('Colaborador não identificado.')
+      if (!collaborator) throw new WriteError('Colaborador não identificado.')
 
       const rows = MENUS_SISTEMA.map((menuKey) => {
         const perm = draft[menuKey] ?? { can_view: false, can_edit: false }
@@ -255,5 +232,3 @@ export function useRejectAccessRequest() {
     },
   })
 }
-
-export { describeDatabaseError }
