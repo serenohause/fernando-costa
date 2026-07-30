@@ -115,6 +115,42 @@ Cada módulo é uma fatia vertical completa:
 Um commit por camada. O módulo só é dado por encerrado depois de o usuário
 ver a tela funcionando com o dado simulado **e do deploy no ar**.
 
+### Do módulo 4 em diante: quatro blocos, não sete módulos
+
+Decisão do usuário depois do módulo 3, e o motivo é medido: os três primeiros
+módulos custaram cerca de doze horas, e a maior parte foi rigor aplicado a
+coisa que já estava provada.
+
+O que era genuinamente novo já aconteceu — multitenancy, permissão de menu
+virando regra de escrita, e a porta pública sem autenticação. **Nenhum dos
+módulos restantes abre superfície nova de ataque.** São tabela com
+`tenant_id`, leitura por colaborador ativo, escrita por `can_edit_menu`, e
+telas. O padrão está provado e tem suíte própria validada por mutação.
+
+Os sete módulos restantes viram quatro blocos, agrupados por dependência
+real entre as telas:
+
+| Bloco | Contém | Por que junto |
+|---|---|---|
+| **A — Entrega** | Contratos, Projetos, Tarefas, Atividades | Contrato gera projeto, projeto tem tarefas, atividade referencia projeto. As telas se citam; fazer separado obriga a voltar em cada uma |
+| **B — Financeiro** | Recebíveis, Pagamentos, Categorias | Recebível nasce do parcelamento do contrato, então depende do bloco A |
+| **C — Suprimentos** | Fornecedores, Orçamento por Cliente, Mapa | Independentes do resto e entre si; agrupados por serem pequenos |
+| **D — Painéis** | Visão Geral, Executivo, Comercial | Agregam tudo. Por último, senão são refeitos a cada bloco |
+
+**Auditoria de segurança: uma só, no fim do bloco D**, antes do deploy final.
+Não é afrouxamento — é reconhecer que auditar de novo o mesmo padrão a cada
+bloco reencontra o que a suíte de invariantes já afirma. O que substitui a
+auditoria por bloco:
+
+- `npm run test:pattern` roda sobre toda tabela nova, e a suíte cai quando o
+  padrão quebra (validada por mutação).
+- Conferência minha, curta, do que é específico do bloco.
+- Qualquer coisa que fuja do padrão — escrita sem sessão, dado de terceiro,
+  cálculo financeiro que vira decisão — sai do bloco e ganha tratamento
+  próprio, como o formulário público ganhou.
+
+Deploy continua a cada bloco.
+
 ### Como os módulos 3 a 9 são feitos (mudou depois do 2)
 
 Os módulos 1 e 2 produziram ~114 asserções cada. No 1 isso se pagou: achamos
