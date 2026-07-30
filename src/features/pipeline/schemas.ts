@@ -149,10 +149,17 @@ export const intakeBriefingSchema = z.object({
       const trimmed = value.trim()
       return trimmed === '' ? undefined : trimmed
     },
-    z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data de nascimento inválida.')
-      .optional(),
+    /*
+      `z.iso.date()` e não regex de formato.
+
+      A regex `^\d{4}-\d{2}-\d{2}$` aceita 9999-99-99 e 2025-02-30: são quatro
+      dígitos, hífen, dois, hífen, dois. O banco recusa as duas no cast para
+      `date`, e o servidor hoje devolve 400 com o campo — ninguém perde o
+      formulário. Mas deixar o navegador aceitar o que o servidor recusa
+      significa que a pessoa só descobre o erro depois de enviar, três passos
+      adiante, em vez de no campo em que digitou.
+    */
+    z.iso.date('Data de nascimento inválida.').optional(),
   ),
 
   address_zipcode: optionalTrimmed(20),
