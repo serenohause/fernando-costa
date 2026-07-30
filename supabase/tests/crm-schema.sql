@@ -109,8 +109,13 @@ select pg_temp.val('1.3', 'email_normalized calculado pelo banco', 'mariana.reze
 select pg_temp.val('1.4', 'client_key prefere documento', 'doc:12345678900',
   $q$select client_key::text from public.clients where name = 'Mariana Rezende'$q$);
 
-select pg_temp.val('1.5', 'search_text junta nome, e-mail e telefone',
-  'Mariana Rezende Mariana.Rezende@Gmail.com (62) 99812-4477',
+-- Cinco campos desde a 0016: o documento (so digitos) e a cidade entraram.
+-- O documento porque procurar por CPF e o caminho natural de quem quer achar
+-- o cliente, e nao achar e o que produz duplicata; a cidade porque a busca do
+-- original tenta filtrar por ela e nunca funcionou (Clients.jsx:172 le
+-- `client.city`, campo que nao existe em Client.jsonc).
+select pg_temp.val('1.5', 'search_text junta nome, e-mail, telefone, documento e cidade',
+  'Mariana Rezende Mariana.Rezende@Gmail.com (62) 99812-4477 12345678900 Goiania',
   $q$select search_text from public.clients where name = 'Mariana Rezende'$q$);
 
 -- E o caso central: no original estes campos vem do corpo do INSERT, escritos
@@ -254,10 +259,26 @@ select pg_temp.val('5.4', 'policies existentes (0 ate o rls-guardian entrar)', '
 
 -- 6. Indices e busca ---------------------------------------------------------
 --
--- Com uma duzia de linhas o planejador nunca escolhe GIN: qualquer btree que
--- comece por tenant_id resolve com filtro. O escritorio B leva 5000 clientes
--- sinteticos para que o EXPLAIN diga algo. Nenhum deles casa com os termos
--- usados nos casos do escritorio A.
+-- O escritorio B leva 5000 clientes sinteticos para que o EXPLAIN diga algo.
+-- Nenhum deles casa com os termos usados nos casos do escritorio A.
+--
+-- O QUE ESTE BLOCO AFIRMA, E O QUE ELE DEIXOU DE AFIRMAR
+--
+--   A primeira versao do 6.1 exigia que o planejador ESCOLHESSE o indice com
+--   5000 linhas. Passou, e depois quebrou quando a 0016 acrescentou documento e
+--   cidade ao search_text: a coluna ficou mais longa, o indice de trigrama
+--   cresceu, e o custo estimado passou o da varredura sequencial (311 contra
+--   266). O indice continuava perfeito - o planejador so achou mais barato
+--   varrer 5000 linhas, o que E a decisao certa nesse tamanho.
+--
+--   Ou seja: aquele caso afirmava a decisao de custo do planejador, que depende
+--   de volume, distribuicao e largura da coluna - nada disso e do schema. Teste
+--   que quebra quando o schema melhora nao esta medindo o schema.
+--
+--   O que importa e o indice ser USAVEL para este predicado. Isso e do schema,
+--   e e o que 6.1 afirma agora, proibindo a varredura sequencial. 6.1b registra
+--   a escolha natural como informativo: serve para ver o custo mudar de lado
+--   conforme a tabela cresce, sem transformar isso em falha.
 
 insert into public.clients (tenant_id, name, phone, email, address_city, address_state)
 select
@@ -272,21 +293,38 @@ from generate_series(1, 5000) g;
 analyze public.clients;
 
 do $$
-declare v_line text; v_plan text := ''; v_tenant uuid;
+declare
+  v_line text;
+  v_natural text := '';
+  v_forcado text := '';
+  v_tenant uuid;
+  v_sql text;
 begin
   select tenant_b into v_tenant from ids;
-  for v_line in
-    execute format(
-      'explain (format text) select id from public.clients where tenant_id = %L and search_text ilike ''%%sintetico 4321%%''',
-      v_tenant)
-  loop
-    v_plan := v_plan || ' | ' || btrim(v_line);
+  v_sql := format(
+    'explain (format text) select id from public.clients where tenant_id = %L and search_text ilike ''%%sintetico 4321%%''',
+    v_tenant);
+
+  for v_line in execute v_sql loop
+    v_natural := v_natural || ' | ' || btrim(v_line);
   end loop;
+
+  -- Varredura sequencial proibida: se o indice for usavel para este predicado,
+  -- e aqui que ele aparece. Se nao aparecer nem assim, o indice esta errado -
+  -- opclass trocada, ordem de coluna incompativel, extensao ausente.
+  set local enable_seqscan = off;
+  for v_line in execute v_sql loop
+    v_forcado := v_forcado || ' | ' || btrim(v_line);
+  end loop;
+  set local enable_seqscan = on;
+
   insert into res (caso, descricao, expected, observed)
-  values ('6.1', 'busca livre entra no indice de trigrama (5000 linhas, sem forcar plano)',
-          'true', (v_plan like '%clients_tenant_id_search_text_idx%')::text);
+  values ('6.1', 'indice de trigrama e USAVEL para a busca livre',
+          'true', (v_forcado like '%clients_tenant_id_search_text_idx%')::text);
   insert into res (caso, descricao, expected, observed)
-  values ('6.2', 'plano observado', '(informativo)', v_plan);
+  values ('6.1b', 'plano com o indice forcado', '(informativo)', v_forcado);
+  insert into res (caso, descricao, expected, observed)
+  values ('6.2', 'escolha natural do planejador com 5000 linhas', '(informativo)', v_natural);
 end
 $$;
 

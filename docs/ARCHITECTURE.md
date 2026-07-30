@@ -164,8 +164,23 @@ Consequências que precisam ser respeitadas:
   o banco inteiro. Por isso não existe script `db:reset` no `package.json` —
   se um dia for necessário, é comando digitado à mão.
 - **Migration aplicada é aplicada de verdade.** Não há ambiente descartável
-  para errar. Toda migration é revisada antes do `db:push`, e nenhum
-  subagente aplica nada no banco — quem aplica é o usuário.
+  para errar.
+- **Quem pode aplicar, e sob quais limites.** Um subagente pode rodar
+  `supabase db push` das migrations que ele mesmo escreveu, e pode criar dado
+  de teste. Não pode: `supabase db reset`, `DROP` de qualquer objeto criado
+  por migration anterior, alterar dado do seed, nem `git push`. Escrita de
+  teste roda dentro de transação com `ROLLBACK` — um agente já alterou a
+  função de um colaborador do seed por testar sem transação, e a reversão
+  manual funcionou por sorte, não por desenho.
+  Aplicar no banco é decisão de quem orquestra, tomada por tarefa: quando o
+  passo depende de verificar comportamento real (RLS, coluna gerada,
+  restrição de unicidade), verificar sem aplicar não verifica nada.
+- **Migration já aplicada não é editada.** Nem para corrigir comentário. O
+  arquivo passa a divergir do que o banco recebeu, e a próxima máquina a
+  aplicar do zero pega um schema diferente do que está em produção. Correção
+  vira migration nova. Aconteceu uma vez na 0015 (só `COMMENT ON`, com o
+  banco atualizado à mão para bater) — está registrado como dívida, não como
+  precedente.
 - **Os testes de isolamento de RLS rodam contra o banco real.** Para não
   deixar sujeira, cada teste roda dentro de uma transação com `ROLLBACK` no
   fim, e usa dados marcados como de teste. Isso vale enquanto o banco não
