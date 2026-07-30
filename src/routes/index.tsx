@@ -5,6 +5,8 @@ import Collaborators from '@/features/team/components/Collaborators'
 import AprovacoesAcesso from '@/features/team/components/AprovacoesAcesso'
 import Clients from '@/features/crm/components/Clients'
 import ClientDetail from '@/features/crm/components/ClientDetail'
+import Negociacoes from '@/features/pipeline/components/Negociacoes'
+import FormularioCliente from '@/features/pipeline/components/FormularioCliente'
 
 /*
   O shell já está de pé; as telas de conteúdo entram módulo a módulo, na ordem
@@ -19,10 +21,20 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/*
+        ROTA PÚBLICA, e a única do sistema: fora do AppLayout, sem sessão, sem
+        sidebar. É o formulário de briefing que o cliente final do escritório
+        preenche pelo link com validade de 24h — no original ela é registrada com
+        `requiresAuth: false`. Fica ANTES do <Route element={<AppLayout />}>
+        porque o layout redireciona para /login quem não tem sessão, e quem abre
+        este link nunca terá uma.
+      */}
+      <Route path="/FormularioCliente" element={<FormularioCliente />} />
       <Route element={<AppLayout />}>
         <Route path="/Clients" element={<Clients />} />
         {/* Detalhe por query string (`?id=`), como no original — ver ClientDetail.jsx:19. */}
         <Route path="/ClientDetail" element={<ClientDetail />} />
+        <Route path="/Negociacoes" element={<Negociacoes />} />
         <Route path="/Collaborators" element={<Collaborators />} />
         <Route path="/AprovacoesAcesso" element={<AprovacoesAcesso />} />
         <Route path="*" element={<PagePlaceholder />} />

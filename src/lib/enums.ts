@@ -87,6 +87,91 @@ export const LEAD_SOURCE = {
 
 export type LeadSource = keyof typeof LEAD_SOURCE
 
+// ── Pipeline ────────────────────────────────────────────────────────────
+
+/* Ordem dos checkboxes de NegociacaoForm.jsx do original, não alfabética. */
+export const SERVICE_TYPE = {
+  architecture: 'Arquitetura',
+  interiors: 'Interiores',
+  structural: 'Estrutura',
+  plumbing: 'Hidrosanitário',
+  electrical: 'Elétrico',
+  consulting: 'Consultoria',
+} as const satisfies LabelMap<string>
+
+export type ServiceType = keyof typeof SERVICE_TYPE
+
+export const NEGOTIATION_STATUS = {
+  active: 'Ativa',
+  won: 'Ganha',
+  lost: 'Perdida',
+} as const satisfies LabelMap<string>
+
+export type NegotiationStatus = keyof typeof NEGOTIATION_STATUS
+
+/* Ordem das colunas do quadro (NegociacaoKanban.jsx), que é a ordem do funil. */
+export const FUNNEL_STAGE = {
+  lead_received: 'Lead recebido',
+  qualified: 'Qualificado',
+  proposal_sent: 'Proposta enviada',
+  negotiating: 'Em negociação',
+  closing: 'Fechamento',
+} as const satisfies LabelMap<string>
+
+export type FunnelStage = keyof typeof FUNNEL_STAGE
+
+/*
+  SUPERCONJUNTO de LEAD_SOURCE (CRM): o pipeline tem `event` e o CRM não, e os
+  quatro valores comuns têm a mesma grafia de propósito — é o que permite a
+  conversão `lead_source::text::lead_origin` da migration 0021.
+*/
+export const LEAD_ORIGIN = {
+  instagram: 'Instagram',
+  referral: 'Indicação',
+  website: 'Site',
+  event: 'Evento',
+  other: 'Outro',
+} as const satisfies LabelMap<string>
+
+export type LeadOrigin = keyof typeof LEAD_ORIGIN
+
+export const LOSS_REASON = {
+  price: 'Valor',
+  timeline: 'Prazo',
+  chose_competitor: 'Escolheu outro escritório',
+  postponed: 'Vai adiar o projeto',
+  no_response: 'Não respondeu',
+  other: 'Outro',
+} as const satisfies LabelMap<string>
+
+export type LossReason = keyof typeof LOSS_REASON
+
+export const CLIENT_INTAKE_STATUS = {
+  active: 'Ativo',
+  expired: 'Expirado',
+  submitted: 'Enviado',
+} as const satisfies LabelMap<string>
+
+export type ClientIntakeStatus = keyof typeof CLIENT_INTAKE_STATUS
+
+/*
+  Coluna de auditoria do link público (`client_intakes.last_validation_status`).
+  Não aparece em nenhuma tela hoje — existe para investigar link que "não
+  funciona" sem depender do relato de quem tentou. O rótulo vem de
+  docs/ENUM-MAP.md, seção Pipeline, e fica aqui para que a primeira tela que
+  precisar dele não invente texto novo.
+*/
+export const CLIENT_INTAKE_VALIDATION_STATUS = {
+  created: 'Link criado',
+  ok: 'Link aberto',
+  expired: 'Link expirado',
+  already_submitted: 'Link já utilizado',
+  expired_on_submit: 'Expirou antes do envio',
+  submitted: 'Enviado com sucesso',
+} as const satisfies LabelMap<string>
+
+export type ClientIntakeValidationStatus = keyof typeof CLIENT_INTAKE_VALIDATION_STATUS
+
 /*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
   original, que redireciona Arquiteto e Estagiário para MinhasAtividades e

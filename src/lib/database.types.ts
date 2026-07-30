@@ -105,6 +105,148 @@ export type Database = {
           },
         ]
       }
+      client_intakes: {
+        Row: {
+          address_city: string | null
+          address_complement: string | null
+          address_district: string | null
+          address_number: string | null
+          address_state: string | null
+          address_street: string | null
+          address_zipcode: string | null
+          birth_date: string | null
+          city: string | null
+          client_id: string
+          client_type: Database["public"]["Enums"]["client_type"] | null
+          country: string | null
+          created_at: string
+          email: string | null
+          expires_at: string
+          full_name: string | null
+          id: string
+          last_access_at: string | null
+          last_link_error: string | null
+          last_validation_status: Database["public"]["Enums"]["client_intake_validation_status"]
+          legacy_id: string | null
+          negotiation_id: string | null
+          phone: string | null
+          site_city: string | null
+          site_complement: string | null
+          site_district: string | null
+          site_number: string | null
+          site_state: string | null
+          site_street: string | null
+          site_zipcode: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["client_intake_status"]
+          submitted_at: string | null
+          tax_id: string | null
+          tenant_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          address_city?: string | null
+          address_complement?: string | null
+          address_district?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zipcode?: string | null
+          birth_date?: string | null
+          city?: string | null
+          client_id: string
+          client_type?: Database["public"]["Enums"]["client_type"] | null
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          full_name?: string | null
+          id?: string
+          last_access_at?: string | null
+          last_link_error?: string | null
+          last_validation_status?: Database["public"]["Enums"]["client_intake_validation_status"]
+          legacy_id?: string | null
+          negotiation_id?: string | null
+          phone?: string | null
+          site_city?: string | null
+          site_complement?: string | null
+          site_district?: string | null
+          site_number?: string | null
+          site_state?: string | null
+          site_street?: string | null
+          site_zipcode?: string | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["client_intake_status"]
+          submitted_at?: string | null
+          tax_id?: string | null
+          tenant_id: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          address_city?: string | null
+          address_complement?: string | null
+          address_district?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zipcode?: string | null
+          birth_date?: string | null
+          city?: string | null
+          client_id?: string
+          client_type?: Database["public"]["Enums"]["client_type"] | null
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          full_name?: string | null
+          id?: string
+          last_access_at?: string | null
+          last_link_error?: string | null
+          last_validation_status?: Database["public"]["Enums"]["client_intake_validation_status"]
+          legacy_id?: string | null
+          negotiation_id?: string | null
+          phone?: string | null
+          site_city?: string | null
+          site_complement?: string | null
+          site_district?: string | null
+          site_number?: string | null
+          site_state?: string | null
+          site_street?: string | null
+          site_zipcode?: string | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["client_intake_status"]
+          submitted_at?: string | null
+          tax_id?: string | null
+          tenant_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_intakes_client_id_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "client_intakes_negotiation_id_fkey"
+            columns: ["negotiation_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "negotiations"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "client_intakes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address_city: string
@@ -371,6 +513,202 @@ export type Database = {
           },
         ]
       }
+      negotiation_owner_history: {
+        Row: {
+          changed_at: string
+          changed_by_id: string | null
+          id: string
+          negotiation_id: string
+          new_owner_id: string
+          previous_owner_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by_id?: string | null
+          id?: string
+          negotiation_id: string
+          new_owner_id: string
+          previous_owner_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by_id?: string | null
+          id?: string
+          negotiation_id?: string
+          new_owner_id?: string
+          previous_owner_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "negotiation_owner_history_changed_by_id_fkey"
+            columns: ["changed_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "negotiation_owner_history_negotiation_id_fkey"
+            columns: ["negotiation_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "negotiations"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "negotiation_owner_history_new_owner_id_fkey"
+            columns: ["new_owner_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "negotiation_owner_history_previous_owner_id_fkey"
+            columns: ["previous_owner_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "negotiation_owner_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      negotiation_services: {
+        Row: {
+          created_at: string
+          id: string
+          negotiation_id: string
+          service_type: Database["public"]["Enums"]["service_type"]
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          negotiation_id: string
+          service_type: Database["public"]["Enums"]["service_type"]
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          negotiation_id?: string
+          service_type?: Database["public"]["Enums"]["service_type"]
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "negotiation_services_negotiation_id_fkey"
+            columns: ["negotiation_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "negotiations"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "negotiation_services_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      negotiations: {
+        Row: {
+          client_id: string | null
+          close_probability: number | null
+          closed_at: string | null
+          commercial_owner_id: string
+          created_at: string
+          estimated_value: number | null
+          expected_close_date: string | null
+          funnel_entry_date: string
+          funnel_stage: Database["public"]["Enums"]["funnel_stage"]
+          generates_contract: boolean
+          id: string
+          legacy_id: string | null
+          loss_notes: string | null
+          loss_reason: Database["public"]["Enums"]["loss_reason"] | null
+          name: string
+          origin: Database["public"]["Enums"]["lead_origin"] | null
+          referrer_name: string | null
+          status: Database["public"]["Enums"]["negotiation_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          close_probability?: number | null
+          closed_at?: string | null
+          commercial_owner_id: string
+          created_at?: string
+          estimated_value?: number | null
+          expected_close_date?: string | null
+          funnel_entry_date?: string
+          funnel_stage?: Database["public"]["Enums"]["funnel_stage"]
+          generates_contract?: boolean
+          id?: string
+          legacy_id?: string | null
+          loss_notes?: string | null
+          loss_reason?: Database["public"]["Enums"]["loss_reason"] | null
+          name: string
+          origin?: Database["public"]["Enums"]["lead_origin"] | null
+          referrer_name?: string | null
+          status?: Database["public"]["Enums"]["negotiation_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          close_probability?: number | null
+          closed_at?: string | null
+          commercial_owner_id?: string
+          created_at?: string
+          estimated_value?: number | null
+          expected_close_date?: string | null
+          funnel_entry_date?: string
+          funnel_stage?: Database["public"]["Enums"]["funnel_stage"]
+          generates_contract?: boolean
+          id?: string
+          legacy_id?: string | null
+          loss_notes?: string | null
+          loss_reason?: Database["public"]["Enums"]["loss_reason"] | null
+          name?: string
+          origin?: Database["public"]["Enums"]["lead_origin"] | null
+          referrer_name?: string | null
+          status?: Database["public"]["Enums"]["negotiation_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "negotiations_client_id_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "negotiations_commercial_owner_id_fkey"
+            columns: ["commercial_owner_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "negotiations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_email_domains: {
         Row: {
           created_at: string
@@ -489,9 +827,34 @@ export type Database = {
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       is_active_collaborator: { Args: never; Returns: boolean }
       is_tenant_director: { Args: never; Returns: boolean }
+      open_client_intake: {
+        Args: { p_token: string }
+        Returns: {
+          client_name: string
+          expires_at: string
+          outcome: Database["public"]["Enums"]["client_intake_outcome"]
+        }[]
+      }
+      submit_client_intake: {
+        Args: { p_payload: Json; p_token: string }
+        Returns: boolean
+      }
     }
     Enums: {
       access_request_status: "pending" | "approved" | "rejected"
+      client_intake_outcome:
+        | "active"
+        | "expired"
+        | "already_submitted"
+        | "not_found"
+      client_intake_status: "active" | "expired" | "submitted"
+      client_intake_validation_status:
+        | "created"
+        | "ok"
+        | "expired"
+        | "already_submitted"
+        | "expired_on_submit"
+        | "submitted"
       client_type: "individual" | "company"
       collaborator_area:
         | "commercial"
@@ -507,7 +870,29 @@ export type Database = {
         | "architect"
         | "intern"
       collaborator_status: "active" | "vacation" | "on_leave"
+      funnel_stage:
+        | "lead_received"
+        | "qualified"
+        | "proposal_sent"
+        | "negotiating"
+        | "closing"
+      lead_origin: "instagram" | "referral" | "website" | "event" | "other"
       lead_source: "instagram" | "referral" | "website" | "other"
+      loss_reason:
+        | "price"
+        | "timeline"
+        | "chose_competitor"
+        | "postponed"
+        | "no_response"
+        | "other"
+      negotiation_status: "active" | "won" | "lost"
+      service_type:
+        | "architecture"
+        | "interiors"
+        | "structural"
+        | "plumbing"
+        | "electrical"
+        | "consulting"
       tenant_role: "owner" | "member"
       tenant_status: "active" | "suspended"
     }
@@ -641,6 +1026,21 @@ export const Constants = {
   public: {
     Enums: {
       access_request_status: ["pending", "approved", "rejected"],
+      client_intake_outcome: [
+        "active",
+        "expired",
+        "already_submitted",
+        "not_found",
+      ],
+      client_intake_status: ["active", "expired", "submitted"],
+      client_intake_validation_status: [
+        "created",
+        "ok",
+        "expired",
+        "already_submitted",
+        "expired_on_submit",
+        "submitted",
+      ],
       client_type: ["individual", "company"],
       collaborator_area: [
         "commercial",
@@ -658,7 +1058,32 @@ export const Constants = {
         "intern",
       ],
       collaborator_status: ["active", "vacation", "on_leave"],
+      funnel_stage: [
+        "lead_received",
+        "qualified",
+        "proposal_sent",
+        "negotiating",
+        "closing",
+      ],
+      lead_origin: ["instagram", "referral", "website", "event", "other"],
       lead_source: ["instagram", "referral", "website", "other"],
+      loss_reason: [
+        "price",
+        "timeline",
+        "chose_competitor",
+        "postponed",
+        "no_response",
+        "other",
+      ],
+      negotiation_status: ["active", "won", "lost"],
+      service_type: [
+        "architecture",
+        "interiors",
+        "structural",
+        "plumbing",
+        "electrical",
+        "consulting",
+      ],
       tenant_role: ["owner", "member"],
       tenant_status: ["active", "suspended"],
     },

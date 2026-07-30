@@ -26,6 +26,7 @@
     "seed:pipeline": "node supabase/seed/03-pipeline.mjs"
   },
   "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.5.7",
     "@radix-ui/react-alert-dialog": "^1.1.23",
     "@radix-ui/react-avatar": "^1.2.6",
