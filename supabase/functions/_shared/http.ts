@@ -5,21 +5,65 @@
   Toda falha inesperada vira 500 com uma mensagem genérica e um `code` estável;
   o detalhe real vai só para o log do servidor. Erro do PostgREST costuma trazer
   nome de constraint, de coluna e trecho de SQL — informação que descreve o
-  schema para quem estiver sondando a API de fora.
+  schema para quem estiver sondando a API de fora. E o `details` do Postgres
+  traz a LINHA INTEIRA que falhou: em client_intakes isso é nome, CPF, telefone,
+  e-mail, nascimento, dois endereços e o token vivo. Por isso o log de erro de
+  banco deste projeto grava `code` e `message`, e nunca `details` nem `hint`.
 */
 
 const ALLOWED_HEADERS = 'authorization, x-client-info, apikey, content-type'
 
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': ALLOWED_HEADERS,
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+/*
+  CORS não é mais `*`.
+
+  Com `*`, qualquer site aberto no navegador de qualquer visitante podia
+  disparar as funções públicas em nome dele — e as duas funções públicas são a
+  única superfície do sistema alcançável sem login. `*` não protegia nada e
+  emprestava o navegador de terceiros para bater na porta.
+
+  A origem permitida vem de APP_ALLOWED_ORIGINS (lista separada por vírgula,
+  configurável por `supabase secrets set`), e o padrão é a origem de produção
+  mais a de desenvolvimento. Origem desconhecida NÃO recebe o cabeçalho: a
+  requisição até chega (CORS é regra de navegador, não de servidor), mas o
+  navegador de quem foi enganado não entrega a resposta ao site que a pediu.
+
+  `Vary: Origin` porque a resposta passa a depender do cabeçalho de origem —
+  sem ele, um cache intermediário serviria a permissão de uma origem para outra.
+*/
+const DEFAULT_ALLOWED_ORIGINS = ['https://fernando-costa.vercel.app', 'http://localhost:5173']
+
+function allowedOrigins(): string[] {
+  const configured = (Deno.env.get('APP_ALLOWED_ORIGINS') ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin !== '')
+
+  return configured.length > 0 ? configured : DEFAULT_ALLOWED_ORIGINS
 }
 
-export function jsonResponse(body: unknown, status = 200): Response {
+export function corsHeaders(req: Request): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Headers': ALLOWED_HEADERS,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  }
+
+  const origin = req.headers.get('Origin')
+  if (origin !== null && allowedOrigins().includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin
+  }
+
+  return headers
+}
+
+export function preflightResponse(req: Request): Response {
+  return new Response('ok', { headers: corsHeaders(req) })
+}
+
+export function jsonResponse(req: Request, body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
   })
 }
 
@@ -39,13 +83,14 @@ export class HttpError extends Error {
   }
 }
 
-export function errorResponse(error: unknown, fnName: string): Response {
+export function errorResponse(req: Request, error: unknown, fnName: string): Response {
   if (error instanceof HttpError) {
-    return jsonResponse({ error: { code: error.code, message: error.message } }, error.status)
+    return jsonResponse(req, { error: { code: error.code, message: error.message } }, error.status)
   }
 
   console.error(`[${fnName}] erro nao tratado:`, error)
   return jsonResponse(
+    req,
     {
       error: {
         code: 'internal_error',
@@ -62,12 +107,82 @@ export function assertPost(req: Request): void {
   }
 }
 
+/*
+  Teto de tamanho do corpo.
+
+  64 KB é uma ordem de grandeza acima do maior corpo legítimo destas funções
+  (o briefing inteiro, com todos os campos no limite do schema, não passa de
+  ~2 KB). Sem teto, `await req.text()` materializava na memória do isolate o
+  que viesse: medido, um corpo de 50 MB foi aceito e parseado.
+
+  Duas barreiras, porque uma só não fecha:
+  1. `Content-Length` acima do teto é recusado ANTES de ler qualquer byte.
+  2. O header pode não vir (`Transfer-Encoding: chunked`), ou vir mentindo. Por
+     isso a leitura também para sozinha ao passar do teto, e o resto do fluxo é
+     descartado.
+*/
+const MAX_BODY_BYTES = 64 * 1024
+
+const TOO_LARGE = new HttpError(
+  413,
+  'payload_too_large',
+  'O conteúdo enviado é grande demais.',
+)
+
 export async function readJsonBody(req: Request): Promise<unknown> {
-  const raw = await req.text()
+  const declared = req.headers.get('content-length')
+  if (declared !== null) {
+    const size = Number(declared)
+    if (!Number.isFinite(size) || size > MAX_BODY_BYTES) {
+      /* Fecha o fluxo antes de responder. Sem isto, quem está no meio de um
+         envio de megabytes só descobre a recusa quando a conexão cai — e a
+         plataforma traduz a conexão caída em 503, escondendo o 413. */
+      await req.body?.cancel().catch(() => {})
+      throw TOO_LARGE
+    }
+  }
+
+  const raw = await readTextCapped(req)
   if (raw.trim() === '') return {}
   try {
     return JSON.parse(raw)
   } catch {
     throw new HttpError(400, 'invalid_body', 'Corpo da requisição não é um JSON válido.')
   }
+}
+
+async function readTextCapped(req: Request): Promise<string> {
+  if (req.body === null) return ''
+
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > MAX_BODY_BYTES) {
+        await reader.cancel()
+        throw TOO_LARGE
+      }
+      chunks.push(value)
+    }
+  } finally {
+    try {
+      reader.releaseLock()
+    } catch {
+      /* cancelado acima: o lock já foi liberado */
+    }
+  }
+
+  const merged = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  return new TextDecoder().decode(merged)
 }

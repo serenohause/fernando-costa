@@ -17,10 +17,10 @@
 import { z } from 'npm:zod@4.4.3'
 import {
   assertPost,
-  corsHeaders,
   errorResponse,
   HttpError,
   jsonResponse,
+  preflightResponse,
   readJsonBody,
 } from '../_shared/http.ts'
 import { requireDirectorOfTenant, requireUser, serviceClient } from '../_shared/supabase.ts'
@@ -32,7 +32,7 @@ const bodySchema = z.object({
 })
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method === 'OPTIONS') return preflightResponse(req)
 
   try {
     assertPost(req)
@@ -94,13 +94,13 @@ Deno.serve(async (req) => {
       docs/ARCHITECTURE.md), então nada é enviado.
     */
 
-    return jsonResponse({
+    return jsonResponse(req, {
       status: 'rejected',
       requestId: updated.id,
       decidedBy: approver.id,
       message: 'Solicitação recusada.',
     })
   } catch (error) {
-    return errorResponse(error, FN)
+    return errorResponse(req, error, FN)
   }
 })

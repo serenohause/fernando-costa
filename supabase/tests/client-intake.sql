@@ -8,8 +8,14 @@
 --   escritorios, escrita presa ao menu 'pipeline'. O que eles NAO sabem testar e
 --   a via publica legitima: as duas funcoes que resolvem o token.
 --
---   Os sete casos abaixo sao exatamente os sete que docs/SCHEMA-PLAN.md lista em
---   "O que precisa de teste proprio, porque o padrao nao cobre".
+--   As secoes 1 a 7 sao exatamente os sete casos que docs/SCHEMA-PLAN.md lista
+--   em "O que precisa de teste proprio, porque o padrao nao cobre".
+--
+--   A secao 8 entrou depois, com a migration 0027: o limite de requisicoes da
+--   porta publica passou a ser contado no banco, porque na edge function ele
+--   nao contava nada (o contador vivia na memoria do isolate, e a plataforma
+--   entrega um isolate novo a cada requisicao). Como agora e objeto de banco,
+--   e testavel aqui.
 --
 -- COMO RODAR
 --   npm run test:intake
@@ -413,6 +419,106 @@ select pg_temp.as_role('7.8', 'CONTROLE: service_role executa a porta publica', 
   'service_role', null, format($q$
   select count(*)::text from public.open_client_intake(%L)
 $q$, (select tk_inexistente from ids)));
+
+-- 8. O limite de requisicoes da porta publica -----------------------------------
+--
+-- POR QUE ENTROU (migration 0027)
+--   Ate a 0027 o contador vivia em um `Map` na memoria do isolate da edge
+--   function. A plataforma entrega um isolate novo a cada requisicao, entao o
+--   mapa estava sempre vazio e o teto nunca era alcancado: 40 requisicoes
+--   paralelas contra a funcao publicada devolveram 40x HTTP 200, nenhuma
+--   recusa. O limite tinha efeito ZERO - e as secoes 3 e 7 acima, e o
+--   COMMENT de open_client_intake, se apoiavam nele existir.
+--
+--   O contador agora e public.hit_public_endpoint, no banco, compartilhado
+--   entre isolates. O que se afirma aqui e o comportamento dele; o que a edge
+--   function faz com a resposta (traduzir para HTTP 429) e verificavel
+--   disparando requisicoes contra a funcao publicada.
+--
+--   O laco e um `for` de plpgsql, e nao um `insert ... select generate_series`:
+--   cinco chamadas de funcao volatil dentro de UM comando SQL compartilham o
+--   snapshot do comando, e as ultimas leriam o contador defasado. Uma
+--   requisicao HTTP e um comando, e e isso que o laco reproduz.
+
+do $$
+declare
+  i int;
+  v_allowed boolean;
+  v_count int;
+begin
+  for i in 1..4 loop
+    select allowed, hit_count into v_allowed, v_count
+      from public.hit_public_endpoint('intake-test', '203.0.113.7', 3, 60);
+    insert into res (caso, descricao, expected, observed)
+    values ('8.' || i, 'chamada ' || i || ' de 4, teto 3',
+            case when i <= 3 then 'true|' || i else 'false|' || i end,
+            v_allowed::text || '|' || v_count::text);
+  end loop;
+end
+$$;
+
+-- CONTROLE: sem isto, um contador global (que recusasse todo mundo depois de
+-- tres requisicoes, viesse de onde viesse) passaria nos quatro casos acima.
+select pg_temp.val('8.5', 'CONTROLE: outra origem comeca a propria janela', 'true|1', $q$
+  select allowed::text || '|' || hit_count::text
+  from public.hit_public_endpoint('intake-test', '203.0.113.8', 3, 60)
+$q$);
+
+select pg_temp.val('8.6', 'CONTROLE: a outra funcao publica tem teto proprio', 'true|1', $q$
+  select allowed::text || '|' || hit_count::text
+  from public.hit_public_endpoint('intake-test-outro', '203.0.113.7', 3, 60)
+$q$);
+
+-- A limpeza roda na propria chamada, quando a linha da janela nasce. Sem ela a
+-- tabela so cresce, e com IP forjado o mecanismo de defesa vira o problema.
+--
+-- Em comandos separados de proposito: as partes de um mesmo comando (CTE que
+-- escreve, funcao chamada no SELECT) nao enxergam o efeito uma da outra, e o
+-- teste passaria a afirmar isso em vez da limpeza.
+do $$
+declare
+  v_antes int;
+  v_depois int;
+begin
+  insert into public.public_endpoint_hits (scope, client_key, window_start, hit_count)
+  values ('intake-test-limpeza', '203.0.113.9', now() - interval '2 hours', 99);
+
+  select count(*) into v_antes from public.public_endpoint_hits
+   where scope = 'intake-test-limpeza' and window_start < now() - interval '1 hour';
+
+  perform public.hit_public_endpoint('intake-test-limpeza', '203.0.113.10', 3, 60);
+
+  select count(*) into v_depois from public.public_endpoint_hits
+   where scope = 'intake-test-limpeza' and window_start < now() - interval '1 hour';
+
+  insert into res (caso, descricao, expected, observed)
+  values ('8.7', 'janela velha e apagada quando uma nova nasce', '1 -> 0',
+          v_antes || ' -> ' || v_depois);
+end
+$$;
+
+-- A porta do contador e a mesma das outras duas: so service_role. Com EXECUTE
+-- para anon, o proprio contador seria um endpoint anonimo de escrita - e quem
+-- pode escrever no contador pode zera-lo.
+select pg_temp.as_role('8.8', 'anon nao executa hit_public_endpoint', 'ERR:42501',
+  'anon', null, $q$
+  select allowed::text from public.hit_public_endpoint('intake-test', '203.0.113.7', 3, 60)
+$q$);
+
+select pg_temp.as_role('8.9', 'anon nao le a tabela do contador', 'ERR:42501',
+  'anon', null, 'select count(*)::text from public.public_endpoint_hits');
+
+select pg_temp.as_role('8.10', 'anon nao grava na tabela do contador', 'ERR:42501',
+  'anon', null, $q$
+  with i as (insert into public.public_endpoint_hits (scope, client_key, window_start, hit_count)
+  values ('x', 'y', now(), 0) returning 1)
+  select 'OK' from i
+$q$);
+
+select pg_temp.as_role('8.11', 'colaborador logado tambem nao executa', 'ERR:42501',
+  'authenticated', pg_temp.claims((select u_editor_a from ids), (select tenant_a from ids)), $q$
+  select allowed::text from public.hit_public_endpoint('intake-test', '203.0.113.7', 3, 60)
+$q$);
 
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed

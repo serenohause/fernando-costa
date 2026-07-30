@@ -21,10 +21,10 @@
 import { z } from 'npm:zod@4.4.3'
 import {
   assertPost,
-  corsHeaders,
   errorResponse,
   HttpError,
   jsonResponse,
+  preflightResponse,
   readJsonBody,
 } from '../_shared/http.ts'
 import { requireDirectorOfTenant, requireUser, serviceClient } from '../_shared/supabase.ts'
@@ -86,7 +86,7 @@ const RPC_ERRORS: Record<string, { status: number; code: string; message: string
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method === 'OPTIONS') return preflightResponse(req)
 
   try {
     assertPost(req)
@@ -148,12 +148,12 @@ Deno.serve(async (req) => {
       escolhido (Resend ou SMTP do escritório), o envio entra neste ponto.
     */
 
-    return jsonResponse({
+    return jsonResponse(req, {
       status: 'approved',
       ...(data as Record<string, unknown>),
       message: 'Solicitação aprovada. As permissões nascem todas em falso e precisam ser liberadas na tela de Controle de Acesso.',
     })
   } catch (error) {
-    return errorResponse(error, FN)
+    return errorResponse(req, error, FN)
   }
 })

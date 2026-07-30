@@ -22,8 +22,8 @@ import {
   errorResponse,
   HttpError,
   jsonResponse,
+  preflightResponse,
   readJsonBody,
-  corsHeaders,
 } from '../_shared/http.ts'
 import { requireUser, serviceClient } from '../_shared/supabase.ts'
 
@@ -49,7 +49,7 @@ function fallbackName(user: { user_metadata?: Record<string, unknown> }): string
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method === 'OPTIONS') return preflightResponse(req)
 
   try {
     assertPost(req)
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
 
       if (linked) {
         await ensureTenantMembership(admin, tenantId, user.id)
-        return jsonResponse({
+        return jsonResponse(req, {
           status: 'collaborator_linked',
           collaboratorStatus: linked.status,
           requiresReauth: true,
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
 
     if (collaborator?.user_id === user.id) {
       await ensureTenantMembership(admin, tenantId, user.id)
-      return jsonResponse({
+      return jsonResponse(req, {
         status: 'collaborator_linked',
         collaboratorStatus: collaborator.status,
         requiresReauth: collaborator.status === 'active',
@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
     */
     const bumped = await bumpPendingRequest(admin, tenantId, email)
     if (bumped) {
-      return jsonResponse({
+      return jsonResponse(req, {
         status: 'request_updated',
         attempts: bumped.attempts,
         message: 'Sua solicitação de acesso já está na fila, aguardando aprovação de um diretor.',
@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
       if (insertError.code === '23505') {
         const retried = await bumpPendingRequest(admin, tenantId, email)
         if (retried) {
-          return jsonResponse({
+          return jsonResponse(req, {
             status: 'request_updated',
             attempts: retried.attempts,
             message: 'Sua solicitação de acesso já está na fila, aguardando aprovação de um diretor.',
@@ -229,14 +229,14 @@ Deno.serve(async (req) => {
       copy original das telas volta junto.
     */
 
-    return jsonResponse({
+    return jsonResponse(req, {
       status: 'request_created',
       requestId: created.id,
       attempts: created.attempts,
       message: 'Solicitação registrada. Um diretor do escritório precisa liberar seu acesso.',
     })
   } catch (error) {
-    return errorResponse(error, FN)
+    return errorResponse(req, error, FN)
   }
 })
 

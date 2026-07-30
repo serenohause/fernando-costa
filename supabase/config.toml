@@ -428,10 +428,13 @@ verify_jwt = true
 # navegador.
 #
 # Nao confundir "sem JWT" com "sem controle": as duas funcoes tem limite de
-# requisicoes por origem (_shared/rate-limit.ts), o token e uuid v4 gerado pelo
-# banco, e a resposta e recortada pela assinatura da funcao de banco - id
-# interno, tenant_id e campo de briefing ja preenchido nao tem caminho de saida.
-# anon continua sem GRANT em client_intakes e sem EXECUTE nas duas funcoes.
+# requisicoes por origem - contado no BANCO, em public.public_endpoint_hits via
+# public.hit_public_endpoint (migration 0027), e nao na memoria do isolate, que
+# e novo a cada requisicao e por isso nunca chegava a contar nada. O token e
+# uuid v4 gerado pelo banco, a resposta e recortada pela assinatura da funcao de
+# banco - id interno, tenant_id e campo de briefing ja preenchido nao tem
+# caminho de saida - e o corpo tem teto de 64 KB. anon continua sem GRANT em
+# client_intakes e sem EXECUTE nas funcoes.
 
 [functions.open-client-intake]
 enabled = true
