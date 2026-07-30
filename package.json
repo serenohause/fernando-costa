@@ -22,7 +22,8 @@
     "seed:crm": "node supabase/seed/02-crm.mjs",
     "test:pattern": "supabase/tests/run-sql.sh supabase/tests/pattern-invariants.sql",
     "test:schema:pipeline": "supabase/tests/run-sql.sh supabase/tests/pipeline-schema.sql",
-    "test:intake": "supabase/tests/run-sql.sh supabase/tests/client-intake.sql"
+    "test:intake": "supabase/tests/run-sql.sh supabase/tests/client-intake.sql",
+    "seed:pipeline": "node supabase/seed/03-pipeline.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
