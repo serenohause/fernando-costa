@@ -18,6 +18,13 @@ const breadcrumbMap: Record<string, BreadcrumbItem[]> = {
 
   // CRM e Pipeline
   Clients: [{ label: 'CRM' }],
+  /*
+    O original não tem entrada para ClientDetail e cai no nome da rota, então a
+    trilha exibia "ClientDetail" para quem usa. Nome de arquivo aparecendo na
+    tela não é decisão de layout do original — é a ausência de uma entrada no
+    mapa. A trilha aponta para /Clients porque é de onde se chega aqui.
+  */
+  ClientDetail: [{ label: 'CRM', page: 'Clients' }, { label: 'Detalhes do Cliente' }],
   Negociacoes: [{ label: 'Pipeline' }],
 
   // Contratos e Projetos

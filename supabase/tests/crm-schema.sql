@@ -109,13 +109,16 @@ select pg_temp.val('1.3', 'email_normalized calculado pelo banco', 'mariana.reze
 select pg_temp.val('1.4', 'client_key prefere documento', 'doc:12345678900',
   $q$select client_key::text from public.clients where name = 'Mariana Rezende'$q$);
 
--- Cinco campos desde a 0016: o documento (so digitos) e a cidade entraram.
--- O documento porque procurar por CPF e o caminho natural de quem quer achar
--- o cliente, e nao achar e o que produz duplicata; a cidade porque a busca do
--- original tenta filtrar por ela e nunca funcionou (Clients.jsx:172 le
--- `client.city`, campo que nao existe em Client.jsonc).
-select pg_temp.val('1.5', 'search_text junta nome, e-mail, telefone, documento e cidade',
-  'Mariana Rezende Mariana.Rezende@Gmail.com (62) 99812-4477 12345678900 Goiania',
+-- O documento aparece DUAS vezes de proposito (0020): como digitado e so
+-- digitos. Os dois gestos sao comuns - digitar so numeros, e colar o CPF
+-- formatado de uma planilha - e cobrir so um deixa metade das buscas sem
+-- resultado. A 0016 tinha so os digitos e quebrou a busca por documento
+-- formatado, que funcionava no original (Clients.jsx:173).
+-- A cidade entrou porque a busca do original tenta filtrar por ela e nunca
+-- funcionou: Clients.jsx:172 le `client.city`, campo que nao existe em
+-- Client.jsonc.
+select pg_temp.val('1.5', 'search_text junta nome, e-mail, telefone, documento (2 formas) e cidade',
+  'Mariana Rezende Mariana.Rezende@Gmail.com (62) 99812-4477 123.456.789-00 12345678900 Goiania',
   $q$select search_text from public.clients where name = 'Mariana Rezende'$q$);
 
 -- E o caso central: no original estes campos vem do corpo do INSERT, escritos
