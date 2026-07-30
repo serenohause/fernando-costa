@@ -404,16 +404,105 @@ A tela de CRM do original toca duas coisas que ainda não existem:
 Nenhuma das duas é motivo para adiar o CRM. Ficam como marcação explícita no
 código — não como comentário vago, mas apontando o módulo que as liga.
 
-## Módulo 3 — Pipeline
+## Módulo 3 — Pipeline (detalhado)
 
-- `negotiations` (de `Negociacao`) → FK para `clients` e para
-  `collaborators` (responsável comercial).
+Duas tabelas, e elas são de naturezas diferentes: `negotiations` segue o
+padrão de todos os módulos de negócio; `client_intakes` é a exceção do
+sistema inteiro.
+
+### `negotiations` (de `Negociacao`, 25 campos)
+
+Padrão, sem novidade estrutural. FK composta para `clients` e para
+`collaborators` (responsável comercial). Menu `pipeline`; leitura por
+colaborador ativo, escrita por `can_edit_menu('pipeline')`. Entra em
+`pattern_tables` e herda as 26 asserções de invariante.
+
+Pontos próprios:
+
 - `negotiation_services` — o original guarda `tipo_servico` como array de
-  enum. Vira tabela de junção, porque a tela filtra o funil por tipo de
-  serviço e array não indexa bem para isso.
-- `client_intakes` (de `ClientIntake`) — formulário público. `token` uuid
-  único, `expires_at`. **Única superfície do sistema gravada sem sessão
-  autenticada**; ver tratamento em `docs/ARCHITECTURE.md`.
+  enum. Vira tabela de junção: a tela filtra o funil por tipo de serviço, e
+  array não indexa bem para isso.
+- `negotiation_owner_history` — o original guarda `historico_responsavel`
+  como array de objeto dentro da linha. Vira tabela: é histórico, cresce sem
+  limite, e o que se quer dele é ordenar por data.
+- `motivo_perda` e `observacoes_perda` só fazem sentido com
+  `status = 'lost'`; `data_fechamento` só com `won` ou `lost`. Vira check.
+  O original não impede negociação "Ativa" com motivo de perda preenchido.
+- `probabilidade_fechamento` é percentual: check entre 0 e 100. O original
+  aceita qualquer número.
+
+### `client_intakes` (de `ClientIntake`, 36 campos)
+
+**A única superfície do sistema gravada sem sessão autenticada.** Formulário
+de briefing que o cliente final preenche por um link com validade de 24h.
+
+#### O que o original faz, e por que não pode ser portado
+
+`projeto-original/src/pages/FormularioCliente.jsx`, linhas 55-56:
+
+```js
+const intakes = await base44.entities.ClientIntake.list();
+const foundIntake = intakes.find(i => i.token === token);
+```
+
+A página é pública — `requiresAuth: false` no client (`base44Client.js:12`),
+rota registrada em `pages.config.js`, e nenhuma guarda de autenticação no
+componente. O código **baixa a lista inteira de briefings para o navegador**
+e compara o token no cliente.
+
+`ClientIntake` carrega nome, WhatsApp, e-mail, CPF/CNPJ, data de nascimento
+e dois endereços completos. Se o backend do base44 atende essa listagem — o
+que `requiresAuth: false` sugere, mas não é possível confirmar de fora —
+qualquer visitante da URL do formulário recebe o dado pessoal de todos os
+clientes que já receberam link. A listagem acontece **antes** da validação
+do token, então nem token válido é necessário.
+
+Isso não é decisão de layout e não entra na regra de fidelidade. Reproduzir
+seria construir o vazamento de novo.
+
+#### O desenho aqui
+
+**O token nunca é comparado no navegador.** Duas edge functions, e nenhum
+`GRANT` para `anon` na tabela:
+
+- `open-client-intake` — recebe o token, resolve server-side com
+  `service_role`, e devolve **somente** a linha correspondente, e somente os
+  campos que o formulário precisa preencher. Token inexistente, expirado ou
+  já enviado devolve o mesmo formato de recusa: nada que permita descobrir se
+  um token existe.
+- `submit-client-intake` — recebe o token e os dados, revalida validade e
+  status **dentro** da transação (entre abrir o formulário e enviar podem
+  passar horas), grava e marca como enviado.
+
+Consequências que o desenho precisa sustentar:
+
+- `token` é uuid gerado no servidor, com unicidade. Nunca sequencial.
+- Expiração é conferida no servidor, na hora do envio, não só na abertura.
+  O original confere na abertura e de novo no envio pelo cliente — mas quem
+  confere é o navegador, e navegador não é autoridade.
+- `anon` não recebe privilégio nenhum em `client_intakes`. A tabela tem
+  `tenant_id` como todas as outras, e RLS que só atende colaborador ativo do
+  escritório — a via pública é exclusivamente a edge function.
+- A resposta pública **não** inclui `tenant_id`, `cliente_crm_id`,
+  `negociacao_id` nem qualquer id interno. Só o que o formulário exibe.
+- Tentativa com token inválido é registrada (o original tem
+  `ultimo_erro_link`, `ultimo_acesso_em`, `ultimo_status_validacao`), mas o
+  registro é server-side e a resposta ao visitante não muda.
+
+#### O que precisa de teste próprio, porque o padrão não cobre
+
+A suíte de invariantes afirma "anon não lê e não escreve", e isso continua
+valendo aqui. O que ela não sabe testar é a via pública legítima:
+
+1. Token válido abre e devolve **uma** linha — nunca duas.
+2. A resposta não contém id interno nem `tenant_id`.
+3. Token inexistente, expirado e já enviado devolvem recusas
+   indistinguíveis entre si.
+4. Envio depois de expirado é recusado, mesmo que a abertura tenha
+   funcionado.
+5. Envio duas vezes com o mesmo token: o segundo é recusado.
+6. Token de um escritório não alcança dado de outro.
+7. `anon` continua sem alcançar a tabela direto, com a chave publicável.
 
 ## Módulo 4 — Contratos
 
