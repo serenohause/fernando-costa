@@ -115,6 +115,38 @@ Cada módulo é uma fatia vertical completa:
 Um commit por camada. O módulo só é dado por encerrado depois de o usuário
 ver a tela funcionando com o dado simulado **e do deploy no ar**.
 
+### Como os módulos 3 a 9 são feitos (mudou depois do 2)
+
+Os módulos 1 e 2 produziram ~114 asserções cada. No 1 isso se pagou: achamos
+tabela aberta para a internet, chave-mestra válida até 2036 e três caminhos
+de escalação de privilégio. No 2 foi rigor repetido — o mesmo padrão aplicado
+a uma tabela — e levou mais de uma hora só na parte de banco.
+
+Do módulo 3 em diante:
+
+1. **Um agente por módulo faz schema e RLS juntos.** São acoplados: a RLS
+   depende das colunas, e verificar coluna gerada ou restrição sem aplicar não
+   verifica nada. Dois agentes sequenciais custavam uma rodada de ida e volta
+   sem ganho.
+2. **Os invariantes do padrão têm suíte única e parametrizada**, em
+   `supabase/tests/pattern-invariants.sql` (`npm run test:pattern`). Ela roda
+   sobre toda tabela de negócio de todo módulo e afirma: RLS ligada, anônimo
+   sem privilégio, os quatro comandos com policy, `WITH CHECK` declarado,
+   `tenant_id` not null, `unique (id, tenant_id)` para FK composta, índice
+   começando por `tenant_id`, isolamento entre escritórios nos dois sentidos,
+   colaborador afastado sem leitura, escrita presa ao menu certo, e a chave de
+   menu sendo de fato lida. Módulo novo acrescenta **uma linha** em
+   `pattern_tables` e ganha as 26 asserções.
+3. **Teste próprio do módulo cobre só o que é específico dele** — coluna
+   gerada, restrição de unicidade, superfície pública por token, regra de
+   negócio. Curto, e sobre o que o padrão não alcança.
+
+A suíte de invariantes foi validada por mutação: acesso de leitura para
+anônimo derruba 2 casos, RLS desligada derruba 9, leitor ganhando permissão
+de editar derruba 3. Suíte verde que não acusa defeito injetado não é suíte —
+e este projeto já produziu cinco asserções vazias antes de adotar essa
+checagem.
+
 A auditoria (6) não é opcional antes do deploy: é a condição que
 `.claude/skills/deploy/SKILL.md` impõe, e existe porque o deploy é o momento
 em que o sistema passa a ser alcançável por quem não foi convidado. Achado
