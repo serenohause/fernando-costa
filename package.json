@@ -20,7 +20,9 @@
     "test:rls:crm:e2e": "node supabase/tests/crm-rls.mjs",
     "test:functions": "node supabase/tests/edge-functions.mjs",
     "seed:crm": "node supabase/seed/02-crm.mjs",
-    "test:pattern": "supabase/tests/run-sql.sh supabase/tests/pattern-invariants.sql"
+    "test:pattern": "supabase/tests/run-sql.sh supabase/tests/pattern-invariants.sql",
+    "test:schema:pipeline": "supabase/tests/run-sql.sh supabase/tests/pipeline-schema.sql",
+    "test:intake": "supabase/tests/run-sql.sh supabase/tests/client-intake.sql"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",

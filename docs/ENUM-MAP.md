@@ -178,6 +178,32 @@ Coordenador). Não vira linha em `menus`.
 | Expirado | `expired` | Expirado |
 | Enviado | `submitted` | Enviado |
 
+### `client_intake_validation_status`
+
+Não existia neste documento até a migration 0021: no base44,
+`ClientIntake.ultimo_status_validacao` é **texto livre**, e os valores abaixo
+saem da descrição do campo ("OK, TOKEN_VAZIO, NAO_ENCONTRADO, EXPIRADO,
+ENVIADO") mais os dois que o código grava e a descrição não lista (`CRIADO`,
+`EXPIRADO_NO_ENVIO`). Virou enum porque é coluna de auditoria, e auditoria em
+texto livre acumula grafia divergente até ninguém conseguir agrupar por ela.
+
+| base44 | Postgres | Rótulo UI |
+|---|---|---|
+| CRIADO | `created` | Link criado |
+| OK | `ok` | Link aberto |
+| EXPIRADO | `expired` | Link expirado |
+| ENVIADO | `already_submitted` | Link já utilizado |
+| EXPIRADO_NO_ENVIO | `expired_on_submit` | Expirou antes do envio |
+| — | `submitted` | Enviado com sucesso |
+| TOKEN_VAZIO | — (não importável) | — |
+| NAO_ENCONTRADO | — (não importável) | — |
+
+`TOKEN_VAZIO` e `NAO_ENCONTRADO` descrevem uma tentativa em que **nenhuma
+linha foi encontrada**, então não existe linha onde gravá-los — no original
+também não: o código lança o erro antes de qualquer `update`. `submitted` não
+tem equivalente no base44, onde o sucesso do envio só aparece na mudança de
+`status`.
+
 ---
 
 ## Contratos

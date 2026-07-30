@@ -43,21 +43,68 @@ begin;
 --
 -- Modulo novo entra aqui. `insert_cols` e `insert_vals` sao o minimo para
 -- gravar uma linha valida (sem tenant_id, que a sonda acrescenta).
+--
+-- `insert_vals_b` e a mesma linha valida NO ESCRITORIO B, e existe porque tabela
+-- filha referencia a mae por (id, tenant_id): a linha valida em A aponta para a
+-- mae de A, e essa mesma linha nao e valida em B. Onde nao ha referencia, fica
+-- nulo e a sonda usa insert_vals nos dois lados.
+-- Sem isso, o caso C6 (editor de A gravando com tenant_id de B) seria recusado
+-- pela FK antes de a policy opinar, e passaria a afirmar "a FK funciona" em vez
+-- de "o WITH CHECK funciona".
 
 create temp table pattern_tables (
   modulo int,
   tabela text,
   menu_key text,
   insert_cols text,
-  insert_vals text
+  insert_vals text,
+  insert_vals_b text
 ) on commit drop;
 
-insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals) values
+-- Os uuids literais abaixo sao os das fixtures declaradas em `pat`, logo
+-- adiante: c_editor_a / c_editor_b (responsavel comercial), fix_client_a /
+-- fix_client_b e fix_neg_a / fix_neg_b (mae das tabelas filhas do modulo 3).
+insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, insert_vals_b) values
   (2, 'clients', 'crm',
    'name, phone, address_city, address_state',
-   $$'Cliente Padrao', '(62) 90000-0000', 'Goiania', 'GO'$$);
+   $$'Cliente Padrao', '(62) 90000-0000', 'Goiania', 'GO'$$,
+   null),
 
-  -- Modulo 3: (3, 'negotiations', 'pipeline', ..., ...)
+  (3, 'negotiations', 'pipeline',
+   'name, commercial_owner_id',
+   $$'Negociacao Padrao', 'ea100000-0000-4000-8000-000000000001'$$,
+   $$'Negociacao Padrao', 'eb100000-0000-4000-8000-000000000001'$$),
+
+  -- O servico sai da posicao seguinte do enum a cada linha ja gravada NAQUELA
+  -- negociacao. Motivo: negotiation_services tem unique (negotiation_id,
+  -- service_type), e a suite grava a mesma "linha minima valida" duas vezes no
+  -- escritorio A (a fixture dos casos B, e o INSERT do caso C1). Com valor fixo,
+  -- C1 receberia 23505 e o caso "quem tem can_edit CRIA" passaria a afirmar que
+  -- a unicidade existe. A contagem e filtrada pela negociacao da fixture de
+  -- proposito: contagem sobre a tabela inteira mudaria de resultado no dia em
+  -- que o seed do modulo 3 entrar.
+  (3, 'negotiation_services', 'pipeline',
+   'negotiation_id, service_type',
+   $$'ea200000-0000-4000-8000-000000000001',
+     (enum_range(null::public.service_type))[1 + (select count(*) from public.negotiation_services s
+                                                  where s.negotiation_id = 'ea200000-0000-4000-8000-000000000001')]$$,
+   $$'eb200000-0000-4000-8000-000000000001',
+     (enum_range(null::public.service_type))[1 + (select count(*) from public.negotiation_services s
+                                                  where s.negotiation_id = 'eb200000-0000-4000-8000-000000000001')]$$),
+
+  -- clock_timestamp(), e nao o default now(): now() e o instante da TRANSACAO e
+  -- portanto identico em todas as linhas desta suite, e a tabela tem
+  -- unique (negotiation_id, changed_at).
+  (3, 'negotiation_owner_history', 'pipeline',
+   'negotiation_id, new_owner_id, changed_at',
+   $$'ea200000-0000-4000-8000-000000000001', 'ea100000-0000-4000-8000-000000000001', clock_timestamp()$$,
+   $$'eb200000-0000-4000-8000-000000000001', 'eb100000-0000-4000-8000-000000000001', clock_timestamp()$$),
+
+  (3, 'client_intakes', 'pipeline',
+   'client_id',
+   $$'ea300000-0000-4000-8000-000000000001'$$,
+   $$'eb300000-0000-4000-8000-000000000001'$$);
+
   -- Modulo 4: (4, 'contracts', 'contracts', ..., ...)
   -- e assim por diante.
 
@@ -74,7 +121,12 @@ create temp table pat on commit drop as select
   'ea100000-0000-4000-8000-000000000001'::uuid as c_editor_a,
   'ea100000-0000-4000-8000-000000000002'::uuid as c_viewer_a,
   'ea100000-0000-4000-8000-000000000003'::uuid as c_leave_a,
-  'eb100000-0000-4000-8000-000000000001'::uuid as c_editor_b;
+  'eb100000-0000-4000-8000-000000000001'::uuid as c_editor_b,
+  -- Mae das tabelas filhas do modulo 3, uma por escritorio.
+  'ea200000-0000-4000-8000-000000000001'::uuid as fix_neg_a,
+  'eb200000-0000-4000-8000-000000000001'::uuid as fix_neg_b,
+  'ea300000-0000-4000-8000-000000000001'::uuid as fix_client_a,
+  'eb300000-0000-4000-8000-000000000001'::uuid as fix_client_b;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 select u, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated', e, now(), now()
@@ -114,15 +166,36 @@ insert into public.collaborators (id, tenant_id, user_id, name, role, email, sta
 -- registro. O afastado recebe tambem, de proposito: sem isso, "afastado nao
 -- escreve porque esta afastado" e "porque nao tem permissao" dariam o mesmo
 -- resultado e o teste nao saberia dizer qual regra funciona.
+--
+-- DISTINCT porque um modulo tem mais de uma tabela sob o mesmo menu (o 3 tem
+-- quatro sob 'pipeline') e a PK de collaborator_permissions e
+-- (collaborator_id, menu_key).
 insert into public.collaborator_permissions (tenant_id, collaborator_id, menu_key, can_view, can_edit)
-select (select tenant_a from pat), (select c_editor_a from pat), t.menu_key, true, true from pattern_tables t
+select (select tenant_a from pat), (select c_editor_a from pat), m.menu_key, true, true from (select distinct menu_key from pattern_tables) m
 union all
-select (select tenant_a from pat), (select c_leave_a from pat), t.menu_key, true, true from pattern_tables t
+select (select tenant_a from pat), (select c_leave_a from pat), m.menu_key, true, true from (select distinct menu_key from pattern_tables) m
 union all
-select (select tenant_b from pat), (select c_editor_b from pat), t.menu_key, true, true from pattern_tables t
+select (select tenant_b from pat), (select c_editor_b from pat), m.menu_key, true, true from (select distinct menu_key from pattern_tables) m
 union all
 -- Leitor: can_view sim, can_edit nao.
-select (select tenant_a from pat), (select c_viewer_a from pat), t.menu_key, true, false from pattern_tables t;
+select (select tenant_a from pat), (select c_viewer_a from pat), m.menu_key, true, false from (select distinct menu_key from pattern_tables) m;
+
+-- Linhas-mae das tabelas filhas. Existem porque a "linha minima valida" de uma
+-- tabela filha aponta para a mae por (id, tenant_id), e a mae precisa existir no
+-- MESMO escritorio - e por isso que pattern_tables tem insert_vals_b. Ficam
+-- fora do laco de proposito: o laco varre as tabelas em ordem alfabetica, e
+-- negotiation_services vem antes de negotiations.
+insert into public.clients (id, tenant_id, name, phone, address_city, address_state) values
+  ((select fix_client_a from pat), (select tenant_a from pat),
+   'Cliente Mae A', '(62) 90000-1111', 'Goiania', 'GO'),
+  ((select fix_client_b from pat), (select tenant_b from pat),
+   'Cliente Mae B', '(62) 90000-2222', 'Anapolis', 'GO');
+
+insert into public.negotiations (id, tenant_id, name, client_id, commercial_owner_id) values
+  ((select fix_neg_a from pat), (select tenant_a from pat), 'Negociacao Mae A',
+   (select fix_client_a from pat), (select c_editor_a from pat)),
+  ((select fix_neg_b from pat), (select tenant_b from pat), 'Negociacao Mae B',
+   (select fix_client_b from pat), (select c_editor_b from pat));
 
 -- INSTRUMENTACAO --------------------------------------------------------------
 
@@ -209,11 +282,13 @@ declare
   v_row_a uuid;
   v_row_b uuid;
   v_pref text;
+  v_vals_b text;
 begin
   select * into p from pat;
 
   for t in select * from pattern_tables order by modulo, tabela loop
     v_pref := t.modulo || '.' || t.tabela;
+    v_vals_b := coalesce(t.insert_vals_b, t.insert_vals);
 
     -- ---- Catalogo: os dois lados da tranca -----------------------------------
     --
@@ -276,7 +351,7 @@ begin
     execute format('insert into public.%I (tenant_id, %s) values (%L, %s) returning id',
                    t.tabela, t.insert_cols, p.tenant_a, t.insert_vals) into v_row_a;
     execute format('insert into public.%I (tenant_id, %s) values (%L, %s) returning id',
-                   t.tabela, t.insert_cols, p.tenant_b, t.insert_vals) into v_row_b;
+                   t.tabela, t.insert_cols, p.tenant_b, v_vals_b) into v_row_b;
 
     -- Isolamento entre escritorios, nos dois sentidos.
     perform pg_temp.rec(v_pref || '/B1', 'editor de A nao le linha de B', 'OK:0',
@@ -326,10 +401,12 @@ begin
 
     -- Escrita cruzada: WITH CHECK. Editor de A tem permissao de sobra no
     -- proprio escritorio - o que se afirma e que ele nao grava NO escritorio B.
+    -- Os valores sao os VALIDOS em B (insert_vals_b): a linha precisa ser
+    -- recusada por autorizacao, e nao por FK apontando para a mae errada.
     perform pg_temp.rec(v_pref || '/C6', 'editor de A nao grava com tenant_id de B', 'ERR:42501',
       pg_temp.probe('authenticated', pg_temp.claims(p.u_editor_a, p.tenant_a),
         format('insert into public.%I (tenant_id, %s) values (%L, %s)',
-               t.tabela, t.insert_cols, p.tenant_b, t.insert_vals)));
+               t.tabela, t.insert_cols, p.tenant_b, v_vals_b)));
 
     perform pg_temp.rec(v_pref || '/C7', 'editor de A nao move linha propria para B', 'ERR:42501',
       pg_temp.probe('authenticated', pg_temp.claims(p.u_editor_a, p.tenant_a),
