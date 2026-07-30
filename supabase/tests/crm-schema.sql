@@ -301,10 +301,22 @@ select pg_temp.val('5.6', 'INSERT e UPDATE tem WITH CHECK declarado',
 --   de volume, distribuicao e largura da coluna - nada disso e do schema. Teste
 --   que quebra quando o schema melhora nao esta medindo o schema.
 --
---   O que importa e o indice ser USAVEL para este predicado. Isso e do schema,
---   e e o que 6.1 afirma agora, proibindo a varredura sequencial. 6.1b registra
---   a escolha natural como informativo: serve para ver o custo mudar de lado
---   conforme a tabela cresce, sem transformar isso em falha.
+--   A segunda versao proibiu a varredura sequencial e afirmou que o indice
+--   aparecia. Melhor, mas ainda instavel: falhou 2 vezes em 12 execucoes. Com
+--   seqscan proibido a escolha continua sendo comparacao de custo, agora entre
+--   o GIN de trigrama e o btree (tenant_id, created_at) - e o btree ganha as
+--   vezes. Medido: nao e a RLS (postgres tem rolbypassrls, e o plano e
+--   identico com a RLS ligada e desligada).
+--
+--   Teste que falha 2 em 12 sem nada ter mudado ensina a reexecutar em vez de
+--   ler. Pior que teste ausente.
+--
+--   Versao final: o que este projeto controla e a EXISTENCIA do indice com a
+--   opclass certa sobre a coluna certa. Isso e afirmacao de catalogo, deteminista,
+--   e cai na hora se alguem trocar gin_trgm_ops, tirar tenant_id da frente ou
+--   apagar o indice - que sao os erros reais possiveis. Qual plano o planejador
+--   escolhe depende de volume, distribuicao e largura de coluna, e nao e nosso.
+--   Os planos continuam capturados, como informativo.
 
 insert into public.clients (tenant_id, name, phone, email, address_city, address_state)
 select
@@ -345,14 +357,24 @@ begin
   set local enable_seqscan = on;
 
   insert into res (caso, descricao, expected, observed)
-  values ('6.1', 'indice de trigrama e USAVEL para a busca livre',
-          'true', (v_forcado like '%clients_tenant_id_search_text_idx%')::text);
+  values ('6.1a', 'plano com varredura sequencial proibida', '(informativo)', v_forcado);
   insert into res (caso, descricao, expected, observed)
-  values ('6.1b', 'plano com o indice forcado', '(informativo)', v_forcado);
-  insert into res (caso, descricao, expected, observed)
-  values ('6.2', 'escolha natural do planejador com 5000 linhas', '(informativo)', v_natural);
+  values ('6.1b', 'escolha natural do planejador com 5000 linhas', '(informativo)', v_natural);
 end
 $$;
+
+-- A afirmacao deterministica: o indice existe, e GIN, comeca por tenant_id e usa
+-- gin_trgm_ops sobre search_text. Cai se alguem trocar a opclass (busca por
+-- pedaco no meio para de funcionar), tirar tenant_id da frente (o filtro de
+-- escritorio sai do indice) ou apagar o indice.
+select pg_temp.val('6.1', 'indice de busca: GIN, tenant_id na frente, gin_trgm_ops em search_text',
+  'CREATE INDEX clients_tenant_id_search_text_idx ON public.clients USING gin (tenant_id, search_text gin_trgm_ops)',
+  $q$select indexdef from pg_indexes
+     where schemaname = 'public' and indexname = 'clients_tenant_id_search_text_idx'$q$);
+
+select pg_temp.val('6.1c', 'extensoes que a busca por pedaco exige estao ativas', 'btree_gin,pg_trgm',
+  $q$select string_agg(extname, ',' order by extname) from pg_extension
+     where extname in ('pg_trgm', 'btree_gin')$q$);
 
 select pg_temp.val('6.3', 'indices da tabela',
   'clients_id_tenant_id_key,clients_pkey,clients_tenant_id_client_key_key,clients_tenant_id_created_at_idx,clients_tenant_id_legacy_id_key,clients_tenant_id_name_idx,clients_tenant_id_search_text_idx,clients_tenant_id_tax_id_digits_key',

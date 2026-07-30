@@ -601,6 +601,70 @@ select pg_temp.check_val('11.4', 'INSERT e UPDATE tem WITH CHECK declarado', 'cl
   $q$select string_agg(policyname, ',' order by policyname) from pg_policies
      where schemaname = 'public' and tablename = 'clients' and with_check is not null$q$);
 
+-- 12. Atalho de Diretor (migration 0019) --------------------------------------
+--
+-- POR QUE ESTA SECAO EXISTE
+--   A 0019 fez can_edit_menu devolver true para Diretor sem consultar
+--   collaborator_permissions, por fidelidade ao original
+--   (usePermissions.jsx:43 da canEdit ao Diretor sem olhar a matriz).
+--
+--   Quando essa mudanca foi aplicada, as 114 asserçoes das duas suites
+--   continuaram passando - antes E depois. Ou seja: uma mudanca de
+--   autorizacao passou sem que nada acusasse. Nao havia Diretor SEM a linha de
+--   permissao em fixture nenhuma: a Diretora A tem crm/can_edit gravado, e os
+--   casos de escrita usam a Arquiteta de proposito, para provar que quem libera
+--   e a permissao e nao a funcao. O atalho ficou no ponto cego exato entre as
+--   duas escolhas.
+--
+--   Esta secao remove a linha de permissao da Diretora A dentro da propria
+--   transacao e afirma o atalho a partir dai. Se alguem tirar o atalho do
+--   helper, 12.1 e 12.2 caem.
+
+delete from public.collaborator_permissions
+where collaborator_id = (select c_dir_a from crm_ids)
+  and menu_key = 'crm';
+
+select pg_temp.check_val('12.1', 'ATALHO: Diretora SEM a linha de permissao tem can_edit_menu(crm) = true', 'true',
+  'authenticated', pg_temp.claims((select u_dir_a from crm_ids), (select tenant_a from crm_ids)),
+  $q$select public.can_edit_menu('crm')::text$q$);
+
+select pg_temp.check('12.2', 'ATALHO: Diretora SEM a linha de permissao cria cliente', 'OK:1',
+  'authenticated', pg_temp.claims((select u_dir_a from crm_ids), (select tenant_a from crm_ids)),
+  format($q$
+    insert into public.clients (tenant_id, name, phone, address_city, address_state)
+    values (%L, 'Cliente Criado Pela Diretora', '(62) 90000-0099', 'Goiania', 'GO')
+  $q$, (select tenant_a from crm_ids)));
+
+-- CONTROLE: sem estes dois, "o atalho funciona" seria indistinguivel de "o
+-- helper passou a devolver true para todo mundo".
+select pg_temp.check_val('12.C1', 'CONTROLE: Estagiario sem permissao nenhuma continua sem editar', 'false',
+  'authenticated', pg_temp.claims((select u_noperm_a from crm_ids), (select tenant_a from crm_ids)),
+  $q$select public.can_edit_menu('crm')::text$q$);
+
+select pg_temp.check_val('12.C2', 'CONTROLE: Coordenador com apenas can_view continua sem editar', 'false',
+  'authenticated', pg_temp.claims((select u_view_a from crm_ids), (select tenant_a from crm_ids)),
+  $q$select public.can_edit_menu('crm')::text$q$);
+
+-- O atalho depende de auth_collaborator_id(), que ja exige status active.
+-- Promover o Afastado a Diretor prova que o atalho NAO passa por cima do
+-- status: se passasse, Diretor de ferias escreveria.
+update public.collaborators
+set role = 'director'
+where id = (select c_leave_a from crm_ids);
+
+delete from public.collaborator_permissions
+where collaborator_id = (select c_leave_a from crm_ids);
+
+select pg_temp.check_val('12.C3', 'CONTROLE: Diretor Afastado NAO edita (status manda sobre o atalho)', 'false',
+  'authenticated', pg_temp.claims((select u_leave_a from crm_ids), (select tenant_a from crm_ids)),
+  $q$select public.can_edit_menu('crm')::text$q$);
+
+-- Chave inexistente falha alto ANTES do atalho: erro de digitacao na policy de
+-- um modulo futuro nao pode virar "so Diretor escreve" em silencio.
+select pg_temp.check_val('12.C4', 'CONTROLE: chave inexistente falha alto mesmo para Diretor', 'ERR:22023',
+  'authenticated', pg_temp.claims((select u_dir_a from crm_ids), (select tenant_a from crm_ids)),
+  $q$select public.can_edit_menu('contratcs')::text$q$);
+
 -- Resultado -------------------------------------------------------------------
 
 select
