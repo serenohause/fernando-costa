@@ -10,11 +10,13 @@ import {
   List,
   MapPin,
   Plus,
+  Search,
   Trash2,
   TrendingUp,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
 import PageHeader from '@/components/shared/PageHeader'
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import EmptyState from '@/components/shared/EmptyState'
@@ -56,7 +58,6 @@ import BriefingReview from './BriefingReview'
 import IntakeLinkButton from './IntakeLinkButton'
 import NegociacaoForm, { toFormValues, type NegotiationFormValues } from './NegociacaoForm'
 import NegociacaoKanban from './NegociacaoKanban'
-import PipelineFilters from './PipelineFilters'
 import PipelineHeader from './PipelineHeader'
 import type { NegotiationInput, NegotiationRow } from '../types'
 
@@ -102,7 +103,8 @@ export default function Negociacoes() {
   const [briefingsOpen, setBriefingsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('kanban')
   const [searchTerm, setSearchTerm] = useState('')
-  const [filters, setFilters] = useState<PipelineFilterState>(EMPTY_FILTERS)
+  /* Mantido para o dia em que os filtros forem ligados; hoje é sempre EMPTY_FILTERS. */
+  const [filters] = useState<PipelineFilterState>(EMPTY_FILTERS)
 
   const { saveOrigin } = useNavigation()
   const { canEdit } = useMenuPermissions('pipeline')
@@ -584,15 +586,34 @@ export default function Negociacoes() {
 
       <PipelineHeader negotiations={negotiations} />
 
+      {/*
+        Campo de busca solto, e NÃO o componente PipelineFilters.
+
+        O original tem `components/negociacoes/PipelineFilters.jsx` no código,
+        mas `Negociacoes.jsx` nunca o monta — nem importa o arquivo. Ele desenha
+        só esta busca. Decisão do usuário: a tela fica como o original de fato
+        mostra.
+
+        O motivo pesa mais que a fidelidade em si: o comportamento daqueles
+        filtros nunca existiu em lugar nenhum, então as regras — as faixas de
+        valor, principalmente — seriam invenção nossa. Equipe se acostumando com
+        um recorte que ninguém definiu é pior que recurso ausente.
+
+        O componente continua no repositório, desmontado. Se um dia for ligado,
+        as faixas precisam vir do escritório, não de palpite.
+      */}
       {(hasNegotiations || isFiltering) && (
-        <PipelineFilters
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          filters={filters}
-          onFilterChange={(key, value) => setFilters((previous) => ({ ...previous, [key]: value }))}
-          collaborators={collaboratorsQuery.data ?? []}
-          negotiations={negotiations}
-        />
+        <div className="mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
+            <Input
+              placeholder="Buscar por negociação, cliente ou responsável..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
       )}
 
       {!hasNegotiations && !isFiltering && !negotiationsQuery.isLoading ? (
