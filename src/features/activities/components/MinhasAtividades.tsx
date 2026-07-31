@@ -30,7 +30,7 @@ import {
 import { createPageUrl } from '@/lib/page-url'
 import { formatDateBR } from '@/lib/format'
 import { isOverdue, sortMyActivities } from '../list'
-import { useActivities } from '../hooks'
+import { useMyActivities } from '../hooks'
 import { PRIORITY_TEXT } from './priority-styles'
 import type { ActivityRow } from '../types'
 
@@ -43,19 +43,22 @@ import type { ActivityRow } from '../types'
   detalhes do projeto e a tabela "Suas Atividades" com as cinco colunas são os do
   original, na mesma ordem.
 
-  O RECORTE POR PESSOA NÃO ESTÁ MAIS AQUI, e é a mudança central do módulo. No
-  original esta tela baixa TODAS as atividades e peneira no navegador
-  (linha 58, `a.colaborador_id === currentCollaborator.id`); nada impede a
-  chamada direta à entidade, então o recorte é cosmético. Agora ele é regra do
-  banco: `activities_select_own_or_activities_editor` (migration 0038) só devolve
-  a atividade a quem não tem `can_edit_menu('activities')` quando essa pessoa é o
-  responsável ou o coordenador. Arquiteto e Estagiário — que no seed não recebem
-  menu nenhum, e são justamente para quem esta tela existe — recebem só as suas.
+  DOIS RECORTES, e eles são coisas diferentes.
 
-  CONSEQUÊNCIA CONHECIDA, e está no relatório do módulo: para quem TEM o menu
-  (Coordenador, Administrativo, Diretor), a consulta devolve o escritório
-  inteiro, e esta tela passa a mostrá-lo. O que distingue as duas telas hoje é
-  layout e ordenação, não filtro.
+  O de SEGURANÇA é do banco: `activities_select_own_or_activities_editor`
+  (migration 0038) só devolve a atividade a quem não tem
+  `can_edit_menu('activities')` quando essa pessoa é o responsável ou o
+  coordenador. No original isso é peneira no navegador (linha 58,
+  `a.colaborador_id === currentCollaborator.id`), e nada impede a chamada direta
+  à entidade — recorte cosmético. Este NÃO se reproduz aqui: reproduzir regra de
+  segurança no cliente cria um segundo lugar que parece funcionar depois que o
+  primeiro quebra.
+
+  O de PROPÓSITO é da tela, e é `useMyActivities`. Para quem TEM o menu
+  (Coordenador, Administrativo, Diretor) a policy devolve o escritório inteiro —
+  e uma tela chamada "Minhas Atividades" mostrando as de todo mundo estaria
+  mentindo no próprio nome. Este recorte é o que a tela promete, não o que ela
+  protege.
 
   "Meus Projetos" continua sendo filtro de tela, e não de policy: ele não é
   recorte de acesso, é a pergunta "de quais cartões do Fluxo do Projeto eu sou o
@@ -76,7 +79,7 @@ export default function MinhasAtividades() {
   const collaboratorQuery = useCurrentCollaborator()
   const currentCollaborator = collaboratorQuery.data ?? null
 
-  const activitiesQuery = useActivities()
+  const activitiesQuery = useMyActivities(currentCollaborator?.id)
   const tasksQuery = useTasks()
   const projectsQuery = useProjects()
   const progressQuery = useProjectProgress()

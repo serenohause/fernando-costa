@@ -14,6 +14,8 @@ import type { Activity, ActivityInput, ActivityRow } from './types'
 export const activityKeys = {
   all: ['activities'] as const,
   list: () => [...activityKeys.all, 'list'] as const,
+  mine: (collaboratorId: string | undefined) =>
+    [...activityKeys.all, 'mine', collaboratorId] as const,
   completed: () => [...activityKeys.all, 'completed'] as const,
 }
 
@@ -96,6 +98,42 @@ export function useActivities() {
 }
 
 /*
+  As atividades de QUEM ESTÁ LOGADO — a tela "Minhas Atividades".
+
+  Existe separada de `useActivities` por um motivo que vale escrever, porque as
+  duas parecem a mesma consulta com um filtro a mais e não são.
+
+  A policy do banco já recorta por pessoa para quem NÃO tem
+  `can_edit_menu('activities')`. Para quem TEM — Diretor, Coordenador,
+  Administrativo — ela devolve o escritório inteiro, e aí "Minhas Atividades"
+  mostraria as de todo mundo, KPIs incluídos.
+
+  Este `.eq('collaborator_id', …)` não é filtro de segurança duplicado: é o
+  PROPÓSITO da tela. Segurança é o que a policy faz e o cliente não pode
+  afrouxar; "minhas" é o recorte que a tela promete no próprio nome. Reproduzir
+  o primeiro no navegador seria redundância perigosa; omitir o segundo é a tela
+  mentindo.
+*/
+export function useMyActivities(collaboratorId: string | undefined) {
+  return useQuery({
+    queryKey: activityKeys.mine(collaboratorId),
+    enabled: Boolean(collaboratorId),
+    queryFn: async (): Promise<ActivityRow[]> => {
+      const { data, error } = await supabase
+        .from('activities')
+        .select(ACTIVITIES_SELECT)
+        .is('deleted_at', null)
+        .eq('collaborator_id', collaboratorId!)
+        .order('end_date', { ascending: false })
+        .limit(LIST_LIMIT)
+
+      if (error) throw error
+      return (data ?? []) as unknown as ActivityRow[]
+    },
+  })
+}
+
+/*
   O que o Relatório de Produtividade lê: só atividade concluída COM execução
   registrada, que é o filtro do original (RelatorioProdutividade.jsx:57-65) — sem
   os dois carimbos não há tempo total para somar.
@@ -104,6 +142,16 @@ export function useActivities() {
   peneirada em memória; aqui é WHERE. `total_minutes` não precisa entrar na
   condição: ele é derivado dos dois carimbos e é nulo exatamente quando um deles
   falta.
+
+  ATIVIDADE EXCLUÍDA ENTRA AQUI, e só aqui.
+
+  Toda outra listagem filtra `deleted_at is null`. Esta não, e é o que o original
+  faz (RelatorioProdutividade.jsx:59), com crachá "Excluída" na linha. O motivo:
+  trabalho feito é trabalho feito. Uma atividade concluída em seis horas e
+  excluída depois — porque o cliente cancelou o escopo — não desfaz as seis horas
+  que a pessoa passou nela. Filtrar aqui subtrairia do relatório de produtividade
+  justamente o trabalho que foi jogado fora por decisão de terceiro, que é o pior
+  lugar para uma pessoa perder crédito.
 */
 export function useCompletedActivities() {
   return useQuery({
@@ -112,7 +160,6 @@ export function useCompletedActivities() {
       const { data, error } = await supabase
         .from('activities')
         .select(ACTIVITIES_SELECT)
-        .is('deleted_at', null)
         .eq('status', 'completed')
         .not('started_at', 'is', null)
         .not('completed_at', 'is', null)

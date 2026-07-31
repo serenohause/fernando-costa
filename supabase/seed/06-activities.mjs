@@ -170,8 +170,16 @@ async function main() {
       start_date: dayOffset(5),
       end_date: dayOffset(20),
     },
-    // CONCLUÍDA, com tempo real: é o que alimenta o relatório de produtividade.
-    // Fora da fila (execution_order nulo), como as excluídas.
+    /*
+      CONCLUÍDA NO PRAZO, com tempo real.
+
+      O prazo é daqui a dois dias e ela já está pronta. Sem pelo menos uma
+      assim, a taxa de atraso do relatório dá 100% em todas as linhas — e
+      relatório onde toda linha diz o mesmo não deixa ninguém perceber se a
+      conta funciona ou se ela só devolve o mesmo número sempre.
+
+      Fora da fila (execution_order nulo), como as excluídas.
+    */
     {
       description: 'Levantamento fotográfico do imóvel',
       collaborator: arquiteta,
@@ -179,8 +187,8 @@ async function main() {
       project: alphaville,
       status: 'completed',
       priority: 'high',
-      start_date: dayOffset(-8),
-      end_date: dayOffset(-6),
+      start_date: dayOffset(-4),
+      end_date: dayOffset(2),
       started_at: hoursAgo(52),
       completed_at: hoursAgo(48),
       started_by: arquiteta,
@@ -199,6 +207,8 @@ async function main() {
       end_date: dayOffset(4),
       started_at: hoursAgo(3),
     },
+    // Concluída no prazo também: duas no prazo e uma atrasada dá taxa de 33%,
+    // que é um número que só sai certo se a conta estiver certa.
     {
       description: 'Montar apresentação para a reunião de sexta',
       collaborator: coordenador,
@@ -206,7 +216,7 @@ async function main() {
       status: 'completed',
       priority: 'medium',
       start_date: dayOffset(-5),
-      end_date: dayOffset(-2),
+      end_date: dayOffset(1),
       started_at: hoursAgo(30),
       completed_at: hoursAgo(27),
       started_by: coordenador,
