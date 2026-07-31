@@ -117,9 +117,66 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
    $$'PAT-A-' || (select count(*) from public.contracts c
                   where c.contract_number like 'PAT-A-%'), 'architecture', 1000$$,
    $$'PAT-B-' || (select count(*) from public.contracts c
-                  where c.contract_number like 'PAT-B-%'), 'architecture', 1000$$);
+                  where c.contract_number like 'PAT-B-%'), 'architecture', 1000$$),
 
-  -- Modulo 5: (5, 'projects', 'projects', ..., ...)
+  -- Modulo 5. Duas chaves de menu diferentes de proposito: 'Projetos' e 'Fluxo
+  -- do Projeto' sao itens separados na sidebar do original, com permissao
+  -- independente - o par E1/E3 e o que impede a policy de tasks passar lendo o
+  -- menu errado.
+  (5, 'projects', 'projects',
+   'name, project_type',
+   $$'Projeto Padrao', 'architecture'$$,
+   null),
+
+  (5, 'tasks', 'project_flow',
+   'title, project_id',
+   $$'Tarefa Padrao', 'ea400000-0000-4000-8000-000000000001'$$,
+   $$'Tarefa Padrao', 'eb400000-0000-4000-8000-000000000001'$$),
+
+  -- As quatro tabelas filhas abaixo tem unique (mae, texto), e a suite grava a
+  -- mesma "linha minima valida" duas vezes no escritorio A (a linha dos casos B,
+  -- e o INSERT do caso C1). Por isso o titulo sai de um contador, como em
+  -- contracts: com valor fixo, C1 receberia 23505 e o caso "quem tem can_edit
+  -- CRIA" passaria a afirmar que a unicidade existe. A contagem e filtrada pela
+  -- linha-mae da fixture de proposito - contagem sobre a tabela inteira mudaria
+  -- de resultado no dia em que o seed do modulo 5 entrar.
+  (5, 'project_checklist_items', 'projects',
+   'project_id, title',
+   $$'ea400000-0000-4000-8000-000000000001',
+     'Item Padrao ' || (select count(*) from public.project_checklist_items i
+                        where i.project_id = 'ea400000-0000-4000-8000-000000000001')$$,
+   $$'eb400000-0000-4000-8000-000000000001',
+     'Item Padrao ' || (select count(*) from public.project_checklist_items i
+                        where i.project_id = 'eb400000-0000-4000-8000-000000000001')$$),
+
+  (5, 'task_checklist_items', 'project_flow',
+   'task_id, title',
+   $$'ea500000-0000-4000-8000-000000000001',
+     'Item Padrao ' || (select count(*) from public.task_checklist_items i
+                        where i.task_id = 'ea500000-0000-4000-8000-000000000001')$$,
+   $$'eb500000-0000-4000-8000-000000000001',
+     'Item Padrao ' || (select count(*) from public.task_checklist_items i
+                        where i.task_id = 'eb500000-0000-4000-8000-000000000001')$$),
+
+  (5, 'project_land_types', 'projects',
+   'project_id, land_type',
+   $$'ea400000-0000-4000-8000-000000000001',
+     'Terreno Padrao ' || (select count(*) from public.project_land_types l
+                           where l.project_id = 'ea400000-0000-4000-8000-000000000001')$$,
+   $$'eb400000-0000-4000-8000-000000000001',
+     'Terreno Padrao ' || (select count(*) from public.project_land_types l
+                           where l.project_id = 'eb400000-0000-4000-8000-000000000001')$$),
+
+  (5, 'project_purposes', 'projects',
+   'project_id, purpose',
+   $$'ea400000-0000-4000-8000-000000000001',
+     'Finalidade Padrao ' || (select count(*) from public.project_purposes f
+                              where f.project_id = 'ea400000-0000-4000-8000-000000000001')$$,
+   $$'eb400000-0000-4000-8000-000000000001',
+     'Finalidade Padrao ' || (select count(*) from public.project_purposes f
+                              where f.project_id = 'eb400000-0000-4000-8000-000000000001')$$);
+
+  -- Modulo 6: (6, 'activities', 'activities', ..., ...)
   -- e assim por diante.
 
 -- FIXTURES --------------------------------------------------------------------
@@ -140,7 +197,12 @@ create temp table pat on commit drop as select
   'ea200000-0000-4000-8000-000000000001'::uuid as fix_neg_a,
   'eb200000-0000-4000-8000-000000000001'::uuid as fix_neg_b,
   'ea300000-0000-4000-8000-000000000001'::uuid as fix_client_a,
-  'eb300000-0000-4000-8000-000000000001'::uuid as fix_client_b;
+  'eb300000-0000-4000-8000-000000000001'::uuid as fix_client_b,
+  -- Mae das tabelas filhas do modulo 5, uma por escritorio.
+  'ea400000-0000-4000-8000-000000000001'::uuid as fix_project_a,
+  'eb400000-0000-4000-8000-000000000001'::uuid as fix_project_b,
+  'ea500000-0000-4000-8000-000000000001'::uuid as fix_task_a,
+  'eb500000-0000-4000-8000-000000000001'::uuid as fix_task_b;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 select u, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated', e, now(), now()
@@ -210,6 +272,18 @@ insert into public.negotiations (id, tenant_id, name, client_id, commercial_owne
    (select fix_client_a from pat), (select c_editor_a from pat)),
   ((select fix_neg_b from pat), (select tenant_b from pat), 'Negociacao Mae B',
    (select fix_client_b from pat), (select c_editor_b from pat));
+
+insert into public.projects (id, tenant_id, name, project_type, client_id) values
+  ((select fix_project_a from pat), (select tenant_a from pat), 'Projeto Mae A',
+   'architecture', (select fix_client_a from pat)),
+  ((select fix_project_b from pat), (select tenant_b from pat), 'Projeto Mae B',
+   'architecture', (select fix_client_b from pat));
+
+insert into public.tasks (id, tenant_id, title, project_id) values
+  ((select fix_task_a from pat), (select tenant_a from pat), 'Tarefa Mae A',
+   (select fix_project_a from pat)),
+  ((select fix_task_b from pat), (select tenant_b from pat), 'Tarefa Mae B',
+   (select fix_project_b from pat));
 
 -- INSTRUMENTACAO --------------------------------------------------------------
 
