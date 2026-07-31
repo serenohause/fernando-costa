@@ -105,6 +105,151 @@ export type Database = {
           },
         ]
       }
+      activities: {
+        Row: {
+          client_id: string | null
+          collaborator_id: string
+          completed_at: string | null
+          completed_by: string | null
+          coordinator_id: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string
+          end_date: string
+          execution_order: number | null
+          id: string
+          last_alert_on: string | null
+          legacy_id: string | null
+          notes: string | null
+          priority: Database["public"]["Enums"]["priority_level"]
+          project_id: string | null
+          start_date: string
+          started_at: string | null
+          started_by: string | null
+          status: Database["public"]["Enums"]["work_status"]
+          tenant_id: string
+          total_minutes: number | null
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          collaborator_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          coordinator_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description: string
+          end_date: string
+          execution_order?: number | null
+          id?: string
+          last_alert_on?: string | null
+          legacy_id?: string | null
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
+          start_date: string
+          started_at?: string | null
+          started_by?: string | null
+          status?: Database["public"]["Enums"]["work_status"]
+          tenant_id: string
+          total_minutes?: number | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          collaborator_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          coordinator_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string
+          end_date?: string
+          execution_order?: number | null
+          id?: string
+          last_alert_on?: string | null
+          legacy_id?: string | null
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
+          start_date?: string
+          started_at?: string | null
+          started_by?: string | null
+          status?: Database["public"]["Enums"]["work_status"]
+          tenant_id?: string
+          total_minutes?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "activities_collaborator_id_fkey"
+            columns: ["collaborator_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "activities_completed_by_fkey"
+            columns: ["completed_by", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "activities_coordinator_id_fkey"
+            columns: ["coordinator_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "activities_deleted_by_fkey"
+            columns: ["deleted_by", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "activities_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "activities_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "activities_started_by_fkey"
+            columns: ["started_by", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "activities_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_intakes: {
         Row: {
           address_city: string | null

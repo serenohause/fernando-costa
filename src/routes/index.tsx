@@ -9,6 +9,9 @@ import Negociacoes from '@/features/pipeline/components/Negociacoes'
 import Contracts from '@/features/contracts/components/Contracts'
 import Projects from '@/features/projects/components/Projects'
 import Tasks from '@/features/projects/components/Tasks'
+import Atividades from '@/features/activities/components/Atividades'
+import MinhasAtividades from '@/features/activities/components/MinhasAtividades'
+import RelatorioProdutividade from '@/features/activities/components/RelatorioProdutividade'
 import FormularioCliente from '@/features/pipeline/components/FormularioCliente'
 
 /*
@@ -43,6 +46,14 @@ export function AppRoutes() {
         {/* "Fluxo do Projeto" na sidebar, `/Tasks` na URL — o nome da rota é o do
             original, e o menu dela é `project_flow`, separado de `projects`. */}
         <Route path="/Tasks" element={<Tasks />} />
+        <Route path="/Atividades" element={<Atividades />} />
+        {/* Liberada por FUNÇÃO, nunca por permissão de menu — ela não tem linha
+            em `menus` (ver MY_ACTIVITIES_MENU em src/features/auth/navigation.ts).
+            É a tela para onde o AppLayout manda Arquiteto e Estagiário. */}
+        <Route path="/MinhasAtividades" element={<MinhasAtividades />} />
+        {/* Sem item na barra lateral, como no original: a página existe em
+            pages.config.js e não em `allNavigation`. Chega-se a ela pela URL. */}
+        <Route path="/RelatorioProdutividade" element={<RelatorioProdutividade />} />
         <Route path="/Collaborators" element={<Collaborators />} />
         <Route path="/AprovacoesAcesso" element={<AprovacoesAcesso />} />
         <Route path="*" element={<PagePlaceholder />} />

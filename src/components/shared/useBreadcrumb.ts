@@ -34,6 +34,16 @@ const breadcrumbMap: Record<string, BreadcrumbItem[]> = {
 
   // Atividades
   Atividades: [{ label: 'Atividades' }],
+  /*
+    O original não tem entrada para RelatorioProdutividade e cai no nome da
+    rota, então a trilha exibia "RelatorioProdutividade" para quem usa — o mesmo
+    caso já registrado acima em ClientDetail. A trilha aponta para /Atividades
+    porque é o único lugar do sistema de onde este relatório fala.
+  */
+  RelatorioProdutividade: [
+    { label: 'Atividades', page: 'Atividades' },
+    { label: 'Relatório de Produtividade' },
+  ],
 
   // Financeiro
   AccountsReceivable: [{ label: 'Financeiro', page: null }, { label: 'Recebíveis' }],
