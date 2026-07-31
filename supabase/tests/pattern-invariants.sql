@@ -174,9 +174,24 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
                               where f.project_id = 'ea400000-0000-4000-8000-000000000001')$$,
    $$'eb400000-0000-4000-8000-000000000001',
      'Finalidade Padrao ' || (select count(*) from public.project_purposes f
-                              where f.project_id = 'eb400000-0000-4000-8000-000000000001')$$);
+                              where f.project_id = 'eb400000-0000-4000-8000-000000000001')$$),
 
-  -- Modulo 6: (6, 'activities', 'activities', ..., ...)
+  -- Modulo 6. O RESPONSAVEL da linha e o LEITOR (c_viewer_a), e nao o editor -
+  -- unico registro em que isso importa. activities e a primeira tabela do sistema
+  -- cuja leitura NAO e larga (migration 0038): quem nao tem can_edit no menu
+  -- 'activities' le apenas as atividades em que e o responsavel ou o coordenador.
+  -- Com a linha no nome do editor, o caso C5 ("CONTROLE: quem tem apenas can_view
+  -- LE") observaria OK:0 e a suite acusaria falha onde o recorte esta correto.
+  -- Com a linha no nome do leitor, C5 continua afirmando exatamente o que
+  -- pretende - que a leitura nao foi negada a quem so tem can_view - agora na
+  -- forma que vale para esta tabela. B3 (editor LE) segue por outro caminho: o
+  -- editor tem can_edit_menu('activities') e por isso le tudo.
+  (6, 'activities', 'activities',
+   'description, collaborator_id, start_date, end_date',
+   $$'Atividade Padrao', 'ea100000-0000-4000-8000-000000000002', current_date, current_date$$,
+   $$'Atividade Padrao', 'eb100000-0000-4000-8000-000000000001', current_date, current_date$$);
+
+  -- Modulo 7: (7, 'accounts_receivable', 'receivables', ..., ...)
   -- e assim por diante.
 
 -- FIXTURES --------------------------------------------------------------------
