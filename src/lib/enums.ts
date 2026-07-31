@@ -184,14 +184,33 @@ export type ClientIntakeValidationStatus = keyof typeof CLIENT_INTAKE_VALIDATION
   0028). Dois rótulos para um valor só não é portável, e a coluna "Rótulo UI" do
   de/para escolheu a forma curta. Divergência visível em tela, registrada.
 */
+/*
+  MESMO enum, DOIS rótulos — e os dois são fiéis, cada um no seu lugar.
+
+  O original escreve "Projeto de Arquitetura" no select de Contrato
+  (ContractForm.jsx) e "Arquitetura" no de Projeto (ProjectForm.jsx), para o
+  mesmo valor. `docs/ENUM-MAP.md` unifica os DADOS num enum só — isso é sobre a
+  importação, não sobre o que a tela mostra. Achatar o rótulo junto trocaria
+  texto visível em duas telas para poupar quatro linhas aqui.
+
+  `CONTRACT_TYPE` é o rótulo da tela de contratos; `PROJECT_TYPE` é o da tela de
+  projetos (módulo 5). Os valores são os mesmos e o tipo é um só.
+*/
 export const CONTRACT_TYPE = {
-  architecture: 'Arquitetura',
-  architecture_engineering: 'Arquitetura + Complementares',
-  architecture_interiors: 'Arquitetura + Interiores',
+  architecture: 'Projeto de Arquitetura',
+  architecture_engineering: 'Projeto de Arquitetura + Complementares',
+  architecture_interiors: 'Projeto de Arquitetura + Interiores',
   full: 'Todos',
 } as const satisfies LabelMap<string>
 
 export type ContractType = keyof typeof CONTRACT_TYPE
+
+export const PROJECT_TYPE = {
+  architecture: 'Arquitetura',
+  architecture_engineering: 'Arquitetura + Complementares',
+  architecture_interiors: 'Arquitetura + Interiores',
+  full: 'Todos',
+} as const satisfies LabelMap<ContractType>
 
 export const BILLING_TYPE = {
   by_phase: 'Por Fases',
