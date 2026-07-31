@@ -26,7 +26,8 @@
     "test:schema:contracts": "supabase/tests/run-sql.sh supabase/tests/contracts-schema.sql",
     "test:schema:projects": "supabase/tests/run-sql.sh supabase/tests/projects-schema.sql",
     "seed:pipeline": "node supabase/seed/03-pipeline.mjs",
-    "seed:contracts": "node supabase/seed/04-contracts.mjs"
+    "seed:contracts": "node supabase/seed/04-contracts.mjs",
+    "seed:projects": "node supabase/seed/05-projects.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
