@@ -6,6 +6,7 @@ import AprovacoesAcesso from '@/features/team/components/AprovacoesAcesso'
 import Clients from '@/features/crm/components/Clients'
 import ClientDetail from '@/features/crm/components/ClientDetail'
 import Negociacoes from '@/features/pipeline/components/Negociacoes'
+import Contracts from '@/features/contracts/components/Contracts'
 import FormularioCliente from '@/features/pipeline/components/FormularioCliente'
 
 /*
@@ -35,6 +36,7 @@ export function AppRoutes() {
         {/* Detalhe por query string (`?id=`), como no original — ver ClientDetail.jsx:19. */}
         <Route path="/ClientDetail" element={<ClientDetail />} />
         <Route path="/Negociacoes" element={<Negociacoes />} />
+        <Route path="/Contracts" element={<Contracts />} />
         <Route path="/Collaborators" element={<Collaborators />} />
         <Route path="/AprovacoesAcesso" element={<AprovacoesAcesso />} />
         <Route path="*" element={<PagePlaceholder />} />

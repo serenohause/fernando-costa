@@ -478,6 +478,175 @@ export type Database = {
           },
         ]
       }
+      contracts: {
+        Row: {
+          billing_type: Database["public"]["Enums"]["billing_type"] | null
+          client_address_city: string | null
+          client_address_complement: string | null
+          client_address_number: string | null
+          client_address_state: string | null
+          client_address_street: string | null
+          client_address_zipcode: string | null
+          client_birth_date: string | null
+          client_email: string | null
+          client_id: string | null
+          client_legal_name: string | null
+          client_tax_id: string | null
+          construction_docs_days: number | null
+          contract_number: string
+          contract_type: Database["public"]["Enums"]["contract_type"]
+          created_at: string
+          display_order: number | null
+          engineering_docs_days: number | null
+          first_due_date: string | null
+          id: string
+          installment_count: number | null
+          installment_frequency:
+            | Database["public"]["Enums"]["installment_frequency"]
+            | null
+          installments_generated: boolean
+          layout_study_days: number | null
+          legacy_id: string | null
+          legal_permit_days: number | null
+          negotiation_id: string | null
+          notes: string | null
+          origin: Database["public"]["Enums"]["lead_origin"] | null
+          project_name: string | null
+          referrer_name: string | null
+          renderings_days: number | null
+          signature_date: string | null
+          site_city: string | null
+          site_complement: string | null
+          site_number: string | null
+          site_state: string | null
+          site_street: string | null
+          site_zipcode: string | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["contract_status"]
+          tenant_id: string
+          total_value: number
+          updated_at: string
+        }
+        Insert: {
+          billing_type?: Database["public"]["Enums"]["billing_type"] | null
+          client_address_city?: string | null
+          client_address_complement?: string | null
+          client_address_number?: string | null
+          client_address_state?: string | null
+          client_address_street?: string | null
+          client_address_zipcode?: string | null
+          client_birth_date?: string | null
+          client_email?: string | null
+          client_id?: string | null
+          client_legal_name?: string | null
+          client_tax_id?: string | null
+          construction_docs_days?: number | null
+          contract_number: string
+          contract_type: Database["public"]["Enums"]["contract_type"]
+          created_at?: string
+          display_order?: number | null
+          engineering_docs_days?: number | null
+          first_due_date?: string | null
+          id?: string
+          installment_count?: number | null
+          installment_frequency?:
+            | Database["public"]["Enums"]["installment_frequency"]
+            | null
+          installments_generated?: boolean
+          layout_study_days?: number | null
+          legacy_id?: string | null
+          legal_permit_days?: number | null
+          negotiation_id?: string | null
+          notes?: string | null
+          origin?: Database["public"]["Enums"]["lead_origin"] | null
+          project_name?: string | null
+          referrer_name?: string | null
+          renderings_days?: number | null
+          signature_date?: string | null
+          site_city?: string | null
+          site_complement?: string | null
+          site_number?: string | null
+          site_state?: string | null
+          site_street?: string | null
+          site_zipcode?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["contract_status"]
+          tenant_id: string
+          total_value: number
+          updated_at?: string
+        }
+        Update: {
+          billing_type?: Database["public"]["Enums"]["billing_type"] | null
+          client_address_city?: string | null
+          client_address_complement?: string | null
+          client_address_number?: string | null
+          client_address_state?: string | null
+          client_address_street?: string | null
+          client_address_zipcode?: string | null
+          client_birth_date?: string | null
+          client_email?: string | null
+          client_id?: string | null
+          client_legal_name?: string | null
+          client_tax_id?: string | null
+          construction_docs_days?: number | null
+          contract_number?: string
+          contract_type?: Database["public"]["Enums"]["contract_type"]
+          created_at?: string
+          display_order?: number | null
+          engineering_docs_days?: number | null
+          first_due_date?: string | null
+          id?: string
+          installment_count?: number | null
+          installment_frequency?:
+            | Database["public"]["Enums"]["installment_frequency"]
+            | null
+          installments_generated?: boolean
+          layout_study_days?: number | null
+          legacy_id?: string | null
+          legal_permit_days?: number | null
+          negotiation_id?: string | null
+          notes?: string | null
+          origin?: Database["public"]["Enums"]["lead_origin"] | null
+          project_name?: string | null
+          referrer_name?: string | null
+          renderings_days?: number | null
+          signature_date?: string | null
+          site_city?: string | null
+          site_complement?: string | null
+          site_number?: string | null
+          site_state?: string | null
+          site_street?: string | null
+          site_zipcode?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["contract_status"]
+          tenant_id?: string
+          total_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contracts_client_id_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "contracts_negotiation_id_fkey"
+            columns: ["negotiation_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "negotiations"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "contracts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menus: {
         Row: {
           created_at: string
@@ -709,6 +878,27 @@ export type Database = {
           },
         ]
       }
+      public_endpoint_hits: {
+        Row: {
+          client_key: string
+          hit_count: number
+          scope: string
+          window_start: string
+        }
+        Insert: {
+          client_key: string
+          hit_count?: number
+          scope: string
+          window_start: string
+        }
+        Update: {
+          client_key?: string
+          hit_count?: number
+          scope?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       tenant_email_domains: {
         Row: {
           created_at: string
@@ -825,6 +1015,18 @@ export type Database = {
       auth_tenant_id: { Args: never; Returns: string }
       can_edit_menu: { Args: { p_menu_key: string }; Returns: boolean }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      hit_public_endpoint: {
+        Args: {
+          p_client_key: string
+          p_limit: number
+          p_scope: string
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          hit_count: number
+        }[]
+      }
       is_active_collaborator: { Args: never; Returns: boolean }
       is_tenant_director: { Args: never; Returns: boolean }
       open_client_intake: {
@@ -842,6 +1044,11 @@ export type Database = {
     }
     Enums: {
       access_request_status: "pending" | "approved" | "rejected"
+      billing_type:
+        | "by_phase"
+        | "monthly_installments"
+        | "upfront"
+        | "percent_of_construction"
       client_intake_outcome:
         | "active"
         | "expired"
@@ -870,12 +1077,24 @@ export type Database = {
         | "architect"
         | "intern"
       collaborator_status: "active" | "vacation" | "on_leave"
+      contract_status:
+        | "negotiating"
+        | "approved"
+        | "in_progress"
+        | "completed"
+        | "terminated"
+      contract_type:
+        | "architecture"
+        | "architecture_engineering"
+        | "architecture_interiors"
+        | "full"
       funnel_stage:
         | "lead_received"
         | "qualified"
         | "proposal_sent"
         | "negotiating"
         | "closing"
+      installment_frequency: "monthly" | "biweekly" | "weekly" | "single"
       lead_origin: "instagram" | "referral" | "website" | "event" | "other"
       lead_source: "instagram" | "referral" | "website" | "other"
       loss_reason:
@@ -1026,6 +1245,12 @@ export const Constants = {
   public: {
     Enums: {
       access_request_status: ["pending", "approved", "rejected"],
+      billing_type: [
+        "by_phase",
+        "monthly_installments",
+        "upfront",
+        "percent_of_construction",
+      ],
       client_intake_outcome: [
         "active",
         "expired",
@@ -1058,6 +1283,19 @@ export const Constants = {
         "intern",
       ],
       collaborator_status: ["active", "vacation", "on_leave"],
+      contract_status: [
+        "negotiating",
+        "approved",
+        "in_progress",
+        "completed",
+        "terminated",
+      ],
+      contract_type: [
+        "architecture",
+        "architecture_engineering",
+        "architecture_interiors",
+        "full",
+      ],
       funnel_stage: [
         "lead_received",
         "qualified",
@@ -1065,6 +1303,7 @@ export const Constants = {
         "negotiating",
         "closing",
       ],
+      installment_frequency: ["monthly", "biweekly", "weekly", "single"],
       lead_origin: ["instagram", "referral", "website", "event", "other"],
       lead_source: ["instagram", "referral", "website", "other"],
       loss_reason: [

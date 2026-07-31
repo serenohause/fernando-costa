@@ -10,8 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { FUNNEL_STAGE, SERVICE_TYPE, labelOf, type FunnelStage } from '@/lib/enums'
-import { formatDateBR } from '@/lib/format'
-import { formatCurrencyBRL } from '../format'
+import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
 import type { NegotiationRow } from '../types'
 
 /*

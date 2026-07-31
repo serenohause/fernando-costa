@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import { DollarSign, Percent, Target, TrendingDown, TrendingUp } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Card } from '@/components/ui/card'
-import { formatCurrencyBRL } from '../format'
+import { formatCurrencyBRL } from '@/lib/format'
 import type { NegotiationRow } from '../types'
 
 /*

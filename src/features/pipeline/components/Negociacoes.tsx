@@ -40,9 +40,8 @@ import { useMenuPermissions } from '@/features/auth/hooks'
 import { useClients } from '@/features/crm/hooks'
 import { useCollaborators } from '@/features/team/hooks'
 import { FUNNEL_STAGE, LEAD_ORIGIN, LOSS_REASON, SERVICE_TYPE, labelOf } from '@/lib/enums'
-import { formatDateBR } from '@/lib/format'
+import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
 import { applyFilters, applySearch, EMPTY_FILTERS, type PipelineFilterState } from '../filters'
-import { formatCurrencyBRL } from '../format'
 import {
   describeDatabaseError,
   useClientIntakes,

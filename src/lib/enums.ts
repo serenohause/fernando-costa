@@ -172,6 +172,55 @@ export const CLIENT_INTAKE_VALIDATION_STATUS = {
 
 export type ClientIntakeValidationStatus = keyof typeof CLIENT_INTAKE_VALIDATION_STATUS
 
+// ── Contratos ───────────────────────────────────────────────────────────
+
+/*
+  Ordem do select de ContractForm.jsx do original, não alfabética.
+
+  O RÓTULO NÃO É O TEXTO DO SELECT DO ORIGINAL, e a diferença é decisão de
+  docs/ENUM-MAP.md (seção Contratos): lá o mesmo conceito aparece como "Projeto
+  de Arquitetura" em `Contract` e "Arquitetura" em `Project`, para o MESMO valor
+  — o enum `contract_type` é compartilhado com `projects.project_type` (migration
+  0028). Dois rótulos para um valor só não é portável, e a coluna "Rótulo UI" do
+  de/para escolheu a forma curta. Divergência visível em tela, registrada.
+*/
+export const CONTRACT_TYPE = {
+  architecture: 'Arquitetura',
+  architecture_engineering: 'Arquitetura + Complementares',
+  architecture_interiors: 'Arquitetura + Interiores',
+  full: 'Todos',
+} as const satisfies LabelMap<string>
+
+export type ContractType = keyof typeof CONTRACT_TYPE
+
+export const BILLING_TYPE = {
+  by_phase: 'Por Fases',
+  monthly_installments: 'Parcelado mensal',
+  upfront: 'À vista',
+  percent_of_construction: '% sobre obra',
+} as const satisfies LabelMap<string>
+
+export type BillingType = keyof typeof BILLING_TYPE
+
+export const CONTRACT_STATUS = {
+  negotiating: 'Em negociação',
+  approved: 'Aprovado',
+  in_progress: 'Em execução',
+  completed: 'Concluído',
+  terminated: 'Rescindido',
+} as const satisfies LabelMap<string>
+
+export type ContractStatus = keyof typeof CONTRACT_STATUS
+
+export const INSTALLMENT_FREQUENCY = {
+  monthly: 'Mensal',
+  biweekly: 'Quinzenal',
+  weekly: 'Semanal',
+  single: 'Única',
+} as const satisfies LabelMap<string>
+
+export type InstallmentFrequency = keyof typeof INSTALLMENT_FREQUENCY
+
 /*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
   original, que redireciona Arquiteto e Estagiário para MinhasAtividades e
