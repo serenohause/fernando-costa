@@ -175,17 +175,9 @@ export type ClientIntakeValidationStatus = keyof typeof CLIENT_INTAKE_VALIDATION
 // ── Contratos ───────────────────────────────────────────────────────────
 
 /*
-  Ordem do select de ContractForm.jsx do original, não alfabética.
-
-  O RÓTULO NÃO É O TEXTO DO SELECT DO ORIGINAL, e a diferença é decisão de
-  docs/ENUM-MAP.md (seção Contratos): lá o mesmo conceito aparece como "Projeto
-  de Arquitetura" em `Contract` e "Arquitetura" em `Project`, para o MESMO valor
-  — o enum `contract_type` é compartilhado com `projects.project_type` (migration
-  0028). Dois rótulos para um valor só não é portável, e a coluna "Rótulo UI" do
-  de/para escolheu a forma curta. Divergência visível em tela, registrada.
-*/
-/*
   MESMO enum, DOIS rótulos — e os dois são fiéis, cada um no seu lugar.
+
+  Ordem dos selects do original, não alfabética.
 
   O original escreve "Projeto de Arquitetura" no select de Contrato
   (ContractForm.jsx) e "Arquitetura" no de Projeto (ProjectForm.jsx), para o

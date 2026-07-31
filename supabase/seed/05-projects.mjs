@@ -123,6 +123,15 @@ async function main() {
     4. Prospecção, sem tarefa nenhuma — progresso 0 e não nulo, que é o caso
        de borda da view.
   */
+  /*
+    `visible_in_list: true` em todos, e é obrigatório.
+
+    A coluna nasce `false` (migration 0032) e as duas telas do original filtram
+    por ela — `Projects.jsx:56` e `Tasks.jsx:82`. No uso real quem a levanta é a
+    aprovação do contrato, que cria o projeto (módulo 4, adiado). Sem isso o seed
+    grava quatro projetos que existem no banco e não aparecem em tela nenhuma —
+    e o sintoma é "a tela está vazia", longe da causa.
+  */
   const PROJECTS = [
     {
       key: 'alphaville',
@@ -145,6 +154,7 @@ async function main() {
       layout_study_days: 15,
       renderings_days: 20,
       display_order: 1,
+      visible_in_list: true,
       land_types: ['Loteamento fechado'],
       purposes: ['Moradia'],
       tasks: [
@@ -173,6 +183,7 @@ async function main() {
       land_area_m2: 5200,
       project_area_m2: 1450,
       display_order: 2,
+      visible_in_list: true,
       land_types: ['Área rural'],
       purposes: ['Comercial'],
       tasks: [
@@ -198,6 +209,7 @@ async function main() {
       current_phase: 'finished',
       total_value: 128000,
       display_order: 3,
+      visible_in_list: true,
       land_types: ['Loteamento aberto'],
       purposes: ['Moradia', 'Lazer'],
       tasks: [
@@ -220,6 +232,7 @@ async function main() {
       current_phase: 'not_started',
       total_value: 185000,
       display_order: 4,
+      visible_in_list: true,
       notes: 'Aguardando aprovação da comissão do condomínio antes de iniciar.',
       land_types: ['Loteamento fechado'],
       purposes: ['Moradia'],
