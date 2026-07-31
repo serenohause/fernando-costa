@@ -240,6 +240,101 @@ export const INSTALLMENT_FREQUENCY = {
 
 export type InstallmentFrequency = keyof typeof INSTALLMENT_FREQUENCY
 
+// ── Projetos ────────────────────────────────────────────────────────────
+
+/* Ordem do select de ProjectForm.jsx do original, não alfabética. */
+export const PROJECT_STATUS = {
+  prospecting: 'Prospecção',
+  under_contract: 'Em contrato',
+  in_development: 'Em desenvolvimento',
+  in_approval: 'Em aprovação',
+  completed: 'Concluído',
+  suspended: 'Suspenso',
+} as const satisfies LabelMap<string>
+
+export type ProjectStatus = keyof typeof PROJECT_STATUS
+
+/*
+  UM enum, DOIS usos (migration 0031). `projects.current_phase` aceita os doze
+  valores; `tasks.phase` aceita onze — `finished` é barrado por check na tabela.
+
+  A ordem é a das colunas do kanban do original (TaskKanban.jsx:21-34), e não a
+  ordem de percentual: `awaiting_client` vem entre `building_permit` e
+  `finished` na tela, mesmo não tendo percentual próprio na view.
+*/
+export const PROJECT_PHASE = {
+  not_started: 'Não iniciado',
+  briefing: 'Briefing',
+  layout: 'Layout',
+  renderings: 'Perspectivas',
+  revision: 'Revisão',
+  legal_permit: 'Projeto Legal',
+  hoa_approval: 'Aprovação Condomínio',
+  construction_docs: 'Projeto Executivo',
+  engineering_docs: 'Projetos Complementares',
+  building_permit: 'Alvará de Construção',
+  awaiting_client: 'Aguardando Cliente',
+  finished: 'Finalizado',
+} as const satisfies LabelMap<string>
+
+export type ProjectPhase = keyof typeof PROJECT_PHASE
+
+/* O recorte que `tasks_phase_not_finished_check` cobra do banco. */
+export type TaskPhase = Exclude<ProjectPhase, 'finished'>
+
+// ── Tarefas ─────────────────────────────────────────────────────────────
+
+/*
+  Enum compartilhado por `tasks.priority` (módulo 5) e `activities.priority`
+  (módulo 6). A ordem é a de `activity_priority` em docs/ENUM-MAP.md.
+*/
+export const PRIORITY_LEVEL = {
+  low: 'Baixa',
+  medium: 'Média',
+  high: 'Alta',
+  urgent: 'Urgente',
+} as const satisfies LabelMap<string>
+
+export type PriorityLevel = keyof typeof PRIORITY_LEVEL
+
+/* `urgent` só existe em Atividade, e `tasks_priority_not_urgent_check` o barra. */
+export type TaskPriority = Exclude<PriorityLevel, 'urgent'>
+
+/*
+  MESMO enum, OUTRA ordem — e a ordem é o que está na tela. O select de
+  TaskForm.jsx lista Alta, Média, Baixa (linhas 188-190), de cima para baixo;
+  o de Atividade lista do menor para o maior. `optionsOf` respeita a ordem de
+  declaração, então cada tela pede o mapa dela. Mesmo precedente de
+  CONTRACT_TYPE / PROJECT_TYPE.
+*/
+export const TASK_PRIORITY = {
+  high: 'Alta',
+  medium: 'Média',
+  low: 'Baixa',
+} as const satisfies LabelMap<TaskPriority>
+
+/*
+  O original escreve "Não iniciado" para tarefa e "Não iniciada" para atividade
+  — a mesma coisa em dois gêneros. docs/ENUM-MAP.md unifica no feminino, e é o
+  rótulo que as duas telas passam a usar.
+*/
+export const WORK_STATUS = {
+  not_started: 'Não iniciada',
+  in_progress: 'Em andamento',
+  completed: 'Concluída',
+} as const satisfies LabelMap<string>
+
+export type WorkStatus = keyof typeof WORK_STATUS
+
+export const TASK_TYPE = {
+  technical: 'Técnica',
+  meeting: 'Reunião',
+  review: 'Revisão',
+  administrative: 'Administrativo',
+} as const satisfies LabelMap<string>
+
+export type TaskType = keyof typeof TASK_TYPE
+
 /*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
   original, que redireciona Arquiteto e Estagiário para MinhasAtividades e

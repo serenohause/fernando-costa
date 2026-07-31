@@ -7,6 +7,8 @@ import Clients from '@/features/crm/components/Clients'
 import ClientDetail from '@/features/crm/components/ClientDetail'
 import Negociacoes from '@/features/pipeline/components/Negociacoes'
 import Contracts from '@/features/contracts/components/Contracts'
+import Projects from '@/features/projects/components/Projects'
+import Tasks from '@/features/projects/components/Tasks'
 import FormularioCliente from '@/features/pipeline/components/FormularioCliente'
 
 /*
@@ -37,6 +39,10 @@ export function AppRoutes() {
         <Route path="/ClientDetail" element={<ClientDetail />} />
         <Route path="/Negociacoes" element={<Negociacoes />} />
         <Route path="/Contracts" element={<Contracts />} />
+        <Route path="/Projects" element={<Projects />} />
+        {/* "Fluxo do Projeto" na sidebar, `/Tasks` na URL — o nome da rota é o do
+            original, e o menu dela é `project_flow`, separado de `projects`. */}
+        <Route path="/Tasks" element={<Tasks />} />
         <Route path="/Collaborators" element={<Collaborators />} />
         <Route path="/AprovacoesAcesso" element={<AprovacoesAcesso />} />
         <Route path="*" element={<PagePlaceholder />} />

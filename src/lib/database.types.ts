@@ -878,6 +878,300 @@ export type Database = {
           },
         ]
       }
+      project_checklist_items: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          display_order: number | null
+          id: string
+          is_completed: boolean
+          phase: Database["public"]["Enums"]["project_phase"] | null
+          project_id: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          is_completed?: boolean
+          phase?: Database["public"]["Enums"]["project_phase"] | null
+          project_id: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          is_completed?: boolean
+          phase?: Database["public"]["Enums"]["project_phase"] | null
+          project_id?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_checklist_items_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_checklist_items_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_checklist_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_land_types: {
+        Row: {
+          created_at: string
+          id: string
+          land_type: string
+          project_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          land_type: string
+          project_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          land_type?: string
+          project_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_land_types_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_land_types_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_land_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_purposes: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          purpose: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          purpose: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          purpose?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_purposes_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_purposes_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_purposes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          city: string | null
+          client_id: string | null
+          commercial_responsible_id: string | null
+          construction_docs_days: number | null
+          contract_id: string | null
+          created_at: string
+          current_phase: Database["public"]["Enums"]["project_phase"]
+          display_order: number | null
+          engineering_docs_days: number | null
+          id: string
+          land_area_m2: number | null
+          layout_study_days: number | null
+          legacy_id: string | null
+          legal_permit_days: number | null
+          location: string | null
+          name: string
+          notes: string | null
+          operational_responsible_id: string | null
+          project_area_m2: number | null
+          project_type: Database["public"]["Enums"]["contract_type"]
+          renderings_days: number | null
+          site_address_text: string | null
+          start_date: string | null
+          state: string | null
+          status: Database["public"]["Enums"]["project_status"]
+          subdivision_block: string | null
+          subdivision_lot: string | null
+          subdivision_name: string | null
+          tenant_id: string
+          total_value: number | null
+          updated_at: string
+          visible_in_list: boolean
+        }
+        Insert: {
+          city?: string | null
+          client_id?: string | null
+          commercial_responsible_id?: string | null
+          construction_docs_days?: number | null
+          contract_id?: string | null
+          created_at?: string
+          current_phase?: Database["public"]["Enums"]["project_phase"]
+          display_order?: number | null
+          engineering_docs_days?: number | null
+          id?: string
+          land_area_m2?: number | null
+          layout_study_days?: number | null
+          legacy_id?: string | null
+          legal_permit_days?: number | null
+          location?: string | null
+          name: string
+          notes?: string | null
+          operational_responsible_id?: string | null
+          project_area_m2?: number | null
+          project_type: Database["public"]["Enums"]["contract_type"]
+          renderings_days?: number | null
+          site_address_text?: string | null
+          start_date?: string | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["project_status"]
+          subdivision_block?: string | null
+          subdivision_lot?: string | null
+          subdivision_name?: string | null
+          tenant_id: string
+          total_value?: number | null
+          updated_at?: string
+          visible_in_list?: boolean
+        }
+        Update: {
+          city?: string | null
+          client_id?: string | null
+          commercial_responsible_id?: string | null
+          construction_docs_days?: number | null
+          contract_id?: string | null
+          created_at?: string
+          current_phase?: Database["public"]["Enums"]["project_phase"]
+          display_order?: number | null
+          engineering_docs_days?: number | null
+          id?: string
+          land_area_m2?: number | null
+          layout_study_days?: number | null
+          legacy_id?: string | null
+          legal_permit_days?: number | null
+          location?: string | null
+          name?: string
+          notes?: string | null
+          operational_responsible_id?: string | null
+          project_area_m2?: number | null
+          project_type?: Database["public"]["Enums"]["contract_type"]
+          renderings_days?: number | null
+          site_address_text?: string | null
+          start_date?: string | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["project_status"]
+          subdivision_block?: string | null
+          subdivision_lot?: string | null
+          subdivision_name?: string | null
+          tenant_id?: string
+          total_value?: number | null
+          updated_at?: string
+          visible_in_list?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_client_id_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "projects_commercial_responsible_id_fkey"
+            columns: ["commercial_responsible_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "projects_contract_id_fkey"
+            columns: ["contract_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "projects_operational_responsible_id_fkey"
+            columns: ["operational_responsible_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "projects_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       public_endpoint_hits: {
         Row: {
           client_key: string
@@ -898,6 +1192,155 @@ export type Database = {
           window_start?: string
         }
         Relationships: []
+      }
+      task_checklist_items: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          display_order: number | null
+          id: string
+          is_completed: boolean
+          is_required: boolean
+          phase: Database["public"]["Enums"]["project_phase"] | null
+          task_id: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          is_completed?: boolean
+          is_required?: boolean
+          phase?: Database["public"]["Enums"]["project_phase"] | null
+          task_id: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          is_completed?: boolean
+          is_required?: boolean
+          phase?: Database["public"]["Enums"]["project_phase"] | null
+          task_id?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_checklist_items_task_id_fkey"
+            columns: ["task_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "task_checklist_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          completion_date: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          estimated_hours: number | null
+          id: string
+          legacy_id: string | null
+          phase: Database["public"]["Enums"]["project_phase"]
+          priority: Database["public"]["Enums"]["priority_level"]
+          project_id: string | null
+          responsible_id: string | null
+          spent_hours: number | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["work_status"]
+          task_type: Database["public"]["Enums"]["task_type"] | null
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completion_date?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          estimated_hours?: number | null
+          id?: string
+          legacy_id?: string | null
+          phase?: Database["public"]["Enums"]["project_phase"]
+          priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
+          responsible_id?: string | null
+          spent_hours?: number | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["work_status"]
+          task_type?: Database["public"]["Enums"]["task_type"] | null
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completion_date?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          estimated_hours?: number | null
+          id?: string
+          legacy_id?: string | null
+          phase?: Database["public"]["Enums"]["project_phase"]
+          priority?: Database["public"]["Enums"]["priority_level"]
+          project_id?: string | null
+          responsible_id?: string | null
+          spent_hours?: number | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["work_status"]
+          task_type?: Database["public"]["Enums"]["task_type"] | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "tasks_responsible_id_fkey"
+            columns: ["responsible_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "tasks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tenant_email_domains: {
         Row: {
@@ -992,7 +1435,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      project_progress: {
+        Row: {
+          phase_percent: number | null
+          progress_percent: number | null
+          project_id: string | null
+          required_items_completed: number | null
+          required_items_total: number | null
+          tasks_completed: number | null
+          tasks_total: number | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       approve_access_request: {
@@ -1105,6 +1568,27 @@ export type Database = {
         | "no_response"
         | "other"
       negotiation_status: "active" | "won" | "lost"
+      priority_level: "low" | "medium" | "high" | "urgent"
+      project_phase:
+        | "not_started"
+        | "briefing"
+        | "layout"
+        | "renderings"
+        | "revision"
+        | "legal_permit"
+        | "hoa_approval"
+        | "construction_docs"
+        | "engineering_docs"
+        | "building_permit"
+        | "awaiting_client"
+        | "finished"
+      project_status:
+        | "prospecting"
+        | "under_contract"
+        | "in_development"
+        | "in_approval"
+        | "completed"
+        | "suspended"
       service_type:
         | "architecture"
         | "interiors"
@@ -1112,8 +1596,10 @@ export type Database = {
         | "plumbing"
         | "electrical"
         | "consulting"
+      task_type: "technical" | "meeting" | "review" | "administrative"
       tenant_role: "owner" | "member"
       tenant_status: "active" | "suspended"
+      work_status: "not_started" | "in_progress" | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1315,6 +1801,29 @@ export const Constants = {
         "other",
       ],
       negotiation_status: ["active", "won", "lost"],
+      priority_level: ["low", "medium", "high", "urgent"],
+      project_phase: [
+        "not_started",
+        "briefing",
+        "layout",
+        "renderings",
+        "revision",
+        "legal_permit",
+        "hoa_approval",
+        "construction_docs",
+        "engineering_docs",
+        "building_permit",
+        "awaiting_client",
+        "finished",
+      ],
+      project_status: [
+        "prospecting",
+        "under_contract",
+        "in_development",
+        "in_approval",
+        "completed",
+        "suspended",
+      ],
       service_type: [
         "architecture",
         "interiors",
@@ -1323,8 +1832,10 @@ export const Constants = {
         "electrical",
         "consulting",
       ],
+      task_type: ["technical", "meeting", "review", "administrative"],
       tenant_role: ["owner", "member"],
       tenant_status: ["active", "suspended"],
+      work_status: ["not_started", "in_progress", "completed"],
     },
   },
 } as const
