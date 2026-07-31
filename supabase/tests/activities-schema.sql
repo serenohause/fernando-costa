@@ -353,6 +353,51 @@ select pg_temp.chk('6.2', 'CONTROLE: inicio e termino no mesmo dia entram', 'OK:
   values (%L, 'Reuniao de alinhamento', %L, '2026-08-10', '2026-08-10')
 $q$, (select tenant_a from ids), (select c_arch from ids)));
 
+-- 9. Escrita na PROPRIA atividade (migration 0039) ---------------------------
+--
+-- POR QUE ESTA SECAO EXISTE
+--   A 0039 permitiu que o responsavel mexa na propria atividade mesmo sem
+--   can_edit no menu, restaurando Atividades.jsx:603 do original. Quando ela
+--   foi aplicada, os 20 casos desta suite continuaram passando - antes E
+--   depois. Uma mudanca de autorizacao passou sem nada acusar, exatamente como
+--   aconteceu com o atalho de Diretor no modulo 2.
+--
+--   O motivo e o mesmo: nao havia caso exercitando escrita de quem NAO tem o
+--   menu. Os casos de escrita usavam o editor, que tem.
+
+select pg_temp.chk_as('9.1', 'PROPRIA: Arquiteto SEM menu conclui a propria atividade', 'OK:1',
+  (select u_arch from ids), (select tenant_a from ids), format($q$
+  update public.activities
+     set status = 'completed', completed_at = now(), started_at = now() - interval '2 hours'
+   where id = %L
+$q$, (select act_arch from ids)));
+
+select pg_temp.chk_as('9.2', 'CONTROLE: Arquiteto NAO mexe na atividade de outro arquiteto', 'OK:0',
+  (select u_arch from ids), (select tenant_a from ids), format($q$
+  update public.activities set notes = 'tentativa' where id = %L
+$q$, (select act_other_arch from ids)));
+
+-- Coordenador do responsavel tambem alcanca, e pelo mesmo predicado.
+select pg_temp.chk_as('9.3', 'Coordenador do responsavel edita a atividade dele', 'OK:1',
+  (select u_coord from ids), (select tenant_a from ids), format($q$
+  update public.activities set notes = 'combinado na reuniao' where id = %L
+$q$, (select act_arch from ids)));
+
+-- CRIAR continua exigindo o menu: atribuir trabalho nao e mexer no proprio.
+-- Sem este caso, "responsavel pode tudo" passaria despercebido.
+select pg_temp.chk_as('9.4', 'CONTROLE: Arquiteto SEM menu NAO cria atividade para si', 'ERR:42501',
+  (select u_arch from ids), (select tenant_a from ids), format($q$
+  insert into public.activities (tenant_id, description, collaborator_id, start_date, end_date)
+  values (%L, 'Atividade que eu mesmo criei', %L, '2026-08-20', '2026-08-25')
+$q$, (select tenant_a from ids), (select c_arch from ids)));
+
+-- APAGAR tambem continua exigindo o menu: a exclusao e logica justamente para
+-- preservar a auditoria de quem fez o que.
+select pg_temp.chk_as('9.5', 'CONTROLE: Arquiteto SEM menu NAO apaga a propria atividade', 'OK:0',
+  (select u_arch from ids), (select tenant_a from ids), format($q$
+  delete from public.activities where id = %L
+$q$, (select act_arch from ids)));
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;
