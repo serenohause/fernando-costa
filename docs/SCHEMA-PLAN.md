@@ -683,12 +683,78 @@ valores, e check em `tasks` impedindo `finished`. Mesmo tratamento que
 - Item de checklist obrigatório concluído precisa de data de conclusão.
 - A view `project_progress` devolve 0 para projeto sem tarefa, e não nulo.
 
-## Módulo 6 — Atividades
+## Módulo 6 — Atividades (detalhado)
 
-`activities` (de `Atividade`) → FK para `collaborators` (responsável e
-coordenador), `projects` e `clients`, ambos opcionais. Base do
-`RelatorioProdutividade`, que cruza `weekly_hours` do colaborador com as
-horas das atividades.
+Uma tabela, `activities`, de `Atividade` (25 campos). Três telas: a
+gerencial, "Minhas Atividades" e o relatório de produtividade. FK composta
+para `collaborators` (responsável e coordenador), `projects` e `clients`,
+os dois últimos opcionais.
+
+Dentro do padrão, mas com **quatro pontos que o padrão não cobre**.
+
+### 1. Recorte por pessoa é regra de acesso, não filtro de tela
+
+No original, "Minhas Atividades" filtra no navegador
+(`MinhasAtividades.jsx:58`, `a.colaborador_id === currentCollaborator.id`).
+Arquiteto e Estagiário são redirecionados para essa tela pelo `Layout.jsx`,
+mas nada impede a chamada direta à entidade — o recorte é cosmético.
+
+Aqui vira policy: quem tem `can_edit` no menu `activities`, ou é Diretor,
+lê todas as atividades do escritório; **quem não tem, lê apenas aquelas em
+que é o responsável ou o coordenador do responsável.** Isso é diferente de
+todos os módulos anteriores, onde a leitura é larga para qualquer
+colaborador ativo.
+
+O motivo de apertar aqui e não nos outros: atividade descreve o que uma
+pessoa específica está fazendo e quanto tempo levou. É avaliação de
+desempenho, não cadastro compartilhado.
+
+Precisa de teste próprio, com controle: o Arquiteto **vê** as atividades
+dele (senão a tela dele fica vazia) e **não vê** as de outro arquiteto.
+
+### 2. Exclusão é lógica, não física
+
+`atividade_excluida`, `data_exclusao`, `usuario_exclusao_id` e
+`usuario_exclusao_name` — o original marca em vez de apagar. Faz sentido:
+atividade excluída ainda conta na auditoria de quem fez o quê.
+
+Vira `deleted_at timestamptz` + `deleted_by` (FK composta para
+`collaborators`), no lugar da bandeira mais data mais dois campos de autor.
+Uma coluna nula significa "viva", e não há como ficar com bandeira levantada
+sem data, ou vice-versa.
+
+**Consequência para a policy de leitura:** atividade excluída não aparece na
+listagem. Isso é filtro de consulta, não policy — quem administra precisa
+poder recuperar. Fica documentado na tela.
+
+### 3. `tempo_total_minutos` é derivado
+
+O original grava, e usa em duas somas do relatório
+(`RelatorioProdutividade.jsx:127` e `:162`). É `data_conclusao_real -
+data_inicio_real` — mesma família dos campos de deduplicação do CRM e do
+progresso do projeto.
+
+Vira **coluna gerada**: `total_minutes` calculado de
+`started_at` e `completed_at`. Nula enquanto não houver conclusão.
+
+### 4. Ordem de execução é por pessoa
+
+`ordem_execucao` ordena a fila **dentro do responsável**, não globalmente —
+`ReordenarAtividades.jsx` arrasta dentro da lista de uma pessoa. O índice
+único é `(tenant_id, collaborator_id, execution_order)`, e não
+`(tenant_id, execution_order)`.
+
+### Regra de negócio para o teste próprio
+
+- Arquiteto vê as próprias atividades e não vê as de outro. Com controle.
+- Coordenador vê as atividades de quem ele coordena.
+- `completed_at` só com `status = 'completed'`, e status concluída exige
+  `completed_at`.
+- `started_at` não posterior a `completed_at`.
+- `total_minutes` calculado pelo banco, e recusa escrita pela aplicação.
+- `deleted_at` e `deleted_by` andam juntos: os dois nulos, ou os dois
+  preenchidos.
+- `end_date` não anterior a `start_date`.
 
 ## Módulo 7 — Financeiro
 
