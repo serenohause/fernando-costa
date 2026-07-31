@@ -602,17 +602,86 @@ O que a suíte de invariantes não tem como conhecer:
 - FK composta `(id, tenant_id)` para `clients`; `unique (id, tenant_id)`
   próprio, porque `projects` e `accounts_receivable` vão apontar para cá.
 
-## Módulo 5 — Projetos
+## Módulo 5 — Projetos (detalhado)
 
-- `projects` (de `Project`, 45 campos) → FK para `clients` e `contracts`,
-  mais **dois** responsáveis distintos: `commercial_responsible_id` e
-  `operational_responsible_id`, ambos FK para `collaborators`. O original já
-  separa os dois e a UI depende disso.
-- `tasks` (de `Task`) → FK para `projects` e `collaborators`.
-- `project_phase` é enum compartilhado entre `projects.current_phase` e
-  `tasks.phase` — no original são duas listas quase iguais, e `projects`
-  tem um valor a mais (`Finalizado`). **Divergência a confirmar com o
-  usuário** quando chegar o módulo 5.
+`Project` tem 45 campos, a maior entidade do sistema. Duas decisões abaixo
+tiram trabalho do módulo em vez de acrescentar.
+
+### Tabelas
+
+| Tabela | Origem |
+|---|---|
+| `projects` | `Project`, menos o que foi adiado |
+| `tasks` | `Task` |
+| `project_checklist_items` | `Project.checklist_etapa` |
+| `task_checklist_items` | `Task.checklist_tarefa` |
+| `project_land_types` | `Project.terreno_tipo` (array de tag) |
+| `project_purposes` | `Project.finalidade_projeto` (array de tag) |
+
+Padrão em todas: `tenant_id`, leitura por colaborador ativo, escrita por
+`can_edit_menu`. `projects` e `tasks` usam menus diferentes — `projects` e
+`project_flow` — porque são itens separados na sidebar do original.
+
+Cada uma entra em `pattern_tables` e herda as 26 asserções.
+
+### Decisão 1: a geolocalização da obra fica para o módulo 9
+
+`Project` traz oito campos de geo — `obra_lat`, `obra_lng`, `obra_place_id`,
+`obra_geocode_status`, `obra_geocode_updated_at`, `obra_pin_manual`,
+`obra_pin_updated_by`, `obra_pin_updated_at` — mais `obra_endereco_texto`.
+
+E existe `PropriedadeMapa`, entidade separada, que é o que a tela de mapa
+efetivamente consulta (`MapaProjetos.jsx`). Os campos `obra_*` do projeto só
+aparecem em `ProjectForm.jsx` e em `components/utils/geocoding.jsx`. São
+**dois lugares guardando onde a obra fica**, e o mapa lê o segundo.
+
+Fazer geo agora significa escolher representação — `numeric` solto ou
+`geography(Point)` com PostGIS — e depois refazer no módulo 9, ou conviver
+com dois formatos. Então os oito campos entram no módulo 9, junto com
+`map_properties`, e a decisão de geo é tomada uma vez só.
+
+O que fica no módulo 5: `location`, `city`, `state` e o endereço em texto.
+A tela de projeto perde o ajuste de pino até o módulo 9 chegar, marcado com
+comentário.
+
+### Decisão 2: o progresso é calculado, não gravado
+
+`progresso_percentual`, `tarefas_total_obrigatorias` e
+`tarefas_concluidas_obrigatorias` são colunas do projeto que
+`components/utils/projectProgressCalculator.jsx` calcula a partir das
+tarefas e grava de volta.
+
+Coluna derivada gravada pela aplicação só está certa enquanto **toda**
+mudança de tarefa passar pelo mesmo caminho. Marcar uma tarefa como
+concluída por qualquer outra via — importação, correção no painel, tela nova
+— deixa o percentual mentindo, e nada acusa. É o mesmo raciocínio que tirou
+os campos de deduplicação do CRM da mão do frontend.
+
+Aqui vira **view** (`project_progress`), não coluna. O cálculo é o do
+original: percentual pela fase mais avançada das tarefas, mais a contagem de
+itens obrigatórios do checklist.
+
+Consequência: o módulo 10 (Painéis) lê a view, não a coluna.
+
+### `project_phase`: um enum, dois usos
+
+Já criado na migration do módulo 3? Não — conferir. `projects.current_phase`
+tem um valor a mais que `tasks.phase`: `Finalizado`. Enum único com todos os
+valores, e check em `tasks` impedindo `finished`. Mesmo tratamento que
+`priority_level` recebeu (`urgent` só em atividade).
+
+### Regra de negócio para o teste próprio
+
+- `contract_id` aponta para `contracts` por FK composta. É a ligação
+  invertida: o contrato **não** guarda `project_id`.
+- Dois responsáveis distintos, os dois FK composta para `collaborators`.
+- `tasks.phase` nunca recebe `finished`.
+- `completion_date` só com `status = 'completed'`; e status concluída exige
+  data.
+- `estimated_hours` e `spent_hours` não negativos.
+- `due_date` não anterior a `start_date`, quando as duas existem.
+- Item de checklist obrigatório concluído precisa de data de conclusão.
+- A view `project_progress` devolve 0 para projeto sem tarefa, e não nulo.
 
 ## Módulo 6 — Atividades
 
