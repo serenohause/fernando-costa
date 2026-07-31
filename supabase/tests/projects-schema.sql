@@ -314,14 +314,46 @@ select pg_temp.val('8.1', 'projeto SEM tarefa devolve 0, e nao nulo nem ausencia
     from public.project_progress where project_id = %L
 $q$, (select project_empty_a from ids)));
 
--- 70 = Projeto Legal, a fase mais avancada. Se 'Aguardando Cliente' tivesse
--- percentual proprio, ou se a contagem de obrigatorios pegasse os opcionais,
--- este caso cairia.
-select pg_temp.val('8.2', 'percentual pela fase mais avancada, e so os itens obrigatorios contam',
-  '70|2|1', format($q$
-  select progress_percent || '|' || required_items_total || '|' || required_items_completed
+-- MUDOU NA 0035, por decisao do usuario. Antes `progress_percent` era a escala
+-- por fase com atalho de tarefa concluida — e o atalho fazia UMA tarefa pronta
+-- levar o projeto a 100%. Agora sao dois numeros declarados:
+--
+--   progress_percent = tarefas concluidas / total de tarefas
+--   phase_percent    = fase mais avancada, escala do original, SEM o atalho
+--
+-- A fixture tem 3 tarefas (Projeto Legal, Briefing, Aguardando Cliente) e
+-- nenhuma concluida: proporcao 0, fase 70 (Projeto Legal e a mais avancada).
+-- 'Aguardando Cliente' continua sem percentual proprio e ignorada na
+-- comparacao; se ganhasse valor, phase_percent mudaria e o caso cairia.
+select pg_temp.val('8.2', 'proporcao de tarefas, fase mais avancada, e so os obrigatorios contam',
+  '0|70|3|0|2|1', format($q$
+  select progress_percent || '|' || phase_percent || '|' || tasks_total || '|'
+      || tasks_completed || '|' || required_items_total || '|' || required_items_completed
     from public.project_progress where project_id = %L
 $q$, (select project_full_a from ids)));
+
+-- CONTROLE do que a 0035 corrigiu: com UMA das tres tarefas concluida, a
+-- proporcao vai a 33 e NAO a 100. Sem este caso, reverter para o calculo do
+-- original passaria despercebido — 8.2 sozinho nao distingue "proporcao" de
+-- "fase" quando nenhuma tarefa esta concluida.
+select pg_temp.chk('8.2b', 'conclui uma das tres tarefas', 'OK:1', format($q$
+  update public.tasks set status = 'completed', completion_date = current_date
+   where id = %L
+$q$, (select task_briefing_a from ids)));
+
+-- 33 = uma de tres. E phase_percent CONTINUA 70: concluir a tarefa de Briefing
+-- nao avanca fase nenhuma, porque o atalho "concluida vale 100" foi justamente
+-- o que a 0035 removeu. Se alguem devolver o atalho, este numero vira 100 e o
+-- caso cai.
+select pg_temp.val('8.2c', 'UMA de tres concluida da 33%, e a fase nao pula para 100',
+  '33|70', format($q$
+  select progress_percent || '|' || phase_percent
+    from public.project_progress where project_id = %L
+$q$, (select project_full_a from ids)));
+
+select pg_temp.chk('8.2d', 'desfaz para nao afetar os casos seguintes', 'OK:1', format($q$
+  update public.tasks set status = 'not_started', completion_date = null where id = %L
+$q$, (select task_briefing_a from ids)));
 
 -- O caso que justifica security_invoker: sem ele a view roda como o DONO
 -- (postgres), ignora a RLS das tabelas e entrega o progresso do projeto de outro

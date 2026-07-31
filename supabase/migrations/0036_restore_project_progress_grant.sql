@@ -1,0 +1,26 @@
+-- Devolve o GRANT que o DROP da 0035 levou junto.
+--
+-- O QUE ACONTECEU
+--   A 0034 criou a view project_progress e concedeu SELECT a `authenticated`.
+--   A 0035 precisou de `drop view` + `create view` (nao dava para acrescentar
+--   coluna no meio com `create or replace`), e DROP leva o GRANT junto. A view
+--   passou a existir sem ninguem poder ler.
+--
+-- COMO ISSO APARECEU, e por que quase nao apareceu
+--   O caso de teste que afirma "colaborador de A nao ve projeto de B pela view"
+--   passou a devolver ERR:42501 em vez de zero linhas. Erro de privilegio LEMBRA
+--   sucesso num teste de negacao: ninguem viu nada, afinal. Quem acusou foi o
+--   caso de CONTROLE ao lado, que afirma que a pessoa VE o proprio projeto — e
+--   esse nao tem como passar por acidente.
+--
+--   E a razao de todo caso de negacao neste projeto ter um controle ao lado.
+--
+-- POR QUE MIGRATION NOVA
+--   A 0035 ja estava aplicada quando o GRANT faltou. Migration aplicada nao se
+--   edita (docs/ARCHITECTURE.md): o arquivo passaria a dizer uma coisa e o banco
+--   a ter outra, e a proxima maquina a aplicar do zero pegaria um schema
+--   diferente do que esta em producao.
+
+-- anon NAO recebe nada: o progresso descreve projeto de cliente, e nenhuma tela
+-- publica o exibe.
+grant select on public.project_progress to authenticated;
