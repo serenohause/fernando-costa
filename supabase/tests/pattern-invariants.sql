@@ -103,9 +103,23 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
   (3, 'client_intakes', 'pipeline',
    'client_id',
    $$'ea300000-0000-4000-8000-000000000001'$$,
-   $$'eb300000-0000-4000-8000-000000000001'$$);
+   $$'eb300000-0000-4000-8000-000000000001'$$),
 
-  -- Modulo 4: (4, 'contracts', 'contracts', ..., ...)
+  -- O numero do contrato sai de um contador, e nao de um literal, porque
+  -- contracts tem unique (tenant_id, contract_number) e a suite grava a mesma
+  -- "linha minima valida" duas vezes no escritorio A (a linha dos casos B, e o
+  -- INSERT do caso C1). Com valor fixo, C1 receberia 23505 e o caso "quem tem
+  -- can_edit CRIA" passaria a afirmar que a unicidade existe. A contagem e
+  -- filtrada pelo prefixo PAT- de proposito: contagem sobre a tabela inteira
+  -- mudaria de resultado no dia em que o seed do modulo 4 entrar.
+  (4, 'contracts', 'contracts',
+   'contract_number, contract_type, total_value',
+   $$'PAT-A-' || (select count(*) from public.contracts c
+                  where c.contract_number like 'PAT-A-%'), 'architecture', 1000$$,
+   $$'PAT-B-' || (select count(*) from public.contracts c
+                  where c.contract_number like 'PAT-B-%'), 'architecture', 1000$$);
+
+  -- Modulo 5: (5, 'projects', 'projects', ..., ...)
   -- e assim por diante.
 
 -- FIXTURES --------------------------------------------------------------------
