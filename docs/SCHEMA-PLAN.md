@@ -532,11 +532,75 @@ valendo aqui. O que ela não sabe testar é a via pública legítima:
 6. Token de um escritório não alcança dado de outro.
 7. `anon` continua sem alcançar a tabela direto, com a chave publicável.
 
-## Módulo 4 — Contratos
+## Módulo 4 — Contratos (detalhado)
 
-`contracts` (de `Contract`, 40 campos) → FK para `clients` e `projects`.
-O parcelamento (`periodicidade_parcelas`, número de parcelas) gera as linhas
-de `accounts_receivable` do módulo 7.
+Uma tabela, `contracts`, de `Contract` (40 campos). **Dentro do padrão**:
+`tenant_id`, leitura por colaborador ativo, escrita por
+`can_edit_menu('contracts')`. Entra em `pattern_tables` e herda as 26
+asserções. Teste próprio curto, só para o que segue.
+
+### Cópia congelada do cliente — intencional, não desnormalização
+
+O contrato guarda `client_full_name`, `client_cpf_cnpj`, `client_birth_date`,
+`client_email` e o endereço completo do cliente, além de `client_id`. Isso
+**não** é a duplicação `*_id` + `*_name` do base44 que o projeto vem
+removendo: é o contrato assinado registrando o que valia na assinatura.
+
+Cliente muda de endereço, corrige o CPF, troca de e-mail. O contrato não
+muda junto — se mudasse, o documento deixaria de descrever o que foi
+assinado. Portanto essas colunas ficam, com `COMMENT` dizendo por quê, para
+que ninguém as "limpe" numa faxina futura achando que são resíduo.
+
+Mesma coisa para `local_*`: é o endereço da obra no momento do contrato.
+
+`origem_lead` e `nome_indicador` também são cópia — vêm da negociação e
+congelam a atribuição comercial.
+
+### O que fica para o módulo 7
+
+`quantidade_parcelas`, `data_primeiro_vencimento`, `periodicidade_parcelas` e
+`installments_generated` descrevem o parcelamento, mas quem **gera** as
+parcelas é `accounts_receivable`, que não existe ainda
+(`Contracts.jsx:659-710` no original). As colunas entram agora; o botão que
+gera fica marcado com comentário apontando o módulo.
+
+`installments_generated` é bandeira de "já gerou uma vez", para não duplicar.
+Ela precisa ser escrita na mesma transação que cria as parcelas — no
+original são duas chamadas separadas, e uma falha no meio deixa parcelas
+criadas com a bandeira apagada, ou bandeira levantada sem parcelas. Isso é
+decisão do módulo 7, registrada aqui para não se perder.
+
+### O que fica para o módulo 5
+
+Os cinco campos `prazo_*` (estudo de layout, perspectivas, projeto legal,
+executivo, complementares, em dias úteis) alimentam o cronograma do projeto.
+Entram como coluna agora; quem os usa é o módulo 5.
+
+### `file_url` não é portado
+
+Coluna morta: nenhuma tela do original a lê ou escreve. O único upload do
+sistema está em `components/orcamento/PdfUploadButton.jsx`, do módulo 8.
+Trazer a coluna significaria carregar uma superfície de arquivo que ninguém
+usa. Quando o módulo 8 chegar, o upload é desenhado uma vez, com bucket e
+política próprios.
+
+### Regra de negócio para o teste próprio
+
+O que a suíte de invariantes não tem como conhecer:
+
+- `contract_number` único por escritório — o original não impede dois
+  contratos com o mesmo número.
+- `total_value >= 0`.
+- `quantidade_parcelas >= 1` quando informada, e coerência entre
+  `periodicidade_parcelas`, `quantidade_parcelas` e
+  `data_primeiro_vencimento`: ou os três estão preenchidos, ou nenhum.
+  Parcelamento pela metade gera parcela errada no módulo 7.
+- `installments_generated` só pode ser verdadeiro se houver parcelamento
+  definido.
+- `start_date` não anterior a `signature_date`, quando as duas existem.
+- Os cinco `prazo_*`, quando informados, são positivos.
+- FK composta `(id, tenant_id)` para `clients`; `unique (id, tenant_id)`
+  próprio, porque `projects` e `accounts_receivable` vão apontar para cá.
 
 ## Módulo 5 — Projetos
 
