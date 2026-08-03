@@ -327,6 +327,136 @@ export const TASK_TYPE = {
 
 export type TaskType = keyof typeof TASK_TYPE
 
+// ── Financeiro ──────────────────────────────────────────────────────────
+
+/*
+  Ordem do select de AccountReceivableForm.jsx / AccountPayableForm.jsx, que é a
+  mesma nos dois.
+
+  "Em atraso" É a quarta opção daqueles selects e NÃO entra aqui: ela nunca foi
+  valor gravável (migration 0040) — é estado derivado, que vem da coluna
+  `is_overdue` das views. A tela mostra o rótulo "Em atraso" no lugar do status
+  quando `is_overdue` é verdadeiro, que é o que o original faz ao desenhar a
+  linha (AccountsReceivable.jsx:565). O que se perde é a possibilidade de
+  ESCOLHER "Em atraso" no formulário — escolha que no original grava um status
+  que a própria tela ignora ao desenhar.
+*/
+export const FINANCIAL_STATUS = {
+  forecast: 'Previsto',
+  paid: 'Pago',
+  renegotiated: 'Negociado',
+} as const satisfies LabelMap<string>
+
+export type FinancialStatus = keyof typeof FINANCIAL_STATUS
+
+/*
+  UM enum no banco, DUAS listas na tela — e as duas listas do original são
+  diferentes de propósito: a de receber termina em "Espécie" e a de pagar em
+  "Débito automático" (migration 0040). Os checks
+  `accounts_receivable_payment_method_domain_check` e
+  `accounts_payable_payment_method_domain_check` cobram isso do banco.
+
+  Mesmo precedente de CONTRACT_TYPE / PROJECT_TYPE: cada tela pede o seu mapa, e
+  `optionsOf` respeita a ordem de declaração.
+*/
+export const PAYMENT_METHOD = {
+  pix: 'PIX',
+  boleto: 'Boleto',
+  card: 'Cartão',
+  ted: 'TED',
+  cash: 'Espécie',
+  direct_debit: 'Débito automático',
+} as const satisfies LabelMap<string>
+
+export type PaymentMethod = keyof typeof PAYMENT_METHOD
+
+export type ReceivablePaymentMethod = Exclude<PaymentMethod, 'direct_debit'>
+export type PayablePaymentMethod = Exclude<PaymentMethod, 'cash'>
+
+/* A lista da tela de RECEBER (AccountReceivableForm.jsx:393-398). */
+export const RECEIVABLE_PAYMENT_METHOD = {
+  pix: 'PIX',
+  boleto: 'Boleto',
+  card: 'Cartão',
+  ted: 'TED',
+  cash: 'Espécie',
+} as const satisfies LabelMap<ReceivablePaymentMethod>
+
+/* A lista da tela de PAGAR (AccountPayableForm.jsx:348-352). */
+export const PAYABLE_PAYMENT_METHOD = {
+  pix: 'PIX',
+  boleto: 'Boleto',
+  card: 'Cartão',
+  ted: 'TED',
+  direct_debit: 'Débito automático',
+} as const satisfies LabelMap<PayablePaymentMethod>
+
+/* Ordem do select de categoria de AccountPayableForm.jsx:144-153. */
+export const EXPENSE_CATEGORY = {
+  payroll: 'Folha',
+  taxes: 'Impostos',
+  office: 'Escritório',
+  software: 'Softwares',
+  marketing: 'Marketing',
+  travel: 'Viagens',
+  contractors: 'Prestadores',
+  materials: 'Materiais',
+  equipment: 'Equipamentos',
+  other: 'Outros',
+} as const satisfies LabelMap<string>
+
+export type ExpenseCategory = keyof typeof EXPENSE_CATEGORY
+
+export const RECURRENCE_FREQUENCY = {
+  monthly: 'Mensal',
+  bimonthly: 'Bimestral',
+  quarterly: 'Trimestral',
+  semiannual: 'Semestral',
+  annual: 'Anual',
+} as const satisfies LabelMap<string>
+
+export type RecurrenceFrequency = keyof typeof RECURRENCE_FREQUENCY
+
+/*
+  MESMO enum, outro texto — e o outro texto é o que está no SELECT do original
+  (AccountPayableForm.jsx:254-258), com o intervalo entre parênteses. Fora do
+  select — no crachá da linha, no PDF — o original escreve só "Bimestral", que é
+  RECURRENCE_FREQUENCY acima. Achatar os dois num mapa só trocaria microcopy
+  visível em uma das duas telas.
+*/
+export const RECURRENCE_FREQUENCY_OPTION = {
+  monthly: 'Mensal',
+  bimonthly: 'Bimestral (a cada 2 meses)',
+  quarterly: 'Trimestral (a cada 3 meses)',
+  semiannual: 'Semestral (a cada 6 meses)',
+  annual: 'Anual',
+} as const satisfies LabelMap<RecurrenceFrequency>
+
+export const RECURRENCE_STATUS = {
+  active: 'Ativa',
+  paused: 'Pausada',
+  ended: 'Encerrada',
+} as const satisfies LabelMap<string>
+
+export type RecurrenceStatus = keyof typeof RECURRENCE_STATUS
+
+export const FINANCIAL_CATEGORY_TYPE = {
+  revenue: 'Receita',
+  expense: 'Despesa',
+} as const satisfies LabelMap<string>
+
+export type FinancialCategoryType = keyof typeof FINANCIAL_CATEGORY_TYPE
+
+export const COST_CENTER = {
+  architecture: 'Arquitetura',
+  interiors: 'Interiores',
+  construction: 'Obra',
+  mentoring: 'Mentoria',
+  administrative: 'Administrativo',
+} as const satisfies LabelMap<string>
+
+export type CostCenter = keyof typeof COST_CENTER
+
 /*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
   original, que redireciona Arquiteto e Estagiário para MinhasAtividades e

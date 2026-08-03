@@ -105,6 +105,225 @@ export type Database = {
           },
         ]
       }
+      accounts_payable: {
+        Row: {
+          category: Database["public"]["Enums"]["expense_category"]
+          competence_month: string | null
+          created_at: string
+          description: string
+          due_date: string
+          id: string
+          is_recurring: boolean
+          legacy_id: string | null
+          payment_date: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          project_id: string | null
+          recurrence_count: number | null
+          recurrence_end_date: string | null
+          recurrence_frequency:
+            | Database["public"]["Enums"]["recurrence_frequency"]
+            | null
+          recurrence_parent_id: string | null
+          recurrence_start_date: string | null
+          recurrence_status:
+            | Database["public"]["Enums"]["recurrence_status"]
+            | null
+          status: Database["public"]["Enums"]["financial_status"]
+          supplier_name: string
+          tenant_id: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["expense_category"]
+          competence_month?: string | null
+          created_at?: string
+          description: string
+          due_date: string
+          id?: string
+          is_recurring?: boolean
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          recurrence_count?: number | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?:
+            | Database["public"]["Enums"]["recurrence_frequency"]
+            | null
+          recurrence_parent_id?: string | null
+          recurrence_start_date?: string | null
+          recurrence_status?:
+            | Database["public"]["Enums"]["recurrence_status"]
+            | null
+          status?: Database["public"]["Enums"]["financial_status"]
+          supplier_name: string
+          tenant_id: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["expense_category"]
+          competence_month?: string | null
+          created_at?: string
+          description?: string
+          due_date?: string
+          id?: string
+          is_recurring?: boolean
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          recurrence_count?: number | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?:
+            | Database["public"]["Enums"]["recurrence_frequency"]
+            | null
+          recurrence_parent_id?: string | null
+          recurrence_start_date?: string | null
+          recurrence_status?:
+            | Database["public"]["Enums"]["recurrence_status"]
+            | null
+          status?: Database["public"]["Enums"]["financial_status"]
+          supplier_name?: string
+          tenant_id?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_payable_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_payable_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_payable_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "accounts_payable"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_payable_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "accounts_payable_status"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_payable_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounts_receivable: {
+        Row: {
+          client_id: string | null
+          contract_id: string | null
+          created_at: string
+          description: string
+          due_date: string
+          id: string
+          installment_number: number | null
+          installment_total: number | null
+          issue_date: string | null
+          legacy_id: string | null
+          payment_date: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          project_id: string | null
+          status: Database["public"]["Enums"]["financial_status"]
+          tenant_id: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          client_id?: string | null
+          contract_id?: string | null
+          created_at?: string
+          description: string
+          due_date: string
+          id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          issue_date?: string | null
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["financial_status"]
+          tenant_id: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          client_id?: string | null
+          contract_id?: string | null
+          created_at?: string
+          description?: string
+          due_date?: string
+          id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          issue_date?: string | null
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["financial_status"]
+          tenant_id?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_receivable_client_id_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_contract_id_fkey"
+            columns: ["contract_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activities: {
         Row: {
           client_id: string | null
@@ -785,6 +1004,47 @@ export type Database = {
           },
           {
             foreignKeyName: "contracts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_categories: {
+        Row: {
+          cost_center: Database["public"]["Enums"]["cost_center"] | null
+          created_at: string
+          id: string
+          legacy_id: string | null
+          name: string
+          tenant_id: string
+          type: Database["public"]["Enums"]["financial_category_type"]
+          updated_at: string
+        }
+        Insert: {
+          cost_center?: Database["public"]["Enums"]["cost_center"] | null
+          created_at?: string
+          id?: string
+          legacy_id?: string | null
+          name: string
+          tenant_id: string
+          type: Database["public"]["Enums"]["financial_category_type"]
+          updated_at?: string
+        }
+        Update: {
+          cost_center?: Database["public"]["Enums"]["cost_center"] | null
+          created_at?: string
+          id?: string
+          legacy_id?: string | null
+          name?: string
+          tenant_id?: string
+          type?: Database["public"]["Enums"]["financial_category_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_categories_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1580,6 +1840,234 @@ export type Database = {
       }
     }
     Views: {
+      accounts_payable_status: {
+        Row: {
+          category: Database["public"]["Enums"]["expense_category"] | null
+          competence_month: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          generated_count: number | null
+          id: string | null
+          is_overdue: boolean | null
+          is_recurring: boolean | null
+          legacy_id: string | null
+          payment_date: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          project_id: string | null
+          recurrence_count: number | null
+          recurrence_end_date: string | null
+          recurrence_frequency:
+            | Database["public"]["Enums"]["recurrence_frequency"]
+            | null
+          recurrence_parent_id: string | null
+          recurrence_start_date: string | null
+          recurrence_status:
+            | Database["public"]["Enums"]["recurrence_status"]
+            | null
+          status: Database["public"]["Enums"]["financial_status"] | null
+          supplier_name: string | null
+          tenant_id: string | null
+          updated_at: string | null
+          value: number | null
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["expense_category"] | null
+          competence_month?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          generated_count?: never
+          id?: string | null
+          is_overdue?: never
+          is_recurring?: boolean | null
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          recurrence_count?: number | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?:
+            | Database["public"]["Enums"]["recurrence_frequency"]
+            | null
+          recurrence_parent_id?: string | null
+          recurrence_start_date?: string | null
+          recurrence_status?:
+            | Database["public"]["Enums"]["recurrence_status"]
+            | null
+          status?: Database["public"]["Enums"]["financial_status"] | null
+          supplier_name?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          value?: number | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["expense_category"] | null
+          competence_month?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          generated_count?: never
+          id?: string | null
+          is_overdue?: never
+          is_recurring?: boolean | null
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          recurrence_count?: number | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?:
+            | Database["public"]["Enums"]["recurrence_frequency"]
+            | null
+          recurrence_parent_id?: string | null
+          recurrence_start_date?: string | null
+          recurrence_status?:
+            | Database["public"]["Enums"]["recurrence_status"]
+            | null
+          status?: Database["public"]["Enums"]["financial_status"] | null
+          supplier_name?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_payable_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_payable_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_payable_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "accounts_payable"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_payable_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "accounts_payable_status"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_payable_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounts_receivable_status: {
+        Row: {
+          client_id: string | null
+          contract_id: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          id: string | null
+          installment_number: number | null
+          installment_total: number | null
+          is_overdue: boolean | null
+          issue_date: string | null
+          legacy_id: string | null
+          payment_date: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          project_id: string | null
+          status: Database["public"]["Enums"]["financial_status"] | null
+          tenant_id: string | null
+          updated_at: string | null
+          value: number | null
+        }
+        Insert: {
+          client_id?: string | null
+          contract_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string | null
+          installment_number?: number | null
+          installment_total?: number | null
+          is_overdue?: never
+          issue_date?: string | null
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["financial_status"] | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          value?: number | null
+        }
+        Update: {
+          client_id?: string | null
+          contract_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string | null
+          installment_number?: number | null
+          installment_total?: number | null
+          is_overdue?: never
+          issue_date?: string | null
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["financial_status"] | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_receivable_client_id_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_contract_id_fkey"
+            columns: ["contract_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_progress: {
         Row: {
           phase_percent: number | null
@@ -1623,6 +2111,10 @@ export type Database = {
       auth_tenant_id: { Args: never; Returns: string }
       can_edit_menu: { Args: { p_menu_key: string }; Returns: boolean }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      generate_contract_installments: {
+        Args: { p_contract_id: string }
+        Returns: Json
+      }
       hit_public_endpoint: {
         Args: {
           p_client_key: string
@@ -1636,6 +2128,13 @@ export type Database = {
         }[]
       }
       is_active_collaborator: { Args: never; Returns: boolean }
+      is_financial_overdue: {
+        Args: {
+          p_due_date: string
+          p_status: Database["public"]["Enums"]["financial_status"]
+        }
+        Returns: boolean
+      }
       is_tenant_director: { Args: never; Returns: boolean }
       open_client_intake: {
         Args: { p_token: string }
@@ -1696,6 +2195,25 @@ export type Database = {
         | "architecture_engineering"
         | "architecture_interiors"
         | "full"
+      cost_center:
+        | "architecture"
+        | "interiors"
+        | "construction"
+        | "mentoring"
+        | "administrative"
+      expense_category:
+        | "payroll"
+        | "taxes"
+        | "office"
+        | "software"
+        | "marketing"
+        | "travel"
+        | "contractors"
+        | "materials"
+        | "equipment"
+        | "other"
+      financial_category_type: "revenue" | "expense"
+      financial_status: "forecast" | "paid" | "renegotiated"
       funnel_stage:
         | "lead_received"
         | "qualified"
@@ -1713,6 +2231,13 @@ export type Database = {
         | "no_response"
         | "other"
       negotiation_status: "active" | "won" | "lost"
+      payment_method:
+        | "pix"
+        | "boleto"
+        | "card"
+        | "ted"
+        | "cash"
+        | "direct_debit"
       priority_level: "low" | "medium" | "high" | "urgent"
       project_phase:
         | "not_started"
@@ -1734,6 +2259,13 @@ export type Database = {
         | "in_approval"
         | "completed"
         | "suspended"
+      recurrence_frequency:
+        | "monthly"
+        | "bimonthly"
+        | "quarterly"
+        | "semiannual"
+        | "annual"
+      recurrence_status: "active" | "paused" | "ended"
       service_type:
         | "architecture"
         | "interiors"
@@ -1927,6 +2459,27 @@ export const Constants = {
         "architecture_interiors",
         "full",
       ],
+      cost_center: [
+        "architecture",
+        "interiors",
+        "construction",
+        "mentoring",
+        "administrative",
+      ],
+      expense_category: [
+        "payroll",
+        "taxes",
+        "office",
+        "software",
+        "marketing",
+        "travel",
+        "contractors",
+        "materials",
+        "equipment",
+        "other",
+      ],
+      financial_category_type: ["revenue", "expense"],
+      financial_status: ["forecast", "paid", "renegotiated"],
       funnel_stage: [
         "lead_received",
         "qualified",
@@ -1946,6 +2499,7 @@ export const Constants = {
         "other",
       ],
       negotiation_status: ["active", "won", "lost"],
+      payment_method: ["pix", "boleto", "card", "ted", "cash", "direct_debit"],
       priority_level: ["low", "medium", "high", "urgent"],
       project_phase: [
         "not_started",
@@ -1969,6 +2523,14 @@ export const Constants = {
         "completed",
         "suspended",
       ],
+      recurrence_frequency: [
+        "monthly",
+        "bimonthly",
+        "quarterly",
+        "semiannual",
+        "annual",
+      ],
+      recurrence_status: ["active", "paused", "ended"],
       service_type: [
         "architecture",
         "interiors",
