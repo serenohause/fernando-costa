@@ -264,12 +264,26 @@ select pg_temp.val('2.4', 'CONTROLE: vencimento futuro nao esta em atraso', 'fal
   select is_overdue::text from public.accounts_receivable_status where id = %L
 $q$, (select r_future from ids)));
 
--- DIVERGENCIA REGISTRADA: no original renegotiated vencido APARECE em atraso
--- (status !== 'Pago'). O plano aprovado diz forecast. Este caso e o que vai
--- acusar se alguem mudar de ideia sem passar por migration.
-select pg_temp.val('2.5', 'renegociado e vencido NAO esta em atraso (segue o plano, nao o original)', 'false', format($q$
+-- MUDOU NA 0046, por decisao do usuario, e este caso e quem mediu a mudanca.
+--
+-- Ate a 0043 a regra seguia o plano: `status = 'forecast'`. O agente que
+-- escreveu a migration reportou que o original faz `status !== 'Pago'` e NAO
+-- corrigiu sozinho — parcela renegociada cujo novo prazo tambem venceu continua
+-- sendo dinheiro que nao entrou, e deixa-la de fora faria o cartao de
+-- inadimplencia mostrar menos que o sistema atual.
+--
+-- Este caso afirmava 'false' e passou a afirmar 'true'. Ele discriminou: quando
+-- a 0046 foi aplicada, foi o unico dos 49 a cair. Se um dia alguem voltar a
+-- regra para "so previsto", ele cai de novo.
+select pg_temp.val('2.5', 'renegociado e vencido ESTA em atraso, como no original', 'true', format($q$
   select is_overdue::text from public.accounts_receivable_status where id = %L
 $q$, (select r_renegotiated from ids)));
+
+-- CONTROLE do outro lado: pago e vencido NAO esta em atraso. Sem ele, uma
+-- funcao que devolvesse `true` para tudo que venceu passaria em 2.1, 2.5 e 2.6.
+select pg_temp.val('2.5b', 'CONTROLE: pago e vencido NAO esta em atraso', 'false', format($q$
+  select is_overdue::text from public.accounts_receivable_status where id = %L
+$q$, (select r_paid_late from ids)));
 
 -- A mesma regra vale para a outra ponta, e pela mesma funcao.
 select pg_temp.val('2.6', 'a regra e a mesma em contas a pagar', 'true', format($q$

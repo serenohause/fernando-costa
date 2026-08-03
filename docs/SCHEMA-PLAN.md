@@ -790,8 +790,16 @@ parcela. Primeira e não última porque a última costuma ser a que o cliente
 confere contra o contrato — e porque cobrar o resto no começo é o que
 qualquer sistema de cobrança faz.
 
-R$ 128.000 em 12 vira uma parcela de 10.666,71 e onze de 10.666,67. Soma
-exata.
+R$ 128.000 em 12 vira uma parcela de **10.666,74** e onze de **10.666,66**.
+Soma exata.
+
+> Os números acima estavam errados na primeira versão deste plano — eu tinha
+> escrito 10.666,71 e onze de 10.666,67, que somam R$ 128.000,08. O agente
+> implementou o algoritmo descrito e não os números ilustrados, e reportou a
+> divergência em vez de seguir o exemplo. Fica registrado porque é o mesmo
+> erro que o módulo existe para evitar, cometido na descrição de como evitá-lo:
+> 12.800.000 centavos ÷ 12 = 1.066.666 com resto 8, então a primeira leva
+> 1.066.674 centavos.
 
 Isso vale um teste com o caso que não fecha, e vale checagem no banco:
 `sum(value) = contracts.total_value` para o conjunto gerado.
