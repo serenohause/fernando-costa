@@ -380,6 +380,36 @@ a pessoa entra **sem passar por aprovação de Diretor**. Hoje é teórico
 porque o domínio de teste é fictício e o Supabase recusa cadastro em domínio
 inexistente. Com o domínio do escritório, deixa de ser.
 
+**Financeiro é legível por qualquer colaborador ativo do escritório.** Achado
+médio da auditoria do módulo 7, e o usuário decidiu manter — "faça da forma que
+está no original". É de fato o original: as entidades do base44 não declaram
+restrição de leitura, e nem `AccountsReceivable.jsx` nem `AccountsPayable.jsx`
+checam permissão em lugar nenhum. A permissão de menu só **esconde** o item da
+barra lateral; ela não guarda a rota, e `redirectTargetFor` só redireciona papel
+individual (arquiteto, estagiário).
+
+Provado com login real: o coordenador Rafael, com `receivables can_view = false`,
+leu as 28 parcelas e a soma de R$ 693.000. "Exportar PDF" também não é gated —
+quem abre a tela exporta a carteira.
+
+Se um dia o escritório quiser financeiro só para Diretor, Administrativo e
+Financeiro, o lugar do recorte é a policy de SELECT (migration 0042, comentário
+corrigido pela 0047), não a tela.
+
+**Uma requisição pode gerar até 32.767 linhas de dinheiro.** Achado médio da
+auditoria do módulo 7, mantido por decisão do usuário — "deixar como o original".
+Nem `installment_count` nem `recurrence_count` têm teto de negócio: o limite é o
+do `smallint`. O `max="24"` do formulário original é atributo de navegador, não
+regra. Provado no banco: 32.767 parcelas geradas, último vencimento em 4757, 4,1
+segundos.
+
+O caminho da recorrência é herdado literalmente
+(`projeto-original/src/pages/AccountsPayable.jsx:171` faz `count || 120`).
+Agrava, e não estava no original: não há exclusão em lote de recebível na tela, e
+o contrato não pode mais ser apagado enquanto tiver parcelas (FK sem cascade, por
+decisão consciente — apagar contrato não apaga dinheiro em silêncio). Desfazer um
+dedo errado é linha a linha.
+
 ### Ponto cego conhecido dos testes
 
 As suítes provam que a RLS segura **token legítimo**. Nenhuma exercita token

@@ -95,8 +95,14 @@ import type { FinancialStatusFilter, ReceivableInput, ReceivableRow } from '../t
 
   AUTORIZAÇÃO — a RLS decide, esta tela só reflete (migration 0042):
 
-  - Leitura é larga: qualquer colaborador ativo do escritório lê a carteira.
-    Quem esconde "Recebíveis" da barra lateral é a permissão de menu.
+  - Leitura é larga: qualquer colaborador ativo do escritório lê a carteira. A
+    permissão de menu só ESCONDE "Recebíveis" da barra lateral — ela não barra
+    quem digita a URL na mão, e a carteira inteira carrega. É o comportamento do
+    original, confirmado com o usuário: as entidades do base44 não têm restrição
+    de leitura, e AccountsReceivable.jsx não checa permissão em lugar nenhum.
+    Nenhuma trava compensatória foi prometida aqui — se um dia o escritório
+    quiser financeiro só para alguns papéis, o lugar é a policy de SELECT, não
+    esta tela.
   - Escrita é `can_edit` no menu `receivables` OU ser Diretor. Sem isso, some o
     botão de criar, some o menu de três pontos de cada linha, e o vazio deixa de
     oferecer cadastro. Quem autoriza de verdade continua sendo o banco: os hooks
