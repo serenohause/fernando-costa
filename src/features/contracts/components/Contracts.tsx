@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
-import { Calendar, FileText, GripVertical, MoreVertical, Pencil, Search, Trash2 } from 'lucide-react'
+import {
+  Calendar,
+  FileText,
+  GripVertical,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Receipt,
+  Search,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
@@ -30,10 +40,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { useClients } from '@/features/crm/hooks'
-import { CONTRACT_STATUS, CONTRACT_TYPE, labelOf } from '@/lib/enums'
-import { formatCurrencyBRL } from '@/lib/format'
+import { useGenerateContractInstallments } from '@/features/financial/hooks'
+import { CONTRACT_STATUS, CONTRACT_TYPE, INSTALLMENT_FREQUENCY, labelOf } from '@/lib/enums'
+import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
 import { filterContracts, sortContracts, type StatusFilter } from '../list'
 import {
   describeDatabaseError,
@@ -52,8 +70,8 @@ import type { ContractInput, ContractRow } from '../types'
 
   O cabeçalho, a busca, as cinco abas de status, a lista de linhas arrastáveis
   com a alça, o quadrado esmeralda com o ícone de documento, a grade de seis
-  colunas de cada linha, o selo de parcelas, o menu de três pontos e o diálogo de
-  exclusão são os do original, na mesma ordem.
+  colunas de cada linha, o selo de parcelas, o menu de três pontos, o diálogo de
+  geração de parcelas e o de exclusão são os do original, na mesma ordem.
 
   O array `columns` do original (linhas 772-861) NÃO foi portado: ele monta uma
   tabela que a página nunca renderiza — sobrou de uma versão anterior da tela. O
@@ -67,13 +85,21 @@ import type { ContractInput, ContractRow } from '../types'
     migration 0019. Sem isso os botões somem, a lista não arrasta, e o banco
     recusa de qualquer forma.
 
+  "GERAR PARCELAS" (MÓDULO 7) — o item de menu (Contracts.jsx:995) e o diálogo
+  (Contracts.jsx:1038-1106) estão aqui, com uma diferença de FLUXO que veio do
+  banco e não desta tela: a conta é feita por
+  `public.generate_contract_installments` (migration 0044), que NÃO aceita
+  quantidade, data e periodicidade por parâmetro — lê o plano gravado no
+  contrato. Por isso o ramo do diálogo em que o original digita número de
+  parcelas e primeiro vencimento na hora (Contracts.jsx:1068-1093) não existe
+  aqui: esses campos passariam a valer sem nunca serem gravados, e o contrato
+  ficaria descrevendo um parcelamento diferente do que foi emitido. No lugar
+  dele, o aviso manda configurar no formulário do contrato — que é a frase do
+  próprio original (Contracts.jsx:1087). Divergência registrada no relatório do
+  módulo 7.
+
   O QUE NÃO FOI PORTADO, E O MÓDULO QUE TRAZ DE VOLTA:
 
-  - "Gerar Parcelas" — o item de menu e o diálogo (Contracts.jsx:651-717 e
-    1038-1106) criam `AccountReceivable` a partir do contrato. Essa tabela é o
-    MÓDULO 7. O plano de parcelamento já é gravado pelo formulário, e o selo
-    "Geradas / Pendente" continua na linha porque `installments_generated` já
-    existe e o seed tem contrato nos dois estados.
   - A criação automática de projeto e tarefa ao aprovar (Contracts.jsx:416-599)
     → MÓDULO 5, junto com `projects` e `tasks`. Aprovar aqui muda o status e
     nada mais.
@@ -93,6 +119,10 @@ export default function Contracts() {
     open: false,
     contract: null,
   })
+  const [installmentsDialog, setInstallmentsDialog] = useState<{
+    open: boolean
+    contract: ContractRow | null
+  }>({ open: false, contract: null })
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -120,6 +150,7 @@ export default function Contracts() {
   const approveMutation = useApproveContract()
   const deleteMutation = useDeleteContract()
   const reorderMutation = useReorderContracts()
+  const generateInstallmentsMutation = useGenerateContractInstallments()
 
   /*
     Referência estável de propósito: ContractForm reinicia o formulário quando
@@ -181,6 +212,29 @@ export default function Contracts() {
   }
 
   /*
+    A recusa por permissão CHEGA AQUI COMO ERRO, e é mostrada como tal.
+
+    `generate_contract_installments` é SECURITY DEFINER e confere
+    `can_edit_menu('receivables')` por dentro (migration 0044): quem enxerga esta
+    tela pelo menu `contracts` pode não poder gerar parcela nenhuma. Engolir esse
+    erro — ou fechar o diálogo como se tivesse dado certo — deixaria a pessoa
+    esperando parcelas que não existem. Por isso o diálogo fica ABERTO quando
+    falha: a mensagem aparece e a ação continua ao alcance.
+  */
+  const confirmGenerateInstallments = () => {
+    const target = installmentsDialog.contract
+    if (!target) return
+
+    generateInstallmentsMutation.mutate(target.id, {
+      onSuccess: (result) => {
+        setInstallmentsDialog({ open: false, contract: null })
+        toast.success(`${result.installmentCount} parcelas geradas com sucesso!`)
+      },
+      onError: (error) => toast.error('Erro ao gerar parcelas: ' + describeDatabaseError(error)),
+    })
+  }
+
+  /*
     A ordem gravada é a da lista COMPLETA, não a da filtrada.
 
     No original o índice sai de `filteredContracts` (linha 754): arrastar com um
@@ -215,6 +269,18 @@ export default function Contracts() {
   }
 
   const hasContracts = contracts.length > 0
+
+  const installmentsContract = installmentsDialog.contract
+  /* A condição do original (Contracts.jsx:1052) é quantidade E primeiro
+     vencimento. A periodicidade não entra porque o check
+     `contracts_installment_plan_all_or_none_check` (0029) já a amarra às outras
+     duas — ou os três campos estão preenchidos, ou nenhum está. */
+  const installmentCount = installmentsContract?.installment_count ?? null
+  const hasInstallmentPlan =
+    installmentCount != null && installmentsContract?.first_due_date != null
+  const installmentPreviewValue = installmentCount
+    ? (installmentsContract?.total_value ?? 0) / installmentCount
+    : 0
 
   return (
     <div>
@@ -369,9 +435,10 @@ export default function Contracts() {
                             </div>
 
                             <div className="flex items-center justify-end gap-3">
-                              {/* `installments_generated` continua exibida: quem a
-                                  levanta é o MÓDULO 7, na mesma transação que cria
-                                  as parcelas. */}
+                              {/* `installments_generated` é levantada por
+                                  `generate_contract_installments` (migration 0044),
+                                  na MESMA transação que cria as parcelas — o selo
+                                  muda junto com elas, nunca antes. */}
                               {contract.installments_generated ? (
                                 <Badge
                                   variant="outline"
@@ -413,10 +480,20 @@ export default function Contracts() {
                                       </DropdownMenuItem>
                                     )}
                                     {/*
-                                      "Gerar Parcelas" entrava aqui, entre aprovar e
-                                      remover (Contracts.jsx:995). Volta com
-                                      `accounts_receivable`, no MÓDULO 7.
+                                      A condição é a do original (Contracts.jsx:995):
+                                      some quando a bandeira já está levantada, e é a
+                                      ÚNICA condição — status do contrato não entra.
                                     */}
+                                    {!contract.installments_generated && (
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          setInstallmentsDialog({ open: true, contract })
+                                        }
+                                      >
+                                        <Receipt className="w-4 h-4 mr-2" />
+                                        Gerar Parcelas
+                                      </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
                                       onClick={() => setDeleteDialog({ open: true, contract })}
@@ -450,6 +527,77 @@ export default function Contracts() {
         isLoading={createMutation.isPending || updateMutation.isPending}
         clients={clientsQuery.data ?? []}
       />
+
+      {/* Generate Installments Dialog */}
+      <Dialog
+        open={installmentsDialog.open}
+        onOpenChange={(open) => setInstallmentsDialog({ ...installmentsDialog, open })}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gerar Parcelas</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-soft">
+              Contrato: <strong>{installmentsContract?.contract_number}</strong>
+            </p>
+            <p className="text-sm text-soft">
+              Valor total: <strong>{formatCurrencyBRL(installmentsContract?.total_value)}</strong>
+            </p>
+
+            {hasInstallmentPlan ? (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 rounded-lg">
+                <p className="text-sm text-emerald-800 dark:text-emerald-300 font-medium mb-1">
+                  Configuração salva no contrato:
+                </p>
+                {/*
+                  A divisão simples do original. Ela é uma PRÉVIA, e o que o banco
+                  grava pode diferir em centavos: `generate_contract_installments`
+                  divide em centavos inteiros e joga o resto na PRIMEIRA parcela,
+                  para a soma bater exatamente com o valor do contrato (migration
+                  0044). O texto é o do original, e a diferença está sinalizada no
+                  relatório do módulo 7 em vez de corrigida por conta própria.
+                */}
+                <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                  • {installmentCount} parcelas de {formatCurrencyBRL(installmentPreviewValue)}
+                </p>
+                <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                  • Primeiro vencimento: {formatDateBR(installmentsContract?.first_due_date)}
+                </p>
+                <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                  • Periodicidade:{' '}
+                  {labelOf(INSTALLMENT_FREQUENCY, installmentsContract?.installment_frequency)}
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg">
+                <p className="text-sm text-amber-800 dark:text-amber-300 font-medium mb-1">
+                  Este contrato não tem plano de parcelamento salvo.
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  Configure estes campos no formulário do contrato para salvar como padrão
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setInstallmentsDialog({ open: false, contract: null })}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmGenerateInstallments}
+              disabled={!hasInstallmentPlan || generateInstallmentsMutation.isPending}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Gerar Parcelas
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={deleteDialog.open}
