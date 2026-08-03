@@ -12,6 +12,7 @@ import Tasks from '@/features/projects/components/Tasks'
 import Atividades from '@/features/activities/components/Atividades'
 import MinhasAtividades from '@/features/activities/components/MinhasAtividades'
 import RelatorioProdutividade from '@/features/activities/components/RelatorioProdutividade'
+import AccountsPayable from '@/features/financial/components/AccountsPayable'
 import FormularioCliente from '@/features/pipeline/components/FormularioCliente'
 import AccountsReceivable from '@/features/financial/components/AccountsReceivable'
 
@@ -56,6 +57,7 @@ export function AppRoutes() {
             pages.config.js e não em `allNavigation`. Chega-se a ela pela URL. */}
         <Route path="/RelatorioProdutividade" element={<RelatorioProdutividade />} />
         <Route path="/AccountsReceivable" element={<AccountsReceivable />} />
+        <Route path="/AccountsPayable" element={<AccountsPayable />} />
         <Route path="/Collaborators" element={<Collaborators />} />
         <Route path="/AprovacoesAcesso" element={<AprovacoesAcesso />} />
         <Route path="*" element={<PagePlaceholder />} />
