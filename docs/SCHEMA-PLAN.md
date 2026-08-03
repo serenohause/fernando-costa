@@ -756,16 +756,94 @@ Vira **coluna gerada**: `total_minutes` calculado de
   preenchidos.
 - `end_date` não anterior a `start_date`.
 
-## Módulo 7 — Financeiro
+## Módulo 7 — Financeiro (detalhado)
 
-- `accounts_receivable`, `accounts_payable`, `financial_categories`.
-- Os dois primeiros compartilham o enum de status (`Previsto`, `Pago`,
-  `Em atraso`, `Negociado`) e o conceito de vencimento. **"Em atraso" não é
-  status gravado** — é `status = 'Previsto' and due_date < current_date`.
-  Gravar isso como estado exige um job diário e desincroniza; vira coluna
-  gerada ou view.
-- `accounts_payable` tem recorrência (frequência + status da recorrência).
-  Cada ocorrência é uma linha, com FK para a linha-mãe.
+Três tabelas: `accounts_receivable`, `accounts_payable`,
+`financial_categories`. Estruturalmente dentro do padrão, mas **este módulo
+volta ao tratamento completo** — auditoria dedicada e injeção de defeito.
+Não por superfície de ataque: aqui não há nenhuma nova. Por cálculo cujo erro
+aparece no dinheiro de alguém, que é o critério registrado em
+`docs/ARCHITECTURE.md`.
+
+### O defeito de dinheiro do original, e como corrigir
+
+`Contracts.jsx:679`:
+
+```js
+const installmentValue = contract.total_value / numParcelas;
+```
+
+Todas as parcelas recebem o mesmo valor, resultado de uma divisão simples.
+Com `numeric(14,2)` no banco, isso **não fecha**:
+
+| Contrato | Parcelas | Valor da parcela | Soma | Diferença |
+|---|---|---|---|---|
+| R$ 128.000,00 | 12 | 10.666,67 | 128.000,04 | **+4 centavos** |
+| R$ 470.000,00 | 6 | 78.333,33 | 469.999,98 | **−2 centavos** |
+
+A soma das parcelas não bate com o valor do contrato assinado. Centavos, mas
+é o tipo de diferença que aparece na conciliação bancária e ninguém sabe de
+onde veio.
+
+**Correção:** dividir em centavos inteiros e jogar o resto na **primeira**
+parcela. Primeira e não última porque a última costuma ser a que o cliente
+confere contra o contrato — e porque cobrar o resto no começo é o que
+qualquer sistema de cobrança faz.
+
+R$ 128.000 em 12 vira uma parcela de 10.666,71 e onze de 10.666,67. Soma
+exata.
+
+Isso vale um teste com o caso que não fecha, e vale checagem no banco:
+`sum(value) = contracts.total_value` para o conjunto gerado.
+
+### A geração de parcelas é uma transação, não duas chamadas
+
+O original faz `bulkCreate(installments)` e depois
+`Contract.update({ installments_generated: true })` — duas requisições
+separadas (`Contracts.jsx:709-710`). Falha entre as duas deixa parcelas
+criadas com a bandeira apagada, e o próximo clique cria tudo de novo.
+
+Ele tenta se proteger consultando antes (`filter({ contract_id })`), mas
+consultar-e-depois-gravar de dois lugares ao mesmo tempo não impede nada.
+
+Aqui é **uma função no Postgres**, numa transação: confere se já existem
+parcelas, gera, marca a bandeira. Duplicidade barrada por unicidade
+`(tenant_id, contract_id, installment_number)`, e não por consulta prévia.
+
+### "Em atraso" — o plano estava impreciso
+
+O plano dizia que isso era mudança nossa. Não é: o original **já** calcula,
+em `AccountsReceivable.jsx:479` e `AccountsPayable.jsx:676` —
+`isOverdue(row) ? 'Em atraso' : row.status`. O enum tem o valor, e a tela o
+ignora em favor do cálculo.
+
+Então aqui é fidelidade, não correção: `overdue` **não entra no enum**, e a
+condição vira coluna gerada `is_overdue` (`status = 'forecast' and due_date
+< current_date`). Coluna gerada não pode usar `current_date`, que não é
+imutável — então é **view** ou cálculo na consulta. Decidir na implementação.
+
+### Recorrência em contas a pagar
+
+`is_recurring`, `recurrence_frequency`, `recurrence_start_date`,
+`recurrence_end_date`, `recurrence_count`, `recurrence_parent_id`,
+`recurrence_status`, `generated_count`.
+
+A linha-mãe é o modelo; cada ocorrência é uma linha com
+`recurrence_parent_id` apontando para ela. `generated_count` é derivado —
+conta quantos filhos existem — e pela regra do projeto não se grava.
+
+### Regra de negócio para o teste próprio
+
+- A soma das parcelas geradas é **exatamente** o valor do contrato. Com o
+  caso de R$ 128.000 em 12, que é o que não fecha na divisão simples.
+- Gerar duas vezes no mesmo contrato não duplica.
+- `payment_date` só com `status = 'paid'`, e status pago exige data.
+- `value > 0` nas duas tabelas.
+- Ocorrência de recorrência aponta para linha-mãe do mesmo escritório (FK
+  composta), e a mãe não pode apontar para si mesma.
+- `recurrence_end_date` não anterior a `recurrence_start_date`.
+- `is_overdue` verdadeiro só para previsto e vencido — não para pago com
+  vencimento no passado.
 
 ## Módulo 8 — Fornecedores e Orçamento
 
