@@ -189,9 +189,45 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
   (6, 'activities', 'activities',
    'description, collaborator_id, start_date, end_date',
    $$'Atividade Padrao', 'ea100000-0000-4000-8000-000000000002', current_date, current_date$$,
-   $$'Atividade Padrao', 'eb100000-0000-4000-8000-000000000001', current_date, current_date$$);
+   $$'Atividade Padrao', 'eb100000-0000-4000-8000-000000000001', current_date, current_date$$),
 
-  -- Modulo 7: (7, 'accounts_receivable', 'receivables', ..., ...)
+  -- Modulo 7. DUAS chaves de menu no mesmo modulo, de proposito: 'Recebiveis' e
+  -- 'Pagamentos' sao itens separados na sidebar do original, com permissao
+  -- independente, e financial_categories se pendura em 'payables' por ser
+  -- cadastro de apoio das despesas. O par E1/E3 nao distingue receivables de
+  -- payables (o editor da suite recebe can_edit em TODO menu do registro): quem
+  -- prova que cada policy le a chave certa sao os casos 1.x de
+  -- supabase/tests/financial-schema.sql, com um colaborador que tem um menu e
+  -- nao o outro.
+  --
+  -- A linha minima valida e so o que o original marca como required. Nenhuma
+  -- delas toca contract_id/installment_number, entao gravar a mesma linha duas
+  -- vezes no escritorio A (a fixture dos casos B, e o INSERT do caso C1) nao
+  -- esbarra na unicidade de parcela.
+  (7, 'accounts_receivable', 'receivables',
+   'description, value, due_date',
+   $$'Parcela Padrao', 1000, current_date$$,
+   null),
+
+  (7, 'accounts_payable', 'payables',
+   'supplier_name, description, category, value, due_date',
+   $$'Fornecedor Padrao', 'Despesa Padrao', 'office', 1000, current_date$$,
+   null),
+
+  -- O nome sai de um contador, e nao de um literal, porque financial_categories
+  -- tem unique (tenant_id, type, name) e a suite grava a mesma "linha minima
+  -- valida" duas vezes no escritorio A. Com valor fixo, C1 receberia 23505 e o
+  -- caso "quem tem can_edit CRIA" passaria a afirmar que a unicidade existe. A
+  -- contagem e filtrada pelo prefixo PAT- de proposito: contagem sobre a tabela
+  -- inteira mudaria de resultado no dia em que o seed do modulo 7 entrar.
+  (7, 'financial_categories', 'payables',
+   'name, type',
+   $$'PAT-A-' || (select count(*) from public.financial_categories f
+                  where f.name like 'PAT-A-%'), 'expense'$$,
+   $$'PAT-B-' || (select count(*) from public.financial_categories f
+                  where f.name like 'PAT-B-%'), 'expense'$$);
+
+  -- Modulo 8: (8, 'suppliers', 'suppliers', ..., ...)
   -- e assim por diante.
 
 -- FIXTURES --------------------------------------------------------------------

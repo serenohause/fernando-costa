@@ -29,7 +29,8 @@
     "seed:pipeline": "node supabase/seed/03-pipeline.mjs",
     "seed:contracts": "node supabase/seed/04-contracts.mjs",
     "seed:projects": "node supabase/seed/05-projects.mjs",
-    "seed:activities": "node supabase/seed/06-activities.mjs"
+    "seed:activities": "node supabase/seed/06-activities.mjs",
+    "test:schema:financial": "supabase/tests/run-sql.sh supabase/tests/financial-schema.sql"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
