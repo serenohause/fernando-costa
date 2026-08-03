@@ -13,6 +13,7 @@ import Atividades from '@/features/activities/components/Atividades'
 import MinhasAtividades from '@/features/activities/components/MinhasAtividades'
 import RelatorioProdutividade from '@/features/activities/components/RelatorioProdutividade'
 import FormularioCliente from '@/features/pipeline/components/FormularioCliente'
+import AccountsReceivable from '@/features/financial/components/AccountsReceivable'
 
 /*
   O shell já está de pé; as telas de conteúdo entram módulo a módulo, na ordem
@@ -54,6 +55,7 @@ export function AppRoutes() {
         {/* Sem item na barra lateral, como no original: a página existe em
             pages.config.js e não em `allNavigation`. Chega-se a ela pela URL. */}
         <Route path="/RelatorioProdutividade" element={<RelatorioProdutividade />} />
+        <Route path="/AccountsReceivable" element={<AccountsReceivable />} />
         <Route path="/Collaborators" element={<Collaborators />} />
         <Route path="/AprovacoesAcesso" element={<AprovacoesAcesso />} />
         <Route path="*" element={<PagePlaceholder />} />
