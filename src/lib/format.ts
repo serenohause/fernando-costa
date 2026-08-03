@@ -53,3 +53,26 @@ export function formatCurrencyBRL(
     ...(withCents ? {} : { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
   }).format(value ?? 0)
 }
+
+/*
+  `normalizeText` de projeto-original/src/components/utils/stringUtils.js —
+  a busca por texto das duas telas do financeiro.
+
+  Mora aqui, e não em cada tela, porque as duas peneiram a mesma coisa: acento
+  fora, caixa baixa, ponta aparada. Duas cópias divergindo significaria a busca
+  de Recebíveis achar um nome que a de Pagamentos não acha, sem nada na tela
+  explicando a diferença.
+
+  Nasceu duplicada de propósito — as duas telas foram portadas ao mesmo tempo, e
+  arquivo compartilhado escrito por dois lados de uma vez é conflito garantido.
+*/
+export function normalizeText(value: string | null | undefined): string {
+  if (!value) return ''
+
+  return value
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}

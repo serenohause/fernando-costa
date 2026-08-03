@@ -1,3 +1,4 @@
+import { normalizeText } from '@/lib/format'
 import type { PayableRow } from './types'
 
 /*
@@ -9,26 +10,6 @@ import type { PayableRow } from './types'
   fora de hooks.ts porque não toca no Supabase.
 */
 
-/*
-  `normalizeText` de projeto-original/src/components/utils/stringUtils.jsx,
-  usada pela busca das duas telas do financeiro.
-
-  ESTÁ COPIADA AQUI DE PROPÓSITO, e é dívida conhecida: a tela de Recebíveis
-  precisa da mesma função e está sendo portada em paralelo. Um arquivo
-  compartilhado escrito por dois lados ao mesmo tempo é conflito garantido —
-  juntar as duas cópias em `src/lib/format.ts` é tarefa de quem orquestra,
-  depois que as duas telas estiverem no lugar.
-*/
-export function normalizeText(value: string | null | undefined): string {
-  if (!value) return ''
-
-  return value
-    .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-}
 
 /*
   O campo "Busca" (AccountsPayable.jsx:463-478): procura no nome do projeto

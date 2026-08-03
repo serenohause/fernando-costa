@@ -39,7 +39,7 @@ import { useClients } from '@/features/crm/hooks'
 import { useContracts } from '@/features/contracts/hooks'
 import { useProjects } from '@/features/projects/hooks'
 import { FINANCIAL_STATUS, labelOf } from '@/lib/enums'
-import { formatCurrencyBRL } from '@/lib/format'
+import { formatCurrencyBRL, normalizeText } from '@/lib/format'
 import {
   countFinancialByStatus,
   describeDatabaseError,
@@ -104,18 +104,6 @@ import type { FinancialStatusFilter, ReceivableInput, ReceivableRow } from '../t
     policy não levantam erro — só não alcançam a linha.
 */
 
-/* `normalizeText` de projeto-original/src/components/utils/stringUtils.js.
-   Local de propósito: a tela de Pagamentos usa a mesma função e está sendo
-   portada em paralelo — a extração para `src/lib` fica para quando as duas
-   estiverem no lugar, para os dois trabalhos não disputarem o mesmo arquivo. */
-function normalizeText(value: string | null | undefined): string {
-  if (!value) return ''
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-}
 
 /* O par de cores de cada botão quando ele está selecionado (linhas 680-719).
    Não selecionado, todos usam a mesma moldura clara. */
