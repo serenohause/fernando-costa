@@ -20,11 +20,33 @@ const CONTRACTS_LIST_LIMIT = 500
 
 const CONTRACTS_ERROR_MESSAGES: DatabaseErrorMessages = {
   /*
+    AS DUAS PRIMEIRAS SÃO POR NOME DE CONSTRAINT, e não por código, porque `23503`
+    aqui é duas situações opostas.
+
+    Quem APONTA para o contrato é `accounts_receivable` (migration 0041) e
+    `projects` (migration 0032), e nenhuma das duas FK tem cascade — de propósito.
+    Excluir um contrato com parcelas geradas falha com `23503`, e a frase do
+    código ("o cliente ou a negociação informada não existe mais") descreve o
+    caso CONTRÁRIO: lá o contrato aponta para algo que sumiu; aqui é algo que
+    aponta para o contrato e continua de pé.
+
+    APAGAR CONTRATO NÃO PODE APAGAR DINHEIRO A RECEBER EM SILÊNCIO: a recusa é o
+    comportamento certo, e o que faltava era dizer o que aconteceu e o que fazer.
+    Por isso as frases nomeiam a tela onde a pessoa resolve.
+  */
+  accounts_receivable_contract_id_fkey:
+    'Este contrato já tem parcelas geradas em Contas a Receber, e elas não são excluídas junto. Exclua as parcelas em Recebíveis antes de excluir o contrato.',
+  projects_contract_id_fkey:
+    'Este contrato tem projeto vinculado, e ele não é excluído junto. Desvincule ou exclua o projeto antes de excluir o contrato.',
+
+  /*
     `contracts_tenant_id_contract_number_key`. O original não impede dois
     contratos com o mesmo número, e número repetido quebra a busca da tela e o
     título das tarefas geradas, que são identificadas por ele.
   */
   '23505': 'Já existe um contrato com este número neste escritório.',
+  /* O 23503 que SOBRA depois das duas constraints acima: gravação apontando para
+     cliente ou negociação que não existe mais. */
   '23503': 'O cliente ou a negociação informada não existe mais neste escritório.',
   '23502': 'Falta um campo obrigatório: número do contrato, tipo e valor total.',
   /*
@@ -192,11 +214,15 @@ export function useApproveContract() {
   Exclusão do contrato, e SÓ dele.
 
   O original apaga junto os recebíveis, o projeto e as tarefas do projeto
-  (Contracts.jsx:603-649), em quatro varreduras no cliente. Nenhuma dessas
-  tabelas existe ainda — `accounts_receivable` é o MÓDULO 7, `projects` e `tasks`
-  o MÓDULO 5. Quando existirem, o que impede apagar um contrato com filho é a FK
-  daquelas tabelas, e não uma sequência de deletes no navegador que pode parar no
-  meio: a migration 0030 registra isso na policy de DELETE.
+  (Contracts.jsx:603-649), em quatro varreduras no cliente — uma sequência que
+  pode parar no meio e deixar metade apagada.
+
+  As tabelas já existem (`projects` no MÓDULO 5, `accounts_receivable` no MÓDULO
+  7) e as FK delas continuam SEM cascade (migrations 0032 e 0041): contrato com
+  parcela gerada ou projeto vinculado não é apagado, o banco recusa com `23503`
+  e a tela diz qual é o caso pelo nome da constraint — ver
+  CONTRACTS_ERROR_MESSAGES. Apagar contrato apagaria dinheiro a receber junto, e
+  isso não pode acontecer por um clique num menu de contrato.
 */
 export function useDeleteContract() {
   const queryClient = useQueryClient()

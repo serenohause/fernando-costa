@@ -214,7 +214,13 @@ function toNumberOrNull(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function toInput(values: ContractFormValues): ContractInput {
+/*
+  Exportada porque o diálogo "Gerar Parcelas" grava o plano de parcelamento no
+  contrato antes de chamar a função do banco, e precisa mandar as MESMAS colunas
+  que este formulário manda. Duas cópias deste mapeamento divergiriam em silêncio
+  — a de lá apagaria, na primeira geração de parcelas, o que a daqui gravou.
+*/
+export function toContractInput(values: ContractFormValues): ContractInput {
   return {
     contract_number: values.contract_number.trim(),
     /* O `required` da marcação já barra o vazio; o schema recusa de novo. */
@@ -370,7 +376,7 @@ export default function ContractForm({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    onSubmit(toInput(formData))
+    onSubmit(toContractInput(formData))
   }
 
   const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name))

@@ -12,7 +12,10 @@ import type { PostgrestError } from '@supabase/supabase-js'
   mesma decisão.
 */
 
-/** Mensagem por SQLSTATE. A feature sobrepõe só os códigos que ela conhece. */
+/**
+ * Mensagem por SQLSTATE **ou por nome de constraint**. A feature sobrepõe só o
+ * que ela conhece, e o nome da constraint tem prioridade sobre o código.
+ */
 export type DatabaseErrorMessages = Record<string, string>
 
 /*
@@ -42,6 +45,27 @@ export function firstIssueMessage(error: unknown): string | null {
 }
 
 /*
+  O NOME DA CONSTRAINT VIOLADA, quando o Postgres o informa.
+
+  O MESMO SQLSTATE QUER DIZER COISAS OPOSTAS conforme a constraint. `23503` ao
+  GRAVAR um contrato é "o cliente escolhido não existe mais neste escritório";
+  `23503` ao EXCLUIR o mesmo contrato é "há parcelas apontando para ele". Uma
+  frase pede escolher outro cliente, a outra pede resolver o que depende do
+  contrato — e a segunda, dita com a frase da primeira, manda a pessoa procurar
+  um problema que não existe.
+
+  A mensagem do Postgres traz o nome entre aspas nos três casos que interessam
+  (`violates foreign key constraint "..."`, `violates unique constraint "..."`,
+  `violates check constraint "..."`). Quando não traz, a busca por código segue
+  valendo — este é um degrau ANTES dele, nunca no lugar dele.
+*/
+function constraintNameOf(error: unknown): string | null {
+  const message = (error as Partial<PostgrestError> | null)?.message
+  if (typeof message !== 'string') return null
+  return /constraint "([^"]+)"/.exec(message)?.[1] ?? null
+}
+
+/*
   O original mostra `error.message` cru, que aqui viraria nome de constraint na
   tela — e descrever o schema para quem estiver sondando é justamente o que
   supabase/functions/_shared/http.ts evita do outro lado.
@@ -52,6 +76,9 @@ export function describeDatabaseError(
 ): string {
   const issue = firstIssueMessage(error)
   if (issue) return issue
+
+  const constraint = constraintNameOf(error)
+  if (constraint && messages[constraint]) return messages[constraint]
 
   const code = (error as Partial<PostgrestError> | null)?.code
   const mapped = code ? (messages[code] ?? DEFAULT_MESSAGES[code]) : undefined

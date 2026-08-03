@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -50,6 +51,11 @@ import {
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { useClients } from '@/features/crm/hooks'
 import { useGenerateContractInstallments } from '@/features/financial/hooks'
+import {
+  describeInstallmentPlan,
+  describeInstallmentValue,
+  splitInstallments,
+} from '@/features/financial/installments'
 import { CONTRACT_STATUS, CONTRACT_TYPE, INSTALLMENT_FREQUENCY, labelOf } from '@/lib/enums'
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
 import { filterContracts, sortContracts, type StatusFilter } from '../list'
@@ -62,7 +68,11 @@ import {
   useReorderContracts,
   useUpdateContract,
 } from '../hooks'
-import ContractForm, { toFormValues, type ContractFormValues } from './ContractForm'
+import ContractForm, {
+  toContractInput,
+  toFormValues,
+  type ContractFormValues,
+} from './ContractForm'
 import type { ContractInput, ContractRow } from '../types'
 
 /*
@@ -86,17 +96,17 @@ import type { ContractInput, ContractRow } from '../types'
     recusa de qualquer forma.
 
   "GERAR PARCELAS" (MÓDULO 7) — o item de menu (Contracts.jsx:995) e o diálogo
-  (Contracts.jsx:1038-1106) estão aqui, com uma diferença de FLUXO que veio do
-  banco e não desta tela: a conta é feita por
-  `public.generate_contract_installments` (migration 0044), que NÃO aceita
-  quantidade, data e periodicidade por parâmetro — lê o plano gravado no
-  contrato. Por isso o ramo do diálogo em que o original digita número de
-  parcelas e primeiro vencimento na hora (Contracts.jsx:1068-1093) não existe
-  aqui: esses campos passariam a valer sem nunca serem gravados, e o contrato
-  ficaria descrevendo um parcelamento diferente do que foi emitido. No lugar
-  dele, o aviso manda configurar no formulário do contrato — que é a frase do
-  próprio original (Contracts.jsx:1087). Divergência registrada no relatório do
-  módulo 7.
+  (Contracts.jsx:1038-1106) estão aqui, com os DOIS ramos do original: o contrato
+  que já tem plano salvo mostra a caixa esmeralda, e o que não tem mostra os
+  campos "Número de parcelas" e "Data de vencimento da 1ª parcela" e gera na hora.
+
+  A DIFERENÇA ESTÁ NA ORDEM DOS DOIS PASSOS DO SEGUNDO RAMO, e ela vem do banco.
+  `public.generate_contract_installments` (migration 0044) NÃO aceita quantidade,
+  data e periodicidade por parâmetro: ela lê o plano gravado no contrato. No
+  original os valores digitados aqui geram as parcelas SEM NUNCA SEREM GRAVADOS,
+  e o contrato passa a descrever um parcelamento diferente do que foi emitido —
+  a própria 0044 registra que a saída é a tela gravar o plano e depois chamar a
+  função. É o que `confirmGenerateInstallments` faz, nessa ordem.
 
   O QUE NÃO FOI PORTADO, E O MÓDULO QUE TRAZ DE VOLTA:
 
@@ -123,6 +133,10 @@ export default function Contracts() {
     open: boolean
     contract: ContractRow | null
   }>({ open: false, contract: null })
+  /* Os dois campos do diálogo quando o contrato ainda não tem plano salvo, com
+     os mesmos valores iniciais do original (Contracts.jsx:49-50). */
+  const [installmentsCount, setInstallmentsCount] = useState(4)
+  const [firstDueDate, setFirstDueDate] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -211,6 +225,21 @@ export default function Contracts() {
     })
   }
 
+  /* Abrir o diálogo devolve os campos ao estado inicial, e fechar também: o
+     número digitado para um contrato não segue para o próximo. O original zera
+     `firstDueDate` depois de gerar (Contracts.jsx:715). */
+  const openInstallmentsDialog = (contract: ContractRow) => {
+    setInstallmentsCount(4)
+    setFirstDueDate('')
+    setInstallmentsDialog({ open: true, contract })
+  }
+
+  const closeInstallmentsDialog = () => {
+    setInstallmentsCount(4)
+    setFirstDueDate('')
+    setInstallmentsDialog({ open: false, contract: null })
+  }
+
   /*
     A recusa por permissão CHEGA AQUI COMO ERRO, e é mostrada como tal.
 
@@ -220,18 +249,77 @@ export default function Contracts() {
     erro — ou fechar o diálogo como se tivesse dado certo — deixaria a pessoa
     esperando parcelas que não existem. Por isso o diálogo fica ABERTO quando
     falha: a mensagem aparece e a ação continua ao alcance.
-  */
-  const confirmGenerateInstallments = () => {
-    const target = installmentsDialog.contract
-    if (!target) return
 
-    generateInstallmentsMutation.mutate(target.id, {
+    `planWasJustSaved` MUDA A MENSAGEM DE ERRO, e essa distinção é o ponto:
+    quando o plano acabou de ser gravado no contrato e a geração falhou, o
+    contrato ficou com o parcelamento salvo e SEM parcelas. É estado recuperável
+    — reabrir "Gerar Parcelas" agora cai no ramo da caixa esmeralda e tenta de
+    novo — mas só se a mensagem disser isso. "Erro ao gerar parcelas", sozinho,
+    esconde que metade do gesto já foi gravada, e a pessoa não tem como saber que
+    o contrato mudou.
+  */
+  const generateInstallments = (contract: ContractRow, planWasJustSaved: boolean) => {
+    generateInstallmentsMutation.mutate(contract.id, {
       onSuccess: (result) => {
-        setInstallmentsDialog({ open: false, contract: null })
+        closeInstallmentsDialog()
         toast.success(`${result.installmentCount} parcelas geradas com sucesso!`)
       },
-      onError: (error) => toast.error('Erro ao gerar parcelas: ' + describeDatabaseError(error)),
+      onError: (error) =>
+        toast.error(
+          planWasJustSaved
+            ? 'O parcelamento foi salvo no contrato, mas as parcelas NÃO foram geradas: ' +
+                describeDatabaseError(error) +
+                ' Abra "Gerar Parcelas" de novo para tentar outra vez.'
+            : 'Erro ao gerar parcelas: ' + describeDatabaseError(error),
+        ),
     })
+  }
+
+  /*
+    DOIS PASSOS quando o contrato ainda não tem plano salvo, nesta ordem: GRAVAR o
+    plano no contrato e só então gerar as parcelas (migration 0044). Se a gravação
+    falhar, a função NÃO é chamada — parcelas emitidas a partir de números que o
+    contrato não conhece são exatamente o que o original produz.
+
+    A gravação passa pelo mesmo `useUpdateContract` do formulário, com as mesmas
+    colunas (`toContractInput`), para que salvar o plano por aqui não apague nada
+    do que estava gravado.
+  */
+  const confirmGenerateInstallments = () => {
+    /* A linha da lista, não a congelada no clique — ver `installmentsContract`. */
+    const target = installmentsContract
+    if (!target) return
+
+    if (hasInstallmentPlan) {
+      generateInstallments(target, false)
+      return
+    }
+
+    /* A frase é a do original (Contracts.jsx:673). */
+    if (!firstDueDate) {
+      toast.error('Informe a data de vencimento da primeira parcela')
+      return
+    }
+
+    updateMutation.mutate(
+      {
+        id: target.id,
+        input: {
+          ...toContractInput(toFormValues(target)),
+          installment_count: installmentsCount,
+          first_due_date: firstDueDate,
+          /* Mensal quando o contrato não diz outra coisa, como no original
+             (Contracts.jsx:670) — o diálogo não pergunta periodicidade, e o
+             banco exige os três campos ou nenhum (migration 0029). */
+          installment_frequency: 'monthly',
+        },
+      },
+      {
+        onSuccess: () => generateInstallments(target, true),
+        onError: (error) =>
+          toast.error('Erro ao salvar o parcelamento no contrato: ' + describeDatabaseError(error)),
+      },
+    )
   }
 
   /*
@@ -270,7 +358,19 @@ export default function Contracts() {
 
   const hasContracts = contracts.length > 0
 
+  /*
+    O contrato do diálogo vem da LISTA, e não do objeto guardado no clique.
+
+    Gravar o plano de parcelamento invalida a lista, e a linha volta do banco com
+    `installment_count` e `first_due_date` preenchidos. Lendo do objeto congelado,
+    uma geração que falhasse DEPOIS da gravação deixaria o diálogo mostrando os
+    campos vazios de um plano que já está salvo. O congelado fica como reserva,
+    para o contrato que sumiu da lista entre o clique e o render.
+  */
   const installmentsContract = installmentsDialog.contract
+    ? (contracts.find((contract) => contract.id === installmentsDialog.contract?.id) ??
+      installmentsDialog.contract)
+    : null
   /* A condição do original (Contracts.jsx:1052) é quantidade E primeiro
      vencimento. A periodicidade não entra porque o check
      `contracts_installment_plan_all_or_none_check` (0029) já a amarra às outras
@@ -278,9 +378,11 @@ export default function Contracts() {
   const installmentCount = installmentsContract?.installment_count ?? null
   const hasInstallmentPlan =
     installmentCount != null && installmentsContract?.first_due_date != null
-  const installmentPreviewValue = installmentCount
-    ? (installmentsContract?.total_value ?? 0) / installmentCount
-    : 0
+
+  /* As duas prévias fazem a conta do BANCO, e não a divisão simples do original.
+     O porquê está em src/features/financial/installments.ts. */
+  const savedPlanSplit = splitInstallments(installmentsContract?.total_value, installmentCount)
+  const typedPlanSplit = splitInstallments(installmentsContract?.total_value, installmentsCount)
 
   return (
     <div>
@@ -486,9 +588,7 @@ export default function Contracts() {
                                     */}
                                     {!contract.installments_generated && (
                                       <DropdownMenuItem
-                                        onClick={() =>
-                                          setInstallmentsDialog({ open: true, contract })
-                                        }
+                                        onClick={() => openInstallmentsDialog(contract)}
                                       >
                                         <Receipt className="w-4 h-4 mr-2" />
                                         Gerar Parcelas
@@ -531,7 +631,10 @@ export default function Contracts() {
       {/* Generate Installments Dialog */}
       <Dialog
         open={installmentsDialog.open}
-        onOpenChange={(open) => setInstallmentsDialog({ ...installmentsDialog, open })}
+        onOpenChange={(open) => {
+          if (open) return
+          closeInstallmentsDialog()
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -551,15 +654,14 @@ export default function Contracts() {
                   Configuração salva no contrato:
                 </p>
                 {/*
-                  A divisão simples do original. Ela é uma PRÉVIA, e o que o banco
-                  grava pode diferir em centavos: `generate_contract_installments`
-                  divide em centavos inteiros e joga o resto na PRIMEIRA parcela,
-                  para a soma bater exatamente com o valor do contrato (migration
-                  0044). O texto é o do original, e a diferença está sinalizada no
-                  relatório do módulo 7 em vez de corrigida por conta própria.
+                  A conta é a de `generate_contract_installments` (migration
+                  0044), e não a divisão simples do original: centavos inteiros
+                  com o resto na PRIMEIRA parcela. Quando a primeira difere das
+                  demais, a linha diz as duas — divergência consciente,
+                  explicada em src/features/financial/installments.ts.
                 */}
                 <p className="text-sm text-emerald-700 dark:text-emerald-400">
-                  • {installmentCount} parcelas de {formatCurrencyBRL(installmentPreviewValue)}
+                  • {describeInstallmentPlan(savedPlanSplit)}
                 </p>
                 <p className="text-sm text-emerald-700 dark:text-emerald-400">
                   • Primeiro vencimento: {formatDateBR(installmentsContract?.first_due_date)}
@@ -570,26 +672,56 @@ export default function Contracts() {
                 </p>
               </div>
             ) : (
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg">
-                <p className="text-sm text-amber-800 dark:text-amber-300 font-medium mb-1">
-                  Este contrato não tem plano de parcelamento salvo.
+              /*
+                Os campos do original (Contracts.jsx:1068-1093), com o mesmo
+                layout e o mesmo microcopy. A frase sob a data continua sendo a de
+                lá: os campos do formulário do contrato são o que fica valendo
+                como padrão para as próximas vezes — o que se digita aqui vale
+                para ESTA geração, e é gravado no contrato junto com ela.
+              */
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="installments_count">Número de parcelas</Label>
+                  <Input
+                    id="installments_count"
+                    type="number"
+                    min="1"
+                    max="24"
+                    value={installmentsCount}
+                    onChange={(e) =>
+                      setInstallmentsCount(Number.parseInt(e.target.value, 10) || 1)
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="installments_first_due_date">
+                    Data de vencimento da 1ª parcela
+                  </Label>
+                  <Input
+                    id="installments_first_due_date"
+                    type="date"
+                    value={firstDueDate}
+                    onChange={(e) => setFirstDueDate(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Configure estes campos no formulário do contrato para salvar como padrão
+                  </p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Valor por parcela: {describeInstallmentValue(typedPlanSplit)}
                 </p>
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Configure estes campos no formulário do contrato para salvar como padrão
-                </p>
-              </div>
+              </>
             )}
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setInstallmentsDialog({ open: false, contract: null })}
-            >
+            <Button variant="outline" onClick={closeInstallmentsDialog}>
               Cancelar
             </Button>
+            {/* Desabilitado só enquanto uma das duas escritas está em curso —
+                gravar o plano é a primeira delas. */}
             <Button
               onClick={confirmGenerateInstallments}
-              disabled={!hasInstallmentPlan || generateInstallmentsMutation.isPending}
+              disabled={updateMutation.isPending || generateInstallmentsMutation.isPending}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -611,10 +743,14 @@ export default function Contracts() {
               <br />
               <br />
               {/*
-                O original promete excluir junto as parcelas, o projeto vinculado
-                e as tarefas do projeto. Nenhuma dessas tabelas existe ainda
-                (MÓDULOS 5 e 7), e prometer apagar o que não há é pior do que
-                omitir: a lista volta quando as tabelas voltarem.
+                A lista tem UM item porque a exclusão apaga UM registro. O
+                original promete apagar junto as parcelas, o projeto vinculado e
+                as tarefas do projeto (Contracts.jsx:603-649) — aqui as FK de
+                `accounts_receivable` e de `projects` continuam SEM cascade
+                (migrations 0041 e 0032), de propósito: apagar contrato não pode
+                apagar dinheiro a receber em silêncio. Com parcelas geradas ou
+                projeto vinculado o banco RECUSA a exclusão, e a mensagem diz qual
+                é o caso e onde resolver (CONTRACTS_ERROR_MESSAGES).
               */}
               <strong>Esta ação irá excluir:</strong>
               <ul className="list-disc pl-5 mt-2 text-sm">
