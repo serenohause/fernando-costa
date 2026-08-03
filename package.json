@@ -31,7 +31,8 @@
     "seed:projects": "node supabase/seed/05-projects.mjs",
     "seed:activities": "node supabase/seed/06-activities.mjs",
     "test:schema:financial": "supabase/tests/run-sql.sh supabase/tests/financial-schema.sql",
-    "test:installments": "supabase/tests/run-sql.sh supabase/tests/installments.sql"
+    "test:installments": "supabase/tests/run-sql.sh supabase/tests/installments.sql",
+    "seed:financial": "node supabase/seed/07-financial.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
