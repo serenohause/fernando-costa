@@ -67,13 +67,16 @@ import type {
   pessoa lê é a RLS, que já está no ar — e ela vale igual para `count` e para
   `select`, então a contagem no banco não abre nada que a lista não abrisse. A
   consequência precisa estar dita em algum lugar, e é este: os painéis mostram
-  NÚMEROS DIFERENTES PARA PESSOAS DIFERENTES, sem nada na tela avisando. O caso
-  concreto é `activities` — a única tabela do sistema com leitura estreita
-  (migration 0038): quem não tem `can_edit_menu('activities')` e não é Diretor lê
-  só as próprias atividades e as de quem coordena, então os cartões "Em Andamento",
-  "Concluídas" e "Atrasadas" do Painel Executivo são a carga DAQUELA PESSOA, com o
-  mesmo rótulo que a diretoria lê como sendo a do escritório inteiro. Está no
-  relatório do módulo.
+  NÚMEROS DIFERENTES PARA PESSOAS DIFERENTES. O caso concreto é `activities` — a
+  única tabela do sistema com leitura estreita (migrations 0038 e 0059): quem não
+  tem can_view nem can_edit no menu `activities`, e não é Diretor, lê só as
+  próprias atividades e as de quem coordena, então os cartões "Em Andamento",
+  "Concluídas" e "Atrasadas" do Painel Executivo são a carga DAQUELA PESSOA.
+
+  QUEM AVISA É A TELA, e não este módulo: o Painel Executivo rotula os quatro
+  cartões e o crachá por projeto conforme o escopo de quem olha (ver
+  ACTIVITY_LABELS em DashboardExecutivo.tsx e `useActivityReadScope`). O número
+  daqui é o mesmo para todo mundo; o que muda é a frase em cima dele.
 */
 
 export const dashboardKeys = {

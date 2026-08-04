@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { COLLABORATOR_ROLE, PROJECT_PHASE, labelOf, type ProjectPhase } from '@/lib/enums'
+import { useActivityReadScope } from '@/features/activities/hooks'
 import {
   atRiskProjects,
   awaitingClientProjects,
@@ -62,6 +63,50 @@ import PhaseDistributionChart from './PhaseDistributionChart'
 const ALL = 'all'
 
 /*
+  ═══ O RÓTULO DIZ DE QUEM É O NÚMERO ═══
+
+  Os quatro cartões de "Visão Geral" e o crachá "N atividades abertas" de cada
+  projeto saem de `activities`, a única tabela do sistema com leitura estreita.
+  O predicado é o da migration 0059 (que substituiu o da 0038): quem tem can_view
+  OU can_edit no menu `activities` — Diretor incluído pelo atalho da 0019, que
+  `useMenuPermissions` embute igual do lado do cliente — lê o escritório inteiro;
+  quem não tem nenhum dos dois lê SÓ as próprias e as de quem coordena.
+
+  A 0059 encolheu o problema e não o fechou: no seed, o Financeiro não tem
+  can_view nem can_edit em `activities`, e o Painel Executivo é o único painel
+  que a permissão dele abre. Com rótulo fixo ele lia "Atrasadas: 0" — a carga
+  dele — na posição em que a diretoria lê o escritório, e "0" é indistinguível
+  de "escritório em dia". Nenhum aviso na tela dizia qual dos dois era.
+
+  O ORIGINAL NÃO RESPONDE A ISTO: lá não há RLS, todo mundo lia tudo e o rótulo
+  nunca mentia. A saída é decisão do usuário e é ROTULAR POR ESCOPO — o número é
+  o mesmo, muda a frase. Quem lê o escritório inteiro vê os rótulos do original,
+  palavra por palavra; quem lê só a própria carga vê o rótulo dizendo isso.
+  Nenhum cartão é escondido e nada é travado: quem autoriza é a RLS, não a tela.
+
+  QUEM FOR SIMPLIFICAR ISTO DEPOIS: o rótulo fixo só volta a ser verdade no dia
+  em que a leitura de `activities` for larga como a das outras tabelas. Enquanto
+  a policy da 0059 estiver de pé, tirar o condicional é reintroduzir o número de
+  uma pessoa com o nome do escritório.
+*/
+const ACTIVITY_LABELS = {
+  office: {
+    inProgress: 'Em Andamento',
+    completed: 'Concluídas',
+    overdue: 'Atrasadas',
+    productivity: 'Produtividade',
+    openBadge: 'atividades abertas',
+  },
+  personal: {
+    inProgress: 'Minhas atividades em andamento',
+    completed: 'Minhas atividades concluídas',
+    overdue: 'Minhas atividades atrasadas',
+    productivity: 'Minha produtividade',
+    openBadge: 'atividades minhas abertas',
+  },
+} as const
+
+/*
   As TRÊS APARÊNCIAS de uma linha de "Projetos por Colaborador": as três primeiras
   posições em violeta, o balde "sem responsável" em âmbar, o resto neutro.
 
@@ -107,6 +152,10 @@ export default function DashboardExecutivo() {
   const [collaboratorFilter, setCollaboratorFilter] = useState<string>(ALL)
   const [selectedCollaborator, setSelectedCollaborator] = useState<CollaboratorLoad | null>(null)
   const [drilldown, setDrilldown] = useState<ExecutiveDrilldown | null>(null)
+
+  /* De quem são os números de atividade desta tela — ver ACTIVITY_LABELS. */
+  const { readsAllActivities } = useActivityReadScope()
+  const activityLabels = ACTIVITY_LABELS[readsAllActivities ? 'office' : 'personal']
 
   /*
     OS TRÊS FILTROS DISPARAM CONSULTA, e não são mais um recorte em memória: as
@@ -280,27 +329,13 @@ export default function DashboardExecutivo() {
               Visão Geral
             </h2>
             {/*
-              ═══ ESTES QUATRO NÚMEROS NÃO SÃO OS MESMOS PARA TODO MUNDO ═══
-
-              `activities` é a ÚNICA tabela do sistema com leitura estreita
-              (migration 0038): quem não tem `can_edit_menu('activities')` e não
-              é Diretor lê só as PRÓPRIAS atividades e as de quem coordena. Os
-              quatro cartões abaixo — "Em Andamento", "Concluídas", "Atrasadas" e
-              "Produtividade" — e os crachás "N atividades abertas" de cada
-              projeto, mais abaixo, saem dessa leitura.
-
-              Consequência: um Coordenador lê "Atrasadas: 3" onde a diretoria lê
-              "Atrasadas: 40", com o MESMO rótulo, na MESMA posição da tela, e
-              nada avisa que um dos dois está vendo a carga de uma pessoa e o
-              outro a do escritório. No original isso não acontecia porque lá não
-              há RLS nenhuma: todo mundo lia tudo.
-
-              NÃO HÁ AVISO, RÓTULO NEM TRAVA AQUI DE PROPÓSITO. A instrução do
-              módulo é fidelidade ao original, e o que fazer com esta ambiguidade
-              — mudar o rótulo, restringir o menu ou aceitar como está — é
-              decisão do usuário. Está no relatório do módulo. Quem for mexer
-              nesta tela depois: o número não é do escritório, é de quem está
-              olhando.
+              ESTES QUATRO NÚMEROS NÃO SÃO OS MESMOS PARA TODO MUNDO, e por isso
+              o rótulo deles é condicional — o porquê inteiro está em
+              ACTIVITY_LABELS, no topo do arquivo. Resumo: a leitura de
+              `activities` é estreita (migrations 0038 e 0059) e estes quatro
+              cartões, mais os crachás "N atividades abertas" lá embaixo, saem
+              dela. Quem lê o escritório vê os rótulos do original; quem lê só a
+              própria carga vê o rótulo dizer isso.
 
               DOIS DELES AINDA IGNORAM A BARRA DE FILTROS logo acima, e isso é do
               original (ver `activityMetrics`): "Em Andamento" e "Atrasadas"
@@ -321,7 +356,7 @@ export default function DashboardExecutivo() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm text-muted-foreground font-normal flex items-center gap-2">
                       <Zap className="w-4 h-4" />
-                      Em Andamento
+                      {activityLabels.inProgress}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -335,7 +370,7 @@ export default function DashboardExecutivo() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm text-muted-foreground font-normal flex items-center gap-2">
                       <CheckSquare className="w-4 h-4" />
-                      Concluídas
+                      {activityLabels.completed}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -356,7 +391,7 @@ export default function DashboardExecutivo() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm text-muted-foreground font-normal flex items-center gap-2">
                       <AlertCircle className="w-4 h-4" />
-                      Atrasadas
+                      {activityLabels.overdue}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -370,7 +405,7 @@ export default function DashboardExecutivo() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm text-muted-foreground font-normal flex items-center gap-2">
                       <Target className="w-4 h-4" />
-                      Produtividade
+                      {activityLabels.productivity}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -742,9 +777,10 @@ export default function DashboardExecutivo() {
                                 </span>
                                 {/*
                                   ESTE CRACHÁ TAMBÉM É LEITURA ESTREITA — mesma
-                                  ressalva dos quatro cartões do topo: ele conta
-                                  as atividades que QUEM ESTÁ OLHANDO pode ler,
-                                  não as do projeto.
+                                  ressalva dos quatro cartões do topo, e por isso
+                                  o mesmo rótulo condicional (ver
+                                  ACTIVITY_LABELS): ele conta as atividades que
+                                  QUEM ESTÁ OLHANDO pode ler, não as do projeto.
 
                                   E ele conta uma coisa diferente do cartão
                                   "Concluídas": aqui a atividade excluída fica de
@@ -761,7 +797,7 @@ export default function DashboardExecutivo() {
                                         : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900'
                                     }`}
                                   >
-                                    {row.openActivities} atividades abertas
+                                    {row.openActivities} {activityLabels.openBadge}
                                     {row.overdueActivities > 0 &&
                                       ` (${row.overdueActivities} atrasadas)`}
                                   </Badge>

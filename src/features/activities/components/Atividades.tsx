@@ -43,6 +43,7 @@ import {
 import {
   describeDatabaseError,
   useActivities,
+  useActivityReadScope,
   useCompleteActivity,
   useCreateActivity,
   useReorderActivities,
@@ -67,10 +68,13 @@ import type { ActivityInput, ActivityRow } from '../types'
   AUTORIZAÇÃO — a RLS decide, esta tela só reflete:
 
   - Leitura NÃO é larga, e este é o único módulo assim
-    (`activities_select_own_or_activities_editor`, migration 0038): quem tem
-    can_edit no menu `activities` — Diretor incluído pelo atalho da 0019 — lê
-    todas as atividades do escritório; quem não tem lê só as que são dele ou de
-    quem ele coordena.
+    (`activities_select_own_or_activities_viewer`, migration 0059, que
+    substituiu o predicado da 0038): quem tem can_view OU can_edit no menu
+    `activities` — Diretor incluído pelo atalho da 0019 — lê todas as atividades
+    do escritório; quem não tem nenhum dos dois lê só as que são dele ou de quem
+    ele coordena. LER O ESCRITÓRIO NÃO É EDITAR O ESCRITÓRIO: o Administrativo,
+    que no seed tem can_view e não can_edit, recebe a lista inteira e continua
+    sem o botão de criar.
   - Editar alcança também o responsável e o coordenador da linha (migration
     0039). É o que faz os botões Começar e Concluir funcionarem para Arquiteto e
     Estagiário, que no seed não recebem menu nenhum.
@@ -86,8 +90,12 @@ import type { ActivityInput, ActivityRow } from '../types'
      menu de quem consulta. Com a policy no lugar, o interruptor não teria o que
      ligar e desligar — e o ramo desligado dele, para Coordenador, filtrava pela
      FUNÇÃO do responsável (Arquiteto/Estagiário/Coordenador), aproximação do
-     "quem eu coordeno" que a coluna `coordinator_id` responde de verdade. O
-     subtítulo do cabeçalho segue o mesmo critério.
+     "quem eu coordeno" que a coluna `coordinator_id` responde de verdade.
+
+     O SUBTÍTULO DO CABEÇALHO SEGUE O MESMO CRITÉRIO, e é por isso que ele não
+     se decide por `canEdit`: no original (linha 456) o texto sai do estado do
+     interruptor, ou seja, do ESCOPO do que está na tela, não de quem pode
+     escrever. O que lá era o interruptor, aqui é `useActivityReadScope()`.
 
      Consequência conhecida: o select "Responsável", que no original só filtrava
      com o interruptor ligado (linha 265), passa a filtrar sempre. Ele está
@@ -118,6 +126,7 @@ export default function Atividades() {
 
   const { saveOrigin } = useNavigation()
   const { canEdit } = useMenuPermissions('activities')
+  const { readsAllActivities } = useActivityReadScope()
   const { data: currentCollaborator } = useCurrentCollaborator()
 
   useEffect(() => {
@@ -316,10 +325,34 @@ export default function Atividades() {
 
   return (
     <div>
+      {/*
+        OS TRÊS SUBTÍTULOS SÃO OS TRÊS DO ORIGINAL (Atividades.jsx:456), e o
+        critério é o de lá: o ESCOPO do que está na tela.
+
+        Lá o escopo é o interruptor "Visão Gerencial"; aqui é a policy de SELECT
+        (migration 0059, que substituiu a da 0038). Decidir por `canEdit` — como
+        estava — passou a mentir no dia em que can_view virou leitura ampla: o
+        Administrativo tem can_view e não can_edit, recebe as atividades do
+        escritório inteiro e lia "Suas atividades operacionais" em cima delas.
+
+        O ramo do Coordenador é o do meio no original. Ele só aparece para quem
+        NÃO tem o menu — com o menu, o escopo é o escritório e o primeiro texto
+        vale. É a leitura que a policy dá a ele: as próprias mais as de quem
+        coordena, que é o que o original aproxima filtrando pela FUNÇÃO do
+        responsável.
+
+        "Nova Atividade" continua em `canEdit`, e isso é outra pergunta: ver o
+        escritório não é atribuir trabalho — a policy de INSERT (0059) diz o
+        mesmo.
+      */}
       <PageHeader
         title="Atividades"
         subtitle={
-          canEdit ? 'Visão geral de todas as atividades' : 'Suas atividades operacionais'
+          readsAllActivities
+            ? 'Visão geral de todas as atividades'
+            : currentCollaborator?.role === 'coordinator'
+              ? 'Visão geral de atividades da equipe'
+              : 'Suas atividades operacionais'
         }
         actionLabel={canEdit ? 'Nova Atividade' : undefined}
         onAction={

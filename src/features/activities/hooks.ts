@@ -6,7 +6,7 @@ import {
   WriteError,
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
-import { useCurrentCollaborator } from '@/features/auth/hooks'
+import { useCurrentCollaborator, useMenuPermissions } from '@/features/auth/hooks'
 import { activityInputSchema } from './schemas'
 import { applyStatus, completePatch, softDeletePatch, startPatch } from './execution'
 import type { Activity, ActivityInput, ActivityRow } from './types'
@@ -53,6 +53,33 @@ function useCurrentIds() {
 /* ── Leitura ───────────────────────────────────────────────────────────── */
 
 /*
+  DE QUEM É O NÚMERO QUE A TELA ESTÁ MOSTRANDO — o escopo de leitura de quem
+  está olhando, do lado do cliente.
+
+  Espelho do predicado de SELECT de `activities_select_own_or_activities_viewer`
+  (migration 0059, que substituiu o da 0038): quem tem can_view OU can_edit no
+  menu `activities` lê todas as atividades do escritório; quem não tem nenhum
+  dos dois lê só as próprias e as de quem coordena. O atalho de Diretor está
+  embutido nos dois lados — no banco pelos helpers `can_view_menu` e
+  `can_edit_menu` (0019/0059), aqui pelo `isDirector` de `useMenuPermissions`.
+
+  ISTO NÃO AUTORIZA NADA: quando a lista chega aqui, a RLS já recortou. Serve
+  para a tela poder dizer de quem é o número — ver o rótulo condicional dos
+  cartões do Painel Executivo. Fica num lugar só de propósito: duas telas
+  perguntando a mesma coisa de jeitos diferentes é como o rótulo volta a mentir
+  quando a policy mudar de novo.
+
+  Enquanto as permissões carregam, os dois vêm falsos e o escopo aparece como
+  pessoal — a mesma janela em que `useMenuPermissions` já esconde os botões de
+  quem edita. Não custa requisição nova: a chave é a que o AppLayout já usou
+  para montar a barra lateral.
+*/
+export function useActivityReadScope() {
+  const { canView, canEdit, isLoading, isError } = useMenuPermissions('activities')
+  return { readsAllActivities: canView || canEdit, isLoading, isError }
+}
+
+/*
   UMA consulta traz a lista com os quatro nomes que as telas mostram.
 
   Os quatro `*_name` do base44 saíram do schema (migration 0037, item 1) e voltam
@@ -60,10 +87,10 @@ function useCurrentIds() {
   compostas e porque DOIS embeds saem de `collaborators`.
 
   O RECORTE POR PESSOA NÃO ESTÁ AQUI, e é de propósito. Este é o único módulo do
-  sistema em que a leitura não é larga: `activities_select_own_or_activities_editor`
-  (migration 0038) devolve todas as atividades do escritório a quem tem
-  `can_edit_menu('activities')` — ou é Diretor, pelo atalho da 0019 — e SÓ as
-  próprias (ou as de quem a pessoa coordena) para os demais. No original esse
+  sistema em que a leitura não é larga: `activities_select_own_or_activities_viewer`
+  (migration 0059) devolve todas as atividades do escritório a quem tem can_view
+  OU can_edit no menu `activities` — Diretor incluído pelo atalho da 0019 — e SÓ
+  as próprias (ou as de quem a pessoa coordena) para os demais. No original esse
   recorte é filtro de navegador (MinhasAtividades.jsx:58), que nada impede de
   contornar chamando a entidade direto.
 
@@ -103,10 +130,10 @@ export function useActivities() {
   Existe separada de `useActivities` por um motivo que vale escrever, porque as
   duas parecem a mesma consulta com um filtro a mais e não são.
 
-  A policy do banco já recorta por pessoa para quem NÃO tem
-  `can_edit_menu('activities')`. Para quem TEM — Diretor, Coordenador,
-  Administrativo — ela devolve o escritório inteiro, e aí "Minhas Atividades"
-  mostraria as de todo mundo, KPIs incluídos.
+  A policy do banco já recorta por pessoa para quem não tem can_view nem
+  can_edit no menu `activities` (migration 0059). Para quem tem qualquer um dos
+  dois — Diretor, Coordenador, Administrativo — ela devolve o escritório
+  inteiro, e aí "Minhas Atividades" mostraria as de todo mundo, KPIs incluídos.
 
   Este `.eq('collaborator_id', …)` não é filtro de segurança duplicado: é o
   PROPÓSITO da tela. Segurança é o que a policy faz e o cliente não pode
