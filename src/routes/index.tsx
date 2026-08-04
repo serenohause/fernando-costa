@@ -19,6 +19,7 @@ import AccountsReceivable from '@/features/financial/components/AccountsReceivab
 import Suppliers from '@/features/suppliers/components/Suppliers'
 import BudgetChecklists from '@/features/budget/components/BudgetChecklists'
 import Dashboard from '@/features/dashboards/components/Dashboard'
+import DashboardComercial from '@/features/dashboards/components/DashboardComercial'
 import Home from '@/features/dashboards/components/Home'
 
 /*
@@ -54,6 +55,7 @@ export function AppRoutes() {
         {/* O roteador de entrada, em `/Home` como no original: ele não é a
             landing page: é a tela que decide qual dos três painéis abrir. */}
         <Route path="/Home" element={<Home />} />
+        <Route path="/DashboardComercial" element={<DashboardComercial />} />
         <Route path="/Clients" element={<Clients />} />
         {/* Detalhe por query string (`?id=`), como no original — ver ClientDetail.jsx:19. */}
         <Route path="/ClientDetail" element={<ClientDetail />} />
