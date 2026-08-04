@@ -40,6 +40,33 @@
 //   Seed que inventa um caminho grava um anexo que a tela lista e que nao abre —
 //   link morto, exatamente o que o COMMENT das colunas manda evitar. E o check
 //   *_file_pair garante que caminho nulo com nome nulo e um estado valido.
+//
+// E POR QUE, MESMO ASSIM, HA PDFS DE APROVACAO SEMEADOS (E SEM OBJETO NO BUCKET)
+//   budget_item_approval_files (0054) nao tem o estado "linha sem arquivo": a
+//   linha SO existe porque ha um PDF, e as duas colunas sao NOT NULL. Ou seja, a
+//   escolha aqui nao e entre "coluna nula" e "caminho inventado", como e nas duas
+//   colunas acima — e entre TER a funcionalidade nos dados de teste ou nao ter.
+//
+//   Nao ter custa mais do que parece. Com zero linhas, approval_file_count e
+//   attachment_count dao ZERO em todo o banco de teste, nas duas views. O clipe
+//   do cartao da listagem, o clipe da linha do item e a secao "Aprovacao do
+//   Cliente" do drawer nunca aparecem em tela, e um erro de ligacao na UI (ler
+//   quote_file_count no lugar de attachment_count, esquecer de invalidar a
+//   contagem depois de anexar) passa despercebido — o numero certo e o numero
+//   errado sao os dois zero. Os testes de supabase/tests/budget-schema.sql cobrem
+//   a conta no SQL; eles nao cobrem a tela lendo a coluna errada.
+//
+//   Ter custa UMA coisa, e ela e visivel e limitada: o botao de abrir o PDF falha
+//   ("Object not found" na assinatura da URL), porque o objeto nao existe no
+//   bucket. E o estado de erro que a tela precisa tratar de qualquer forma, ele
+//   acontece so no tenant de teste, o caminho carrega 'seed-sem-objeto' escrito
+//   nele para quem for investigar, e o resumo impresso no fim desta rodada avisa
+//   antes de alguem clicar.
+//
+//   Por isso: linha semeada, arquivo nao. Nao subimos PDF de verdade porque isso
+//   colocaria objeto no Storage sem passar pelo caminho da tela e sem que a
+//   limpeza do inicio do seed (que apaga LINHAS) soubesse remove-lo — cada rodada
+//   deixaria lixo acumulado no bucket.
 
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -478,6 +505,15 @@ async function main() {
           commission_received: true,
           client_approved: true,
           approval_date: dayOffset(-8),
+          // DOIS PDFs de aprovação, com data própria: é o caso que prova que
+          // pdfs_aprovacao é LISTA, e não um par de colunas. As datas são
+          // anteriores a hoje de propósito — no original elas vêm do dia do
+          // anexo, e para o dado importado do base44 vão divergir do created_at
+          // da linha (COMMENT de uploaded_on, 0054).
+          approvals: [
+            { file_name: 'aprovacao-bancadas-assinada.pdf', uploaded_on: dayOffset(-9) },
+            { file_name: 'aprovacao-bancadas-aditivo-rodabanca.pdf', uploaded_on: dayOffset(-8) },
+          ],
           // Três concorrentes, uma escolhida. Quem responde qual venceu é
           // chosen_supplier_id do item, e não uma bandeira na cotação (0049).
           quotes: [
@@ -527,6 +563,9 @@ async function main() {
           commission_received: false,
           client_approved: true,
           approval_date: dayOffset(-2),
+          // UM PDF só, e SEM uploaded_on: esta linha exercita o default
+          // `current_date` da coluna, que é o caminho de quem anexa pela tela.
+          approvals: [{ file_name: 'aprovacao-luminarias-whatsapp.pdf' }],
           quotes: [
             { supplier: 'lumini', value: 21800 },
             { supplier: 'iluminar', value: 24500, notes: 'Trabalha melhor com externa.' },
@@ -694,8 +733,12 @@ async function main() {
   ]
 
   const checklist = {}
+  /* Guardado por nome só para a conferência do fim poder cobrar a contagem de
+     clipes do item que recebeu os dois PDFs de aprovação. */
+  const itemByName = {}
   let itemCount = 0
   let quoteCount = 0
+  let approvalCount = 0
 
   for (const c of CHECKLISTS) {
     const clientRow = client(c.client)
@@ -722,7 +765,7 @@ async function main() {
     checklist[c.key] = created
 
     for (const i of c.items) {
-      const { chosen, quotes, ...row } = i
+      const { chosen, quotes, approvals, ...row } = i
       const item = await insertOne(
         'budget_checklist_items',
         {
@@ -734,7 +777,33 @@ async function main() {
         },
         'id, name, commission_value',
       )
+      itemByName[item.name] = item
       itemCount++
+
+      /*
+        Os PDFs de aprovação — LINHA SIM, OBJETO NÃO. O motivo está no cabeçalho.
+
+        O caminho tem a forma que a tela grava (<tenant_id>/<checklist_id>/<uuid>),
+        porque é o primeiro segmento que as policies de storage.objects comparam
+        com o claim do JWT — caminho de teste com outra forma esconderia um erro
+        de isolamento. O 'seed-sem-objeto' no meio existe para que quem abrir a
+        linha no banco enquanto investiga um "Object not found" leia a resposta ali
+        mesmo.
+      */
+      for (const a of approvals ?? []) {
+        await insertOne(
+          'budget_item_approval_files',
+          {
+            tenant_id: tenant.id,
+            item_id: item.id,
+            file_path: `${tenant.id}/${created.id}/seed-sem-objeto-${crypto.randomUUID()}.pdf`,
+            file_name: a.file_name,
+            uploaded_on: a.uploaded_on,
+          },
+          'id',
+        )
+        approvalCount++
+      }
 
       for (const q of quotes) {
         await insertOne(
@@ -754,7 +823,11 @@ async function main() {
   }
 
   console.log(
-    `  ${CHECKLISTS.length} checklists, ${itemCount} itens e ${quoteCount} cotações gravados.\n`,
+    `  ${CHECKLISTS.length} checklists, ${itemCount} itens e ${quoteCount} cotações gravados.`,
+  )
+  console.log(
+    `  ${approvalCount} PDFs de aprovação gravados SEM objeto no bucket: a lista aparece na tela\n` +
+      '  e o botão de abrir falha com "Object not found". É de propósito — ver o cabeçalho.\n',
   )
 
   /*
@@ -791,9 +864,42 @@ async function main() {
         `  aprovado R$ ${brl(t.approved_total).padStart(10)}` +
         `  comissão R$ ${brl(t.commission_total).padStart(8)}` +
         ` (recebida R$ ${brl(t.commission_received_total)})` +
-        `  curadoria R$ ${brl(t.curation_total)}`,
+        `  curadoria R$ ${brl(t.curation_total)}` +
+        `  ${String(t.attachment_count).padStart(2)} PDF(s)`,
     )
   }
+
+  /*
+    A contagem de clipes POR ITEM, lida da view budget_item_attachments (0054).
+
+    O item das bancadas tem dois PDFs de aprovação e três cotações, nenhuma com
+    arquivo. Se a view somasse cotação sem PDF — o filtro que o original tem e que
+    é fácil perder —, aqui sairia 5 em vez de 2, e a tela nova mostraria um número
+    diferente do que o escritório vê hoje.
+  */
+  const bancadas = itemByName['Bancadas em granito Preto São Gabriel']
+  const { data: clipes, error: clipesError } = await asDirector
+    .from('budget_item_attachments')
+    .select('quote_file_count, approval_file_count, attachment_count')
+    .eq('item_id', bancadas.id)
+    .maybeSingle()
+  if (clipesError) fail(`ler budget_item_attachments como Diretora: ${clipesError.message}`)
+  if (!clipes) fail('a view budget_item_attachments não devolveu linha para o item das bancadas')
+  if (
+    Number(clipes.approval_file_count) !== 2 ||
+    Number(clipes.quote_file_count) !== 0 ||
+    Number(clipes.attachment_count) !== 2
+  ) {
+    fail(
+      'budget_item_attachments devolveu ' +
+        `${clipes.quote_file_count} cotação(ões) com PDF e ${clipes.approval_file_count} aprovação(ões) ` +
+        `(total ${clipes.attachment_count}) para o item das bancadas. Esperado: 0, 2 e 2 — ` +
+        'cotação sem arquivo NÃO conta.',
+    )
+  }
+  console.log(
+    '\n  OK: o item das bancadas conta 2 clipes (2 aprovações; as 3 cotações não têm PDF).',
+  )
 
   console.log('\n  supplier_commission_totals (só quem já foi escolhido)')
   for (const s of commissions.filter((c) => c.chosen_item_count > 0)) {
@@ -826,6 +932,10 @@ async function main() {
     'commission_total',
     'commission_received_total',
     'curation_total',
+    /* Entrou na view pela 0054, e pelo mesmo motivo dos outros: a soma vem de um
+       LEFT JOIN com budget_item_attachments, e checklist sem item nenhum não tem
+       o que somar — sem o coalesce, isto seria NULL. */
+    'attachment_count',
   ]
   for (const campo of ZERADOS) {
     const v = vazio[campo]
@@ -839,7 +949,7 @@ async function main() {
       fail(`o checklist sem item devolveu ${campo} = ${v}, e deveria ser zero.`)
     }
   }
-  console.log('\n  OK: o checklist sem item devolve zero (não nulo) nos oito campos da view.')
+  console.log('  OK: o checklist sem item devolve zero (não nulo) nos nove campos da view.')
 
   /*
     Fornecedor nunca escolhido também tem que dar zero, pelo mesmo motivo e na

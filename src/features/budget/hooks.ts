@@ -25,8 +25,8 @@ import type {
   BudgetChecklistItemRow,
   BudgetChecklistRow,
   BudgetChecklistTotals,
-  BudgetFileTarget,
   BudgetFilters,
+  BudgetItemAttachmentCounts,
   BudgetItemQuoteInput,
 } from './types'
 import type { BudgetChecklistStatus } from '@/lib/enums'
@@ -37,6 +37,10 @@ export const budgetKeys = {
   checklistList: (filters: BudgetFilters) => [...budgetKeys.checklists(), filters] as const,
   totals: () => [...budgetKeys.all, 'totals'] as const,
   items: (checklistId: string) => [...budgetKeys.all, 'items', checklistId] as const,
+  /* DENTRO de `all`: a contagem muda a cada anexo gravado ou removido, e quem
+     invalida `all` depois de escrever precisa derrubar o número junto. */
+  itemAttachments: (checklistId: string) =>
+    [...budgetKeys.all, 'item-attachments', checklistId] as const,
   /*
     FORA de `all` de propósito: a URL assinada não é dado do orçamento, é uma
     credencial temporária para um objeto do Storage. Invalidar o orçamento
@@ -152,6 +156,12 @@ export function useHasAnyBudgetChecklists() {
   o número do rodapé do detalhe são literalmente a mesma conta.
 
   A view é SECURITY INVOKER: a RLS das tabelas vale para quem consulta.
+
+  `attachment_count` entrou nela pela migration 0054 e é o CLIPE DO CARTÃO da
+  listagem (OrcamentoCliente.jsx:200, um `reduce` no navegador). Vem daqui, e não
+  de uma view nova, porque é exibido ao lado dos outros números deste mesmo
+  cartão — dois lugares de leitura para a mesma listagem é como dois números da
+  mesma tela começam a divergir.
 */
 export function useBudgetChecklistTotals() {
   return useQuery({
@@ -160,7 +170,7 @@ export function useBudgetChecklistTotals() {
       const { data, error } = await supabase
         .from('budget_checklist_totals')
         .select(
-          'checklist_id, tenant_id, item_count, completed_item_count, progress_percent, estimated_total, approved_total, commission_total, commission_received_total, curation_total',
+          'checklist_id, tenant_id, item_count, completed_item_count, progress_percent, estimated_total, approved_total, commission_total, commission_received_total, curation_total, attachment_count',
         )
         .limit(LIST_LIMIT)
 
@@ -176,11 +186,13 @@ export function useBudgetChecklistTotals() {
 }
 
 /*
-  Os itens de UM checklist, com as cotações e os dois nomes que a tela mostra.
+  Os itens de UM checklist, com as cotações, os PDFs de aprovação e os dois nomes
+  que a tela mostra.
 
-  No original os itens são um array dentro da linha do checklist e as cotações
-  são um array DENTRO de cada item — dois níveis de aninhamento numa linha só
-  (migration 0049). Aqui são duas tabelas, e o embed devolve a mesma árvore.
+  No original os itens são um array dentro da linha do checklist, e DENTRO de
+  cada item há dois outros arrays: `fornecedores_cotados` e `pdfs_aprovacao` —
+  três níveis de aninhamento numa linha só (migrations 0049 e 0054). Aqui são
+  três tabelas, e o embed devolve a mesma árvore.
 
   A ORDEM é por criação: o original mostra os itens na ordem em que foram
   empurrados no array, e o agrupamento por categoria (ChecklistDetalhe.jsx:39-47)
@@ -193,7 +205,8 @@ const ITEMS_SELECT = `
   quotes:budget_item_quotes!budget_item_quotes_item_id_fkey(
     *,
     supplier:suppliers!budget_item_quotes_supplier_id_fkey(id, name)
-  )
+  ),
+  approval_files:budget_item_approval_files!budget_item_approval_files_item_id_fkey(*)
 `
 
 export function useBudgetChecklistItems(checklistId: string | null | undefined) {
@@ -206,10 +219,54 @@ export function useBudgetChecklistItems(checklistId: string | null | undefined) 
         .select(ITEMS_SELECT)
         .eq('checklist_id', checklistId as string)
         .order('created_at')
+        /* Os PDFs de aprovação na ordem em que foram anexados, que é a ordem em
+           que o original os desenha (o array cresce por `push`,
+           ItemOrcamentoDrawer.jsx:68). `uploaded_on` não serve para isso: é DATE,
+           e vários anexos do mesmo dia empatariam. */
+        .order('created_at', { referencedTable: 'approval_files' })
         .limit(LIST_LIMIT)
 
       if (error) throw error
       return (data ?? []) as unknown as BudgetChecklistItemRow[]
+    },
+  })
+}
+
+/*
+  O CLIPE DE CADA ITEM, contado pelo BANCO — a view `budget_item_attachments`
+  (migration 0054), uma linha por item, zero inclusive.
+
+  Por que não somar no navegador, já que as cotações e os anexos vêm no embed
+  acima: porque a fórmula do original está escrita em dois lugares
+  (ItemOrcamentoDrawer.jsx:84 e ChecklistDetalhe.jsx:212) e tem um filtro fácil de
+  perder — cotação SEM PDF não conta. Duas cópias de uma regra são duas chances de
+  a tela mostrar um número e o cartão da listagem mostrar outro. Aqui a regra
+  existe uma vez, no banco, e alimenta os dois níveis.
+
+  Consulta separada, e não embed: `budget_checklist_items` não tem FK para a view.
+  O cruzamento é por `item_id` na tela, mesmo desenho de `useProjectProgress`.
+
+  SECURITY INVOKER: quem consulta é quem sofre a RLS. Ninguém conta anexo de
+  outro escritório por aqui.
+*/
+export function useBudgetItemAttachments(checklistId: string | null | undefined) {
+  return useQuery({
+    queryKey: budgetKeys.itemAttachments(checklistId ?? ''),
+    enabled: Boolean(checklistId),
+    queryFn: async (): Promise<Map<string, BudgetItemAttachmentCounts>> => {
+      const { data, error } = await supabase
+        .from('budget_item_attachments')
+        .select('item_id, quote_file_count, approval_file_count, attachment_count')
+        .eq('checklist_id', checklistId as string)
+        .limit(LIST_LIMIT)
+
+      if (error) throw error
+
+      const byItem = new Map<string, BudgetItemAttachmentCounts>()
+      for (const row of data ?? []) {
+        if (row.item_id) byItem.set(row.item_id, row as BudgetItemAttachmentCounts)
+      }
+      return byItem
     },
   })
 }
@@ -303,8 +360,9 @@ export function useSetBudgetChecklistStatus() {
 }
 
 /*
-  Excluir o checklist (OrcamentoCliente.jsx:323). Os itens e as cotações somem
-  por cascade — no original eles são parte do documento e somem com ele.
+  Excluir o checklist (OrcamentoCliente.jsx:323). Os itens, as cotações e os PDFs
+  de aprovação somem por cascade — no original os três são parte do mesmo
+  documento e somem com ele.
 
   OS PDFS NÃO SOMEM SOZINHOS: Storage não tem FK, e a migration 0052 registra o
   arquivo órfão como pendência conhecida do módulo. Por isso os caminhos são
@@ -677,13 +735,23 @@ export function useBudgetFileUrl(path: string | null | undefined) {
 }
 
 /*
-  ANEXAR (ou SUBSTITUIR) o PDF de um item ou de uma cotação — o botão
-  PdfUploadButton do original, que lá manda o arquivo para um bucket PÚBLICO e
-  grava a URL devolvida dentro do documento.
+  ANEXAR (ou SUBSTITUIR) o PDF DE UMA COTAÇÃO — o botão PdfUploadButton do
+  original dentro de cada fornecedor cotado (ItemOrcamentoDrawer.jsx:157-163), que
+  lá manda o arquivo para um bucket PÚBLICO e grava a URL devolvida dentro do
+  documento.
+
+  NÃO HÁ UPLOAD "DO ITEM" AQUI, E ISSO É DE PROPÓSITO. Este hook já recebeu um
+  parâmetro `target: 'item' | 'quote'` e o alvo `'item'` gravava em
+  `budget_checklist_items.budget_file_path` / `budget_file_name`. Aquelas colunas
+  correspondem a `itens[].arquivo_orcamento_url`, campo DECLARADO na entidade do
+  base44 que NENHUMA tela do original lê ou escreve — a migration 0054 as
+  documenta como espaço de pouso da importação. Escrever nelas pela tela inventava
+  um terceiro tipo de anexo que o escritório não tem, e ainda por cima era o lugar
+  errado para o PDF de aprovação, que é LISTA (`budget_item_approval_files`).
 
   A ORDEM DOS PASSOS É O QUE IMPEDE ARQUIVO ÓRFÃO, e ela é deliberada:
 
-  1. lê o caminho atual da linha (é ele que vai ser substituído) e o checklist a
+  1. lê o caminho atual da cotação (é ele que vai ser substituído) e o checklist a
      que ela pertence — o segundo segmento do caminho sai do BANCO, não de
      parâmetro da tela;
   2. sobe o objeto novo;
@@ -702,7 +770,7 @@ export function useBudgetFileUrl(path: string | null | undefined) {
   quem recusa de verdade é o bucket, que aplica `allowed_mime_types` e
   `file_size_limit` antes de aceitar o corpo.
 */
-export function useUploadBudgetFile(target: BudgetFileTarget) {
+export function useUploadQuoteFile() {
   const queryClient = useQueryClient()
   const tenantId = useTenantId()
 
@@ -713,7 +781,7 @@ export function useUploadBudgetFile(target: BudgetFileTarget) {
       const rejected = describeRejectedFile(file)
       if (rejected) throw new WriteError(rejected)
 
-      const current = await readFileState(target, id)
+      const current = await readQuoteFileState(id)
       const path = budgetFilePath(tenantId, current.checklistId)
 
       const { error: uploadError } = await supabase.storage
@@ -722,7 +790,7 @@ export function useUploadBudgetFile(target: BudgetFileTarget) {
 
       if (uploadError) throw uploadError
 
-      const { rows, error } = await writeFileColumns(target, id, { path, name: file.name })
+      const { rows, error } = await writeQuoteFileColumns(id, { path, name: file.name })
 
       if (error || !rows || rows.length === 0) {
         await removeStorageObjects([path])
@@ -742,22 +810,23 @@ export function useUploadBudgetFile(target: BudgetFileTarget) {
 }
 
 /*
-  REMOVER o PDF. A linha perde as duas colunas juntas
-  (`*_file_pair_check` cobra isso) e o objeto sai do bucket em seguida.
+  REMOVER o PDF da cotação. A linha perde as duas colunas juntas
+  (`budget_item_quotes_quote_file_pair_check` cobra isso) e o objeto sai do bucket
+  em seguida.
 
   A ordem é a inversa do upload, e pelo mesmo motivo: primeiro o banco, depois o
   Storage. Se a gravação for negada, o arquivo continua lá e a tela continua
   mostrando o anexo — que é a verdade. Se o Storage falhar depois, sobra um
   órfão, que é o estado que o original já tem hoje.
 */
-export function useRemoveBudgetFile(target: BudgetFileTarget) {
+export function useRemoveQuoteFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const current = await readFileState(target, id)
+      const current = await readQuoteFileState(id)
 
-      const { rows, error } = await writeFileColumns(target, id, null)
+      const { rows, error } = await writeQuoteFileColumns(id, null)
       if (error) throw error
       assertRowAffected(
         rows,
@@ -773,27 +842,146 @@ export function useRemoveBudgetFile(target: BudgetFileTarget) {
   })
 }
 
-/* ── Storage: as funções que as duas metades acima compartilham ────────── */
+/* ── Os PDFs de aprovação do cliente: LISTA, não par de colunas ────────── */
 
 /*
-  As duas tabelas com coluna de arquivo, escritas por extenso em vez de por nome
+  ANEXAR MAIS UM PDF DE APROVAÇÃO ao item — o botão "Anexar aprovação" do drawer
+  (ItemOrcamentoDrawer.jsx:174-177), que lá empurra `{ url, nome, data_upload }`
+  num array dentro do documento.
+
+  É INSERT, E NÃO UPDATE, porque a seção é uma lista: o original anexa vários e
+  remove um a um. Não há "substituir o PDF de aprovação" — quem quer trocar,
+  anexa o novo e apaga o velho, como lá.
+
+  Mesma ordem de passos do upload de cotação, e pelo mesmo motivo (arquivo órfão):
+  sobe o objeto, grava a linha, e se a gravação falhar apaga o objeto que acabou
+  de subir. A gravação negada pela RLS aqui vira erro de verdade — INSERT barrado
+  por WITH CHECK devolve 42501, diferente do UPDATE, que só não alcança linha.
+
+  `uploaded_on` NÃO é enviada: a coluna tem `default current_date` (migration
+  0054), e é essa data que a tela exibe abaixo do nome. No original ela é montada
+  no navegador (`new Date().toISOString().slice(0, 10)`), ou seja, no fuso de quem
+  clica — quem responde que dia é hoje passa a ser o banco.
+
+  O CAMINHO sai do `tenant_id` da sessão e do `checklist_id` lido do BANCO, nunca
+  de parâmetro: é o primeiro segmento que as policies de `storage.objects`
+  comparam com o claim do JWT. O nome do objeto é um uuid novo a cada anexo, o que
+  também é o que mantém `unique (tenant_id, file_path)` fora do caminho — dois
+  registros no mesmo objeto fariam remover um apagar o PDF do outro.
+*/
+export function useAddBudgetApprovalFile() {
+  const queryClient = useQueryClient()
+  const tenantId = useTenantId()
+
+  return useMutation({
+    mutationFn: async ({ itemId, file }: { itemId: string; file: File }) => {
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+
+      const rejected = describeRejectedFile(file)
+      if (rejected) throw new WriteError(rejected)
+
+      const { data: item, error: itemError } = await supabase
+        .from('budget_checklist_items')
+        .select('checklist_id')
+        .eq('id', itemId)
+        .maybeSingle()
+
+      if (itemError) throw itemError
+      if (!item) throw new WriteError('Item de orçamento não encontrado neste escritório.')
+
+      const path = budgetFilePath(tenantId, item.checklist_id)
+
+      const { error: uploadError } = await supabase.storage
+        .from(BUDGET_FILES_BUCKET)
+        .upload(path, file, { contentType: 'application/pdf', upsert: false })
+
+      if (uploadError) throw uploadError
+
+      const { data, error } = await supabase
+        .from('budget_item_approval_files')
+        .insert({
+          tenant_id: tenantId,
+          item_id: itemId,
+          file_path: path,
+          file_name: file.name,
+        })
+        .select('id')
+        .single()
+
+      if (error) {
+        await removeStorageObjects([path])
+        throw error
+      }
+
+      return data.id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: budgetKeys.all })
+    },
+  })
+}
+
+/*
+  REMOVER UM PDF de aprovação — o botão de lixeira de cada linha da lista
+  (ItemOrcamentoDrawer.jsx:200-207).
+
+  A linha inteira sai, e não um par de colunas: aqui a linha SÓ existe porque há
+  um arquivo. E o objeto sai do bucket em seguida, porque o Storage não tem FK —
+  nem o `on delete cascade` da tabela leva o arquivo junto (COMMENT da policy de
+  delete, migration 0054).
+
+  Banco primeiro, Storage depois, como na cotação: exclusão negada pela RLS não
+  alcança linha nenhuma, e aí o arquivo continua lá — que é a verdade que a tela
+  segue mostrando.
+*/
+export function useRemoveBudgetApprovalFile() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data: existing, error: readError } = await supabase
+        .from('budget_item_approval_files')
+        .select('file_path')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (readError) throw readError
+
+      const { data, error } = await supabase
+        .from('budget_item_approval_files')
+        .delete()
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O PDF de aprovação não foi removido. É preciso permissão de edição em Orçamento por Cliente.',
+      )
+
+      if (existing?.file_path) await removeStorageObjects([existing.file_path])
+      return id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: budgetKeys.all })
+    },
+  })
+}
+
+/* ── Storage: as funções que as metades acima compartilham ─────────────── */
+
+/*
+  As duas colunas de arquivo da cotação, escritas por extenso em vez de por nome
   de coluna montado em variável: assim o TypeScript continua conferindo que a
   coluna existe, e o par caminho+nome nunca é gravado pela metade.
+
+  `budget_checklist_items.budget_file_*` NÃO tem função irmã aqui — ver o
+  cabeçalho de `useUploadQuoteFile`.
 */
-async function writeFileColumns(
-  target: BudgetFileTarget,
+async function writeQuoteFileColumns(
   id: string,
   file: { path: string; name: string } | null,
 ): Promise<{ rows: { id: string }[] | null; error: unknown }> {
-  if (target === 'item') {
-    const { data, error } = await supabase
-      .from('budget_checklist_items')
-      .update({ budget_file_path: file?.path ?? null, budget_file_name: file?.name ?? null })
-      .eq('id', id)
-      .select('id')
-    return { rows: data, error }
-  }
-
   const { data, error } = await supabase
     .from('budget_item_quotes')
     .update({ quote_file_path: file?.path ?? null, quote_file_name: file?.name ?? null })
@@ -803,29 +991,16 @@ async function writeFileColumns(
 }
 
 /*
-  O caminho do arquivo que está lá hoje e o checklist a que a linha pertence.
+  O caminho do arquivo que está lá hoje e o checklist a que a cotação pertence.
 
   A cotação não guarda `checklist_id` — ela pertence ao ITEM, e é do item que sai
-  a pasta. São duas consultas nesse caso, e elas existem para que o caminho seja
-  montado a partir do BANCO: caminho vindo da tela é caminho que a tela pode
-  errar, e o segundo segmento é o que organiza o bucket por documento.
+  a pasta. São duas consultas, e elas existem para que o caminho seja montado a
+  partir do BANCO: caminho vindo da tela é caminho que a tela pode errar, e o
+  segundo segmento é o que organiza o bucket por documento.
 */
-async function readFileState(
-  target: BudgetFileTarget,
+async function readQuoteFileState(
   id: string,
 ): Promise<{ path: string | null; checklistId: string }> {
-  if (target === 'item') {
-    const { data, error } = await supabase
-      .from('budget_checklist_items')
-      .select('budget_file_path, checklist_id')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (error) throw error
-    if (!data) throw new WriteError('Item de orçamento não encontrado neste escritório.')
-    return { path: data.budget_file_path, checklistId: data.checklist_id }
-  }
-
   const { data: quote, error } = await supabase
     .from('budget_item_quotes')
     .select('quote_file_path, item_id')
@@ -847,7 +1022,16 @@ async function readFileState(
   return { path: quote.quote_file_path, checklistId: item.checklist_id }
 }
 
-/* Todos os PDFs de um item: o dele e os das cotações. */
+/*
+  Todos os PDFs de um item: os das cotações, os de aprovação do cliente e o de
+  `budget_file_path`.
+
+  `budget_file_path` CONTINUA SENDO COLHIDO aqui, mesmo depois de nenhuma escrita
+  da tela preenchê-lo: a coluna é espaço de pouso da importação (migration 0054),
+  e o dia em que a importação rodar ela vai ter caminho de objeto de verdade.
+  Apagar o item sem apagar esse objeto deixaria um arquivo pago que ninguém
+  alcança. Ler não é escrever.
+*/
 async function collectItemFilePaths(itemId: string): Promise<string[]> {
   const { data: item, error } = await supabase
     .from('budget_checklist_items')
@@ -864,15 +1048,23 @@ async function collectItemFilePaths(itemId: string): Promise<string[]> {
 
   if (quotesError) throw quotesError
 
+  const { data: approvals, error: approvalsError } = await supabase
+    .from('budget_item_approval_files')
+    .select('file_path')
+    .eq('item_id', itemId)
+
+  if (approvalsError) throw approvalsError
+
   return [
     item?.budget_file_path ?? null,
     ...(quotes ?? []).map((quote) => quote.quote_file_path),
+    ...(approvals ?? []).map((approval) => approval.file_path),
   ].filter((path): path is string => Boolean(path))
 }
 
-/* Todos os PDFs de um checklist: os dos itens e os das cotações de cada item.
-   Duas consultas, e não uma por item — a exclusão de um checklist com trinta
-   itens não vira sessenta requisições. */
+/* Todos os PDFs de um checklist: os dos itens, os das cotações e os de aprovação
+   de cada item. TRÊS consultas, e não uma por item — a exclusão de um checklist
+   com trinta itens não vira noventa requisições. */
 async function collectChecklistFilePaths(checklistId: string): Promise<string[]> {
   const { data: items, error } = await supabase
     .from('budget_checklist_items')
@@ -895,11 +1087,20 @@ async function collectChecklistFilePaths(checklistId: string): Promise<string[]>
 
   if (quotesError) throw quotesError
 
+  const { data: approvals, error: approvalsError } = await supabase
+    .from('budget_item_approval_files')
+    .select('file_path')
+    .in('item_id', itemIds)
+
+  if (approvalsError) throw approvalsError
+
   return [
     ...paths,
     ...(quotes ?? [])
       .map((quote) => quote.quote_file_path)
       .filter((path): path is string => Boolean(path)),
+    /* `file_path` é NOT NULL nesta tabela: a linha só existe porque há arquivo. */
+    ...(approvals ?? []).map((approval) => approval.file_path),
   ]
 }
 

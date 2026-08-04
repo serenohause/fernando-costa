@@ -683,6 +683,64 @@ export type Database = {
           },
         ]
       }
+      budget_item_approval_files: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          item_id: string
+          legacy_id: string | null
+          tenant_id: string
+          updated_at: string
+          uploaded_on: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          id?: string
+          item_id: string
+          legacy_id?: string | null
+          tenant_id: string
+          updated_at?: string
+          uploaded_on?: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          item_id?: string
+          legacy_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+          uploaded_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_item_approval_files_item_id_fkey"
+            columns: ["item_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "budget_checklist_items"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_item_approval_files_item_id_fkey"
+            columns: ["item_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "budget_item_attachments"
+            referencedColumns: ["item_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_item_approval_files_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_item_quotes: {
         Row: {
           created_at: string
@@ -727,6 +785,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "budget_checklist_items"
             referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_item_quotes_item_id_fkey"
+            columns: ["item_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "budget_item_attachments"
+            referencedColumns: ["item_id", "tenant_id"]
           },
           {
             foreignKeyName: "budget_item_quotes_supplier_id_fkey"
@@ -2509,6 +2574,7 @@ export type Database = {
       budget_checklist_totals: {
         Row: {
           approved_total: number | null
+          attachment_count: number | null
           checklist_id: string | null
           commission_received_total: number | null
           commission_total: number | null
@@ -2522,6 +2588,39 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "budget_checklists_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_item_attachments: {
+        Row: {
+          approval_file_count: number | null
+          attachment_count: number | null
+          checklist_id: string | null
+          item_id: string | null
+          quote_file_count: number | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_checklist_items_checklist_id_fkey"
+            columns: ["checklist_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "budget_checklist_totals"
+            referencedColumns: ["checklist_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklist_items_checklist_id_fkey"
+            columns: ["checklist_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "budget_checklists"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklist_items_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

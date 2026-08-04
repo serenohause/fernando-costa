@@ -11,6 +11,17 @@ export type BudgetChecklist = Tables<'budget_checklists'>
 export type BudgetChecklistItem = Tables<'budget_checklist_items'>
 export type BudgetItemQuote = Tables<'budget_item_quotes'>
 
+/*
+  UM PDF de aprovação do cliente, anexado a um item (migration 0054).
+
+  É LISTA, e não par de colunas: o original anexa vários, mostra nome e data de
+  cada um e remove um a um (`itens[].pdfs_aprovacao`,
+  ItemOrcamentoDrawer.jsx:67-85 e :180-211). A linha só existe porque existe um
+  arquivo — por isso `file_path` e `file_name` são NOT NULL aqui, ao contrário do
+  par opcional da cotação.
+*/
+export type BudgetItemApprovalFile = Tables<'budget_item_approval_files'>
+
 /* Cliente, projeto, responsável e fornecedor como as telas os exibem: só o
    rótulo. Mesmo tipo do módulo 7. */
 export type NamedRef = { id: string; name: string }
@@ -42,6 +53,33 @@ export type BudgetChecklistTotals = {
   /* Total aprovado × `curation_percent`. A fórmula é DECISÃO da migration 0051 —
      no original o campo existe e nenhuma tela o calcula — e está reportada. */
   curation_total: number
+  /* O clipe do cartão da listagem (OrcamentoCliente.jsx:200), somado no BANCO
+     desde a migration 0054. Cotações COM PDF mais PDFs de aprovação, sobre todos
+     os itens; `budget_file_path` não entra, como no original. */
+  attachment_count: number
+}
+
+/*
+  A CONTAGEM DE CLIPES POR ITEM — a view `budget_item_attachments` (migration
+  0054), que devolve UMA linha por item, sempre, inclusive zero.
+
+  No original a mesma fórmula está escrita duas vezes no navegador
+  (ItemOrcamentoDrawer.jsx:84 e ChecklistDetalhe.jsx:212) e depende de a tela ter
+  carregado todas as cotações e todos os anexos para acertar o número. Aqui a
+  conta é do banco, e é a mesma que alimenta o total do checklist.
+
+  Mesmo motivo de `BudgetChecklistTotals` para não usar `Tables<...>` direto: o
+  gerador marca toda coluna de view como anulável, e esta devolve `coalesce` em
+  tudo.
+*/
+export type BudgetItemAttachmentCounts = {
+  item_id: string
+  /* Só as cotações que TÊM PDF, como o filtro `fc.pdf_orcamento_url` do
+     original. Cotação sem arquivo é o estado normal de quem ainda vai receber o
+     orçamento do fornecedor. */
+  quote_file_count: number
+  approval_file_count: number
+  attachment_count: number
 }
 
 /*
@@ -79,6 +117,9 @@ export type BudgetChecklistItemRow = BudgetChecklistItem & {
   responsible: NamedRef | null
   supplier: NamedRef | null
   quotes: BudgetItemQuoteRow[]
+  /* A seção "Aprovação do Cliente" do drawer. Vem junto com o item, como as
+     cotações: no original as duas listas moram dentro da mesma linha. */
+  approval_files: BudgetItemApprovalFile[]
 }
 
 /*
@@ -135,7 +176,11 @@ export type BudgetItemQuoteInput = {
     como erro do sistema. No original a conta é feita no formulário e gravada.
   - `commission_received` — quem a escreve é o botão do rodapé
     (ChecklistDetalhe.jsx:195), não o formulário. Hook próprio.
-  - `budget_file_path` / `budget_file_name` — quem os escreve é o upload.
+  - `budget_file_path` / `budget_file_name` — NINGUÉM os escreve pela tela. São
+    espaço de pouso da importação de `itens[].arquivo_orcamento_url`, campo que
+    nenhuma tela do original lê ou escreve (COMMENT reescrito pela migration
+    0054). Os dois uploads reais são outros: o PDF da cotação e a LISTA de PDFs
+    de aprovação do cliente.
   - `concluido` e `fornecedores_cotados[].escolhido` — não foram portados
     (migration 0049, itens 4 e 5).
 
@@ -200,5 +245,23 @@ export type BudgetFileRef = {
   name: string
 }
 
-/* Onde o PDF é anexado. São os dois únicos lugares do sistema com upload. */
-export type BudgetFileTarget = 'item' | 'quote'
+/*
+  NÃO EXISTE MAIS UM `BudgetFileTarget` COM O ALVO 'item', E ISSO É DE PROPÓSITO.
+
+  Havia aqui um `'item' | 'quote'` que fazia o upload gravar em
+  `budget_checklist_items.budget_file_path` / `budget_file_name` como se fossem "o
+  anexo do item". Não são: correspondem a `itens[].arquivo_orcamento_url`, campo
+  que NENHUMA tela do original lê ou escreve, e que a migration 0054 documenta
+  como espaço de pouso da importação.
+
+  Os dois uploads que o original de fato tem são:
+    - o PDF por fornecedor cotado  → `budget_item_quotes.quote_file_*` (par único,
+      substituível: `useUploadQuoteFile` / `useRemoveQuoteFile`);
+    - a LISTA de PDFs de aprovação → `budget_item_approval_files`, tabela própria
+      (`useAddBudgetApprovalFile` / `useRemoveBudgetApprovalFile`).
+
+  Se alguém for "restaurar" o alvo do item: anexo de aprovação não cabe lá — ali
+  cabe UM arquivo, sem data e sem nome próprio por elemento, e a tela mostra
+  vários, cada um com nome e data. Anexo único por item além desses dois é
+  feature nova e decisão do usuário, não fidelidade ao original.
+*/
