@@ -16,6 +16,30 @@ import type { NegotiationRow } from './types'
   components/PipelineFilters.tsx.
 */
 
+/*
+  "Previsão de fechamento vencida" — a régua do crachá vermelho do quadro
+  (NegociacaoKanban.jsx:105-110), da coluna "Previsão" da tabela
+  (Negociacoes.jsx:240) e do cartão "Negociações em Risco" do Painel Comercial
+  (DashboardComercial.jsx:94-97). Fica em UM lugar antes de o módulo 10 criar a
+  terceira cópia.
+
+  SÓ A PREVISÃO, sem o status: as três telas combinam esta pergunta com recortes
+  diferentes (o quadro exige `status === 'active'`, a tabela não exige nada, o
+  painel filtra as ativas antes de chamar), e embutir um deles aqui mudaria em
+  silêncio o que as outras duas mostram.
+
+  A comparação é a LITERAL do original, com o mesmo desvio de fuso já registrado
+  em projects/list.ts (`isTaskOverdue`): `expected_close_date` é coluna `date`, e
+  `new Date` a lê como meia-noite UTC. Fica assim porque as duas telas do
+  pipeline já estão no ar com este comportamento — ver o relatório do módulo 10.
+*/
+export function isExpectedCloseOverdue(
+  row: Pick<NegotiationRow, 'expected_close_date'>,
+  now: Date = new Date(),
+): boolean {
+  return Boolean(row.expected_close_date && new Date(row.expected_close_date) < now)
+}
+
 export type PipelineFilterState = {
   owner: string
   city: string

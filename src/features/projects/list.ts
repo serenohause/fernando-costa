@@ -1,5 +1,28 @@
 import type { ProjectStatus } from '@/lib/enums'
-import type { ProjectRow } from './types'
+import type { ProjectRow, TaskRow } from './types'
+
+/*
+  "Tarefa atrasada" — a mesma expressão em três lugares do original: o crachá
+  vermelho do cartão do kanban (TaskKanban.jsx:213), o cálculo de "projeto em
+  risco" do Painel Executivo (flowProjectsQuery.jsx:75-83) e o bloco de tarefas
+  atrasadas daquele mesmo painel. Fica em UM lugar antes de o módulo 10 criar a
+  quarta cópia.
+
+  A COMPARAÇÃO É A LITERAL DO ORIGINAL, e é a exceção deste projeto: `due_date` é
+  coluna `date`, `new Date("2026-08-04")` é meia-noite EM UTC, e em Goiânia isso
+  faz a tarefa que vence hoje contar como atrasada desde as 21h de ontem. As
+  outras portas do mesmo erro foram corrigidas (src/lib/format.ts,
+  activities/list.ts, migration 0043) — esta NÃO, porque o crachá do kanban já
+  está no ar com este comportamento desde o módulo 5. Corrigir aqui e não lá faria
+  o painel dizer "3 projetos em risco" com o quadro mostrando 4 cartões vermelhos.
+  Corrigir os dois é decisão do usuário, e está no relatório do módulo 10.
+*/
+export function isTaskOverdue(
+  task: Pick<TaskRow, 'status' | 'due_date'>,
+  now: Date = new Date(),
+): boolean {
+  return Boolean(task.status !== 'completed' && task.due_date && new Date(task.due_date) < now)
+}
 
 /*
   A ordenação e os filtros da lista de projetos, fora do componente.

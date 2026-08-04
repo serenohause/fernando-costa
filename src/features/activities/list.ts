@@ -23,7 +23,18 @@ const PRIORITY_ORDER: Record<PriorityLevel, number> = {
   low: 1,
 }
 
-export function isOverdue(activity: ActivityRow, now: Date = new Date()): boolean {
+/*
+  O PARÂMETRO É ESTRUTURAL, e não `ActivityRow`, desde o módulo 10: o Painel
+  Executivo conta atividades atrasadas a partir de uma linha enxuta (sem os
+  quatro embeds que as telas de atividade precisam). Exigir a linha inteira ali
+  obrigaria o painel a baixar nome de colaborador, de coordenador, de projeto e
+  de cliente para somar um número — ou a escrever a regra de atraso pela segunda
+  vez, que é o que este arquivo existe para evitar.
+*/
+export function isOverdue(
+  activity: Pick<ActivityRow, 'status' | 'end_date'>,
+  now: Date = new Date(),
+): boolean {
   if (activity.status === 'completed') return false
   return isBefore(parseISO(activity.end_date), startOfDay(now))
 }

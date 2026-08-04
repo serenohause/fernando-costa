@@ -38,6 +38,7 @@ import {
   type TaskPriority,
 } from '@/lib/enums'
 import { moveTaskToPhase, tasksInColumn, type MoveOutcome } from '../flow'
+import { isTaskOverdue } from '../list'
 import { operationalCandidates } from './TaskForm'
 import type { ProjectProgress, TaskChecklistItem, TaskPhaseMove, TaskRow } from '../types'
 
@@ -210,8 +211,11 @@ export default function TaskKanban({
   const progressOf = (projectId: string) =>
     progressByProject.get(projectId)?.progress_percent ?? 0
 
-  const isOverdue = (task: TaskRow) =>
-    Boolean(task.status !== 'completed' && task.due_date && new Date(task.due_date) < new Date())
+  /* A regra saiu daqui para `../list` no módulo 10, sem mudar de comportamento:
+     o Painel Executivo conta "projeto em risco" com ela, e duas cópias da mesma
+     expressão são duas chances de o crachá do cartão e o número do painel
+     discordarem. */
+  const isOverdue = (task: TaskRow) => isTaskOverdue(task)
 
   /* Os itens da etapa em que a tarefa está, na ordem gravada. `display_order` é
      anulável, e o original ordena do mesmo jeito (`(a.ordem || 0)`). */

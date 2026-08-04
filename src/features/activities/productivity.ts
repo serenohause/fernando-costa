@@ -51,13 +51,24 @@ export function wasLate(activity: ActivityRow): boolean {
   CONCLUSÃO. "Todas" e período customizado sem as duas datas devolvem tudo, como
   no original.
 */
-export function filterByPeriod(
-  activities: ActivityRow[],
+/*
+  GENÉRICA desde o módulo 10, e não `ActivityRow[]`: o filtro de período do
+  Painel Executivo (DashboardExecutivo.jsx:112-133) é este mesmo recorte, sobre
+  uma linha enxuta. A função só olha `completed_at`, então é isso que ela passa a
+  exigir — e "Concluídas neste mês" no painel e no Relatório de Produtividade
+  viram literalmente a mesma conta, inclusive nas bordas de semana e de mês.
+
+  UMA DIFERENÇA CONHECIDA em relação ao painel do original: lá o fim de "hoje" é
+  o INSTANTE atual (`fim = today`), aqui é `endOfDay(now)`. Atividade não se
+  conclui no futuro, então nenhum caso real cai entre os dois.
+*/
+export function filterByPeriod<T extends { completed_at: string | null }>(
+  activities: T[],
   period: ReportPeriod,
   customStart: string,
   customEnd: string,
   now: Date = new Date(),
-): ActivityRow[] {
+): T[] {
   let start: Date
   let end: Date
 
