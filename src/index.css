@@ -71,6 +71,25 @@
   --chart-3: 197 37% 24%;
   --chart-4: 43 74% 66%;
   --chart-5: 27 87% 67%;
+
+  /*
+    O AZUL DO GRÁFICO do Painel Executivo (módulo 10), e por que ele não é um
+    dos cinco de cima.
+
+    Os `--chart-1..5` são os cinco do shadcn, que vieram no tema e que o
+    projeto-original nunca usou: lá a barra de "Distribuição por Fase" é
+    `#0ea5e9` fixo no componente (DashboardExecutivo.jsx:712), o mesmo sky-500
+    que o painel comercial repete na paleta dele. Trocar a barra por `--chart-1`
+    (um laranja) seria mudar a cor da tela do cliente; escrever `#0ea5e9` no
+    componente é o hex que este arquivo existe para não ter.
+
+    Então o valor do original vira token, no mesmo formato HSL dos outros — é a
+    mesma cor, ao pixel. Vale igual nos dois temas: barra clara sobre cartão
+    escuro continua legível, e não há um par claro/escuro no original para
+    reproduzir.
+  */
+  --chart-sky: 198.6 88.7% 48.4%;
+
   --radius: 0.5rem;
   /*
     Sidebar branca sobre página slate-50 — é assim no original. Com a sidebar
@@ -191,6 +210,7 @@
   --color-chart-3: hsl(var(--chart-3));
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
+  --color-chart-sky: hsl(var(--chart-sky));
   --color-sidebar: hsl(var(--sidebar-background));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
