@@ -69,30 +69,46 @@ export function filterByPeriod<T extends { completed_at: string | null }>(
   customEnd: string,
   now: Date = new Date(),
 ): T[] {
-  let start: Date
-  let end: Date
-
-  if (period === 'custom' && customStart && customEnd) {
-    start = startOfDay(parseISO(customStart))
-    end = endOfDay(parseISO(customEnd))
-  } else if (period === 'hoje') {
-    start = startOfDay(now)
-    end = endOfDay(now)
-  } else if (period === 'semana') {
-    start = startOfWeek(now, { locale: ptBR })
-    end = endOfWeek(now, { locale: ptBR })
-  } else if (period === 'mes') {
-    start = startOfMonth(now)
-    end = endOfMonth(now)
-  } else {
-    return activities
-  }
+  const range = periodRange(period, customStart, customEnd, now)
+  if (!range) return activities
 
   return activities.filter(
     (activity) =>
       activity.completed_at != null &&
-      isWithinInterval(parseISO(activity.completed_at), { start, end }),
+      isWithinInterval(parseISO(activity.completed_at), range),
   )
+}
+
+/*
+  AS DUAS PONTAS DO PERÍODO, SEPARADAS DO FILTRO desde a correção de contagem do
+  módulo 10: o cartão "Concluídas" do Painel Executivo deixou de peneirar linhas
+  no navegador e virou `count` com as mesmas duas pontas no WHERE
+  (`useActivityCounts`). Extrair em vez de repetir é o ponto — início de semana
+  com `locale: ptBR` (domingo) escrito duas vezes é a definição de "concluídas
+  nesta semana" divergindo entre o painel e o Relatório de Produtividade sem
+  ninguém mexer em nenhum dos dois.
+
+  `null` = "não há recorte" (período "todas", ou customizado sem as duas datas),
+  que é o `return activities` do original.
+
+  `isWithinInterval` inclui as duas pontas, e é por isso que a tradução para SQL
+  é `gte`/`lte` — não `gt`/`lt`.
+*/
+export function periodRange(
+  period: ReportPeriod,
+  customStart: string,
+  customEnd: string,
+  now: Date = new Date(),
+): { start: Date; end: Date } | null {
+  if (period === 'custom' && customStart && customEnd) {
+    return { start: startOfDay(parseISO(customStart)), end: endOfDay(parseISO(customEnd)) }
+  }
+  if (period === 'hoje') return { start: startOfDay(now), end: endOfDay(now) }
+  if (period === 'semana') {
+    return { start: startOfWeek(now, { locale: ptBR }), end: endOfWeek(now, { locale: ptBR }) }
+  }
+  if (period === 'mes') return { start: startOfMonth(now), end: endOfMonth(now) }
+  return null
 }
 
 /* ── Cartões de métrica ────────────────────────────────────────────────── */

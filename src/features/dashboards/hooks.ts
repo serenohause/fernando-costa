@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useCurrentCollaborator } from '@/features/auth/hooks'
+import { periodRange } from '@/features/activities/productivity'
 import { useCollaborators } from '@/features/team/hooks'
 import { useContracts } from '@/features/contracts/hooks'
 import { useNegotiations } from '@/features/pipeline/hooks'
@@ -19,59 +20,297 @@ import {
   funnelStageTotals,
   homeTargetFor,
   operationalMetrics,
+  overdueUtcDateBound,
   overviewFinancial,
   progressMetrics,
   projectResponsibleMap,
   teamMetrics,
+  todayLocalDate,
   upcomingDeliveries,
   velocityMetrics,
 } from './list'
-import type { DashboardActivity, ExecutiveFilters, HomeTarget, OverdueReceivable } from './types'
+import type {
+  ActivityCounts,
+  DashboardActivity,
+  ExecutiveFilters,
+  FunnelCounts,
+  HomeTarget,
+  OverdueReceivable,
+} from './types'
 
 /*
   MÓDULO 10 — a camada de dados dos três painéis.
 
-  ESTE MÓDULO QUASE NÃO CONSULTA NADA. Dois hooks aqui falam com o Supabase; o
-  resto compõe os hooks de listagem que já estão no ar. Isso não é economia de
-  código, é o que faz o número do painel e o número da tela de origem serem a
-  MESMA conta: quando "Em atraso" do painel Geral e "Em atraso" da tela de
-  Recebíveis saem da mesma view, pela mesma função `is_financial_overdue`, não
-  existe o dia em que os dois discordam.
+  ESTE MÓDULO QUASE NÃO LISTA NADA. As listas vêm dos hooks que já estão no ar; o
+  que é próprio daqui são as consultas de CONTAGEM e duas leituras recortadas.
+  Reaproveitar a listagem não é economia de código, é o que faz o número do painel
+  e o número da tela de origem serem a MESMA conta: quando "Em atraso" do painel
+  Geral e "Em atraso" da tela de Recebíveis saem da mesma view, pela mesma função
+  `is_financial_overdue`, não existe o dia em que os dois discordam.
 
-  O que se herda junto: o teto de 500 linhas de cada listagem. Ver o relatório do
-  módulo — é o limite conhecido destes painéis.
+  CARTÃO DE CONTAGEM NÃO SOMA LISTA. Toda listagem deste projeto tem teto de 500
+  linhas, e somar a lista para produzir um número faz o cartão mostrar MENOS do
+  que existe, em silêncio, no dia em que a tabela passa do teto — três meses de
+  uso, no caso de `activities`. Os cartões que eram soma de lista viraram
+  `select('id', { count: 'exact', head: true })` com o critério no WHERE: a
+  contagem viaja no cabeçalho e nenhuma linha desce. Cada consulta abaixo diz qual
+  função pura ela reproduz, e a correspondência entre as duas foi conferida linha
+  a linha contra o banco antes de entrar.
+
+  O QUE CONTINUA COM TETO, e está no relatório do módulo: tudo que é SOMA de
+  valor (pipeline do funil, ganho e perdido do mês, financeiro do painel Geral) e
+  tudo que é agregação POR PROJETO (o crachá "N atividades abertas" de cada linha
+  da Evolução dos Projetos). Nenhum dos dois é contagem — o PostgREST não soma nem
+  agrupa sem uma view ou função nova, e inventá-la aqui é decisão do usuário.
 
   PERMISSÃO. Nenhum recorte de visibilidade acontece aqui: quem decide o que cada
-  pessoa lê é a RLS, que já está no ar. A consequência precisa estar dita em
-  algum lugar, e é este: os painéis mostram NÚMEROS DIFERENTES PARA PESSOAS
-  DIFERENTES, sem nada na tela avisando. O caso concreto é `activities` — a única
-  tabela do sistema com leitura estreita (migration 0038): quem não tem
-  `can_edit_menu('activities')` e não é Diretor lê só as próprias atividades e as
-  de quem coordena, então os cartões "Em Andamento", "Concluídas" e "Atrasadas"
-  do Painel Executivo são a carga DAQUELA PESSOA, com o mesmo rótulo que a
-  diretoria lê como sendo a do escritório inteiro. Está no relatório do módulo.
+  pessoa lê é a RLS, que já está no ar — e ela vale igual para `count` e para
+  `select`, então a contagem no banco não abre nada que a lista não abrisse. A
+  consequência precisa estar dita em algum lugar, e é este: os painéis mostram
+  NÚMEROS DIFERENTES PARA PESSOAS DIFERENTES, sem nada na tela avisando. O caso
+  concreto é `activities` — a única tabela do sistema com leitura estreita
+  (migration 0038): quem não tem `can_edit_menu('activities')` e não é Diretor lê
+  só as próprias atividades e as de quem coordena, então os cartões "Em Andamento",
+  "Concluídas" e "Atrasadas" do Painel Executivo são a carga DAQUELA PESSOA, com o
+  mesmo rótulo que a diretoria lê como sendo a do escritório inteiro. Está no
+  relatório do módulo.
 */
 
 export const dashboardKeys = {
   all: ['dashboards'] as const,
   activities: () => [...dashboardKeys.all, 'activities'] as const,
   overdueReceivables: () => [...dashboardKeys.all, 'overdue-receivables'] as const,
+  /*
+    A DATA ENTRA NA CHAVE porque ela entra no WHERE. Sem isso, a aba deixada
+    aberta na virada do dia continuaria mostrando a contagem de ontem em cache,
+    enquanto as telas de origem — que recalculam "hoje" a cada render — já teriam
+    virado. É o limite do WHERE, na granularidade em que ele muda: dia LOCAL para
+    atividade, dia UTC para tarefa e negociação (ver os dois limites em list.ts).
+  */
+  activityCounts: (filters: ExecutiveFilters, day: string) =>
+    [...dashboardKeys.all, 'activity-counts', filters, day] as const,
+  projectsAtRisk: (bound: string) => [...dashboardKeys.all, 'projects-at-risk', bound] as const,
+  funnelCounts: (bound: string) => [...dashboardKeys.all, 'funnel-counts', bound] as const,
 }
 
 const LIST_LIMIT = 500
 
-/* ── As duas consultas próprias deste módulo ───────────────────────────── */
+/* ── As consultas de contagem ──────────────────────────────────────────── */
 
 /*
-  As atividades como o PAINEL EXECUTIVO precisa delas — e por que `useActivities`
-  não serve.
+  Uma contagem é `count: 'exact'` com `head: true`: o Postgres conta pelo índice,
+  o número volta no cabeçalho `Content-Range` e nenhuma linha desce. Mesmo
+  precedente de `useHasAnyReceivables` (financial/hooks.ts) e `useHasAnySuppliers`.
 
-  `useActivities` filtra `deleted_at is null`, como todas as telas de atividade.
-  Este painel precisa do contrário: o original carrega tudo com o comentário
-  "Incluir todas atividades (excluídas ou não) para métricas"
-  (DashboardExecutivo.jsx:96) e depois decide bloco a bloco. O cartão
-  "Concluídas" conta a excluída; os crachás por projeto, não. Filtrar na consulta
-  tornaria impossível reproduzir o primeiro.
+  Uma função por tabela, e não uma com o nome da tabela por parâmetro: o tipo das
+  colunas aceitas em cada `eq`/`lt` vem do nome literal da tabela, e um parâmetro
+  em união deixaria passar coluna que não existe naquela metade da união.
+*/
+const activityCountQuery = () =>
+  supabase.from('activities').select('id', { count: 'exact', head: true })
+
+const negotiationCountQuery = () =>
+  supabase.from('negotiations').select('id', { count: 'exact', head: true })
+
+/* O que os cartões mostram enquanto a contagem não chegou — os mesmos zeros que
+   eles mostravam com a lista ainda vazia. */
+const EMPTY_ACTIVITY_COUNTS: ActivityCounts = {
+  inProgress: 0,
+  completed: 0,
+  overdue: 0,
+  forecast: 0,
+}
+
+const EMPTY_FUNNEL_COUNTS: FunnelCounts = { activeCount: 0, atRiskCount: 0 }
+
+async function countOf(
+  query: PromiseLike<{ count: number | null; error: { message: string } | null }>,
+): Promise<number> {
+  const { count, error } = await query
+  if (error) throw error
+  return count ?? 0
+}
+
+/*
+  O RECORTE DOS FILTROS DO TOPO, agora em WHERE — era `scopedActivities`
+  (dashboards/list.ts), que peneirava a lista de 500 em memória:
+  período pela data de CONCLUSÃO, depois projeto, depois colaborador.
+
+  AS DUAS PONTAS DO PERÍODO SÃO AS MESMAS do Relatório de Produtividade, e não uma
+  segunda escrita delas: `periodRange` é a função que `filterByPeriod` usa por
+  dentro (activities/productivity.ts). "Concluídas nesta semana" no painel e no
+  relatório são literalmente o mesmo intervalo, inclusive na borda do domingo.
+  `isWithinInterval` inclui as duas pontas, por isso `gte`/`lte`.
+
+  ATIVIDADE EXCLUÍDA ENTRA AQUI, e é do original: o filtro dele só olha
+  `data_conclusao_real`. Consequência visível: o cartão "Concluídas" conta
+  atividade que foi excluída depois, enquanto o crachá "N atividades abertas" de
+  cada projeto, mais abaixo no mesmo painel, não conta. Por isso NÃO há
+  `deleted_at is null` nestas duas consultas — e há nas outras duas. Reproduzido e
+  registrado.
+*/
+function scopedActivityCount(filters: ExecutiveFilters, now: Date) {
+  let query = activityCountQuery()
+
+  const range = periodRange(filters.period, '', '', now)
+  if (range) {
+    query = query
+      .gte('completed_at', range.start.toISOString())
+      .lte('completed_at', range.end.toISOString())
+  }
+
+  if (filters.projectId) query = query.eq('project_id', filters.projectId)
+  if (filters.collaboratorId) query = query.eq('collaborator_id', filters.collaboratorId)
+
+  return query
+}
+
+/*
+  Os quatro números do bloco "Visão Geral" do Painel Executivo, contados no banco.
+  Substituem as quatro somas de lista que estavam em `activityMetrics`
+  (dashboards/list.ts), que hoje só faz a divisão de "Produtividade".
+
+  CADA WHERE E A LINHA QUE ELE REPRODUZ:
+
+  1. "Em Andamento" — `alive.filter(status === 'in_progress')`. `alive` é
+     `deleted_at == null`, o mesmo filtro que todas as telas de atividade aplicam.
+  2. "Atrasadas" — `alive.filter(isOverdue)`, com `isOverdue` de
+     activities/list.ts: `status !== 'completed'` e prazo antes de hoje. A
+     comparação de lá é entre meia-noite LOCAL do prazo e meia-noite LOCAL de
+     hoje, ou seja, comparação de datas puras — aqui é `end_date < hoje`, com o
+     "hoje" de `todayLocalDate`. Nenhum fuso no meio, nos dois lados.
+  3. "Concluídas" — `scoped.filter(status === 'completed' && completed_at != null)`.
+     As duas condições continuam escritas apesar de o check
+     `activities_completed_at_matches_status_check` (migration 0037) já as amarrar
+     uma na outra: o critério é o da função, não o que o schema deixa passar.
+  4. O denominador de "Produtividade" — `scoped.filter(!isAfter(start_date, now))`.
+     `start_date` é coluna `date` lida como meia-noite local, e meia-noite de hoje
+     nunca é depois de agora, então "não começa depois de agora" é
+     `start_date <= hoje`. `start_date` é NOT NULL no schema, então o
+     `a.prazo_inicio &&` do original continua sendo ramo morto.
+
+  AS QUATRO NUMA CHAMADA SÓ, em paralelo: são quatro requisições sem corpo, e
+  esperá-las em série faria o bloco piscar quatro vezes.
+
+  DIFERENÇA EM RELAÇÃO AO QUE ESTAVA AQUI: mexer nos filtros do topo agora dispara
+  consulta, e antes era recorte em memória sobre o cache. São duas contagens sem
+  linha nenhuma no corpo — e é o preço de o número não depender de quais 500
+  linhas desceram.
+*/
+export function useActivityCounts(filters: ExecutiveFilters) {
+  const now = new Date()
+  const today = todayLocalDate(now)
+
+  return useQuery({
+    queryKey: dashboardKeys.activityCounts(filters, today),
+    queryFn: async (): Promise<ActivityCounts> => {
+      const [inProgress, overdue, completed, forecast] = await Promise.all([
+        countOf(activityCountQuery().is('deleted_at', null).eq('status', 'in_progress')),
+        countOf(
+          activityCountQuery()
+            .is('deleted_at', null)
+            .neq('status', 'completed')
+            .lt('end_date', today),
+        ),
+        countOf(
+          scopedActivityCount(filters, now)
+            .eq('status', 'completed')
+            .not('completed_at', 'is', null),
+        ),
+        countOf(scopedActivityCount(filters, now).lte('start_date', today)),
+      ])
+
+      return { inProgress, completed, overdue, forecast }
+    },
+  })
+}
+
+/*
+  "Em Risco" do Painel Executivo: projeto ativo do fluxo com ALGUMA tarefa
+  atrasada. Substitui `isProjectAtRisk` sobre a lista de tarefas, que baixava até
+  500 tarefas COM O CHECKLIST INTEIRO junto (`useTasks`) para somar um inteiro.
+
+  O CRITÉRIO, dos dois lados do join:
+
+  - o projeto é o recorte de `activeFlowProjects` sobre `useProjects`:
+    `visible_in_list` (o WHERE que a lista de Projetos já usa) menos concluído,
+    menos suspenso, menos fase Finalizado.
+  - a tarefa é `isTaskOverdue` (projects/list.ts), a régua do crachá vermelho do
+    kanban: não concluída, com prazo, e prazo antes de agora — onde "antes de
+    agora" é a leitura UTC do original. Ver `overdueUtcDateBound`.
+
+  `!inner` É O "ALGUMA": o embed interno derruba o projeto que não tem nenhuma
+  tarefa vencida, e o PostgREST devolve UMA linha por projeto (os filhos vêm
+  aninhados), então o projeto com três tarefas vencidas conta uma vez. Conferido
+  contra o caminho antigo com fixture de três tarefas vencidas no mesmo projeto.
+
+  O nome da FK é obrigatório no embed: as FK deste módulo são compostas
+  (`(project_id, tenant_id)`), como no resto do sistema.
+*/
+export function useAtRiskProjectCount() {
+  const bound = overdueUtcDateBound()
+
+  return useQuery({
+    queryKey: dashboardKeys.projectsAtRisk(bound),
+    queryFn: async (): Promise<number> =>
+      countOf(
+        supabase
+          .from('projects')
+          .select('id, tasks!tasks_project_id_fkey!inner(id)', { count: 'exact', head: true })
+          .eq('visible_in_list', true)
+          .not('status', 'in', '(completed,suspended)')
+          .neq('current_phase', 'finished')
+          .neq('tasks.status', 'completed')
+          .not('tasks.due_date', 'is', null)
+          .lte('tasks.due_date', bound),
+      ),
+  })
+}
+
+/*
+  Os dois cartões de CONTAGEM do bloco 1 do painel comercial — "Negociações
+  Ativas" e "Negociações em Risco". Saíam de `funnelMetrics` somando a lista.
+
+  - ativas: `status === 'active'`, sem recorte de período, como no original (o
+    seletor de mês do cabeçalho não alcança este bloco).
+  - em risco: as ativas com previsão de fechamento vencida, régua de
+    `isExpectedCloseOverdue` (pipeline/filters.ts) — a mesma do crachá do quadro,
+    com a mesma leitura UTC da coluna `date`. Ver `overdueUtcDateBound`.
+
+  Os dois cartões de VALOR do mesmo bloco NÃO estão aqui: soma não é contagem.
+  Ver a ressalva inteira em `funnelMetrics`.
+*/
+export function useFunnelCounts() {
+  const bound = overdueUtcDateBound()
+
+  return useQuery({
+    queryKey: dashboardKeys.funnelCounts(bound),
+    queryFn: async (): Promise<FunnelCounts> => {
+      const [activeCount, atRiskCount] = await Promise.all([
+        countOf(negotiationCountQuery().eq('status', 'active')),
+        countOf(
+          negotiationCountQuery()
+            .eq('status', 'active')
+            .not('expected_close_date', 'is', null)
+            .lte('expected_close_date', bound),
+        ),
+      ])
+
+      return { activeCount, atRiskCount }
+    },
+  })
+}
+
+/* ── As duas leituras próprias deste módulo ────────────────────────────── */
+
+/*
+  As atividades como o bloco "Evolução dos Projetos" precisa delas — e por que
+  `useActivities` não serve.
+
+  UM CONSUMIDOR SÓ, DEPOIS QUE OS CARTÕES VIRARAM CONTAGEM: `progressMetrics`, que
+  cruza as atividades por `project_id` para o crachá "N atividades abertas" de
+  cada linha da lista de projetos. Os quatro cartões do topo saíam daqui e hoje
+  saem de `useActivityCounts`.
 
   RECORTE ENXUTO DE COLUNAS, sem os quatro embeds de `useActivities`: nenhum
   bloco renderizado deste painel mostra nome de atividade, de responsável ou de
@@ -81,9 +320,22 @@ const LIST_LIMIT = 500
   ORDEM E TETO. `Atividade.list('-data_conclusao_real')` é como o original
   carrega. Aqui é o mesmo campo (`completed_at`), com o NULLS FIRST que o
   Postgres aplica por padrão em DESC — o que põe as atividades ABERTAS na frente.
-  É deliberado: se o teto de 500 cortar alguma coisa, é melhor que corte
-  atividade velha já concluída do que atividade em aberto, que é o que os
-  cartões "Em Andamento" e "Atrasadas" contam.
+  É deliberado: das três contagens por projeto, duas ("abertas" e "atrasadas")
+  olham atividade em aberto, então se o teto cortar alguma coisa é melhor que
+  corte atividade velha já concluída.
+
+  ESTE É O TETO QUE SOBROU no painel executivo, e ele continua de pé: passadas
+  500 atividades, os crachás por projeto contam menos do que existe. Agregação por
+  projeto não é `count` com WHERE — precisa de `group by`, ou seja, de uma view
+  nova, e isso é decisão do usuário. Está no relatório do módulo.
+
+  DUAS SOBRAS DA MUDANÇA, também para o relatório: `deleted_at` continua vindo, e
+  a consulta continua sem `deleted_at is null`, porque era o cartão "Concluídas"
+  que precisava distinguir excluída de viva dentro da mesma consulta (o
+  "Incluir todas atividades (excluídas ou não) para métricas" de
+  DashboardExecutivo.jsx:96). O único consumidor que restou descarta as excluídas
+  (`alive`, em `progressMetrics`). Estreitar a consulta não muda número nenhum em
+  tela — por isso não foi feito de surpresa junto com a correção de contagem.
 */
 const DASHBOARD_ACTIVITY_COLUMNS =
   'id, status, start_date, end_date, completed_at, deleted_at, project_id, collaborator_id, priority, total_minutes'
@@ -236,14 +488,21 @@ export function useOverviewDashboard(period: MonthYear) {
   era segurar o esqueleto de carregamento até as quatro chegarem. Portá-las
   significaria baixar quatro listas inteiras para atrasar a renderização.
 
-  Os filtros do topo NÃO disparam consulta nova — são recorte em memória sobre o
-  que já está em cache, como no original. Por isso são argumento do hook e não
-  parte da chave.
+  OS FILTROS DO TOPO DISPARAM AS DUAS CONTAGENS que dependem deles ("Concluídas" e
+  o denominador de "Produtividade") e mais nada: o resto do painel continua sendo
+  recorte em memória sobre o cache, como no original. Duas requisições sem corpo
+  por mudança de filtro é o preço de o cartão não depender de quais 500 linhas
+  desceram — ver `useActivityCounts`.
 
   `useProjects` já traz o recorte "visível no fluxo"; `activeFlowProjects` aplica
   a segunda metade de `getActiveFlowProjects`. `useTasks` traz todas as tarefas e
   `flowTasks` as reduz às dos projetos visíveis — que é o que
   `getFlowTasks` faz no original.
+
+  `useTasks` CONTINUA SENDO CARREGADO, mesmo com "Em Risco" contado no banco: o
+  mapa de responsáveis do card (`projectResponsibleMap`) sai das tarefas do fluxo,
+  e três blocos do painel dependem dele. O que deixou de existir é a soma da lista
+  para produzir um cartão.
 */
 export function useExecutiveDashboard(filters: ExecutiveFilters) {
   const projectsQuery = useProjects()
@@ -251,6 +510,8 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
   const progressQuery = useProjectProgress()
   const collaboratorsQuery = useCollaborators()
   const activitiesQuery = useDashboardActivities()
+  const activityCountsQuery = useActivityCounts(filters)
+  const atRiskQuery = useAtRiskProjectCount()
 
   const allProjects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const allTasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data])
@@ -267,13 +528,15 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
   const tasks = useMemo(() => flowTasks(allTasks, allProjects), [allTasks, allProjects])
   const responsibleByProject = useMemo(() => projectResponsibleMap(tasks), [tasks])
 
+  /* Zerado enquanto a contagem não chega, que é o que o painel mostrava com a
+     lista ainda vazia. */
   const activity = useMemo(
-    () => activityMetrics(activities, filters),
-    [activities, filters],
+    () => activityMetrics(activityCountsQuery.data ?? EMPTY_ACTIVITY_COUNTS),
+    [activityCountsQuery.data],
   )
   const operational = useMemo(
-    () => operationalMetrics(projects, tasks, progressByProject),
-    [projects, tasks, progressByProject],
+    () => operationalMetrics(projects, progressByProject, atRiskQuery.data ?? 0),
+    [projects, progressByProject, atRiskQuery.data],
   )
   const team = useMemo(
     () => teamMetrics(collaborators, projects, responsibleByProject, filters),
@@ -302,6 +565,8 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
       progressQuery,
       collaboratorsQuery,
       activitiesQuery,
+      activityCountsQuery,
+      atRiskQuery,
     ]),
   }
 }
@@ -311,12 +576,14 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
 /*
   Um hook para o painel inteiro (DashboardComercial.jsx).
 
-  UMA CONSULTA SÓ. O original também baixa `Contract.list()` (linha 49) e não usa
-  o resultado em lugar nenhum — só no `isLoading`. Não foi portada.
+  UMA LISTA E DUAS CONTAGENS. O original também baixa `Contract.list()` (linha 49)
+  e não usa o resultado em lugar nenhum — só no `isLoading`. Não foi portada.
 
   `useNegotiations` é o MESMO hook da tela de Negociações: o funil que o painel
   soma é o funil que o quadro desenha, sem uma segunda leitura que possa
-  divergir.
+  divergir. A lista continua sendo necessária pelos sete drill-downs e por tudo
+  que é SOMA de valor; o que saiu dela foram os dois cartões de contagem do bloco
+  1 — ver `useFunnelCounts` e a ressalva em `funnelMetrics`.
 
   ATENÇÃO PARA QUEM MONTAR A TELA: só os blocos 2 e 2B respeitam o seletor de
   mês/ano do cabeçalho. Funil, gráficos por etapa e velocidade somam o funil
@@ -326,10 +593,14 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
 */
 export function useCommercialDashboard(period: MonthYear) {
   const negotiationsQuery = useNegotiations()
+  const funnelCountsQuery = useFunnelCounts()
 
   const negotiations = useMemo(() => negotiationsQuery.data ?? [], [negotiationsQuery.data])
 
-  const funnel = useMemo(() => funnelMetrics(negotiations), [negotiations])
+  const funnel = useMemo(
+    () => funnelMetrics(negotiations, funnelCountsQuery.data ?? EMPTY_FUNNEL_COUNTS),
+    [negotiations, funnelCountsQuery.data],
+  )
   const closing = useMemo(() => closingMetrics(negotiations, period), [negotiations, period])
   const stages = useMemo(() => funnelStageTotals(negotiations), [negotiations])
   const velocity = useMemo(() => velocityMetrics(negotiations), [negotiations])
@@ -341,7 +612,7 @@ export function useCommercialDashboard(period: MonthYear) {
     closing,
     stages,
     velocity,
-    ...combine([negotiationsQuery]),
+    ...combine([negotiationsQuery, funnelCountsQuery]),
   }
 }
 

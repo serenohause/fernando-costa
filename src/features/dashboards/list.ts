@@ -1,4 +1,4 @@
-import { differenceInDays, isAfter, parseISO } from 'date-fns'
+import { differenceInDays, format, parseISO } from 'date-fns'
 import {
   FUNNEL_STAGE,
   PROJECT_PHASE,
@@ -9,16 +9,15 @@ import {
 } from '@/lib/enums'
 import { redirectTargetFor } from '@/features/auth/access'
 import { isOverdue as isActivityOverdue } from '@/features/activities/list'
-import { filterByPeriod } from '@/features/activities/productivity'
 import { monthRange, summarizeFinancial } from '@/features/financial/hooks'
 import type { MonthYear, PayableRow, ReceivableRow } from '@/features/financial/types'
 import { isExpectedCloseOverdue } from '@/features/pipeline/filters'
 import type { NegotiationRow } from '@/features/pipeline/types'
-import { isTaskOverdue } from '@/features/projects/list'
 import type { ProjectProgress, ProjectRow, TaskRow } from '@/features/projects/types'
 import type { Collaborator } from '@/features/team/types'
 import type { ContractRow } from '@/features/contracts/types'
 import type {
+  ActivityCounts,
   ActivityMetrics,
   ClosedContracts,
   ClosingMetrics,
@@ -26,6 +25,7 @@ import type {
   CommercialDrilldown,
   DashboardActivity,
   ExecutiveFilters,
+  FunnelCounts,
   FunnelMetrics,
   FunnelStageTotals,
   HomeTarget,
@@ -48,6 +48,51 @@ import type {
 
   Mesmo precedente de suppliers/list.ts, activities/list.ts e projects/list.ts.
 */
+
+/* ═══ Os dois limites de data que viram WHERE ════════════════════════════ */
+
+/*
+  Cartão de contagem é `count` no banco (ver hooks.ts), e toda regra de "atrasado"
+  compara com hoje. Traduzir "hoje" para um WHERE exige escrever qual das DUAS
+  definições de hoje o sistema está usando naquela regra — e este projeto tem as
+  duas, de propósito.
+
+  Elas ficam aqui, e não soltas na consulta, porque cada uma corresponde a uma
+  função pura que continua existindo e continua sendo a régua da tela de origem.
+  Se algum dia as duas virarem uma só, é aqui e nas funções puras que a mudança
+  acontece junto — não em seis `WHERE` espalhados.
+*/
+
+/*
+  A data de hoje NO FUSO DO NAVEGADOR.
+
+  É a régua de `isOverdue` (activities/list.ts), a versão CORRIGIDA:
+  `isBefore(parseISO(end_date), startOfDay(now))` compara meia-noite local do
+  prazo com meia-noite local de hoje, ou seja, comparação de datas puras, sem
+  fuso no meio. `end_date < todayLocalDate(now)` é literalmente a mesma pergunta.
+*/
+export function todayLocalDate(now: Date = new Date()): string {
+  return format(now, 'yyyy-MM-dd')
+}
+
+/*
+  A data de hoje COMO O ORIGINAL A LÊ, e ela vale um dia a menos por três horas
+  todo dia em Goiânia.
+
+  É a régua de `isTaskOverdue` (projects/list.ts) e de `isExpectedCloseOverdue`
+  (pipeline/filters.ts): `new Date(coluna_date) < now` lê "2026-08-04" como
+  meia-noite EM UTC, então a partir das 21h locais do dia anterior o prazo de
+  hoje já conta como vencido. As duas telas do pipeline e o kanban de tarefas
+  estão NO AR com esse comportamento; corrigi-lo aqui faria o painel discordar
+  deles, e não é decisão deste módulo.
+
+  `meia-noite_utc(d) < now` equivale a `d <= dia UTC de (now - 1ms)`, inclusive
+  no instante exato da meia-noite UTC — que é o único ponto em que o `<=` ingênuo
+  sobre o dia UTC de `now` erraria por uma linha.
+*/
+export function overdueUtcDateBound(now: Date = new Date()): string {
+  return new Date(now.getTime() - 1).toISOString().slice(0, 10)
+}
 
 /* ═══ Roteamento de entrada (Home.jsx) ═══════════════════════════════════ */
 
@@ -299,16 +344,6 @@ export function projectResponsibleMap(tasks: TaskRow[]): Map<string, ProjectResp
   return map
 }
 
-/* `isProjectAtRisk`: o projeto tem alguma tarefa atrasada. A régua de "atrasada"
-   é a de `projects/list.ts`, a mesma do crachá vermelho do kanban. */
-export function isProjectAtRisk(
-  projectId: string,
-  tasks: TaskRow[],
-  now: Date = new Date(),
-): boolean {
-  return tasks.some((task) => task.project_id === projectId && isTaskOverdue(task, now))
-}
-
 /*
   `isProjectBlocked`: checklist obrigatório incompleto.
 
@@ -332,73 +367,34 @@ export function isProjectBlocked(progress: ProjectProgress | undefined): boolean
 /* ═══ Painel 2: "Painel Executivo" ═══════════════════════════════════════ */
 
 /*
-  O recorte que os filtros do topo aplicam às atividades
-  (DashboardExecutivo.jsx:112-148): período pela data de CONCLUSÃO, depois
-  projeto, depois colaborador.
-
-  O período reusa `filterByPeriod` do Relatório de Produtividade — é o mesmo
-  recorte, e ter duas cópias faria "concluídas nesta semana" significar coisas
-  diferentes em duas telas que qualquer um compara.
-
-  ATIVIDADE EXCLUÍDA ENTRA AQUI. É do original (o filtro só olha
-  `data_conclusao_real`), e tem consequência visível: o cartão "Concluídas" conta
-  atividade que foi excluída depois, enquanto o crachá "N atividades abertas" de
-  cada projeto, mais abaixo no mesmo painel, não conta. Os dois números saem da
-  mesma consulta e usam critérios diferentes. Reproduzido e registrado.
-*/
-function scopedActivities(
-  activities: DashboardActivity[],
-  filters: ExecutiveFilters,
-  now: Date,
-): DashboardActivity[] {
-  const byPeriod = filterByPeriod(activities, filters.period, '', '', now)
-
-  return byPeriod.filter((activity) => {
-    if (filters.projectId && activity.project_id !== filters.projectId) return false
-    if (filters.collaboratorId && activity.collaborator_id !== filters.collaboratorId) return false
-    return true
-  })
-}
-
-/*
   Os quatro cartões do bloco "Visão Geral" (DashboardExecutivo.jsx:151-261).
 
+  AS QUATRO CONTAGENS VÊM DO BANCO, uma a uma, com o critério no WHERE — ver
+  `useActivityCounts` em hooks.ts, onde cada consulta está escrita ao lado da
+  regra que reproduz. Elas somavam a lista em memória, e a lista tem teto de 500
+  linhas: 8 pessoas × 5 atividades por semana estouram esse teto em cerca de três
+  meses, e o cartão passaria a mostrar um número menor que o real sem nada avisar.
+  O que sobra para esta função é a única conta que não é contagem — a divisão.
+
   DOIS DELES IGNORAM OS FILTROS DO TOPO, e é do original: "Em Andamento" e
-  "Atrasadas" somam `todasAtividades`, sem período, sem projeto e sem
-  colaborador. Só "Concluídas" e "Produtividade" respeitam a barra de filtros.
-  Quem desenhar a tela precisa saber disso — a barra fica logo acima dos quatro.
+  "Atrasadas" contam tudo, sem período, sem projeto e sem colaborador. Só
+  "Concluídas" e "Produtividade" respeitam a barra de filtros. Quem desenhar a
+  tela precisa saber disso — a barra fica logo acima dos quatro.
 
   "PRODUTIVIDADE" É UMA MÉTRICA QUEBRADA, e está reproduzida como tal. A conta é
-  `concluídas / previstas`, mas "previstas" sai do MESMO conjunto já filtrado por
+  `concluídas / previstas`, mas "previstas" sai do MESMO recorte já filtrado por
   data de conclusão — ou seja, de atividades que necessariamente já foram
   concluídas. O denominador é praticamente igual ao numerador, e o cartão marca
   100% quase sempre. O rótulo na tela é "Meta vs concluído"; não há meta em lugar
   nenhum do sistema. Corrigir exige decidir o que é a meta, e isso é do usuário.
-
-  `start_date` é NOT NULL no schema (migration 0037), então o `a.prazo_inicio &&`
-  do original é ramo morto e não foi portado.
 */
-export function activityMetrics(
-  activities: DashboardActivity[],
-  filters: ExecutiveFilters,
-  now: Date = new Date(),
-): ActivityMetrics {
-  const alive = activities.filter((activity) => activity.deleted_at == null)
-
-  const inProgress = alive.filter((activity) => activity.status === 'in_progress').length
-  const overdue = alive.filter((activity) => isActivityOverdue(activity, now)).length
-
-  const scoped = scopedActivities(activities, filters, now)
-  const completed = scoped.filter(
-    (activity) => activity.status === 'completed' && activity.completed_at != null,
-  ).length
-  const forecast = scoped.filter((activity) => !isAfter(parseISO(activity.start_date), now)).length
-
+export function activityMetrics(counts: ActivityCounts): ActivityMetrics {
   return {
-    inProgress,
-    completed,
-    overdue,
-    productivity: forecast > 0 ? Math.round((completed / forecast) * 100) : 0,
+    inProgress: counts.inProgress,
+    completed: counts.completed,
+    overdue: counts.overdue,
+    productivity:
+      counts.forecast > 0 ? Math.round((counts.completed / counts.forecast) * 100) : 0,
   }
 }
 
@@ -417,11 +413,22 @@ export const EXECUTIVE_PHASES: ProjectPhase[] = (
   Object.keys(PROJECT_PHASE) as ProjectPhase[]
 ).filter((phase) => phase !== 'finished' && phase !== 'post_approval')
 
+/*
+  "EM RISCO" VEM DE FORA, contado no banco (`useAtRiskProjectCount`): é a única
+  das cinco medidas deste bloco que dependia da lista de TAREFAS, e a lista de
+  tarefas é a que cresce (~100 projetos × 10 a 30 tarefas), além de vir com o
+  checklist inteiro pendurado no embed. Contar projeto vencido não precisa de
+  nada disso.
+
+  As outras quatro continuam sobre a lista de PROJETOS, que a tela toda já usa —
+  contá-las no banco criaria um segundo caminho para o mesmo número, com risco de
+  o cartão discordar do gráfico logo abaixo dele. Elas herdam o teto de 500
+  projetos, que hoje é ~100 e é o menor dos limites do sistema.
+*/
 export function operationalMetrics(
   activeProjects: ProjectRow[],
-  tasks: TaskRow[],
   progressByProject: Map<string, ProjectProgress>,
-  now: Date = new Date(),
+  atRiskCount: number,
 ): OperationalMetrics {
   return {
     totalProjects: activeProjects.length,
@@ -432,7 +439,7 @@ export function operationalMetrics(
     })),
     awaitingClient: activeProjects.filter((project) => project.current_phase === 'awaiting_client')
       .length,
-    atRisk: activeProjects.filter((project) => isProjectAtRisk(project.id, tasks, now)).length,
+    atRisk: atRiskCount,
     blocked: activeProjects.filter((project) => isProjectBlocked(progressByProject.get(project.id)))
       .length,
   }
@@ -529,6 +536,12 @@ export function teamMetrics(
   A CONTAGEM DE ATIVIDADES ignora as excluídas (é o que o original faz aqui), ao
   contrário do cartão "Concluídas" no topo do mesmo painel.
 
+  E ELA É A ÚLTIMA SOMA DE LISTA DO PAINEL, com o teto de 500 que os cartões
+  deixaram de ter: são três contagens POR PROJETO, e agregação por projeto não
+  cabe num `count` com WHERE — precisa de `group by`, ou seja, de uma view nova.
+  Passadas 500 atividades no escritório, o crachá "N atividades abertas" de cada
+  linha conta menos do que existe. Está no relatório do módulo.
+
   O original ordena duas vezes (linhas 399 e 434) com o mesmo critério; aqui é
   uma vez só, com o mesmo resultado.
 */
@@ -585,19 +598,34 @@ const sumEstimated = (negotiations: NegotiationRow[]): number =>
 
   "Em risco" é previsão de fechamento vencida, com a régua compartilhada do
   pipeline (`isExpectedCloseOverdue`), a mesma do crachá do quadro.
+
+  METADE DESTE BLOCO VEM DO BANCO E METADE NÃO, e isso é visível na tela quando o
+  funil passar de 500 negociações (~2 anos, a 300/ano):
+
+  - "Negociações Ativas" e "Em Risco" são CONTAGEM, e viraram `count` com o
+    critério no WHERE (`useFunnelCounts`). Números certos em qualquer tamanho.
+  - "Pipeline Total" e "Ticket Médio" são SOMA, e soma não é contagem: o
+    PostgREST não agrega sem uma view ou função nova. Continuam saindo da lista,
+    logo continuam com teto de 500.
+
+  Consequência para quem desenha a tela, e ela precisa estar dita: passado o teto,
+  "Ticket Médio" deixa de ser "Pipeline Total ÷ Negociações Ativas" — ele é
+  calculado sobre as 500 que desceram, para não misturar uma soma parcial com uma
+  contagem completa e produzir uma média que não é média de nada. Resolver de
+  verdade é uma view de totais do funil, e é decisão do usuário.
 */
 export function funnelMetrics(
   negotiations: NegotiationRow[],
-  now: Date = new Date(),
+  counts: FunnelCounts,
 ): FunnelMetrics {
   const active = negotiations.filter((negotiation) => negotiation.status === 'active')
   const totalValue = sumEstimated(active)
 
   return {
-    activeCount: active.length,
+    activeCount: counts.activeCount,
     totalValue,
     averageTicket: active.length > 0 ? totalValue / active.length : 0,
-    atRiskCount: active.filter((negotiation) => isExpectedCloseOverdue(negotiation, now)).length,
+    atRiskCount: counts.atRiskCount,
   }
 }
 

@@ -16,9 +16,17 @@ import type { ReportPeriod } from '@/features/activities/productivity'
 
   O que vem de função pura já escrita e não é reescrito:
   - `summarizeFinancial` (financial/hooks.ts) — os quatro cartões do financeiro
-  - `filterByPeriod` (activities/productivity.ts) — o recorte hoje/semana/mês
+  - `periodRange`/`filterByPeriod` (activities/productivity.ts) — o recorte
+    hoje/semana/mês
   - `isOverdue` (activities/list.ts), `isTaskOverdue` (projects/list.ts),
     `isExpectedCloseOverdue` (pipeline/filters.ts)
+
+  CARTÃO DE CONTAGEM É CONTADO NO BANCO, e não somando a lista: `ActivityCounts` e
+  `FunnelCounts` (mais abaixo) são o que volta de `count: 'exact'` com o critério
+  no WHERE. As funções puras acima continuam sendo a régua — cada consulta em
+  hooks.ts diz qual delas está reproduzindo, e a tradução foi conferida contra o
+  banco. O que NÃO virou contagem (soma de valor, agregação por projeto) continua
+  saindo da lista e continua com teto de 500 linhas.
 */
 
 /* ── Roteamento de entrada (Home.jsx) ──────────────────────────────────── */
@@ -114,6 +122,21 @@ export type DashboardActivity = Pick<
   | 'total_minutes'
 >
 
+/*
+  O que o BANCO conta para o bloco "Visão Geral" — quatro `count` com o critério
+  no WHERE, e nenhuma linha descendo. Ver `useActivityCounts`.
+
+  `forecast` não é cartão: é o denominador de "Produtividade", e está aqui porque
+  o numerador e o denominador precisam sair do MESMO recorte para a divisão
+  significar alguma coisa.
+*/
+export type ActivityCounts = {
+  inProgress: number
+  completed: number
+  overdue: number
+  forecast: number
+}
+
 /* Os quatro cartões do bloco "Visão Geral". */
 export type ActivityMetrics = {
   inProgress: number
@@ -180,6 +203,13 @@ export type ProgressMetrics = {
 }
 
 /* ── Painel 3: "Dashboard Comercial" (DashboardComercial.jsx) ──────────── */
+
+/*
+  Os dois cartões de CONTAGEM do bloco 1, contados no banco (`useFunnelCounts`).
+  Os dois de VALOR do mesmo bloco continuam saindo da lista, porque soma não é
+  contagem — a ressalva inteira está em `funnelMetrics`.
+*/
+export type FunnelCounts = { activeCount: number; atRiskCount: number }
 
 /* Bloco 1 — sobre TODAS as negociações ativas, sem recorte de período. */
 export type FunnelMetrics = {
