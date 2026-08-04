@@ -34,6 +34,7 @@
     "test:installments": "supabase/tests/run-sql.sh supabase/tests/installments.sql",
     "seed:financial": "node supabase/seed/07-financial.mjs",
     "test:schema:budget": "supabase/tests/run-sql.sh supabase/tests/budget-schema.sql",
+    "test:schema:map": "supabase/tests/run-sql.sh supabase/tests/map-schema.sql",
     "seed:budget": "node supabase/seed/08-budget.mjs",
     "test:forged": "node supabase/tests/forged-token.mjs"
   },

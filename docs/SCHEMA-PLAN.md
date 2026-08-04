@@ -864,9 +864,35 @@ conta quantos filhos existem — e pela regra do projeto não se grava.
 
 ## Módulo 9 — Mapa
 
-`map_properties` (de `PropriedadeMapa`). `lat`/`lng` viram `geography(Point)`
-com PostGIS, e não dois `numeric` soltos — a tela agrupa marcadores por
-proximidade (`react-leaflet-cluster`) e filtra por raio.
+`map_properties` (de `PropriedadeMapa`), mais `map_property_land_types` e
+`map_property_purposes` (os dois campos de array), mais as oito colunas `site_*`
+que a "Decisão 1" adiou em `projects`. Migrations 0056–0058.
+
+**`lat`/`lng` ficaram como dois `numeric(9,6)`, sem PostGIS.** Este parágrafo
+dizia o contrário — que virariam `geography(Point)` porque "a tela agrupa
+marcadores por proximidade (`react-leaflet-cluster`) e filtra por raio". As duas
+justificativas foram conferidas contra o original e são **falsas**:
+`react-leaflet-cluster` não é importado em lugar nenhum (`MapaProjetos.jsx` põe
+um `<Marker>` por propriedade), e não existe filtro por raio — os filtros são
+cliente, nome, status, cidade e finalidade, todos por igualdade ou substring, no
+navegador. O único cálculo de distância do sistema
+(`MapaProjetos.jsx:50`) decide se a animação de voo do mapa dura 900ms ou 1800ms.
+
+Se um dia entrar busca por raio ou agrupamento no servidor, a migração
+`numeric` → `geography` é trivial e passa a ter quem a peça.
+
+**Os dois campos de array viraram tabela-filha de texto livre**, e não array de
+enum: o formulário aceita categoria digitada na hora. Mesmo tratamento que a 0032
+deu aos mesmos dois campos em `Project`.
+
+**A duplicação continua de pé, e agora está documentada no schema.** São dois
+lugares guardando onde a obra fica (`projects.site_*`, geocodificado do endereço
+do contrato pela API do Google; `map_properties`, pino criado a mão com reverse
+geocoding do Nominatim), nada os sincroniza, e o mapa lê o segundo. Unificar
+mudaria o comportamento do original — é decisão do usuário, não do schema. O
+`COMMENT` das colunas dos dois lados registra isso, e os casos 7.x de
+`supabase/tests/map-schema.sql` impedem que a duplicação seja confundida com
+sincronia.
 
 ## Módulo 10 — Dashboards
 

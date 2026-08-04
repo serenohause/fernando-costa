@@ -301,10 +301,48 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
      (array['eb600000-0000-4000-8000-000000000001'::uuid,
             'eb600000-0000-4000-8000-000000000002'::uuid])
        [1 + (select count(*) from public.budget_item_quotes q
-             where q.item_id = 'eb800000-0000-4000-8000-000000000001')]$$);
+             where q.item_id = 'eb800000-0000-4000-8000-000000000001')]$$),
 
-  -- Modulo 9: (9, 'map_properties', 'map', ..., ...)
-  -- e assim por diante.
+  -- Modulo 9. UMA chave de menu para as tres tabelas ('Mapa de Projetos' e item
+  -- unico da sidebar do original, Layout.jsx:339), entao o par E1/E3 basta e nao
+  -- ha secao 1 no teste proprio deste modulo.
+  --
+  -- A coordenada sai de um contador, e nao de um literal, pelo mesmo motivo das
+  -- outras filhas terem nome contado: nao ha unicidade sobre lat/lng, mas o valor
+  -- fixo (0,0) e recusado pelo check de sentinela e o teste passaria a afirmar
+  -- que o check existe em vez de que a policy funciona. Latitude fixa em Goiania,
+  -- longitude andando de um milionesimo por linha ja gravada - fica dentro da
+  -- faixa valida para qualquer numero de casos.
+  (9, 'map_properties', 'map',
+   'lat, lng',
+   $$-16.686891, -49.264794 + (select count(*) from public.map_properties m
+                               where m.tenant_id = 'e1111111-1111-4111-8111-111111111111') / 1000000.0$$,
+   $$-16.686891, -49.264794 + (select count(*) from public.map_properties m
+                               where m.tenant_id = 'e2222222-2222-4222-8222-222222222222') / 1000000.0$$),
+
+  -- As duas filhas tem unique (map_property_id, tag) e a suite grava a mesma
+  -- "linha minima valida" duas vezes no escritorio A (a fixture dos casos B, e o
+  -- INSERT do caso C1). Com valor fixo, C1 receberia 23505 e o caso "quem tem
+  -- can_edit CRIA" passaria a afirmar que a unicidade existe. A contagem e
+  -- filtrada pela linha-mae de proposito - contagem sobre a tabela inteira
+  -- mudaria de resultado no dia em que o seed do modulo 9 entrar.
+  (9, 'map_property_land_types', 'map',
+   'map_property_id, land_type',
+   $$'ea900000-0000-4000-8000-000000000001',
+     'Terreno Padrao ' || (select count(*) from public.map_property_land_types l
+                           where l.map_property_id = 'ea900000-0000-4000-8000-000000000001')$$,
+   $$'eb900000-0000-4000-8000-000000000001',
+     'Terreno Padrao ' || (select count(*) from public.map_property_land_types l
+                           where l.map_property_id = 'eb900000-0000-4000-8000-000000000001')$$),
+
+  (9, 'map_property_purposes', 'map',
+   'map_property_id, purpose',
+   $$'ea900000-0000-4000-8000-000000000001',
+     'Finalidade Padrao ' || (select count(*) from public.map_property_purposes f
+                              where f.map_property_id = 'ea900000-0000-4000-8000-000000000001')$$,
+   $$'eb900000-0000-4000-8000-000000000001',
+     'Finalidade Padrao ' || (select count(*) from public.map_property_purposes f
+                              where f.map_property_id = 'eb900000-0000-4000-8000-000000000001')$$);
 
 -- FIXTURES --------------------------------------------------------------------
 
@@ -340,7 +378,10 @@ create temp table pat on commit drop as select
   'ea700000-0000-4000-8000-000000000001'::uuid as fix_budget_a,
   'eb700000-0000-4000-8000-000000000001'::uuid as fix_budget_b,
   'ea800000-0000-4000-8000-000000000001'::uuid as fix_budget_item_a,
-  'eb800000-0000-4000-8000-000000000001'::uuid as fix_budget_item_b;
+  'eb800000-0000-4000-8000-000000000001'::uuid as fix_budget_item_b,
+  -- Mae das duas tabelas filhas do modulo 9, uma por escritorio.
+  'ea900000-0000-4000-8000-000000000001'::uuid as fix_map_property_a,
+  'eb900000-0000-4000-8000-000000000001'::uuid as fix_map_property_b;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 select u, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated', e, now(), now()
@@ -442,6 +483,14 @@ insert into public.budget_checklist_items (id, tenant_id, checklist_id, name) va
    (select fix_budget_a from pat), 'Item Mae A'),
   ((select fix_budget_item_b from pat), (select tenant_b from pat),
    (select fix_budget_b from pat), 'Item Mae B');
+
+-- Coordenadas distintas das que o laco grava, e nao (0,0): o check de sentinela
+-- de map_properties recusa o par zerado.
+insert into public.map_properties (id, tenant_id, lat, lng, project_label) values
+  ((select fix_map_property_a from pat), (select tenant_a from pat),
+   -16.686891, -49.264794, 'Propriedade Mae A'),
+  ((select fix_map_property_b from pat), (select tenant_b from pat),
+   -16.686891, -49.264794, 'Propriedade Mae B');
 
 -- INSTRUMENTACAO --------------------------------------------------------------
 

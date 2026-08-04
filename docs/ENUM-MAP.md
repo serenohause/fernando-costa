@@ -292,6 +292,16 @@ garantido por check na tabela.
 | OK | `ok` |
 | FAILED | `failed` |
 
+Criado na migration 0056 (módulo 9), não na 0031: os oito campos `obra_*` de
+`Project` foram adiados junto com `map_properties`, e criar o tipo antes da
+coluna seria deixar tipo sem dono. Vive em `projects.site_geocode_status`
+(`obra_geocode_status` no original), `not null default 'pending'`.
+
+Há um quarto estado no original que a entidade não declara: `ProjectForm.jsx:62`
+inicializa o campo com **string vazia**, e o base44 aceita. Na importação, string
+vazia é `pending` — significam a mesma coisa ("ainda não foi geocodificado") e
+`pending` nunca é escrito por nenhuma tela, só é default.
+
 ---
 
 ## Tarefas e atividades
@@ -582,6 +592,20 @@ view `project_progress` nem coluna no kanban do original.
 Repare que não é igual a `project_status` (`Em desenvolvimento` e
 `Concluído` coincidem, `Pausado` vs `Suspenso` não). Enum separado, de
 propósito — é um status visual do marcador no mapa, não o status do projeto.
+
+Criado na migration 0056. Vive em `map_properties.visual_status`, `not null
+default 'not_started'`. Só é lido quando o pino **não** tem projeto vinculado —
+quando tem, a tela usa o status do projeto (`MapaProjetos.jsx:287`). A coluna é
+gravada nos dois casos, como no original.
+
+### Os dois campos de array de `PropriedadeMapa` não viraram enum
+
+`terreno_tipo` e `finalidade_projeto` são array de string no base44, e **não
+entram neste de/para**: o formulário sugere três e quatro valores
+respectivamente, e tem um campo "Nova categoria..." que aceita qualquer texto
+digitado (`ProjectForm.jsx:270` e `:289`). Viraram tabela-filha de texto livre
+(`map_property_land_types`, `map_property_purposes`, migration 0057), como a
+0032 já tinha feito com os mesmos dois campos em `Project`.
 
 ---
 
