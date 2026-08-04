@@ -459,6 +459,21 @@ DELETE, mas é best-effort — e `remove()` sem permissão **falha em silêncio*
 alcançável por caminho dentro do próprio escritório; **não** atravessa tenant
 (provado). Fechar de verdade pede faxina que compare bucket com banco.
 
+**Onde o cliente mora é legível por qualquer colaborador ativo.** Achado médio
+da auditoria do módulo 9, e a terceira vez que esta decisão aparece — mesma
+classe já aceita no financeiro (módulo 7) e no orçamento (módulo 8), e coerente
+com a instrução do usuário de ser fiel ao original, que não checa permissão em
+tela nenhuma.
+
+O que muda de grau aqui é o dado: coordenada com precisão de cerca de 11 cm,
+endereço formatado, loteamento, quadra e lote. Provado com login real da
+arquiteta Camila, com `map can_view = false`: leu os 12 pinos e as 30 tags. A
+permissão de menu só esconde o item da barra lateral, e `/MapaProjetos` não
+está na lista de redirecionamento de papel individual.
+
+Se o escritório quiser apertar, o lugar é a policy de SELECT da migration 0058,
+por `auth_collaborator_role()`.
+
 ### Ponto cego dos testes — fechado no módulo 8
 
 Ficou aberto do módulo 1 ao 7, escrito aqui o tempo todo: as suítes provavam
@@ -545,6 +560,33 @@ entrada de dado de produção:
 - Garantir mais de um Diretor no escritório. Diretor é o único papel que
   gerencia equipe, e Diretor afastado não lê nada — escritório com um
   Diretor só fica sem quem administre se ele se afastar.
+- **Decidir o que fazer com o Nominatim.** A tela do mapa manda para
+  `nominatim.openstreetmap.org` a coordenada exata clicada — que é onde fica o
+  terreno ou a residência do cliente — e o texto digitado na caixa de busca,
+  que o microcopy convida a preencher com endereço. Vai do navegador do
+  colaborador direto para a OpenStreetMap Foundation, fora do Brasil, sem
+  contrato e sem DPA, com o IP de quem clicou. É o comportamento do original.
+
+  Hoje é médio porque o dado é fictício. **Com dado real vira transferência
+  internacional de dado de localização de pessoa física** — mesma classe do CPF
+  na query string, já listado aqui. Saídas: proxy em Edge Function, instância
+  própria de Nominatim, ou aceite explícito registrado nesta doc.
+
+  Vale lembrar que os tiles têm o mesmo caminho, em grau menor:
+  `tile.openstreetmap.org` e `server.arcgisonline.com` (Esri) recebem o
+  enquadramento do mapa, que está sempre centrado nas propriedades dos clientes.
+- **Configurar a chave do Google antes de existir chave.** Se
+  `VITE_GOOGLE_MAPS_API_KEY` for preenchida na Vercel, ela vai para o bundle —
+  é o que o prefixo `VITE_` significa, e é assim em qualquer uso client-side do
+  Google Maps. Antes disso, no console do Google Cloud: restrição por
+  referenciador HTTP (só o domínio de produção) **e** restrição por API (só
+  Geocoding). Sem as duas, a cota do escritório é de quem achar a chave.
+
+  Hoje a variável não existe e nada vaza — conferido nos bundles local e de
+  produção. E o caminho até ela é código morto: `geocodeAddress` só é chamada
+  por `useGeocodeProjectSite`, que nenhuma tela chama ainda, porque o fluxo de
+  "contrato aprovado gera projeto" está adiado. Ou seja: preencher a variável
+  hoje só teria a desvantagem.
 
 ## Fora de escopo (decisão do usuário)
 

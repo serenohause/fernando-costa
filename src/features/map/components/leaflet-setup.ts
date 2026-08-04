@@ -2,6 +2,7 @@ import L from 'leaflet'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
+import markerIconRed from '@/assets/marker-icon-2x-red.png'
 
 /*
   O ajuste de ícone padrão do Leaflet (MapaProjetos.jsx:21-27) e as duas camadas
@@ -31,11 +32,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 })
 
-/* O pino vermelho do resultado da caixa "Buscar Localização"
-   (MapaProjetos.jsx:1147-1154), com as mesmas medidas. */
+/*
+  O pino vermelho do resultado da caixa "Buscar Localização"
+  (MapaProjetos.jsx:1147-1154), com as mesmas medidas.
+
+  A IMAGEM VEM DE DENTRO, e no original vinha de raw.githubusercontent.com — um
+  repositório pessoal de terceiro, no branch master. Trazer para cá não muda um
+  pixel e tira três coisas do caminho: rede corporativa que bloqueia GitHub
+  deixaria o pino sem imagem; a origem do escritório era enviada ao GitHub a cada
+  carregamento; e o conteúdo podia mudar sem ninguém aqui saber. Os outros três
+  ícones do Leaflet já vinham do pacote local — este era o único de fora.
+*/
 export const searchResultIcon = L.icon({
-  iconUrl:
-    'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  iconUrl: markerIconRed,
   shadowUrl: markerShadow,
   iconSize: [25, 41],
   iconAnchor: [12, 41],

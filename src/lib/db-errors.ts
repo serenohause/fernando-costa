@@ -84,9 +84,22 @@ export function describeDatabaseError(
   const mapped = code ? (messages[code] ?? DEFAULT_MESSAGES[code]) : undefined
   if (mapped) return mapped
 
-  return error instanceof Error && error.message
-    ? error.message
-    : 'Não foi possível concluir a operação.'
+  /*
+    ÚLTIMO RECURSO: frase genérica, e o motivo real vai para o console.
+
+    Antes daqui saía `error.message` cru. Código não mapeado só acontece por bug
+    nosso — `22P02` com "invalid input syntax for type uuid", `42703` com o nome
+    de uma coluna que não existe, `PGRST200` com o texto interno da busca de
+    chave estrangeira. Nenhum deles diz nada de útil a quem está usando o
+    sistema, e todos descrevem a estrutura do banco para quem estiver olhando.
+
+    Quem precisa do texto é quem for depurar, e para esse ele continua inteiro —
+    no console, com o objeto de erro junto. Mesmo critério que o ErrorState das
+    telas já usa.
+  */
+  if (error) console.error('Erro de banco não mapeado:', error)
+
+  return 'Não foi possível concluir a operação. Se continuar, avise o suporte.'
 }
 
 export class WriteError extends Error {

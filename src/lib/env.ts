@@ -18,7 +18,23 @@ const envSchema = z.object({
   VITE_GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
 })
 
-const parsed = envSchema.safeParse(import.meta.env)
+/*
+  AS TRÊS CHAVES, NOMEADAS — e não `import.meta.env` inteiro.
+
+  O Vite substitui `import.meta.env` pelo objeto materializado em tempo de build,
+  então passar o objeto todo arrasta para o bundle publicado TODA variável `VITE_`
+  do ambiente. Na Vercel isso inclui as que ela injeta sozinha: sha do commit,
+  mensagem do commit, nome do autor, dono e slug do repositório, id do projeto.
+  Foi medido no bundle de produção, não deduzido.
+
+  Nada disso é segredo. É reconhecimento de graça para quem for sondar, e não
+  custa nada não entregar.
+*/
+const parsed = envSchema.safeParse({
+  VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+  VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  VITE_GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+})
 
 if (!parsed.success) {
   const missing = parsed.error.issues.map((issue) => issue.path.join('.')).join(', ')
