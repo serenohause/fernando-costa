@@ -74,8 +74,12 @@ export const projectInputSchema = z.object({
 
 /* O recorte do enum compartilhado, do lado do cliente. A lista sai do próprio
    Constants para não haver duas verdades sobre quais fases existem. */
+/* DOIS recortes, e não um: `post_approval` entrou em `project_phase` na migration
+   0048 para o checklist de orçamento (módulo 8) e é barrado em `tasks` pelo check
+   `tasks_phase_no_post_approval_check` (0049). Sem tirá-lo daqui, o formulário de
+   tarefa passaria a oferecer uma fase que o banco recusa na gravação. */
 export const TASK_PHASE_VALUES = Constants.public.Enums.project_phase.filter(
-  (phase): phase is TaskPhase => phase !== 'finished',
+  (phase): phase is TaskPhase => phase !== 'finished' && phase !== 'post_approval',
 )
 
 export const TASK_PRIORITY_VALUES = Constants.public.Enums.priority_level.filter(

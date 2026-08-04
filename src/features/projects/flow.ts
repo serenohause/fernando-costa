@@ -76,11 +76,18 @@ export function moveTaskToPhase(
     }
   }
 
+  /*
+    O mesmo cast da linha acima, e pelo mesmo motivo: `project_phase` ganhou
+    `post_approval` na migration 0048, para o checklist de orçamento (módulo 8).
+    O kanban não tem essa coluna — `tasksInColumn` é chamada com as fases que o
+    original desenha — e `tasks_phase_no_post_approval_check` (0049) recusa o
+    valor no banco.
+  */
   return {
     kind: 'move',
     move: {
       id: task.id,
-      phase: toPhase,
+      phase: toPhase as TaskPhase,
       status: nextStatus(task.status),
       /*
         Sair de "Finalizado" limpa a data de conclusão, como no original
@@ -92,7 +99,7 @@ export function moveTaskToPhase(
         original — a diferença é que lá o array inteiro da tarefa é reescrito, e
         aqui entram só as linhas que faltam.
       */
-      newChecklistItems: missingChecklistItems(toPhase, task.checklist),
+      newChecklistItems: missingChecklistItems(toPhase as TaskPhase, task.checklist),
     },
   }
 }

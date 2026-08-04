@@ -267,12 +267,27 @@ export const PROJECT_PHASE = {
   building_permit: 'Alvará de Construção',
   awaiting_client: 'Aguardando Cliente',
   finished: 'Finalizado',
+  /*
+    ENTROU NA MIGRATION 0048, e só existe para o checklist de orçamento
+    (`budget_checklists.project_phase`). Fica NO FIM do mapa de propósito: a
+    ordem de declaração é a ordem das colunas do kanban e a base de `PHASE_ORDER`
+    / `phaseIndex` (src/features/projects/project-phase.ts) — pôr o valor no meio
+    mudaria qual fase é "mais avançada" no fluxo de tarefas.
+
+    Nem projeto nem tarefa aceitam este valor: `projects_current_phase_domain_check`
+    e `tasks_phase_no_post_approval_check` (migration 0049) o barram no banco, e
+    `TaskPhase` / `TASK_PHASE_VALUES` o barram antes de gravar. O rótulo existe
+    porque o checklist de orçamento o mostra, e porque `labelOf` sobre uma coluna
+    `project_phase` precisa saber traduzir tudo que a coluna pode conter.
+  */
+  post_approval: 'Pós-aprovação',
 } as const satisfies LabelMap<string>
 
 export type ProjectPhase = keyof typeof PROJECT_PHASE
 
-/* O recorte que `tasks_phase_not_finished_check` cobra do banco. */
-export type TaskPhase = Exclude<ProjectPhase, 'finished'>
+/* Os dois recortes que `tasks_phase_not_finished_check` (0032) e
+   `tasks_phase_no_post_approval_check` (0049) cobram do banco. */
+export type TaskPhase = Exclude<ProjectPhase, 'finished' | 'post_approval'>
 
 // ── Tarefas ─────────────────────────────────────────────────────────────
 
@@ -456,6 +471,196 @@ export const COST_CENTER = {
 } as const satisfies LabelMap<string>
 
 export type CostCenter = keyof typeof COST_CENTER
+
+// ── Fornecedores ────────────────────────────────────────────────────────
+
+/*
+  UM enum, DOIS usos — `suppliers.category` (a "tipologia" do fornecedor) e
+  `budget_checklist_items.category` (a categoria do item de orçamento). O
+  compartilhamento é o que permite a sugestão de fornecedor por categoria do
+  original (`f.tipologia === form.categoria`, ItemOrcamentoForm.jsx:45).
+
+  A ordem é a do formulário de ITEM (ItemOrcamentoForm.jsx:11-19), que é a lista
+  com os 23 valores — a mesma de docs/ENUM-MAP.md.
+
+  Os quatro marcados abaixo NÃO valem para fornecedor: `suppliers_category_domain_check`
+  (migration 0049) os barra, como `tasks.phase` barra `finished`. Quem monta
+  select de fornecedor usa `SUPPLIER_TYPOLOGY`, logo abaixo.
+*/
+export const SUPPLIER_CATEGORY = {
+  ceramics_porcelain: 'Cerâmica e Porcelanato',
+  fixtures_sanitaryware: 'Metais e Louças',
+  natural_stone: 'Pedras Naturais',
+  indoor_lighting: 'Iluminação Interna',
+  outdoor_lighting: 'Iluminação Externa e Paisagismo',
+  frames_openings: 'Esquadrias',
+  /* † só item de orçamento */ facade_cladding: 'Revestimento de Fachada',
+  /* † só item de orçamento */ pool_cladding: 'Revestimento de Piscina',
+  home_automation: 'Automação Residencial',
+  solar_energy: 'Energia Solar',
+  paint_texture: 'Tintas e Texturas',
+  landscaping: 'Paisagismo',
+  cabinetry: 'Marcenaria',
+  wood: 'Madeira',
+  structure_foundation: 'Estrutura e Fundação',
+  /* † só item de orçamento */ waterproofing: 'Impermeabilização',
+  /* † só item de orçamento */ drywall_plaster: 'Gesso e Drywall',
+  electrical_plumbing: 'Elétrica e Hidráulica',
+  hvac: 'Climatização',
+  glass_mirrors: 'Vidros e Espelhos',
+  elevators: 'Elevadores',
+  pool_equipment: 'Bombas e Filtros de Piscina',
+  other: 'Outros',
+} as const satisfies LabelMap<string>
+
+export type SupplierCategory = keyof typeof SUPPLIER_CATEGORY
+
+/* O recorte que `suppliers_category_domain_check` cobra do banco. */
+export type SupplierTypology = Exclude<
+  SupplierCategory,
+  'facade_cladding' | 'pool_cladding' | 'waterproofing' | 'drywall_plaster'
+>
+
+/*
+  A lista de tipologia do formulário de FORNECEDOR (FornecedorForm.jsx:11-18):
+  os 19 valores que a entidade aceita, na mesma ordem relativa do mapa acima.
+
+  ATENÇÃO, e está reportado ao usuário: o FILTRO da tela de Fornecedores
+  (Fornecedores.jsx:27) oferece uma TERCEIRA lista, com 20 valores — ela inclui
+  os quatro † (que fornecedor nenhum pode ter, ou seja, filtram sempre vazio) e
+  esconde Madeira, Elevadores e Bombas e Filtros de Piscina (que existem no
+  cadastro e ficam inalcançáveis pelo filtro). Nenhum mapa foi criado para essa
+  lista: a decisão de reproduzi-la ou de usar esta é do usuário.
+*/
+export const SUPPLIER_TYPOLOGY = {
+  ceramics_porcelain: 'Cerâmica e Porcelanato',
+  fixtures_sanitaryware: 'Metais e Louças',
+  natural_stone: 'Pedras Naturais',
+  indoor_lighting: 'Iluminação Interna',
+  outdoor_lighting: 'Iluminação Externa e Paisagismo',
+  frames_openings: 'Esquadrias',
+  home_automation: 'Automação Residencial',
+  solar_energy: 'Energia Solar',
+  paint_texture: 'Tintas e Texturas',
+  landscaping: 'Paisagismo',
+  cabinetry: 'Marcenaria',
+  wood: 'Madeira',
+  structure_foundation: 'Estrutura e Fundação',
+  electrical_plumbing: 'Elétrica e Hidráulica',
+  hvac: 'Climatização',
+  glass_mirrors: 'Vidros e Espelhos',
+  elevators: 'Elevadores',
+  pool_equipment: 'Bombas e Filtros de Piscina',
+  other: 'Outros',
+} as const satisfies LabelMap<SupplierTypology>
+
+export const PARTNERSHIP_MODEL = {
+  sales_commission: 'Comissão sobre venda',
+  price_discount: 'Desconto no preço',
+  commission_and_discount: 'Comissão + Desconto',
+  spec_exclusivity: 'Exclusividade de especificação',
+  none: 'Sem parceria formal',
+} as const satisfies LabelMap<string>
+
+export type PartnershipModel = keyof typeof PARTNERSHIP_MODEL
+
+/*
+  Nenhuma tela do original preenche este campo — ele só aparece no drawer
+  (FornecedorDrawer.jsx:92) e no que a importação trouxer. O mapa existe para que
+  o primeiro formulário que ganhar o campo não invente texto novo.
+*/
+export const COMMISSION_PAYMENT_TERM = {
+  on_delivery: 'Na entrega do material',
+  net_30_after_delivery: '30 dias após entrega',
+  net_60_after_delivery: '60 dias após entrega',
+  after_client_payment: 'Após pagamento do cliente',
+  to_be_agreed: 'A combinar',
+} as const satisfies LabelMap<string>
+
+export type CommissionPaymentTerm = keyof typeof COMMISSION_PAYMENT_TERM
+
+/* Ordem do select de FornecedorForm.jsx:86-89, que é a mesma do filtro. */
+export const PARTNERSHIP_TIER = {
+  strategic: 'Estratégico',
+  preferred: 'Preferencial',
+  registered: 'Cadastrado',
+  under_evaluation: 'Em avaliação',
+} as const satisfies LabelMap<string>
+
+export type PartnershipTier = keyof typeof PARTNERSHIP_TIER
+
+export const SUPPLIER_STATUS = {
+  active: 'Ativo',
+  inactive: 'Inativo',
+  negotiating: 'Em negociação',
+} as const satisfies LabelMap<string>
+
+export type SupplierStatus = keyof typeof SUPPLIER_STATUS
+
+// ── Orçamento por cliente ───────────────────────────────────────────────
+
+/* Ordem do filtro de OrcamentoCliente.jsx:150-154 e do select do cabeçalho do
+   detalhe (ChecklistDetalhe.jsx:119-123), que são a mesma. */
+export const BUDGET_CHECKLIST_STATUS = {
+  open: 'Aberto',
+  in_progress: 'Em andamento',
+  awaiting_client: 'Aguardando cliente',
+  completed: 'Concluído',
+  cancelled: 'Cancelado',
+} as const satisfies LabelMap<string>
+
+export type BudgetChecklistStatus = keyof typeof BUDGET_CHECKLIST_STATUS
+
+/*
+  Ordem do select de ItemOrcamentoForm.jsx:118-123. É este status, e não o campo
+  `concluido` da entidade (não portado), que mede o progresso do checklist:
+  `approved` e `cancelled` contam como finalizados — a conta vive na view
+  `budget_checklist_totals` (migration 0051), não aqui.
+*/
+export const BUDGET_ITEM_STATUS = {
+  pending: 'Pendente',
+  quoting: 'Em cotação',
+  quoted: 'Cotado',
+  presented_to_client: 'Apresentado ao cliente',
+  approved: 'Aprovado',
+  cancelled: 'Cancelado',
+} as const satisfies LabelMap<string>
+
+export type BudgetItemStatus = keyof typeof BUDGET_ITEM_STATUS
+
+/*
+  O recorte de `project_phase` que `budget_checklists_project_phase_domain_check`
+  (migration 0049) cobra, na ordem dos selects do original (ChecklistForm.jsx:107-110
+  e OrcamentoCliente.jsx:170-173).
+
+  Mapa próprio, e não `PROJECT_PHASE` inteiro: o checklist oferece QUATRO fases, e
+  reaproveitar o mapa de doze colocaria "Briefing" e "Alvará de Construção" num
+  select que o original nunca teve.
+*/
+export type BudgetProjectPhase = Extract<
+  ProjectPhase,
+  'renderings' | 'construction_docs' | 'engineering_docs' | 'post_approval'
+>
+
+export const BUDGET_PROJECT_PHASE = {
+  renderings: 'Perspectivas',
+  construction_docs: 'Projeto Executivo',
+  engineering_docs: 'Projetos Complementares',
+  post_approval: 'Pós-aprovação',
+} as const satisfies LabelMap<BudgetProjectPhase>
+
+/*
+  MESMO enum `priority_level`, OUTRA ordem — a do select do item de orçamento
+  (ItemOrcamentoForm.jsx:156-159), do mais urgente para o menos. Mesmo precedente
+  de TASK_PRIORITY: `optionsOf` respeita a ordem de declaração, e cada tela pede
+  o mapa dela. Aqui os QUATRO valores valem, inclusive `urgent`.
+*/
+export const BUDGET_ITEM_PRIORITY = {
+  urgent: 'Urgente',
+  high: 'Alta',
+  medium: 'Média',
+  low: 'Baixa',
+} as const satisfies LabelMap<PriorityLevel>
 
 /*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do

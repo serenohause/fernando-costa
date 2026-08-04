@@ -469,6 +469,288 @@ export type Database = {
           },
         ]
       }
+      budget_checklist_items: {
+        Row: {
+          approval_date: string | null
+          approved_value: number | null
+          budget_file_name: string | null
+          budget_file_path: string | null
+          category: Database["public"]["Enums"]["supplier_category"] | null
+          checklist_id: string
+          chosen_supplier_id: string | null
+          client_approved: boolean
+          commission_percent: number | null
+          commission_received: boolean
+          commission_value: number | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          estimated_value: number | null
+          id: string
+          is_required: boolean
+          legacy_id: string | null
+          name: string
+          notes: string | null
+          priority: Database["public"]["Enums"]["priority_level"]
+          responsible_id: string | null
+          status: Database["public"]["Enums"]["budget_item_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          approval_date?: string | null
+          approved_value?: number | null
+          budget_file_name?: string | null
+          budget_file_path?: string | null
+          category?: Database["public"]["Enums"]["supplier_category"] | null
+          checklist_id: string
+          chosen_supplier_id?: string | null
+          client_approved?: boolean
+          commission_percent?: number | null
+          commission_received?: boolean
+          commission_value?: number | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          estimated_value?: number | null
+          id?: string
+          is_required?: boolean
+          legacy_id?: string | null
+          name: string
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["priority_level"]
+          responsible_id?: string | null
+          status?: Database["public"]["Enums"]["budget_item_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          approval_date?: string | null
+          approved_value?: number | null
+          budget_file_name?: string | null
+          budget_file_path?: string | null
+          category?: Database["public"]["Enums"]["supplier_category"] | null
+          checklist_id?: string
+          chosen_supplier_id?: string | null
+          client_approved?: boolean
+          commission_percent?: number | null
+          commission_received?: boolean
+          commission_value?: number | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          estimated_value?: number | null
+          id?: string
+          is_required?: boolean
+          legacy_id?: string | null
+          name?: string
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["priority_level"]
+          responsible_id?: string | null
+          status?: Database["public"]["Enums"]["budget_item_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_checklist_items_checklist_id_fkey"
+            columns: ["checklist_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "budget_checklist_totals"
+            referencedColumns: ["checklist_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklist_items_checklist_id_fkey"
+            columns: ["checklist_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "budget_checklists"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklist_items_chosen_supplier_id_fkey"
+            columns: ["chosen_supplier_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_commission_totals"
+            referencedColumns: ["supplier_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklist_items_chosen_supplier_id_fkey"
+            columns: ["chosen_supplier_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklist_items_responsible_id_fkey"
+            columns: ["responsible_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklist_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_checklists: {
+        Row: {
+          client_id: string
+          completion_date: string | null
+          created_at: string
+          curation_percent: number | null
+          id: string
+          legacy_id: string | null
+          notes: string | null
+          project_id: string | null
+          project_phase: Database["public"]["Enums"]["project_phase"] | null
+          responsible_id: string | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["budget_checklist_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          completion_date?: string | null
+          created_at?: string
+          curation_percent?: number | null
+          id?: string
+          legacy_id?: string | null
+          notes?: string | null
+          project_id?: string | null
+          project_phase?: Database["public"]["Enums"]["project_phase"] | null
+          responsible_id?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["budget_checklist_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          completion_date?: string | null
+          created_at?: string
+          curation_percent?: number | null
+          id?: string
+          legacy_id?: string | null
+          notes?: string | null
+          project_id?: string | null
+          project_phase?: Database["public"]["Enums"]["project_phase"] | null
+          responsible_id?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["budget_checklist_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_checklists_client_id_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklists_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklists_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklists_responsible_id_fkey"
+            columns: ["responsible_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_checklists_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_item_quotes: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          notes: string | null
+          quote_file_name: string | null
+          quote_file_path: string | null
+          supplier_id: string
+          tenant_id: string
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          notes?: string | null
+          quote_file_name?: string | null
+          quote_file_path?: string | null
+          supplier_id: string
+          tenant_id: string
+          updated_at?: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          notes?: string | null
+          quote_file_name?: string | null
+          quote_file_path?: string | null
+          supplier_id?: string
+          tenant_id?: string
+          updated_at?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_item_quotes_item_id_fkey"
+            columns: ["item_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "budget_checklist_items"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_item_quotes_supplier_id_fkey"
+            columns: ["supplier_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_commission_totals"
+            referencedColumns: ["supplier_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_item_quotes_supplier_id_fkey"
+            columns: ["supplier_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "budget_item_quotes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_intakes: {
         Row: {
           address_city: string | null
@@ -1598,6 +1880,162 @@ export type Database = {
         }
         Relationships: []
       }
+      supplier_brands: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          supplier_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          supplier_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          supplier_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_brands_supplier_id_fkey"
+            columns: ["supplier_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_commission_totals"
+            referencedColumns: ["supplier_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "supplier_brands_supplier_id_fkey"
+            columns: ["supplier_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "supplier_brands_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          average_delivery_time: string | null
+          category: Database["public"]["Enums"]["supplier_category"]
+          city: string | null
+          commission_payment_term:
+            | Database["public"]["Enums"]["commission_payment_term"]
+            | null
+          commission_percent: number | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_whatsapp: string
+          created_at: string
+          has_showroom: boolean
+          id: string
+          last_order_date: string | null
+          legacy_id: string | null
+          name: string
+          notes: string | null
+          partnership_model:
+            | Database["public"]["Enums"]["partnership_model"]
+            | null
+          partnership_tier: Database["public"]["Enums"]["partnership_tier"]
+          phone: string | null
+          serves_outside_fortaleza: boolean
+          standard_discount_percent: number | null
+          state: string | null
+          status: Database["public"]["Enums"]["supplier_status"]
+          tenant_id: string
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          average_delivery_time?: string | null
+          category: Database["public"]["Enums"]["supplier_category"]
+          city?: string | null
+          commission_payment_term?:
+            | Database["public"]["Enums"]["commission_payment_term"]
+            | null
+          commission_percent?: number | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_whatsapp: string
+          created_at?: string
+          has_showroom?: boolean
+          id?: string
+          last_order_date?: string | null
+          legacy_id?: string | null
+          name: string
+          notes?: string | null
+          partnership_model?:
+            | Database["public"]["Enums"]["partnership_model"]
+            | null
+          partnership_tier?: Database["public"]["Enums"]["partnership_tier"]
+          phone?: string | null
+          serves_outside_fortaleza?: boolean
+          standard_discount_percent?: number | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["supplier_status"]
+          tenant_id: string
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          average_delivery_time?: string | null
+          category?: Database["public"]["Enums"]["supplier_category"]
+          city?: string | null
+          commission_payment_term?:
+            | Database["public"]["Enums"]["commission_payment_term"]
+            | null
+          commission_percent?: number | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_whatsapp?: string
+          created_at?: string
+          has_showroom?: boolean
+          id?: string
+          last_order_date?: string | null
+          legacy_id?: string | null
+          name?: string
+          notes?: string | null
+          partnership_model?:
+            | Database["public"]["Enums"]["partnership_model"]
+            | null
+          partnership_tier?: Database["public"]["Enums"]["partnership_tier"]
+          phone?: string | null
+          serves_outside_fortaleza?: boolean
+          standard_discount_percent?: number | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["supplier_status"]
+          tenant_id?: string
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_checklist_items: {
         Row: {
           completed_at: string | null
@@ -2068,6 +2506,29 @@ export type Database = {
           },
         ]
       }
+      budget_checklist_totals: {
+        Row: {
+          approved_total: number | null
+          checklist_id: string | null
+          commission_received_total: number | null
+          commission_total: number | null
+          completed_item_count: number | null
+          curation_total: number | null
+          estimated_total: number | null
+          item_count: number | null
+          progress_percent: number | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_checklists_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_progress: {
         Row: {
           phase_percent: number | null
@@ -2082,6 +2543,24 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "projects_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_commission_totals: {
+        Row: {
+          chosen_item_count: number | null
+          commission_received_total: number | null
+          commission_total: number | null
+          supplier_id: string | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2156,6 +2635,19 @@ export type Database = {
         | "monthly_installments"
         | "upfront"
         | "percent_of_construction"
+      budget_checklist_status:
+        | "open"
+        | "in_progress"
+        | "awaiting_client"
+        | "completed"
+        | "cancelled"
+      budget_item_status:
+        | "pending"
+        | "quoting"
+        | "quoted"
+        | "presented_to_client"
+        | "approved"
+        | "cancelled"
       client_intake_outcome:
         | "active"
         | "expired"
@@ -2184,6 +2676,12 @@ export type Database = {
         | "architect"
         | "intern"
       collaborator_status: "active" | "vacation" | "on_leave"
+      commission_payment_term:
+        | "on_delivery"
+        | "net_30_after_delivery"
+        | "net_60_after_delivery"
+        | "after_client_payment"
+        | "to_be_agreed"
       contract_status:
         | "negotiating"
         | "approved"
@@ -2231,6 +2729,17 @@ export type Database = {
         | "no_response"
         | "other"
       negotiation_status: "active" | "won" | "lost"
+      partnership_model:
+        | "sales_commission"
+        | "price_discount"
+        | "commission_and_discount"
+        | "spec_exclusivity"
+        | "none"
+      partnership_tier:
+        | "strategic"
+        | "preferred"
+        | "registered"
+        | "under_evaluation"
       payment_method:
         | "pix"
         | "boleto"
@@ -2252,6 +2761,7 @@ export type Database = {
         | "building_permit"
         | "awaiting_client"
         | "finished"
+        | "post_approval"
       project_status:
         | "prospecting"
         | "under_contract"
@@ -2273,6 +2783,31 @@ export type Database = {
         | "plumbing"
         | "electrical"
         | "consulting"
+      supplier_category:
+        | "ceramics_porcelain"
+        | "fixtures_sanitaryware"
+        | "natural_stone"
+        | "indoor_lighting"
+        | "outdoor_lighting"
+        | "frames_openings"
+        | "facade_cladding"
+        | "pool_cladding"
+        | "home_automation"
+        | "solar_energy"
+        | "paint_texture"
+        | "landscaping"
+        | "cabinetry"
+        | "wood"
+        | "structure_foundation"
+        | "waterproofing"
+        | "drywall_plaster"
+        | "electrical_plumbing"
+        | "hvac"
+        | "glass_mirrors"
+        | "elevators"
+        | "pool_equipment"
+        | "other"
+      supplier_status: "active" | "inactive" | "negotiating"
       task_type: "technical" | "meeting" | "review" | "administrative"
       tenant_role: "owner" | "member"
       tenant_status: "active" | "suspended"
@@ -2414,6 +2949,21 @@ export const Constants = {
         "upfront",
         "percent_of_construction",
       ],
+      budget_checklist_status: [
+        "open",
+        "in_progress",
+        "awaiting_client",
+        "completed",
+        "cancelled",
+      ],
+      budget_item_status: [
+        "pending",
+        "quoting",
+        "quoted",
+        "presented_to_client",
+        "approved",
+        "cancelled",
+      ],
       client_intake_outcome: [
         "active",
         "expired",
@@ -2446,6 +2996,13 @@ export const Constants = {
         "intern",
       ],
       collaborator_status: ["active", "vacation", "on_leave"],
+      commission_payment_term: [
+        "on_delivery",
+        "net_30_after_delivery",
+        "net_60_after_delivery",
+        "after_client_payment",
+        "to_be_agreed",
+      ],
       contract_status: [
         "negotiating",
         "approved",
@@ -2499,6 +3056,19 @@ export const Constants = {
         "other",
       ],
       negotiation_status: ["active", "won", "lost"],
+      partnership_model: [
+        "sales_commission",
+        "price_discount",
+        "commission_and_discount",
+        "spec_exclusivity",
+        "none",
+      ],
+      partnership_tier: [
+        "strategic",
+        "preferred",
+        "registered",
+        "under_evaluation",
+      ],
       payment_method: ["pix", "boleto", "card", "ted", "cash", "direct_debit"],
       priority_level: ["low", "medium", "high", "urgent"],
       project_phase: [
@@ -2514,6 +3084,7 @@ export const Constants = {
         "building_permit",
         "awaiting_client",
         "finished",
+        "post_approval",
       ],
       project_status: [
         "prospecting",
@@ -2539,6 +3110,32 @@ export const Constants = {
         "electrical",
         "consulting",
       ],
+      supplier_category: [
+        "ceramics_porcelain",
+        "fixtures_sanitaryware",
+        "natural_stone",
+        "indoor_lighting",
+        "outdoor_lighting",
+        "frames_openings",
+        "facade_cladding",
+        "pool_cladding",
+        "home_automation",
+        "solar_energy",
+        "paint_texture",
+        "landscaping",
+        "cabinetry",
+        "wood",
+        "structure_foundation",
+        "waterproofing",
+        "drywall_plaster",
+        "electrical_plumbing",
+        "hvac",
+        "glass_mirrors",
+        "elevators",
+        "pool_equipment",
+        "other",
+      ],
+      supplier_status: ["active", "inactive", "negotiating"],
       task_type: ["technical", "meeting", "review", "administrative"],
       tenant_role: ["owner", "member"],
       tenant_status: ["active", "suspended"],
