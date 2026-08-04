@@ -174,6 +174,10 @@ create temp table ids on commit drop as select
   -- que a secao 3 confere. A primeira versao deste arquivo escrevia no chk_a e o
   -- progresso caiu de 33% para 25%: o caso 3.5 e quem acusou.
   'b1400000-0000-4000-8000-000000000004'::uuid as chk_scratch,
+  -- Checklist proprio da secao 9. Existe pelo mesmo motivo do chk_scratch: a
+  -- contagem de clipes precisa de um cenario que nenhuma outra secao mexe, e as
+  -- secoes 5, 6 e 7 escrevem no chk_a e no chk_empty.
+  'b1400000-0000-4000-8000-000000000005'::uuid as chk_files,
   'b2400000-0000-4000-8000-000000000001'::uuid as chk_b,
   'b1500000-0000-4000-8000-000000000001'::uuid as item1,
   'b1500000-0000-4000-8000-000000000002'::uuid as item2,
@@ -181,7 +185,15 @@ create temp table ids on commit drop as select
   'b1500000-0000-4000-8000-000000000004'::uuid as item_del,
   'b1500000-0000-4000-8000-000000000005'::uuid as item_del2,
   'b1500000-0000-4000-8000-000000000006'::uuid as item_scratch,
-  'b2500000-0000-4000-8000-000000000001'::uuid as item_b;
+  -- item_f1 tem de tudo (anexo proprio, cotacao com e sem PDF, dois PDFs de
+  -- aprovacao); item_f2 nao tem nada; item_f3 existe so para o cascade.
+  'b1500000-0000-4000-8000-000000000007'::uuid as item_f1,
+  'b1500000-0000-4000-8000-000000000008'::uuid as item_f2,
+  'b1500000-0000-4000-8000-000000000009'::uuid as item_f3,
+  'b2500000-0000-4000-8000-000000000001'::uuid as item_b,
+  'b1600000-0000-4000-8000-000000000001'::uuid as apr_f1a,
+  'b1600000-0000-4000-8000-000000000002'::uuid as apr_f1b,
+  'b1600000-0000-4000-8000-000000000003'::uuid as apr_f3;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 select u, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated', e, now(), now()
@@ -256,6 +268,7 @@ insert into public.budget_checklists (id, tenant_id, client_id, curation_percent
   ((select chk_empty from ids), (select tenant_a from ids), (select cli_a from ids), 10, 'open'),
   ((select chk_del from ids), (select tenant_a from ids), (select cli_a from ids), null, 'open'),
   ((select chk_scratch from ids), (select tenant_a from ids), (select cli_a from ids), null, 'open'),
+  ((select chk_files from ids), (select tenant_a from ids), (select cli_a from ids), null, 'open'),
   ((select chk_b from ids), (select tenant_b from ids), (select cli_b from ids), 5, 'open');
 
 -- Os tres itens do checklist A montam os totais esperados da secao 3:
@@ -286,10 +299,59 @@ insert into public.budget_checklist_items
   ((select item_b from ids), (select tenant_b from ids), (select chk_b from ids),
    'Esquadria da suite', 'frames_openings', 3000, null, null, null, 'pending', false);
 
+-- O cenario da secao 9, isolado nos itens f1/f2/f3. Nenhum deles tem
+-- chosen_supplier_id nem commission_percent, de proposito: assim eles nao entram
+-- nos totais das secoes 3 e 4.
+--
+-- item_f1 carrega budget_file_path/budget_file_name preenchidos - o campo que
+-- NENHUMA tela do original usa (arquivo_orcamento_url) e que a contagem de
+-- clipes NAO conta. Sem ele preenchido, uma view que o contasse por engano
+-- passaria despercebida.
+insert into public.budget_checklist_items
+  (id, tenant_id, checklist_id, name, budget_file_path, budget_file_name) values
+  ((select item_f1 from ids), (select tenant_a from ids), (select chk_files from ids),
+   'Marcenaria da suite',
+   'b1111111-1111-4111-8111-111111111111/b1400000-0000-4000-8000-000000000005/proprio.pdf',
+   'arquivo-orcamento-do-item.pdf');
+
+insert into public.budget_checklist_items (id, tenant_id, checklist_id, name) values
+  ((select item_f2 from ids), (select tenant_a from ids), (select chk_files from ids),
+   'Item sem anexo nenhum'),
+  -- No chk_scratch, e nao no chk_files: este item e apagado na secao 9 e o
+  -- checklist dele nao pode ser o mesmo cuja contagem esta sob teste.
+  ((select item_f3 from ids), (select tenant_a from ids), (select chk_scratch from ids),
+   'Item que sera apagado com o anexo');
+
 insert into public.budget_item_quotes (tenant_id, item_id, supplier_id, value) values
   ((select tenant_a from ids), (select item1 from ids), (select sup_a1 from ids), 10000),
   ((select tenant_a from ids), (select item1 from ids), (select sup_a2 from ids), 11000),
   ((select tenant_a from ids), (select item_del from ids), (select sup_del from ids), 900);
+
+-- Duas cotacoes no item_f1: UMA com PDF e outra sem. E o par que prova que o
+-- filtro `fc.pdf_orcamento_url` do original foi portado - sem a cotacao sem
+-- arquivo, uma contagem que somasse todas as cotacoes passaria igual.
+insert into public.budget_item_quotes
+  (tenant_id, item_id, supplier_id, value, quote_file_path, quote_file_name) values
+  ((select tenant_a from ids), (select item_f1 from ids), (select sup_a1 from ids), 5000,
+   'b1111111-1111-4111-8111-111111111111/b1400000-0000-4000-8000-000000000005/cot1.pdf',
+   'cotacao-marcenaria.pdf');
+
+insert into public.budget_item_quotes (tenant_id, item_id, supplier_id, value) values
+  ((select tenant_a from ids), (select item_f1 from ids), (select sup_a2 from ids), 5200);
+
+-- Os PDFs de aprovacao do cliente. DOIS no mesmo item, que e a coisa que um par
+-- de colunas nao consegue guardar, cada um com nome e data proprios.
+insert into public.budget_item_approval_files
+  (id, tenant_id, item_id, file_path, file_name, uploaded_on) values
+  ((select apr_f1a from ids), (select tenant_a from ids), (select item_f1 from ids),
+   'b1111111-1111-4111-8111-111111111111/b1400000-0000-4000-8000-000000000005/apr1.pdf',
+   'aprovacao-assinada.pdf', date '2026-03-10'),
+  ((select apr_f1b from ids), (select tenant_a from ids), (select item_f1 from ids),
+   'b1111111-1111-4111-8111-111111111111/b1400000-0000-4000-8000-000000000005/apr2.pdf',
+   'aprovacao-revisada.pdf', date '2026-03-18'),
+  ((select apr_f3 from ids), (select tenant_a from ids), (select item_f3 from ids),
+   'b1111111-1111-4111-8111-111111111111/b1400000-0000-4000-8000-000000000004/apr3.pdf',
+   'aprovacao-do-item-apagado.pdf', date '2026-03-20');
 
 -- Dois objetos no bucket, um por escritorio. O caminho comeca pelo tenant_id -
 -- e esse primeiro segmento que a policy compara com o claim do JWT.
@@ -372,6 +434,28 @@ select pg_temp.chk_as('1.12', 'CONTROLE: quem tem SO client_budget LE o forneced
   (select u_bud from ids), (select tenant_a from ids), format($q$
   select 1 from public.suppliers where id = %L
 $q$, (select sup_a1 from ids)));
+
+-- O PDF de aprovacao do cliente e do menu client_budget, como o resto do
+-- orcamento. Escrevem no item_scratch de proposito: chk_as NAO desfaz, e a
+-- contagem de clipes da secao 9 nao pode receber linha vinda daqui.
+select pg_temp.chk_as('1.13', 'CONTROLE: quem tem client_budget ANEXA PDF de aprovacao', 'OK:1',
+  (select u_bud from ids), (select tenant_a from ids), format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L, 'b1111111-1111-4111-8111-111111111111/scratch/sec1.pdf', 'aprovacao.pdf')
+$q$, (select tenant_a from ids), (select item_scratch from ids)));
+
+select pg_temp.chk_as('1.14', 'quem tem SO suppliers NAO anexa PDF de aprovacao', 'ERR:42501',
+  (select u_sup from ids), (select tenant_a from ids), format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L, 'b1111111-1111-4111-8111-111111111111/scratch/sec1-negado.pdf', 'aprovacao.pdf')
+$q$, (select tenant_a from ids), (select item_scratch from ids)));
+
+-- Leitura larga tambem aqui: sem este controle, uma policy de SELECT presa a
+-- can_edit_menu passaria em 1.13 e 1.14 e so apareceria na tela de quem consulta.
+select pg_temp.chk_as('1.15', 'CONTROLE: quem tem SO suppliers LE o PDF de aprovacao', 'OK:1',
+  (select u_sup from ids), (select tenant_a from ids), format($q$
+  select 1 from public.budget_item_approval_files where id = %L
+$q$, (select apr_f1a from ids)));
 
 -- 2. commission_value e calculada pelo banco --------------------------------------
 --
@@ -825,6 +909,215 @@ select pg_temp.chk_as('8.16', 'colaboradora AFASTADA (com os dois menus) nao gra
   insert into storage.objects (bucket_id, name)
   values ('budget-files', 'b1111111-1111-4111-8111-111111111111/pasta/afastada.pdf')
 $q$);
+
+-- 9. Os PDFs de aprovacao do cliente e a contagem de clipes -------------------------
+--
+-- budget_item_approval_files (0054) e a tabela que faltava: itens[].pdfs_aprovacao
+-- e LISTA, com nome e data por arquivo, e o par budget_file_path/budget_file_name
+-- do item guarda UM arquivo so - e corresponde a outro campo do original
+-- (arquivo_orcamento_url), que nenhuma tela le ou escreve.
+--
+-- Os invariantes do padrao (RLS, GRANT, isolamento, escrita presa ao menu) estao
+-- em pattern-invariants.sql desde que a tabela entrou em pattern_tables. Aqui
+-- fica o que e dela: a lista ser lista, a unicidade de caminho, as datas, o
+-- cascade e as duas contagens de clipe.
+--
+-- A ORDEM DESTA SECAO IMPORTA: as contagens vem primeiro, e so depois os casos
+-- que escrevem. pg_temp.chk NAO desfaz o que passa, e um insert de controle no
+-- meio mudaria o numero que o caso seguinte espera.
+
+select pg_temp.val('9.1', 'a LISTA e lista: dois PDFs de aprovacao no mesmo item', '2', format($q$
+  select approval_file_count::text from public.budget_item_attachments where item_id = %L
+$q$, (select item_f1 from ids)));
+
+-- O item tem DUAS cotacoes e so uma com PDF. Sem este caso, uma contagem que
+-- somasse todas as cotacoes passaria em 9.3 por acaso.
+select pg_temp.val('9.2', 'cotacao SEM arquivo nao conta: 2 cotacoes, 1 PDF', '1', format($q$
+  select quote_file_count::text from public.budget_item_attachments where item_id = %L
+$q$, (select item_f1 from ids)));
+
+-- O caso que a migration 0054 existe para nao errar: o item_f1 TEM
+-- budget_file_path preenchido. Se ele entrasse na conta, aqui sairia 4 - e o
+-- clipe da tela nova mostraria um numero diferente do que o escritorio ve hoje.
+select pg_temp.val('9.3', 'clipe do item: 1 cotacao + 2 aprovacoes = 3, e o anexo proprio NAO conta', '3', format($q$
+  select attachment_count::text from public.budget_item_attachments where item_id = %L
+$q$, (select item_f1 from ids)));
+
+select pg_temp.val('9.4', 'item sem anexo nenhum: zero, e nao nulo', '0', format($q$
+  select attachment_count::text from public.budget_item_attachments where item_id = %L
+$q$, (select item_f2 from ids)));
+
+select pg_temp.val('9.5', 'item sem anexo devolve UMA linha na view', '1', format($q$
+  select count(*)::text from public.budget_item_attachments where item_id = %L
+$q$, (select item_f2 from ids)));
+
+-- O clipe do cartao da listagem (OrcamentoCliente.jsx:200), agora somado no
+-- banco. O checklist tem dois itens: um com 3 anexos e um com nenhum.
+select pg_temp.val('9.6', 'clipe do checklist: soma dos itens', '3', format($q$
+  select attachment_count::text from public.budget_checklist_totals where checklist_id = %L
+$q$, (select chk_files from ids)));
+
+-- Sem este caso, uma soma que multiplicasse linhas no join passaria em 9.6 e so
+-- apareceria em checklist com muitos itens.
+select pg_temp.val('9.7', 'checklist com itens e nenhum anexo: zero, e nao nulo', '0', format($q$
+  select attachment_count::text from public.budget_checklist_totals where checklist_id = %L
+$q$, (select chk_empty from ids)));
+
+-- E o join com a view de anexos nao pode ter estragado o que ja estava certo:
+-- item com 2 cotacoes e 2 aprovacoes multiplicaria as linhas de item e dobraria
+-- as somas de dinheiro. O chk_a da secao 3 continua valendo o mesmo.
+select pg_temp.val('9.8', 'CONTROLE: o total estimado do chk_a nao mudou com a coluna nova', '12000.00', format($q$
+  select estimated_total::text from public.budget_checklist_totals where checklist_id = %L
+$q$, (select chk_a from ids)));
+
+select pg_temp.val('9.9', 'CONTROLE: o item_count do chk_files continua 2, e nao 4', '2', format($q$
+  select item_count::text from public.budget_checklist_totals where checklist_id = %L
+$q$, (select chk_files from ids)));
+
+-- A view e SECURITY INVOKER. O CONTROLE ao lado e obrigatorio: view sem GRANT
+-- devolve ERR:42501, que num teste de negacao parece sucesso (migration 0036).
+select pg_temp.chk_as('9.10', 'colaborador de B nao ve os anexos do item de A', 'OK:0',
+  (select u_b from ids), (select tenant_b from ids), format($q$
+  select 1 from public.budget_item_attachments where item_id = %L
+$q$, (select item_f1 from ids)));
+
+select pg_temp.chk_as('9.11', 'CONTROLE: colaborador de A VE os anexos do item de A', 'OK:1',
+  (select u_bud from ids), (select tenant_a from ids), format($q$
+  select 1 from public.budget_item_attachments where item_id = %L
+$q$, (select item_f1 from ids)));
+
+-- Unicidade de caminho: e por ESCRITORIO, e nao por item. Dois registros
+-- apontando para o mesmo objeto fariam a remocao de um apagar o PDF do outro.
+select pg_temp.chk('9.12', 'o mesmo caminho de bucket em outro item e recusado', 'ERR:23505', format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L,
+    'b1111111-1111-4111-8111-111111111111/b1400000-0000-4000-8000-000000000005/apr1.pdf',
+    'copia.pdf')
+$q$, (select tenant_a from ids), (select item_f2 from ids)));
+
+select pg_temp.chk('9.13', 'CONTROLE: outro caminho no mesmo item entra', 'OK:1', format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L,
+    'b1111111-1111-4111-8111-111111111111/b1400000-0000-4000-8000-000000000005/apr9.pdf',
+    'copia.pdf')
+$q$, (select tenant_a from ids), (select item_f2 from ids)));
+
+-- O par caminho+nome e OBRIGATORIO aqui, e nao condicional como em
+-- budget_checklist_items e budget_item_quotes: a linha so existe porque ha
+-- arquivo. Anexo sem nome deixa a tela com um item que ela nao sabe rotular.
+select pg_temp.chk('9.14', 'anexo sem nome de exibicao e recusado', 'ERR:23502', format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path)
+  values (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/sem-nome.pdf')
+$q$, (select tenant_a from ids), (select item_f2 from ids)));
+
+select pg_temp.chk('9.15', 'CONTROLE: com caminho e nome entra', 'OK:1', format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/com-nome.pdf', 'aprovacao.pdf')
+$q$, (select tenant_a from ids), (select item_f2 from ids)));
+
+select pg_temp.chk('9.16', 'nome em branco e recusado', 'ERR:23514', format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/nome-branco.pdf', '   ')
+$q$, (select tenant_a from ids), (select item_f2 from ids)));
+
+select pg_temp.chk('9.17', 'caminho em branco e recusado', 'ERR:23514', format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L, '', 'aprovacao.pdf')
+$q$, (select tenant_a from ids), (select item_f2 from ids)));
+
+-- FK composta, como em toda tabela filha deste modulo: referencia por id sozinho
+-- deixaria o anexo pendurado em item de outro escritorio.
+select pg_temp.chk('9.18', 'anexo apontando para item de OUTRO escritorio e recusado', 'ERR:23503', format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/invasor.pdf', 'aprovacao.pdf')
+$q$, (select tenant_a from ids), (select item_b from ids)));
+
+select pg_temp.chk('9.19', 'CONTROLE: anexo em item do MESMO escritorio entra', 'OK:1', format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/legitimo.pdf', 'aprovacao.pdf')
+$q$, (select tenant_a from ids), (select item_f2 from ids)));
+
+-- A data de upload: default de hoje (o que a tela faz) e livre para tras (o que
+-- a importacao precisa - o anexo do base44 tem a data em que foi anexado LA).
+select pg_temp.val('9.20', 'sem data informada, a data de upload e hoje', 'true', format($q$
+  with novo as (
+    insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+    values (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/hoje.pdf', 'aprovacao.pdf')
+    returning uploaded_on
+  )
+  select (uploaded_on = current_date)::text from novo
+$q$, (select tenant_a from ids), (select item_f2 from ids)));
+
+select pg_temp.val('9.21', 'data antiga (importacao) e aceita como veio', '2019-05-02', format($q$
+  with novo as (
+    insert into public.budget_item_approval_files
+      (tenant_id, item_id, file_path, file_name, uploaded_on)
+    values (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/antigo.pdf', 'aprovacao.pdf',
+            date '2019-05-02')
+    returning uploaded_on
+  )
+  select uploaded_on::text from novo
+$q$, (select tenant_a from ids), (select item_f2 from ids)));
+
+-- legacy_id guarda a url de origem no base44 - a unica identidade estavel que o
+-- elemento tem la, porque ele e objeto solto dentro de array. E o que torna a
+-- reimportacao idempotente.
+select pg_temp.chk('9.22', 'a mesma origem do base44 duas vezes e recusada', 'ERR:23505', format($q$
+  insert into public.budget_item_approval_files
+    (tenant_id, item_id, file_path, file_name, legacy_id)
+  values
+    (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/imp1.pdf', 'aprovacao.pdf',
+     'https://base44.example/files/aprovacao-1.pdf'),
+    (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/imp2.pdf', 'aprovacao.pdf',
+     'https://base44.example/files/aprovacao-1.pdf')
+$q$, (select tenant_a from ids), (select item_f2 from ids),
+     (select tenant_a from ids), (select item_f2 from ids)));
+
+select pg_temp.chk('9.23', 'CONTROLE: origens diferentes entram', 'OK:2', format($q$
+  insert into public.budget_item_approval_files
+    (tenant_id, item_id, file_path, file_name, legacy_id)
+  values
+    (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/imp1.pdf', 'aprovacao.pdf',
+     'https://base44.example/files/aprovacao-1.pdf'),
+    (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/imp2.pdf', 'aprovacao.pdf',
+     'https://base44.example/files/aprovacao-2.pdf')
+$q$, (select tenant_a from ids), (select item_f2 from ids),
+     (select tenant_a from ids), (select item_f2 from ids)));
+
+-- Linha nascida no sistema novo tem legacy_id nulo, e nulo nao colide com nulo.
+select pg_temp.chk('9.24', 'CONTROLE: dois anexos sem origem de importacao convivem', 'OK:2', format($q$
+  insert into public.budget_item_approval_files (tenant_id, item_id, file_path, file_name)
+  values (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/novo1.pdf', 'aprovacao.pdf'),
+         (%L, %L, 'b1111111-1111-4111-8111-111111111111/x/novo2.pdf', 'aprovacao.pdf')
+$q$, (select tenant_a from ids), (select item_f2 from ids),
+     (select tenant_a from ids), (select item_f2 from ids)));
+
+-- Cascade em dois niveis: o anexo e parte do item, e o item e parte do
+-- checklist. O que NAO cai junto e o objeto no bucket - storage nao tem FK, e a
+-- pendencia esta declarada no cabecalho da 0052.
+select pg_temp.val('9.25', 'CONTROLE: o item que sera apagado TEM um anexo', '1', format($q$
+  select count(*)::text from public.budget_item_approval_files where item_id = %L
+$q$, (select item_f3 from ids)));
+
+select pg_temp.chk('9.26', 'apagar o item', 'OK:1', format($q$
+  delete from public.budget_checklist_items where id = %L
+$q$, (select item_f3 from ids)));
+
+select pg_temp.val('9.27', 'o anexo caiu junto com o item (cascade)', '0', format($q$
+  select count(*)::text from public.budget_item_approval_files where item_id = %L
+$q$, (select item_f3 from ids)));
+
+select pg_temp.val('9.28', 'CONTROLE: os anexos do outro item continuam la', '2', format($q$
+  select count(*)::text from public.budget_item_approval_files where item_id = %L
+$q$, (select item_f1 from ids)));
+
+select pg_temp.chk('9.29', 'apagar o checklist inteiro', 'OK:1', format($q$
+  delete from public.budget_checklists where id = %L
+$q$, (select chk_files from ids)));
+
+select pg_temp.val('9.30', 'os anexos cairam com o item, que caiu com o checklist', '0', format($q$
+  select count(*)::text from public.budget_item_approval_files where item_id = %L
+$q$, (select item_f1 from ids)));
 
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed

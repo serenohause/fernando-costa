@@ -261,6 +261,30 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
    $$'ea700000-0000-4000-8000-000000000001', 'Item Padrao'$$,
    $$'eb700000-0000-4000-8000-000000000001', 'Item Padrao'$$),
 
+  -- O caminho do arquivo sai de um contador pelo mesmo motivo das outras filhas:
+  -- budget_item_approval_files tem unique (tenant_id, file_path) e a suite grava
+  -- a mesma "linha minima valida" duas vezes no escritorio A (a fixture dos casos
+  -- B, e o INSERT do caso C1). Com valor fixo, C1 receberia 23505 e o caso "quem
+  -- tem can_edit CRIA" passaria a afirmar que a unicidade existe. A contagem e
+  -- filtrada pelo item da fixture de proposito - contagem sobre a tabela inteira
+  -- mudaria de resultado no dia em que o seed do modulo 8 gravar aprovacoes.
+  --
+  -- O caminho comeca pelo tenant_id porque e assim que o objeto vive no bucket
+  -- (0052); aqui e so texto, e nenhum objeto e criado - o que esta sob teste e a
+  -- tabela.
+  (8, 'budget_item_approval_files', 'client_budget',
+   'item_id, file_path, file_name',
+   $$'ea800000-0000-4000-8000-000000000001',
+     'e1111111-1111-4111-8111-111111111111/ea700000-0000-4000-8000-000000000001/pat-a-'
+       || (select count(*) from public.budget_item_approval_files f
+           where f.item_id = 'ea800000-0000-4000-8000-000000000001') || '.pdf',
+     'aprovacao-cliente.pdf'$$,
+   $$'eb800000-0000-4000-8000-000000000001',
+     'e2222222-2222-4222-8222-222222222222/eb700000-0000-4000-8000-000000000001/pat-b-'
+       || (select count(*) from public.budget_item_approval_files f
+           where f.item_id = 'eb800000-0000-4000-8000-000000000001') || '.pdf',
+     'aprovacao-cliente.pdf'$$),
+
   -- budget_item_quotes tem unique (item_id, supplier_id), e o fornecedor e uuid -
   -- nao da para derivar um valor novo por concatenacao como nas outras filhas.
   -- Entao a fixture de cada escritorio tem DOIS fornecedores, e a cotacao escolhe
