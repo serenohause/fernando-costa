@@ -425,6 +425,24 @@ Enum único com os seis valores. O formulário de cada tela oferece só os seus.
 
 ### `supplier_category`
 
+**Um enum, dois usos** (migration 0048). O base44 tem duas listas fechadas para
+a mesma ideia — `Fornecedor.tipologia` (19 valores) e
+`ChecklistOrcamento.itens[].categoria` (20 valores) — e elas não batem. Pior:
+`ItemOrcamentoForm.jsx` oferece uma **terceira** lista, com 23 valores (a união
+das duas), ou seja, o formulário oferece quatro categorias que a entidade
+recusa.
+
+Isso importa porque a tela sugere fornecedor comparando os dois campos entre si
+(`f.tipologia === form.categoria`). Aqui é **um tipo** com os 23 valores, na
+ordem em que o formulário de item os exibe, compartilhado por
+`suppliers.category` e `budget_checklist_items.category`. Os quatro marcados
+com † **só valem para item de orçamento** — `suppliers.category` os barra por
+check, como `tasks.phase` barra `finished`.
+
+Consequência herdada, e não corrigida: item de categoria `Impermeabilização`
+nunca terá fornecedor sugerido, porque fornecedor nenhum pode ter essa
+tipologia.
+
 | base44 | Postgres | Rótulo UI |
 |---|---|---|
 | Cerâmica e Porcelanato | `ceramics_porcelain` | Cerâmica e Porcelanato |
@@ -433,6 +451,8 @@ Enum único com os seis valores. O formulário de cada tela oferece só os seus.
 | Iluminação Interna | `indoor_lighting` | Iluminação Interna |
 | Iluminação Externa e Paisagismo | `outdoor_lighting` | Iluminação Externa e Paisagismo |
 | Esquadrias | `frames_openings` | Esquadrias |
+| † Revestimento de Fachada | `facade_cladding` | Revestimento de Fachada |
+| † Revestimento de Piscina | `pool_cladding` | Revestimento de Piscina |
 | Automação Residencial | `home_automation` | Automação Residencial |
 | Energia Solar | `solar_energy` | Energia Solar |
 | Tintas e Texturas | `paint_texture` | Tintas e Texturas |
@@ -440,6 +460,8 @@ Enum único com os seis valores. O formulário de cada tela oferece só os seus.
 | Marcenaria | `cabinetry` | Marcenaria |
 | Madeira | `wood` | Madeira |
 | Estrutura e Fundação | `structure_foundation` | Estrutura e Fundação |
+| † Impermeabilização | `waterproofing` | Impermeabilização |
+| † Gesso e Drywall | `drywall_plaster` | Gesso e Drywall |
 | Elétrica e Hidráulica | `electrical_plumbing` | Elétrica e Hidráulica |
 | Climatização | `hvac` | Climatização |
 | Vidros e Espelhos | `glass_mirrors` | Vidros e Espelhos |
@@ -498,6 +520,35 @@ Enum único com os seis valores. O formulário de cada tela oferece só os seus.
 | Concluído | `completed` | Concluído |
 | Cancelado | `cancelled` | Cancelado |
 
+### `budget_item_status`
+
+Não existia neste documento até a migration 0048. São os seis valores de
+`ChecklistOrcamento.itens[].status_item`, repetidos em `ItemOrcamentoForm.jsx`
+e no mapa de cores de `ChecklistDetalhe.jsx`.
+
+| base44 | Postgres | Rótulo UI |
+|---|---|---|
+| Pendente | `pending` | Pendente |
+| Em cotação | `quoting` | Em cotação |
+| Cotado | `quoted` | Cotado |
+| Apresentado ao cliente | `presented_to_client` | Apresentado ao cliente |
+| Aprovado | `approved` | Aprovado |
+| Cancelado | `cancelled` | Cancelado |
+
+É ele, e não o campo `concluido` da entidade, que mede o progresso do
+checklist: `approved` e `cancelled` contam como finalizados. `concluido` é
+bandeira duplicada que nenhuma tela lê ou escreve, e **não foi portado**.
+
+### Categoria do item de orçamento
+
+Não gera enum próprio: é `supplier_category`, o mesmo tipo do fornecedor — ver
+a seção "Fornecedores" acima, inclusive os quatro valores que só valem aqui.
+
+### `priority_level` no item de orçamento
+
+`ChecklistOrcamento.itens[].prioridade` (Urgente, Alta, Média, Baixa) reusa o
+enum `priority_level` da migration 0031, com os quatro valores. Sem tipo novo.
+
 ### `ChecklistOrcamento.fase_projeto`
 
 Subconjunto de `project_phase`. Não gera enum próprio.
@@ -509,8 +560,11 @@ Subconjunto de `project_phase`. Não gera enum próprio.
 | Projetos Complementares | `engineering_docs` |
 | Pós-aprovação | `post_approval` |
 
-`Pós-aprovação` não existe em `project_phase` — é adicionado ao enum
-compartilhado e nunca usado por `projects` nem por `tasks`.
+`Pós-aprovação` não existe em `project_phase` — foi adicionado ao enum
+compartilhado na migration 0048 e nunca é usado por `projects` nem por `tasks`.
+"Nunca é usado" virou check nas duas tabelas (migration 0049): enum
+compartilhado sem check é enum que vaza, e `post_approval` não tem percentual na
+view `project_progress` nem coluna no kanban do original.
 
 ---
 

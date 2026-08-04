@@ -225,9 +225,61 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
    $$'PAT-A-' || (select count(*) from public.financial_categories f
                   where f.name like 'PAT-A-%'), 'expense'$$,
    $$'PAT-B-' || (select count(*) from public.financial_categories f
-                  where f.name like 'PAT-B-%'), 'expense'$$);
+                  where f.name like 'PAT-B-%'), 'expense'$$),
 
-  -- Modulo 8: (8, 'suppliers', 'suppliers', ..., ...)
+  -- Modulo 8. DUAS chaves de menu, como no 7: 'Fornecedores' e 'Orcamento por
+  -- Cliente' sao itens separados da sidebar do original (Layout.jsx:343-344). O
+  -- par E1/E3 nao distingue uma da outra (o editor da suite recebe can_edit em
+  -- TODO menu do registro): quem prova que cada policy le a chave certa sao os
+  -- casos 1.x de supabase/tests/budget-schema.sql.
+  (8, 'suppliers', 'suppliers',
+   'name, category, contact_whatsapp',
+   $$'Fornecedor Padrao', 'ceramics_porcelain', '(62) 90000-3333'$$,
+   null),
+
+  -- O nome da marca sai de um contador, como nas tabelas filhas do modulo 5:
+  -- supplier_brands tem unique (supplier_id, name) e a suite grava a mesma "linha
+  -- minima valida" duas vezes no escritorio A (a fixture dos casos B, e o INSERT
+  -- do caso C1). Com valor fixo, C1 receberia 23505 e o caso "quem tem can_edit
+  -- CRIA" passaria a afirmar que a unicidade existe.
+  (8, 'supplier_brands', 'suppliers',
+   'supplier_id, name',
+   $$'ea600000-0000-4000-8000-000000000001',
+     'Marca Padrao ' || (select count(*) from public.supplier_brands b
+                         where b.supplier_id = 'ea600000-0000-4000-8000-000000000001')$$,
+   $$'eb600000-0000-4000-8000-000000000001',
+     'Marca Padrao ' || (select count(*) from public.supplier_brands b
+                         where b.supplier_id = 'eb600000-0000-4000-8000-000000000001')$$),
+
+  (8, 'budget_checklists', 'client_budget',
+   'client_id',
+   $$'ea300000-0000-4000-8000-000000000001'$$,
+   $$'eb300000-0000-4000-8000-000000000001'$$),
+
+  (8, 'budget_checklist_items', 'client_budget',
+   'checklist_id, name',
+   $$'ea700000-0000-4000-8000-000000000001', 'Item Padrao'$$,
+   $$'eb700000-0000-4000-8000-000000000001', 'Item Padrao'$$),
+
+  -- budget_item_quotes tem unique (item_id, supplier_id), e o fornecedor e uuid -
+  -- nao da para derivar um valor novo por concatenacao como nas outras filhas.
+  -- Entao a fixture de cada escritorio tem DOIS fornecedores, e a cotacao escolhe
+  -- o proximo pela quantidade de cotacoes que aquele item ja tem: a fixture pega
+  -- o primeiro, o INSERT do caso C1 pega o segundo.
+  (8, 'budget_item_quotes', 'client_budget',
+   'item_id, supplier_id',
+   $$'ea800000-0000-4000-8000-000000000001',
+     (array['ea600000-0000-4000-8000-000000000001'::uuid,
+            'ea600000-0000-4000-8000-000000000002'::uuid])
+       [1 + (select count(*) from public.budget_item_quotes q
+             where q.item_id = 'ea800000-0000-4000-8000-000000000001')]$$,
+   $$'eb800000-0000-4000-8000-000000000001',
+     (array['eb600000-0000-4000-8000-000000000001'::uuid,
+            'eb600000-0000-4000-8000-000000000002'::uuid])
+       [1 + (select count(*) from public.budget_item_quotes q
+             where q.item_id = 'eb800000-0000-4000-8000-000000000001')]$$);
+
+  -- Modulo 9: (9, 'map_properties', 'map', ..., ...)
   -- e assim por diante.
 
 -- FIXTURES --------------------------------------------------------------------
@@ -253,7 +305,18 @@ create temp table pat on commit drop as select
   'ea400000-0000-4000-8000-000000000001'::uuid as fix_project_a,
   'eb400000-0000-4000-8000-000000000001'::uuid as fix_project_b,
   'ea500000-0000-4000-8000-000000000001'::uuid as fix_task_a,
-  'eb500000-0000-4000-8000-000000000001'::uuid as fix_task_b;
+  'eb500000-0000-4000-8000-000000000001'::uuid as fix_task_b,
+  -- Mae das tabelas filhas do modulo 8. Sao DOIS fornecedores por escritorio: a
+  -- cotacao tem unique (item_id, supplier_id) e a suite grava a mesma linha
+  -- minima valida duas vezes no mesmo escritorio.
+  'ea600000-0000-4000-8000-000000000001'::uuid as fix_supplier_a1,
+  'ea600000-0000-4000-8000-000000000002'::uuid as fix_supplier_a2,
+  'eb600000-0000-4000-8000-000000000001'::uuid as fix_supplier_b1,
+  'eb600000-0000-4000-8000-000000000002'::uuid as fix_supplier_b2,
+  'ea700000-0000-4000-8000-000000000001'::uuid as fix_budget_a,
+  'eb700000-0000-4000-8000-000000000001'::uuid as fix_budget_b,
+  'ea800000-0000-4000-8000-000000000001'::uuid as fix_budget_item_a,
+  'eb800000-0000-4000-8000-000000000001'::uuid as fix_budget_item_b;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 select u, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated', e, now(), now()
@@ -335,6 +398,26 @@ insert into public.tasks (id, tenant_id, title, project_id) values
    (select fix_project_a from pat)),
   ((select fix_task_b from pat), (select tenant_b from pat), 'Tarefa Mae B',
    (select fix_project_b from pat));
+
+insert into public.suppliers (id, tenant_id, name, category, contact_whatsapp) values
+  ((select fix_supplier_a1 from pat), (select tenant_a from pat), 'Fornecedor Mae A1',
+   'ceramics_porcelain', '(62) 90000-3331'),
+  ((select fix_supplier_a2 from pat), (select tenant_a from pat), 'Fornecedor Mae A2',
+   'natural_stone', '(62) 90000-3332'),
+  ((select fix_supplier_b1 from pat), (select tenant_b from pat), 'Fornecedor Mae B1',
+   'ceramics_porcelain', '(62) 90000-4441'),
+  ((select fix_supplier_b2 from pat), (select tenant_b from pat), 'Fornecedor Mae B2',
+   'natural_stone', '(62) 90000-4442');
+
+insert into public.budget_checklists (id, tenant_id, client_id) values
+  ((select fix_budget_a from pat), (select tenant_a from pat), (select fix_client_a from pat)),
+  ((select fix_budget_b from pat), (select tenant_b from pat), (select fix_client_b from pat));
+
+insert into public.budget_checklist_items (id, tenant_id, checklist_id, name) values
+  ((select fix_budget_item_a from pat), (select tenant_a from pat),
+   (select fix_budget_a from pat), 'Item Mae A'),
+  ((select fix_budget_item_b from pat), (select tenant_b from pat),
+   (select fix_budget_b from pat), 'Item Mae B');
 
 -- INSTRUMENTACAO --------------------------------------------------------------
 
