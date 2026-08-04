@@ -349,12 +349,34 @@ navegador. A 0007 revoga e desarma o default. **Regra que fica: RLS sem
 `GRANT` dá "permission denied"; `GRANT` sem RLS entrega a tabela. Precisa
 dos dois, escritos à mão, em toda tabela nova.**
 
-**Chaves JWT legadas.** O projeto nascia com o formato antigo (HS256,
-simétrico) ativo ao lado do novo. Consequências: a `service_role` legada era
-uma chave-mestra válida **até 2036**, sem rotação possível; e quem tivesse o
-segredo podia assinar um token qualquer, inclusive com `tenant_id` de outro
-escritório — ou seja, toda a RLS era contornável. Desligadas. O `.env` usa a
-chave `sb_secret_`, e o token de login sai em ES256 (assimétrico).
+**Chaves de API legadas.** O projeto nascia com o formato antigo ativo ao
+lado do novo, e a `service_role` legada era uma chave-mestra válida **até
+2036**, sem rotação possível. Desligadas no módulo 1. O `.env` usa a chave
+`sb_secret_`.
+
+**Chave de ASSINATURA HS256 legada.** Fechada só no módulo 8, e por meses
+esta seção afirmou que estava — o parágrafo acima falava de "chaves JWT
+legadas" no plural e dava as duas coisas por resolvidas. Eram duas coisas
+diferentes: desligar as chaves de **API** não mexe na chave de **assinatura
+de JWT**.
+
+A HS256 ficou com status `previously_used`. Chave nesse estado **continua
+validando token** — e HS256 é simétrica, então o segredo que verifica é o
+mesmo que assina. A auditoria do módulo 8 forjou um token com `tenant_id`
+escolhido a mão, assinado com o segredo real do projeto, e leu dado vivo:
+checklists, valores aprovados, comissões, fornecedores. Toda a RLS e toda
+policy de storage ficavam de fora do caminho.
+
+Revogada em 2026-08-04, com autorização explícita do usuário. Provado nos
+dois lados depois da revogação: token forjado com o segredo real recebe
+`401 "No suitable key was found to decode the JWT"`, e login legítimo (ES256)
+lê o mesmo caminho com `200`. A revogação não derrubou sessão — as duas
+chaves nasceram juntas em 2026-07-29 e a ES256 já era a `in_use`, então não
+havia token HS256 legítimo em circulação.
+
+**Por que 572 asserções não pegaram isso:** nenhuma tentava assinar nada.
+Era o ponto cego que esta mesma doc registrava desde o módulo 1 — e ele
+deixou de ser teórico exatamente aqui.
 
 **Escalação de privilégio na própria linha.** Policy não fecha isso: o
 `WITH CHECK` não enxerga o estado anterior da linha. Um gestor podia trocar a
@@ -410,13 +432,60 @@ o contrato não pode mais ser apagado enquanto tiver parcelas (FK sem cascade, p
 decisão consciente — apagar contrato não apaga dinheiro em silêncio). Desfazer um
 dedo errado é linha a linha.
 
-### Ponto cego conhecido dos testes
+**Orçamento e PDF de aprovação são legíveis por qualquer colaborador ativo.**
+Achado médio da auditoria do módulo 8. Mesma classe da leitura larga já
+aceita no módulo 7, e coerente com a decisão do usuário lá ("faça da forma
+que está no original") — no base44 não há checagem de permissão em tela
+nenhuma, e o arquivo é URL **pública**. A nossa versão é estritamente mais
+apertada: bucket privado, isolado por tenant, URL assinada com 5 min.
 
-As suítes provam que a RLS segura **token legítimo**. Nenhuma exercita token
-forjado. Passavam 100% enquanto o sistema era falsificável pelo formato
-antigo de chave. Não é asserção vazia — é escopo faltando. Falta um caso que
-tente assinar HS256 e exija recusa, para acusar se alguém religar as chaves
-legadas.
+O que fica largo é a leitura: arquiteto e estagiário leem valores, comissões
+por fornecedor, e **baixam o PDF de aprovação de compra do cliente** — o
+documento mais sensível do módulo. Provado com login real da arquiteta
+Camila, com `client_budget` e `suppliers` em `can_view = false` nos dois.
+Escrita continua presa a `can_edit` (coordenador e administrativo barrados,
+provado).
+
+Se o escritório quiser restringir, o recorte é em dois lugares que precisam
+concordar: a policy de SELECT das tabelas (0050/0054) **e** a policy de
+SELECT do bucket (0052). Mexer só numa das duas cria uma tela que lista o
+anexo e não abre, ou o contrário.
+
+**Arquivo órfão no Storage.** Pendência declarada na migration 0052, com o
+tamanho medido na auditoria do módulo 8. Storage não tem FK: apagar item,
+cotação ou checklist não apaga o objeto. Os hooks varrem os caminhos antes do
+DELETE, mas é best-effort — e `remove()` sem permissão **falha em silêncio**
+(devolve sucesso com zero apagados). Órfão custa armazenamento e continua
+alcançável por caminho dentro do próprio escritório; **não** atravessa tenant
+(provado). Fechar de verdade pede faxina que compare bucket com banco.
+
+### Ponto cego dos testes — fechado no módulo 8
+
+Ficou aberto do módulo 1 ao 7, escrito aqui o tempo todo: as suítes provavam
+que a RLS segura **token legítimo**, e nenhuma exercitava token forjado.
+Passavam 100% enquanto o sistema era falsificável. Não era asserção vazia —
+era escopo faltando.
+
+Deixou de ser teórico na auditoria do módulo 8 (ver "Chave de ASSINATURA
+HS256 legada", acima). Fechado por `supabase/tests/forged-token.mjs`
+(`npm run test:forged`, 9 casos):
+
+- nenhuma chave HS256 fora de `revoked`, e existe chave assimétrica `in_use`
+- token HS256 assinado com o **segredo real do projeto** é recusado em quatro
+  tabelas de módulos diferentes
+- token `alg:none` é recusado
+- **controle positivo**: login legítimo lê o mesmo caminho e devolve `200`
+
+Duas decisões de desenho que o arquivo carrega, e que valem para qualquer
+teste de segurança futuro deste projeto:
+
+1. **O segredo é o real, buscado na Management API.** Forjar com segredo
+   adivinhado não prova nada — o `401` viria da assinatura errada, não da
+   chave estar revogada, e o teste passaria para sempre mesmo com a chave
+   religada. Este projeto já escreveu uma asserção vazia exatamente assim.
+2. **Sem o segredo, o teste ABORTA em vez de pular.** Teste de segurança que
+   se cala quando não consegue verificar vira um "passou" no relatório, que é
+   pior que teste nenhum.
 
 ### Módulo 2 (CRM) — auditoria e o que ficou registrado
 
