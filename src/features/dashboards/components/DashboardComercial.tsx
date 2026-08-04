@@ -508,11 +508,14 @@ export default function DashboardComercial() {
             (`funnelStageTotals`). É do original.
 
             AS CORES DAS BARRAS SÃO AS DO ORIGINAL — sky-500 na quantidade e
-            emerald-500 no valor —, mas chegam por `currentColor`: a cor sai da
-            classe utilitária no contêiner do gráfico, e não de um hex escrito no
-            componente. A grade usa `--muted`, que no tema claro é exatamente o
-            slate-100 do original e no escuro deixa de ser uma linha branca sobre
-            fundo escuro.
+            emerald-500 no valor —, e vêm dos tokens `--chart-sky` e
+            `--chart-emerald`, os mesmos que o Painel Executivo usa. Nasceram
+            aqui como `currentColor` numa classe utilitária, que dá o mesmo
+            pixel na barra mas deixa o texto do balão sair na cor do texto da
+            página em vez da cor da série — e eram dois mecanismos para a mesma
+            coisa dentro do mesmo módulo. A grade usa `--muted`, que no tema
+            claro é exatamente o slate-100 do original e no escuro deixa de ser
+            uma linha branca sobre fundo escuro.
 
             O TEXTO DOS EIXOS FICA NO PADRÃO DO recharts (cinza #666, só com o
             `fontSize: 11` que o original passa). No tema escuro ele tem pouco
@@ -530,7 +533,7 @@ export default function DashboardComercial() {
                   <CardTitle className="text-base">Negociações Ativas por Etapa</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300} className="text-sky-500">
+                  <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={stages}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                       <XAxis
@@ -548,7 +551,7 @@ export default function DashboardComercial() {
                       <Bar
                         dataKey="count"
                         name="quantidade"
-                        fill="currentColor"
+                        fill="var(--color-chart-sky)"
                         radius={[8, 8, 0, 0]}
                       />
                     </BarChart>
@@ -561,7 +564,7 @@ export default function DashboardComercial() {
                   <CardTitle className="text-base">Valor Ativo por Etapa</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300} className="text-emerald-500">
+                  <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={stages}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                       <XAxis
@@ -582,7 +585,7 @@ export default function DashboardComercial() {
                       <Bar
                         dataKey="value"
                         name="valor"
-                        fill="currentColor"
+                        fill="var(--color-chart-emerald)"
                         radius={[8, 8, 0, 0]}
                       />
                     </BarChart>

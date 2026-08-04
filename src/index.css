@@ -89,6 +89,8 @@
     reproduzir.
   */
   --chart-sky: 198.6 88.7% 48.4%;
+  /* emerald-500 do original, o par de --chart-sky no gráfico de valor. */
+  --chart-emerald: 160.1 84.1% 39.4%;
 
   --radius: 0.5rem;
   /*
@@ -211,6 +213,7 @@
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
   --color-chart-sky: hsl(var(--chart-sky));
+  --color-chart-emerald: hsl(var(--chart-emerald));
   --color-sidebar: hsl(var(--sidebar-background));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
