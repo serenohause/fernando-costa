@@ -16,6 +16,7 @@ import AccountsPayable from '@/features/financial/components/AccountsPayable'
 import FormularioCliente from '@/features/pipeline/components/FormularioCliente'
 import AccountsReceivable from '@/features/financial/components/AccountsReceivable'
 import Suppliers from '@/features/suppliers/components/Suppliers'
+import BudgetChecklists from '@/features/budget/components/BudgetChecklists'
 
 /*
   O shell já está de pé; as telas de conteúdo entram módulo a módulo, na ordem
@@ -60,6 +61,11 @@ export function AppRoutes() {
         <Route path="/AccountsReceivable" element={<AccountsReceivable />} />
         <Route path="/AccountsPayable" element={<AccountsPayable />} />
         <Route path="/Fornecedores" element={<Suppliers />} />
+        {/* "Orçamento por Cliente" na sidebar, `/OrcamentoCliente` na URL — o
+            nome da rota é o do original (Layout.jsx:344), e o menu dela é
+            `client_budget`. O detalhe do checklist é a MESMA rota, trocada por
+            estado, como lá. */}
+        <Route path="/OrcamentoCliente" element={<BudgetChecklists />} />
         <Route path="/Collaborators" element={<Collaborators />} />
         <Route path="/AprovacoesAcesso" element={<AprovacoesAcesso />} />
         <Route path="*" element={<PagePlaceholder />} />

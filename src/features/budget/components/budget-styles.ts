@@ -1,4 +1,4 @@
-import type { BudgetItemStatus } from '@/lib/enums'
+import type { BudgetChecklistStatus, BudgetItemStatus } from '@/lib/enums'
 
 /*
   A paleta de status do item de orçamento, indexada pelo valor do banco em vez do
@@ -21,5 +21,22 @@ export const ITEM_STATUS_BADGE: Record<BudgetItemStatus, string> = {
   quoted: 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400',
   presented_to_client: 'bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400',
   approved: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400',
+  cancelled: 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400',
+}
+
+/*
+  A paleta de status do CHECKLIST — o `statusColors` do cartão da listagem
+  (OrcamentoCliente.jsx:15-21), com as mesmas decisões do mapa acima: cada cor de
+  estado ganha variante escura e o tom neutro vira token.
+
+  Ela NÃO governa o crachá do cabeçalho do detalhe: lá o original pinta todos os
+  status de azul, sem consultar mapa nenhum (ChecklistDetalhe.jsx:104). A
+  divergência é do original e está reproduzida como está, e reportada.
+*/
+export const CHECKLIST_STATUS_BADGE: Record<BudgetChecklistStatus, string> = {
+  open: 'bg-muted text-soft',
+  in_progress: 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400',
+  awaiting_client: 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400',
+  completed: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400',
   cancelled: 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400',
 }
