@@ -8,6 +8,7 @@ import ClientDetail from '@/features/crm/components/ClientDetail'
 import Negociacoes from '@/features/pipeline/components/Negociacoes'
 import Contracts from '@/features/contracts/components/Contracts'
 import Projects from '@/features/projects/components/Projects'
+import MapaProjetos from '@/features/map/components/MapaProjetos'
 import Tasks from '@/features/projects/components/Tasks'
 import Atividades from '@/features/activities/components/Atividades'
 import MinhasAtividades from '@/features/activities/components/MinhasAtividades'
@@ -47,6 +48,9 @@ export function AppRoutes() {
         <Route path="/Negociacoes" element={<Negociacoes />} />
         <Route path="/Contracts" element={<Contracts />} />
         <Route path="/Projects" element={<Projects />} />
+        {/* "Mapa de Projetos" na sidebar, `/MapaProjetos` na URL (Layout.jsx:339),
+            menu `map`. */}
+        <Route path="/MapaProjetos" element={<MapaProjetos />} />
         {/* "Fluxo do Projeto" na sidebar, `/Tasks` na URL — o nome da rota é o do
             original, e o menu dela é `project_flow`, separado de `projects`. */}
         <Route path="/Tasks" element={<Tasks />} />

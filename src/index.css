@@ -240,3 +240,63 @@
     color: hsl(var(--foreground));
   }
 }
+
+/*
+  LEAFLET — camadas do mapa, portadas de projeto-original/src/globals.css:151-185.
+
+  O Leaflet põe seus painéis em z-index 400 a 800 e o container em 0, contando
+  com uma página que não tenha nada por cima. Este sistema tem: diálogo em 50001,
+  alert-dialog em 60001, sheet em 40001, select em 99999 (ver src/components/ui).
+  Sem estas regras o balão do pino e os controles do mapa aparecem POR CIMA do
+  diálogo de confirmação.
+
+  Os valores são relativos ao contexto de empilhamento do `.leaflet-container`,
+  que fica em 1 — ou seja, o mapa inteiro passa a caber embaixo de qualquer
+  overlay do app, mantendo a ordem interna dele (tiles, marcadores, balões,
+  controles). O `!important` é o do original: as regras do leaflet.css não têm
+  prioridade, mas a folha dele pode ser carregada depois desta.
+
+  O CSS do Leaflet em si é importado pela tela do mapa
+  (src/features/map/components/MapaProjetos.tsx), como no original.
+
+  O `.leaflet-container` NA FRENTE DE CADA SELETOR é a única diferença em relação
+  ao original, e ela é sobre o build, não sobre a tela: o minificador de CSS
+  (lightningcss, que vem com o Tailwind v4) APAGA uma regra `!important` quando
+  encontra depois, no mesmo pacote, outra com o MESMO seletor e a mesma
+  propriedade — e o leaflet.css tem exatamente isso (`.leaflet-popup-pane
+  { z-index: 700 }`). Medido: quatro das oito regras desapareciam do CSS
+  publicado. Com o prefixo os seletores deixam de coincidir, as oito sobrevivem e
+  a especificidade continua igual entre elas, mantendo a mesma cascata do
+  original (a última vence).
+*/
+.leaflet-container .leaflet-pane {
+  z-index: 10 !important;
+}
+
+.leaflet-container .leaflet-tile-pane {
+  z-index: 10 !important;
+}
+
+.leaflet-container .leaflet-overlay-pane {
+  z-index: 20 !important;
+}
+
+.leaflet-container .leaflet-marker-pane {
+  z-index: 30 !important;
+}
+
+.leaflet-container .leaflet-tooltip-pane {
+  z-index: 40 !important;
+}
+
+.leaflet-container .leaflet-popup-pane {
+  z-index: 50 !important;
+}
+
+.leaflet-container .leaflet-control {
+  z-index: 60 !important;
+}
+
+.leaflet-container {
+  z-index: 1 !important;
+}
