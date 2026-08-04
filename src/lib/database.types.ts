@@ -1399,6 +1399,182 @@ export type Database = {
           },
         ]
       }
+      map_properties: {
+        Row: {
+          address: string | null
+          city: string | null
+          client_id: string | null
+          client_label: string | null
+          created_at: string
+          id: string
+          land_area_m2: number | null
+          lat: number
+          legacy_id: string | null
+          lng: number
+          project_area_m2: number | null
+          project_id: string | null
+          project_label: string | null
+          state: string | null
+          subdivision_block: string | null
+          subdivision_lot: string | null
+          subdivision_name: string | null
+          tenant_id: string
+          updated_at: string
+          visual_status: Database["public"]["Enums"]["map_visual_status"]
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          client_id?: string | null
+          client_label?: string | null
+          created_at?: string
+          id?: string
+          land_area_m2?: number | null
+          lat: number
+          legacy_id?: string | null
+          lng: number
+          project_area_m2?: number | null
+          project_id?: string | null
+          project_label?: string | null
+          state?: string | null
+          subdivision_block?: string | null
+          subdivision_lot?: string | null
+          subdivision_name?: string | null
+          tenant_id: string
+          updated_at?: string
+          visual_status?: Database["public"]["Enums"]["map_visual_status"]
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          client_id?: string | null
+          client_label?: string | null
+          created_at?: string
+          id?: string
+          land_area_m2?: number | null
+          lat?: number
+          legacy_id?: string | null
+          lng?: number
+          project_area_m2?: number | null
+          project_id?: string | null
+          project_label?: string | null
+          state?: string | null
+          subdivision_block?: string | null
+          subdivision_lot?: string | null
+          subdivision_name?: string | null
+          tenant_id?: string
+          updated_at?: string
+          visual_status?: Database["public"]["Enums"]["map_visual_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_properties_client_id_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "map_properties_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "map_properties_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "map_properties_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      map_property_land_types: {
+        Row: {
+          created_at: string
+          id: string
+          land_type: string
+          map_property_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          land_type: string
+          map_property_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          land_type?: string
+          map_property_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_property_land_types_map_property_id_fkey"
+            columns: ["map_property_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "map_properties"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "map_property_land_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      map_property_purposes: {
+        Row: {
+          created_at: string
+          id: string
+          map_property_id: string
+          purpose: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          map_property_id: string
+          purpose: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          map_property_id?: string
+          purpose?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_property_purposes_map_property_id_fkey"
+            columns: ["map_property_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "map_properties"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "map_property_purposes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menus: {
         Row: {
           created_at: string
@@ -1807,6 +1983,14 @@ export type Database = {
           project_type: Database["public"]["Enums"]["contract_type"]
           renderings_days: number | null
           site_address_text: string | null
+          site_geocode_status: Database["public"]["Enums"]["geocode_status"]
+          site_geocode_updated_at: string | null
+          site_lat: number | null
+          site_lng: number | null
+          site_pin_manual: boolean
+          site_pin_updated_at: string | null
+          site_pin_updated_by: string | null
+          site_place_id: string | null
           start_date: string | null
           state: string | null
           status: Database["public"]["Enums"]["project_status"]
@@ -1841,6 +2025,14 @@ export type Database = {
           project_type: Database["public"]["Enums"]["contract_type"]
           renderings_days?: number | null
           site_address_text?: string | null
+          site_geocode_status?: Database["public"]["Enums"]["geocode_status"]
+          site_geocode_updated_at?: string | null
+          site_lat?: number | null
+          site_lng?: number | null
+          site_pin_manual?: boolean
+          site_pin_updated_at?: string | null
+          site_pin_updated_by?: string | null
+          site_place_id?: string | null
           start_date?: string | null
           state?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -1875,6 +2067,14 @@ export type Database = {
           project_type?: Database["public"]["Enums"]["contract_type"]
           renderings_days?: number | null
           site_address_text?: string | null
+          site_geocode_status?: Database["public"]["Enums"]["geocode_status"]
+          site_geocode_updated_at?: string | null
+          site_lat?: number | null
+          site_lng?: number | null
+          site_pin_manual?: boolean
+          site_pin_updated_at?: string | null
+          site_pin_updated_by?: string | null
+          site_place_id?: string | null
           start_date?: string | null
           state?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -1911,6 +2111,13 @@ export type Database = {
           {
             foreignKeyName: "projects_operational_responsible_id_fkey"
             columns: ["operational_responsible_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "projects_site_pin_updated_by_fkey"
+            columns: ["site_pin_updated_by", "tenant_id"]
             isOneToOne: false
             referencedRelation: "collaborators"
             referencedColumns: ["id", "tenant_id"]
@@ -2816,6 +3023,7 @@ export type Database = {
         | "proposal_sent"
         | "negotiating"
         | "closing"
+      geocode_status: "pending" | "ok" | "failed"
       installment_frequency: "monthly" | "biweekly" | "weekly" | "single"
       lead_origin: "instagram" | "referral" | "website" | "event" | "other"
       lead_source: "instagram" | "referral" | "website" | "other"
@@ -2826,6 +3034,11 @@ export type Database = {
         | "postponed"
         | "no_response"
         | "other"
+      map_visual_status:
+        | "not_started"
+        | "in_development"
+        | "paused"
+        | "completed"
       negotiation_status: "active" | "won" | "lost"
       partnership_model:
         | "sales_commission"
@@ -3142,6 +3355,7 @@ export const Constants = {
         "negotiating",
         "closing",
       ],
+      geocode_status: ["pending", "ok", "failed"],
       installment_frequency: ["monthly", "biweekly", "weekly", "single"],
       lead_origin: ["instagram", "referral", "website", "event", "other"],
       lead_source: ["instagram", "referral", "website", "other"],
@@ -3152,6 +3366,12 @@ export const Constants = {
         "postponed",
         "no_response",
         "other",
+      ],
+      map_visual_status: [
+        "not_started",
+        "in_development",
+        "paused",
+        "completed",
       ],
       negotiation_status: ["active", "won", "lost"],
       partnership_model: [

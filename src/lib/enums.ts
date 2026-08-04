@@ -10,6 +10,8 @@
   acrescenta os seus.
 */
 
+import type { Enums } from './database.types'
+
 export type LabelMap<T extends string> = Readonly<Record<T, string>>
 
 /** Ordem de exibição em select e filtro. Não é ordem alfabética de propósito. */
@@ -661,6 +663,41 @@ export const BUDGET_ITEM_PRIORITY = {
   medium: 'Média',
   low: 'Baixa',
 } as const satisfies LabelMap<PriorityLevel>
+
+// ── Mapa ────────────────────────────────────────────────────────────────
+
+/*
+  Status exibido no marcador de um pino SEM projeto vinculado. A ordem é a do
+  select do formulário de propriedade (ProjectForm.jsx:365-368).
+
+  NÃO É `PROJECT_STATUS`, apesar de dois rótulos coincidirem: "Pausado" aqui é
+  "Suspenso" lá, e o mapa lê o status do PROJETO quando há vínculo, caindo neste
+  enum só quando não há (MapaProjetos.jsx:287). Enum separado de propósito —
+  docs/ENUM-MAP.md, seção "Mapa".
+*/
+export const MAP_VISUAL_STATUS = {
+  not_started: 'Não iniciado',
+  in_development: 'Em desenvolvimento',
+  paused: 'Pausado',
+  completed: 'Concluído',
+} as const satisfies LabelMap<string>
+
+export type MapVisualStatus = keyof typeof MAP_VISUAL_STATUS
+
+/*
+  `geocode_status` ENTRA SEM MAPA DE RÓTULO, e isso é a fidelidade ao de/para,
+  não esquecimento: docs/ENUM-MAP.md declara este enum com duas colunas (base44 e
+  Postgres) e nenhuma de "Rótulo UI", ao contrário de todos os outros. O motivo
+  está lá — tela nenhuma do original exibe o campo. `geocoding.jsx` o escreve
+  (`OK`/`FAILED`) e o formulário de projeto mostra só a coordenada que resultou
+  dele (ProjectForm.jsx:666).
+
+  O tipo existe porque o hook de geocodificação precisa nomear o valor que grava.
+  Inventar "Pendente / Concluído / Falhou" aqui seria criar texto de tela que o
+  de/para não aprovou — e o primeiro lugar a exibir o campo é quem tem que pedir
+  o rótulo ao usuário.
+*/
+export type GeocodeStatus = Enums<'geocode_status'>
 
 /*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
