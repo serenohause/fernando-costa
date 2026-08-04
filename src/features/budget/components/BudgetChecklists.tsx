@@ -105,7 +105,6 @@ const ZERO_TOTALS: Omit<BudgetChecklistTotals, 'checklist_id' | 'tenant_id'> = {
   approved_total: 0,
   commission_total: 0,
   commission_received_total: 0,
-  curation_total: 0,
   attachment_count: 0,
 }
 

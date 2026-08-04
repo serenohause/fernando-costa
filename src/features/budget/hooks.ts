@@ -170,7 +170,7 @@ export function useBudgetChecklistTotals() {
       const { data, error } = await supabase
         .from('budget_checklist_totals')
         .select(
-          'checklist_id, tenant_id, item_count, completed_item_count, progress_percent, estimated_total, approved_total, commission_total, commission_received_total, curation_total, attachment_count',
+          'checklist_id, tenant_id, item_count, completed_item_count, progress_percent, estimated_total, approved_total, commission_total, commission_received_total, attachment_count',
         )
         .limit(LIST_LIMIT)
 

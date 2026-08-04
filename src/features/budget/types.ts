@@ -50,9 +50,6 @@ export type BudgetChecklistTotals = {
   approved_total: number
   commission_total: number
   commission_received_total: number
-  /* Total aprovado × `curation_percent`. A fórmula é DECISÃO da migration 0051 —
-     no original o campo existe e nenhuma tela o calcula — e está reportada. */
-  curation_total: number
   /* O clipe do cartão da listagem (OrcamentoCliente.jsx:200), somado no BANCO
      desde a migration 0054. Cotações COM PDF mais PDFs de aprovação, sobre todos
      os itens; `budget_file_path` não entra, como no original. */

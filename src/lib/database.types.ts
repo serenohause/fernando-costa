@@ -2579,7 +2579,6 @@ export type Database = {
           commission_received_total: number | null
           commission_total: number | null
           completed_item_count: number | null
-          curation_total: number | null
           estimated_total: number | null
           item_count: number | null
           progress_percent: number | null

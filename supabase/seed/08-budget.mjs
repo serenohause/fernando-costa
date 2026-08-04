@@ -717,7 +717,7 @@ async function main() {
     {
       /*
         SEM ITEM NENHUM, e com curation_percent preenchido de propósito: é o que
-        prova que curation_total dá 0 por não haver aprovado, e não por falta de
+        prova que o total aprovado dá 0 por não haver item aprovado, e não por
         percentual. É o estado normal logo depois de criar o checklist.
       */
       key: 'vazio',
@@ -864,7 +864,6 @@ async function main() {
         `  aprovado R$ ${brl(t.approved_total).padStart(10)}` +
         `  comissão R$ ${brl(t.commission_total).padStart(8)}` +
         ` (recebida R$ ${brl(t.commission_received_total)})` +
-        `  curadoria R$ ${brl(t.curation_total)}` +
         `  ${String(t.attachment_count).padStart(2)} PDF(s)`,
     )
   }
@@ -931,7 +930,6 @@ async function main() {
     'approved_total',
     'commission_total',
     'commission_received_total',
-    'curation_total',
     /* Entrou na view pela 0054, e pelo mesmo motivo dos outros: a soma vem de um
        LEFT JOIN com budget_item_attachments, e checklist sem item nenhum não tem
        o que somar — sem o coalesce, isto seria NULL. */
@@ -949,7 +947,7 @@ async function main() {
       fail(`o checklist sem item devolveu ${campo} = ${v}, e deveria ser zero.`)
     }
   }
-  console.log('  OK: o checklist sem item devolve zero (não nulo) nos nove campos da view.')
+  console.log('  OK: o checklist sem item devolve zero (não nulo) nos oito campos da view.')
 
   /*
     Fornecedor nunca escolhido também tem que dar zero, pelo mesmo motivo e na

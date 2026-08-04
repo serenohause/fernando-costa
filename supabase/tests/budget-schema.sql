@@ -544,9 +544,21 @@ select pg_temp.val('3.5', 'progresso: 1 finalizado de 3 itens', '33', format($q$
   select progress_percent::text from public.budget_checklist_totals where checklist_id = %L
 $q$, (select chk_a from ids)));
 
-select pg_temp.val('3.6', 'curadoria: 10% sobre o total APROVADO', '1000.00', format($q$
-  select curation_total::text from public.budget_checklist_totals where checklist_id = %L
-$q$, (select chk_a from ids)));
+-- A view NAO tem valor de curadoria, e isso e a asserção, nao um esquecimento.
+-- A 0051 criou curation_total com uma formula inventada (aprovado x percentual);
+-- a 0055 tirou, por decisao do usuario de ser fiel ao original, onde
+-- curadoria_valor_total e campo declarado que nenhuma tela calcula nem exibe -
+-- so o PERCENTUAL aparece (ChecklistDetalhe.jsx:110). Este caso existe para
+-- acusar se alguem recolocar a coluna: valor de dinheiro numa view tem cara de
+-- dado oficial, e o proximo a ligar isso num cartao poe na tela do escritorio um
+-- numero que ninguem combinou.
+select pg_temp.val('3.6', 'a view NAO expoe valor de curadoria', '0', $q$
+  select count(*)::text
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'budget_checklist_totals'
+    and column_name = 'curation_total'
+$q$);
 
 -- Checklist recem-criado, sem item nenhum. E o estado mais comum da tela logo
 -- depois do "Novo Checklist", e soma de conjunto vazio e NULL em SQL - a tela
@@ -571,13 +583,21 @@ select pg_temp.val('3.11', 'checklist SEM item: progresso zero, e nao nulo nem d
   select progress_percent::text from public.budget_checklist_totals where checklist_id = %L
 $q$, (select chk_empty from ids)));
 
-select pg_temp.val('3.12', 'checklist SEM item: curadoria zero, e nao nulo', '0.00', format($q$
-  select curation_total::text from public.budget_checklist_totals where checklist_id = %L
+-- CONTROLE do 3.6: a view responde de verdade para este checklist. Sem isto, o
+-- count = 0 la em cima passaria tambem se a view tivesse sumido inteira.
+select pg_temp.val('3.12', 'CONTROLE: a view devolve as colunas que restaram', '0.00', format($q$
+  select commission_received_total::text from public.budget_checklist_totals where checklist_id = %L
 $q$, (select chk_empty from ids)));
 
--- Checklist do escritorio B, que nao tem curadoria informada.
-select pg_temp.val('3.13', 'sem percentual de curadoria o valor e zero, e nao nulo', '0.00', format($q$
-  select curation_total::text from public.budget_checklist_totals where checklist_id = %L
+-- O percentual continua gravado e legivel na tabela: e ele que a tela mostra
+-- ("Curadoria: X%"). Percentual ausente fica NULO, e a tela simplesmente nao
+-- desenha a linha - igual ao original, que faz `{checklist.curadoria_percentual &&`.
+select pg_temp.val('3.13', 'percentual de curadoria gravado e legivel', '10.00', format($q$
+  select curation_percent::text from public.budget_checklists where id = %L
+$q$, (select chk_a from ids)));
+
+select pg_temp.val('3.14', 'sem curadoria acordada o percentual fica NULO, nao zero', 'NULO', format($q$
+  select coalesce(curation_percent::text, 'NULO') from public.budget_checklists where id = %L
 $q$, (select chk_del from ids)));
 
 -- A view e SECURITY INVOKER: a RLS das duas tabelas vale para quem consulta.
