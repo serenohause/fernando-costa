@@ -699,11 +699,21 @@ No original, "Minhas Atividades" filtra no navegador
 Arquiteto e Estagiário são redirecionados para essa tela pelo `Layout.jsx`,
 mas nada impede a chamada direta à entidade — o recorte é cosmético.
 
-Aqui vira policy: quem tem `can_edit` no menu `activities`, ou é Diretor,
-lê todas as atividades do escritório; **quem não tem, lê apenas aquelas em
-que é o responsável ou o coordenador do responsável.** Isso é diferente de
-todos os módulos anteriores, onde a leitura é larga para qualquer
-colaborador ativo.
+Aqui vira policy: quem tem `can_view` **ou** `can_edit` no menu
+`activities`, ou é Diretor, lê todas as atividades do escritório; **quem não
+tem nenhum dos dois, lê apenas aquelas em que é o responsável ou o
+coordenador do responsável.** Isso é diferente de todos os módulos
+anteriores, onde a leitura é larga para qualquer colaborador ativo.
+
+> Este parágrafo dizia "quem tem `can_edit`", e a migration 0038 implementou
+> assim. Estava errado: no original `pode_visualizar` é o que faz a pessoa
+> ver o menu **e** ler tudo — `Atividade.list()` devolve o escritório inteiro
+> e a visão gerencial recorta no navegador; leitura parcial não existe lá.
+> Com `can_edit` na policy, o Administrativo (que no seed tem `can_view` e
+> não `can_edit`) via o item na sidebar e abria uma tela vazia. Corrigido
+> pela migration 0059, por decisão do usuário de fazer como o original.
+> A **escrita** continua em `can_edit` — mais o responsável da linha, desde
+> a 0039.
 
 O motivo de apertar aqui e não nos outros: atividade descreve o que uma
 pessoa específica está fazendo e quanto tempo levou. É avaliação de
@@ -748,6 +758,9 @@ Vira **coluna gerada**: `total_minutes` calculado de
 
 - Arquiteto vê as próprias atividades e não vê as de outro. Com controle.
 - Coordenador vê as atividades de quem ele coordena.
+- Quem tem só `can_view` lê todas as atividades do escritório **e não
+  escreve nenhuma** — criar, editar linha alheia e apagar continuam negados,
+  cada negação com controle positivo ao lado (0059).
 - `completed_at` só com `status = 'completed'`, e status concluída exige
   `completed_at`.
 - `started_at` não posterior a `completed_at`.

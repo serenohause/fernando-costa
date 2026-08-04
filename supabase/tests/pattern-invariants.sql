@@ -176,19 +176,27 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
      'Finalidade Padrao ' || (select count(*) from public.project_purposes f
                               where f.project_id = 'eb400000-0000-4000-8000-000000000001')$$),
 
-  -- Modulo 6. O RESPONSAVEL da linha e o LEITOR (c_viewer_a), e nao o editor -
-  -- unico registro em que isso importa. activities e a primeira tabela do sistema
-  -- cuja leitura NAO e larga (migration 0038): quem nao tem can_edit no menu
-  -- 'activities' le apenas as atividades em que e o responsavel ou o coordenador.
-  -- Com a linha no nome do editor, o caso C5 ("CONTROLE: quem tem apenas can_view
-  -- LE") observaria OK:0 e a suite acusaria falha onde o recorte esta correto.
-  -- Com a linha no nome do leitor, C5 continua afirmando exatamente o que
-  -- pretende - que a leitura nao foi negada a quem so tem can_view - agora na
-  -- forma que vale para esta tabela. B3 (editor LE) segue por outro caminho: o
-  -- editor tem can_edit_menu('activities') e por isso le tudo.
+  -- Modulo 6. O responsavel da linha e o EDITOR (c_editor_a), como nas demais
+  -- tabelas - e aqui isso e escolha, nao acaso.
+  --
+  -- activities e a unica tabela do sistema cuja leitura nao e larga: quem nao tem
+  -- can_view nem can_edit no menu 'activities' le apenas as atividades em que e o
+  -- responsavel ou o coordenador (migrations 0038 e 0059). Enquanto a policy
+  -- exigia can_edit para a leitura ampla (0038), este registro precisava por a
+  -- linha no nome do LEITOR, senao o caso C5 ("CONTROLE: quem tem apenas can_view
+  -- LE") observaria OK:0. O efeito colateral era que C5 passava pelo ramo do
+  -- responsavel: ele nao afirmava nada sobre can_view nesta tabela, e por isso
+  -- nao acusou o defeito que a 0059 corrigiu - can_view nao concedendo leitura
+  -- nenhuma.
+  --
+  -- Com a 0059, can_view concede leitura ampla aqui como em todo o resto do
+  -- sistema, e a linha volta para o nome do editor: C5 passa a exercitar o mesmo
+  -- ramo que exercita nas outras 20 tabelas, e volta a acusar se alguem apertar a
+  -- leitura de activities de novo. B3 (editor LE) segue por dois caminhos, o
+  -- can_edit e o responsavel, e continua sendo controle.
   (6, 'activities', 'activities',
    'description, collaborator_id, start_date, end_date',
-   $$'Atividade Padrao', 'ea100000-0000-4000-8000-000000000002', current_date, current_date$$,
+   $$'Atividade Padrao', 'ea100000-0000-4000-8000-000000000001', current_date, current_date$$,
    $$'Atividade Padrao', 'eb100000-0000-4000-8000-000000000001', current_date, current_date$$),
 
   -- Modulo 7. DUAS chaves de menu no mesmo modulo, de proposito: 'Recebiveis' e
