@@ -474,6 +474,34 @@ está na lista de redirecionamento de papel individual.
 Se o escritório quiser apertar, o lugar é a policy de SELECT da migration 0058,
 por `auth_collaborator_role()`.
 
+**Painel: o rótulo diz de quem é o número.** Achado alto da auditoria do módulo
+10, corrigido antes do deploy. Duas coisas empilhadas:
+
+1. **`can_view` em `activities` não concedia nada.** A policy da 0038 só honrava
+   `can_edit_menu`, e a própria migration assumiu por escrito que Administrativo
+   receberia `can_edit` no seed — o seed dá `can_view` apenas. Resultado: o menu
+   "Atividades" aparecia para o Administrativo e a lista vinha vazia. Corrigido
+   pela **0059**, que faz `can_view` conceder leitura ampla, como no original
+   (lá `pode_visualizar` mostra o menu e `Atividade.list()` devolve tudo — não
+   existe leitura parcial). A escrita não mudou.
+
+   Por que 650 asserções não pegaram: o caso C5 da suíte de padrão ("quem tem
+   apenas can_view LÊ") usava fixture no nome do próprio leitor, então passava
+   pelo ramo do responsável e não afirmava nada sobre `can_view`. A fixture foi
+   corrigida e a asserção provada com dente — com a policy velha, ela falha.
+
+2. **Os cartões de atividade do Painel Executivo mostravam a carga de quem
+   olhava, com rótulo de escritório.** Depois da 0059 sobra o caso de quem não
+   tem nenhuma permissão no menu — no seed, o Financeiro, para quem o Executivo
+   é o único painel liberado. "Atrasadas: 0" ficava indistinguível de
+   "escritório em dia".
+
+   O original não tem resposta para isso (lá todos liam tudo, e o rótulo nunca
+   mentia), então valeu a instrução do usuário de resolver da melhor forma: o
+   rótulo passa a dizer o escopo ("Minhas atividades atrasadas") quando a
+   leitura é pessoal, e fica idêntico ao original quando é ampla. Nenhum número
+   muda, nada é escondido, nenhuma trava nova.
+
 ### Ponto cego dos testes — fechado no módulo 8
 
 Ficou aberto do módulo 1 ao 7, escrito aqui o tempo todo: as suítes provavam
