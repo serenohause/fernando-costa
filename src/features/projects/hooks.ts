@@ -30,6 +30,19 @@ export const projectKeys = {
 const LIST_LIMIT = 500
 
 const PROJECTS_ERROR_MESSAGES: DatabaseErrorMessages = {
+  /*
+    POR NOME DE CONSTRAINT, e não por código: `23503` aqui são duas situações
+    opostas. A frase do código descreve o projeto apontando para algo que sumiu;
+    esta descreve algo que aponta para o projeto e continua de pé.
+
+    `map_properties.project_id` não tem cascade (migration 0057), de propósito:
+    apagar um projeto não pode apagar em silêncio o pino que a equipe posicionou
+    no mapa. A recusa é o comportamento certo — o que faltava era dizer o que
+    aconteceu e onde a pessoa resolve.
+  */
+  map_properties_project_id_fkey:
+    'Este projeto tem propriedade marcada no Mapa, e ela não é excluída junto. Remova ou desvincule a propriedade no Mapa antes de excluir o projeto.',
+
   '23505': 'Já existe um registro com esses dados neste escritório.',
   '23503':
     'O cliente, o contrato ou o responsável informado não existe mais neste escritório.',

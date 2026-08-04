@@ -25,6 +25,15 @@ const CRM_ERROR_MESSAGES: DatabaseErrorMessages = {
     (linha de outro escritório é invisível para a RLS, ou corrida entre duas
     gravações). Com o cliente em mão, quem fala é DuplicateClientError.
   */
+  /*
+    POR NOME DE CONSTRAINT. `map_properties.client_id` não tem cascade (migration
+    0057): apagar um cliente não pode apagar em silêncio o pino que a equipe
+    posicionou no mapa. Sem esta frase, a recusa chegaria à tela como o `23503`
+    genérico, que descreve o caso contrário.
+  */
+  map_properties_client_id_fkey:
+    'Este cliente tem propriedade marcada no Mapa, e ela não é excluída junto. Remova ou desvincule a propriedade no Mapa antes de excluir o cliente.',
+
   '23505': 'Já existe um cliente cadastrado com este CPF/CNPJ ou e-mail.',
   '23502': 'Falta um campo obrigatório: nome, telefone, cidade, estado ou país.',
   '23514': 'Algum campo está fora do formato aceito. Confira o e-mail e os campos obrigatórios.',

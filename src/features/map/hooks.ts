@@ -511,8 +511,9 @@ export function useUpdateMapProperty() {
   (:393-396), e é o que evita que salvar uma posição reescreva vínculo, tags e
   áreas com a cópia que o navegador tinha em mãos.
 
-  Este é o pino de `map_properties`. O pino da OBRA (`projects.site_lat`) é outro
-  dado, com outro provedor e outra mutation — `useAdjustProjectSitePin`.
+  Este é o pino de `map_properties`. O pino da OBRA (`projects.site_lat`) é
+  outro dado, com outro provedor, e NÃO tem mutation de ajuste manual: o
+  original não tem essa tela. Ver `useGeocodeProjectSite`.
 */
 export function useMoveMapPropertyPin() {
   const queryClient = useQueryClient()
@@ -586,10 +587,17 @@ export function useDeleteMapProperty() {
   porque o dado que ela grava é geolocalização, e é aqui que a geolocalização
   deste sistema está descrita inteira.
 
-  O `site_pin_manual` É CONFERIDO, e no original essa conferência é código morto:
-  o campo nunca vira `true` lá (as três escritas o põem em `false` —
-  ProjectForm.jsx:63 e :127, geocoding.jsx:109). Ela deixa de ser morta se
-  `useAdjustProjectSitePin` for usada; ver o aviso lá embaixo.
+  O `site_pin_manual` É CONFERIDO, e a conferência é código morto — aqui e no
+  original. O campo nunca vira `true` lá (as três escritas o põem em `false`:
+  ProjectForm.jsx:63 e :127, geocoding.jsx:109), e aqui também não, porque
+  ninguém escreve nessa coluna. A proteção existe escrita e nunca liga.
+
+  Houve uma mutation que a ligava (`useAdjustProjectSitePin`), pedida por engano
+  no briefing deste módulo e apagada em seguida: ajustar o pino da OBRA é tela
+  que o original não tem, e gravar `site_pin_manual = true` faria este
+  recálculo passar a ser recusado — mudança de comportamento, não migração. A
+  conferência fica porque descreve a coluna corretamente; o que não existe é
+  quem ligue o interruptor.
 
   Devolve o mesmo formato do original — `{ success }` e não exceção — porque a
   tela de contratos ignora a falha de propósito: contrato aprovado não deixa de
@@ -680,74 +688,6 @@ export function useGeocodeProjectSite() {
       )
 
       return result.success ? { success: true } : { success: false, error: result.error }
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: mapKeys.siteLocations() })
-      /* A gravação é em `projects`: quem lê a tela de Projetos precisa saber. */
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all })
-    },
-  })
-}
-
-/*
-  ⚠ ESTA MUTATION NÃO TEM CORRESPONDENTE NO ORIGINAL. Está aqui porque a
-  instrução deste módulo a pediu junto da leitura dos oito campos `site_*`, e a
-  divergência está reportada ao usuário — não decida por ela sem ler isto:
-
-  1. NENHUMA tela do original escreve `obra_pin_manual`, `obra_pin_updated_by` ou
-     `obra_pin_updated_at`. As colunas existem na entidade e ninguém as preenche
-     (migration 0057, pontos (a) e (b)). Ajustar o pino da obra é uma tela que o
-     original NÃO tem — o que ele tem é o ajuste do pino do MAPA, que é outro
-     dado e já é `useMoveMapPropertyPin`.
-
-  2. Ao gravar `site_pin_manual = true`, esta mutation LIGA uma proteção que hoje
-     nunca liga: `useGeocodeProjectSite` passa a recusar recalcular o endereço
-     daquele projeto até que alguém peça recálculo forçado. É o comportamento que
-     a coluna descreve e para o qual ela foi criada — e é uma mudança real em
-     relação ao original, onde o recálculo sempre acontece.
-
-  3. `site_pin_updated_by` guarda o COLABORADOR, não o usuário do Auth: a FK é
-     composta para `collaborators` (migration 0057), pelo mesmo critério de
-     `projects.operational_responsible_id`.
-
-  Enquanto nenhuma tela a chamar, nada disso acontece. Se a decisão for não ter
-  ajuste manual de pino de obra, o certo é APAGAR esta função — coluna sem quem
-  escreva é herança documentada; função sem quem chame é código morto.
-*/
-export function useAdjustProjectSitePin() {
-  const queryClient = useQueryClient()
-  const { data: collaborator } = useCurrentCollaborator()
-
-  return useMutation({
-    mutationFn: async ({
-      projectId,
-      position,
-    }: {
-      projectId: string
-      position: MapPinPosition
-    }) => {
-      if (!collaborator) throw new WriteError('Colaborador não identificado na sua sessão.')
-
-      const { lat, lng } = movedPinPositionSchema.parse(position)
-
-      const { data, error } = await supabase
-        .from('projects')
-        .update({
-          site_lat: lat,
-          site_lng: lng,
-          site_pin_manual: true,
-          site_pin_updated_by: collaborator.id,
-          site_pin_updated_at: new Date().toISOString(),
-        })
-        .eq('id', projectId)
-        .select('id')
-
-      if (error) throw error
-      assertRowAffected(
-        data,
-        'A localização da obra não foi alterada. É preciso permissão de edição em Projetos.',
-      )
-      return projectId
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: mapKeys.siteLocations() })
