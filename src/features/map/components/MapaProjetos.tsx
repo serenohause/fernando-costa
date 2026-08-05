@@ -111,6 +111,9 @@ import PropertySummaryModal from './PropertySummaryModal'
      `enrichMapProperties`).
   8. `visual_status` era gravado mesmo em pino vinculado a projeto, onde a
      leitura o ignora (hooks.ts, `visualStatusColumn`).
+  9. Desfazer o vínculo digitando por cima dele deixava o selo "Vinculado" na
+     tela e o Status Visual escondido — o pino gravava um status que ninguém
+     teve como escolher (MapPropertyForm.tsx, `applyProjectSearch`).
 
   NÃO PORTADO: `showOnlyNoLocation` (:126), estado declarado e nunca usado —
   virar um filtro de verdade seria feature nova, não migração. `replaceModal`

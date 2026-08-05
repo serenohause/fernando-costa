@@ -37,13 +37,9 @@ import type { EnrichedMapProperty, MapPinLocation, MapPropertyInput } from '../t
   A marcação de cada campo, a ordem, os rótulos, os placeholders, os textos de
   ajuda e o microcopy dos botões são os do original, linha a linha.
 
-  UM DEFEITO DO ORIGINAL SOBREVIVE AQUI, e ele é de aparência, não de dado:
-  `linkedProjectId` / `linkedClientId` são estado VISUAL e não são zerados quando
-  a pessoa digita por cima de um vínculo já escolhido (ProjectForm.jsx:202-206).
-  O selo "Vinculado" e o campo verde continuam na tela, e o Status Visual
-  continua escondido, embora o vínculo já tenha sido desfeito no dado.
-
-  O SEGUNDO DEFEITO — as duas áreas — FOI CORRIGIDO. Ver `parseArea` abaixo.
+  OS DOIS DEFEITOS DO ORIGINAL QUE VIVIAM AQUI FORAM CORRIGIDOS: as duas áreas
+  (ver `parseArea`) e o vínculo que não se desfazia na tela (ver
+  `applyProjectSearch`).
 */
 
 /* As três sugestões de tipo de terreno e as quatro de finalidade
@@ -208,6 +204,72 @@ function areaText(value: number | null): string {
   return value == null ? '' : String(value)
 }
 
+/*
+  AS QUATRO TRANSIÇÕES DOS DOIS COMBOBOX, fora do componente.
+
+  Escolher da lista VINCULA (ProjectForm.jsx:168 e :216): grava o id e zera o
+  rótulo livre. Digitar DESVINCULA (:194 e :228): o rótulo livre passa a valer e
+  o id vai a nulo. Essa alternância é a regra do original E é o que o banco cobra
+  (`map_properties_project_link_exclusive_check` e a irmã de cliente), e ela não
+  mudou.
+
+  O QUE MUDOU É QUEM DESENHA O SELO "Vinculado". No original o vínculo tem DUAS
+  representações: o dado (`project_id`) e um estado só de tela
+  (`linkedProjectId`, ProjectForm.jsx:202-206), e digitar por cima de um vínculo
+  zera o primeiro e não o segundo. As duas divergem e a tela mente: o selo verde
+  fica, o campo continua verde e — pior — o seletor **Status Visual** segue
+  escondido, porque ele só aparece quando não há vínculo. Resultado: o pino já
+  está desvinculado e não há como escolher o status que ele vai gravar.
+
+  A CORREÇÃO É NÃO TER A SEGUNDA REPRESENTAÇÃO. O selo, a borda verde e o Status
+  Visual passam a olhar `values.project_id` / `values.client_id` direto, que é o
+  que vai para o banco. Zerar o id (aqui) e apagar o selo viraram a mesma coisa,
+  e não há mais como divergirem. Aparência, texto e cores do selo: os mesmos.
+
+  Exportadas porque são o comportamento que o formulário promete, e assim dá
+  para exercitá-las sem montar a tela.
+*/
+export function applyProjectSelection(
+  values: MapPropertyFormValues,
+  project: ProjectRow,
+): MapPropertyFormValues {
+  return {
+    ...values,
+    project_id: project.id,
+    project_label: null,
+    projectSearchTerm: project.name,
+    /* O cliente do projeto é preenchido junto, quando existe (:172). */
+    ...(project.client
+      ? {
+          client_id: project.client.id,
+          client_label: null,
+          clientSearchTerm: project.client.name,
+        }
+      : {}),
+  }
+}
+
+export function applyProjectSearch(
+  values: MapPropertyFormValues,
+  text: string,
+): MapPropertyFormValues {
+  return { ...values, projectSearchTerm: text, project_label: text, project_id: null }
+}
+
+export function applyClientSelection(
+  values: MapPropertyFormValues,
+  client: ClientListRow,
+): MapPropertyFormValues {
+  return { ...values, client_id: client.id, client_label: null, clientSearchTerm: client.name }
+}
+
+export function applyClientSearch(
+  values: MapPropertyFormValues,
+  text: string,
+): MapPropertyFormValues {
+  return { ...values, clientSearchTerm: text, client_label: text, client_id: null }
+}
+
 function parseArea(value: string): number | null {
   const trimmed = value.trim()
   if (trimmed === '') return null
@@ -240,8 +302,6 @@ export default function MapPropertyForm({
 
   const [showProjectSuggestions, setShowProjectSuggestions] = useState(false)
   const [showClientSuggestions, setShowClientSuggestions] = useState(false)
-  const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null)
-  const [linkedClientId, setLinkedClientId] = useState<string | null>(null)
 
   /*
     O original reinicia o formulário quando `initialData` ou `open` mudam
@@ -256,8 +316,6 @@ export default function MapPropertyForm({
     if (!initialData) return
 
     setValues(initialData)
-    setLinkedProjectId(initialData.project_id)
-    setLinkedClientId(initialData.client_id)
     setShowProjectSuggestions(false)
     setShowClientSuggestions(false)
     setCustomLandType('')
@@ -291,75 +349,32 @@ export default function MapPropertyForm({
   /* Antes do primeiro pino clicado não há formulário nenhum para desenhar. */
   if (!values) return null
 
-  /* Escolher da lista VINCULA (ProjectForm.jsx:168): grava o id e zera o rótulo
-     livre. O cliente do projeto é preenchido junto, quando existe. */
+  /*
+    O VÍNCULO QUE A TELA MOSTRA É O VÍNCULO QUE VAI PARA O BANCO — ver as quatro
+    funções `apply*` acima. O selo "Vinculado", a borda verde e o seletor de
+    Status Visual leem daqui.
+  */
+  const linkedProjectId = values.project_id
+  const linkedClientId = values.client_id
+
   const selectProjectSuggestion = (project: ProjectRow) => {
-    setLinkedProjectId(project.id)
-    setValues((current) =>
-      current
-        ? {
-            ...current,
-            project_id: project.id,
-            project_label: null,
-            projectSearchTerm: project.name,
-            ...(project.client
-              ? {
-                  client_id: project.client.id,
-                  client_label: null,
-                  clientSearchTerm: project.client.name,
-                }
-              : {}),
-          }
-        : current,
-    )
-    if (project.client) setLinkedClientId(project.client.id)
+    setValues((current) => (current ? applyProjectSelection(current, project) : current))
     setShowProjectSuggestions(false)
   }
 
-  /* Digitar DESVINCULA no dado (ProjectForm.jsx:194): o rótulo livre passa a
-     valer e o id vai a nulo. `linkedProjectId` só cai quando o campo fica vazio —
-     é o defeito 1 do cabeçalho. */
   const changeProjectSearch = (value: string) => {
-    setValues((current) =>
-      current
-        ? { ...current, projectSearchTerm: value, project_label: value, project_id: null }
-        : current,
-    )
-
-    if (!value) {
-      setLinkedProjectId(null)
-    } else {
-      setShowProjectSuggestions(true)
-    }
+    setValues((current) => (current ? applyProjectSearch(current, value) : current))
+    if (value) setShowProjectSuggestions(true)
   }
 
   const selectClientSuggestion = (client: ClientListRow) => {
-    setLinkedClientId(client.id)
-    setValues((current) =>
-      current
-        ? {
-            ...current,
-            client_id: client.id,
-            client_label: null,
-            clientSearchTerm: client.name,
-          }
-        : current,
-    )
+    setValues((current) => (current ? applyClientSelection(current, client) : current))
     setShowClientSuggestions(false)
   }
 
   const changeClientSearch = (value: string) => {
-    setValues((current) =>
-      current
-        ? { ...current, clientSearchTerm: value, client_label: value, client_id: null }
-        : current,
-    )
-
-    if (!value) {
-      setLinkedClientId(null)
-    } else {
-      setShowClientSuggestions(true)
-    }
+    setValues((current) => (current ? applyClientSearch(current, value) : current))
+    if (value) setShowClientSuggestions(true)
   }
 
   const toggleTag = (key: 'land_types' | 'purposes', tag: string) => {
