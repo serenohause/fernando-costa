@@ -14,6 +14,7 @@ import {
   mapPropertyInputSchema,
   movedPinPositionSchema,
   newPinLocationSchema,
+  type MapPropertyInputParsed,
 } from './schemas'
 import type {
   MapFacetSource,
@@ -385,6 +386,26 @@ async function syncPurposes(
 }
 
 /*
+  `visual_status` DESCREVE PINO SEM PROJETO, e por isso só é gravado nesse caso.
+
+  O original manda o campo em toda gravação, vinculada ou não (MapaProjetos.jsx:
+  556 e :763). Em pino vinculado o formulário esconde o seletor
+  (ProjectForm.jsx:355) e a tela lê o status do PROJETO (list.ts,
+  `resolveStatusLabel`): o valor gravado ali nunca aparece para ninguém, e mente
+  para quem for depurar ou tirar relatório da coluna.
+
+  Omitir a coluna é o que dá para fazer sem migration. Consequências, as duas
+  desejadas: no INSERT vinculado o banco aplica o default 'not_started' (a coluna
+  é NOT NULL, migration 0057) e no UPDATE o valor anterior fica intacto — o que
+  preserva o status visual de um pino que foi vinculado a projeto e um dia for
+  desvinculado. Tornar a coluna nullable, que seria o remédio completo, é
+  mudança de schema e está reportada, não feita.
+*/
+function visualStatusColumn(parsed: MapPropertyInputParsed) {
+  return parsed.project_id ? {} : { visual_status: parsed.visual_status }
+}
+
+/*
   Criar o pino (MapaProjetos.jsx:527), no MODO NÃO-INTRUSIVO que o próprio
   original descreve: "apenas criar registro de pin. Sem criar projeto, sem
   alterar projeto, sem alterar cliente" (:537). Vincular um pino a um projeto
@@ -395,13 +416,21 @@ async function syncPurposes(
 
   - `lat`/`lng`, `city` e `state` vêm do clique e do reverse geocoding
     (`MapPinLocation`), não do formulário.
-  - `address` TAMBÉM vem do clique, e aqui está uma divergência do original que
-    ESTÁ SENDO REPRODUZIDA, não corrigida: o formulário de criação mostra o
-    endereço detectado num input editável (ProjectForm.jsx:421-425), e a
-    gravação usa `modalData.address` — o valor de ANTES da edição
-    (MapaProjetos.jsx:546). Editar o endereço ao criar um pino não tem efeito
-    nenhum no original. Na EDIÇÃO o mesmo campo funciona (:762). Está reportado
-    ao usuário; corrigir sozinho seria mudar o comportamento da tela.
+  - `address` vem do FORMULÁRIO, e aqui está uma correção. O original mostra o
+    endereço detectado num input editável (ProjectForm.jsx:421-425) e grava
+    `modalData.address`, o valor de ANTES da edição (MapaProjetos.jsx:546): o
+    que a pessoa digitou é descartado sem aviso, embora o mesmo campo funcione
+    na EDIÇÃO (:762). Agora os dois modos gravam o que está no campo. Quando
+    ninguém edita nada, `parsed.address` é o próprio endereço do clique, que é o
+    valor com que o formulário abre — o caso comum não muda.
+  - `visual_status` SÓ É GRAVADO EM PINO SEM PROJETO, e isso também é correção.
+    O original grava o campo em toda criação, inclusive nas vinculadas (:556),
+    onde o formulário nem mostra o seletor (ProjectForm.jsx:355) e a LEITURA
+    ignora o valor (list.ts, `resolveStatusLabel`) — coluna com valor que ninguém
+    lê em metade das linhas, e que engana quem for depurar. Omitir a coluna é o
+    máximo que dá para fazer sem migration: ela é NOT NULL com default
+    'not_started' (0057), então no INSERT vinculado o banco ainda escreve o
+    default. Deixá-la nula exigiria mudar o schema, e isso não foi feito aqui.
 */
 export function useCreateMapProperty() {
   const queryClient = useQueryClient()
@@ -432,7 +461,7 @@ export function useCreateMapProperty() {
           client_id: parsed.client_id,
           client_label: parsed.client_label,
 
-          address: pin.address,
+          address: parsed.address,
           city: pin.city,
           state: pin.state,
 
@@ -443,7 +472,7 @@ export function useCreateMapProperty() {
           subdivision_block: parsed.subdivision_block,
           subdivision_lot: parsed.subdivision_lot,
 
-          visual_status: parsed.visual_status,
+          ...visualStatusColumn(parsed),
         })
         .select('id')
         .single()
@@ -473,11 +502,13 @@ export function useUpdateMapProperty() {
   return useMutation({
     mutationFn: async ({ id, input }: { id: string; input: MapPropertyInput }) => {
       const parsed = mapPropertyInputSchema.parse(input)
-      const { land_types, purposes, ...columns } = parsed
+      /* `visual_status` sai do resto das colunas e volta só quando a regra de
+         `visualStatusColumn` deixa. */
+      const { land_types, purposes, visual_status: _visualStatus, ...columns } = parsed
 
       const { data, error } = await supabase
         .from('map_properties')
-        .update(columns)
+        .update({ ...columns, ...visualStatusColumn(parsed) })
         .eq('id', id)
         .select('id, tenant_id')
 

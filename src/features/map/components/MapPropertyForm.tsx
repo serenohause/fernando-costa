@@ -37,15 +37,13 @@ import type { EnrichedMapProperty, MapPinLocation, MapPropertyInput } from '../t
   A marcação de cada campo, a ordem, os rótulos, os placeholders, os textos de
   ajuda e o microcopy dos botões são os do original, linha a linha.
 
-  DOIS DEFEITOS DO ORIGINAL SOBREVIVEM AQUI DE PROPÓSITO (ver o relatório):
+  UM DEFEITO DO ORIGINAL SOBREVIVE AQUI, e ele é de aparência, não de dado:
+  `linkedProjectId` / `linkedClientId` são estado VISUAL e não são zerados quando
+  a pessoa digita por cima de um vínculo já escolhido (ProjectForm.jsx:202-206).
+  O selo "Vinculado" e o campo verde continuam na tela, e o Status Visual
+  continua escondido, embora o vínculo já tenha sido desfeito no dado.
 
-  1. `linkedProjectId` / `linkedClientId` são estado VISUAL e não são zerados
-     quando a pessoa digita por cima de um vínculo já escolhido (ProjectForm.jsx:
-     202-206). O selo "Vinculado" e o campo verde continuam na tela, e o Status
-     Visual continua escondido, embora o vínculo já tenha sido desfeito no dado.
-  2. As duas áreas guardam NÚMERO no estado, com `parseFloat(valor) || null`
-     (:566 e :579). Digitar "0" grava "não informado", e o ponto decimal é
-     engolido a cada tecla — `step="0.01"` não muda isso.
+  O SEGUNDO DEFEITO — as duas áreas — FOI CORRIGIDO. Ver `parseArea` abaixo.
 */
 
 /* As três sugestões de tipo de terreno e as quatro de finalidade
@@ -85,8 +83,9 @@ export type MapPropertyFormValues = {
   land_types: string[]
   purposes: string[]
 
-  land_area_m2: number | null
-  project_area_m2: number | null
+  /* TEXTO, e não número — ver `parseArea`. */
+  land_area_m2: string
+  project_area_m2: string
 
   subdivision_name: string
   subdivision_block: string
@@ -112,8 +111,8 @@ export function toCreateValues(location: MapPinLocation): MapPropertyFormValues 
     lng: location.lng,
     land_types: [],
     purposes: [],
-    land_area_m2: null,
-    project_area_m2: null,
+    land_area_m2: '',
+    project_area_m2: '',
     subdivision_name: '',
     subdivision_block: '',
     subdivision_lot: '',
@@ -138,8 +137,8 @@ export function toEditValues(property: EnrichedMapProperty): MapPropertyFormValu
     lng: property.lng,
     land_types: property.land_types.map((tag) => tag.land_type),
     purposes: property.purposes.map((tag) => tag.purpose),
-    land_area_m2: property.land_area_m2,
-    project_area_m2: property.project_area_m2,
+    land_area_m2: areaText(property.land_area_m2),
+    project_area_m2: areaText(property.project_area_m2),
     subdivision_name: property.subdivision_name ?? '',
     subdivision_block: property.subdivision_block ?? '',
     subdivision_lot: property.subdivision_lot ?? '',
@@ -150,14 +149,14 @@ export function toEditValues(property: EnrichedMapProperty): MapPropertyFormValu
 /*
   O que sai do formulário para o hook de gravação.
 
-  `address` VAI JUNTO nos dois modos, como no original — e na CRIAÇÃO ele é
-  ignorado, porque lá a gravação usa o endereço do clique e não o do campo
-  (MapaProjetos.jsx:546). O defeito está reproduzido em `useCreateMapProperty`,
-  com comentário, e reportado ao usuário.
+  `address` VAI JUNTO nos dois modos, como no original — e agora VALE nos dois.
+  No original a criação descarta o que foi digitado e grava o endereço do clique
+  (MapaProjetos.jsx:546); a correção está em `useCreateMapProperty`, comentada
+  lá.
 
   `visual_status` também vai sempre, inclusive com projeto vinculado — onde o
   campo nem aparece na tela e a LEITURA o ignora (list.ts, `resolveStatusLabel`).
-  É o que o original faz (:556 e :763).
+  Quem decide não gravá-lo nesse caso é o hook, e o porquê está lá.
 */
 function toInput(values: MapPropertyFormValues): MapPropertyInput {
   return {
@@ -171,8 +170,8 @@ function toInput(values: MapPropertyFormValues): MapPropertyInput {
     land_types: values.land_types,
     purposes: values.purposes,
 
-    land_area_m2: values.land_area_m2,
-    project_area_m2: values.project_area_m2,
+    land_area_m2: parseArea(values.land_area_m2),
+    project_area_m2: parseArea(values.project_area_m2),
 
     subdivision_name: values.subdivision_name,
     subdivision_block: values.subdivision_block,
@@ -182,10 +181,37 @@ function toInput(values: MapPropertyFormValues): MapPropertyInput {
   }
 }
 
-/* `parseFloat(e.target.value) || null` do original (ProjectForm.jsx:566). Zero e
-   texto inválido viram "não informado" — ver o cabeçalho deste arquivo. */
+/*
+  A ÁREA VIVE COMO TEXTO NO ESTADO e vira número só na gravação — o mesmo desenho
+  que os campos de dinheiro dos outros módulos usam (`total_value` e
+  `toNumberOrNull` em ContractForm.tsx).
+
+  O QUE O ORIGINAL FAZ: guarda NÚMERO, com `parseFloat(e.target.value) || null`
+  (ProjectForm.jsx:566 e :579). Como o valor exibido é reconstruído do número a
+  cada tecla, o campo se reescreve enquanto a pessoa digita: "0" (inclusive o "0"
+  de "0.5") vira `null` e some, e "1.0" volta como "1" — o próximo dígito de
+  "1.05" cai no lugar errado e o campo fica "15". Ou seja, um campo com
+  `step="0.01"` que não aceita decimal, e um "0" que vira "não informado" sem
+  avisar ninguém: dado perdido e entrada impossível.
+
+  O QUE MUDOU: o estado guarda o que foi digitado, o campo não é mais reescrito
+  no meio da digitação, e a conversão acontece uma vez só, aqui. Zero deixa de
+  virar nulo em silêncio — ele chega ao `mapPropertyInputSchema` como 0 e recebe
+  a frase "A área precisa ser maior que zero.", que é a mesma regra do check
+  `map_properties_areas_positive_check`.
+
+  NaN NÃO É CONVERTIDO EM NULO de propósito (o `<input type="number">` não
+  produz, mas colar texto por outro caminho produziria): o schema o recusa com
+  frase, e "não informado" em silêncio é justamente o que este bloco corrige.
+*/
+function areaText(value: number | null): string {
+  return value == null ? '' : String(value)
+}
+
 function parseArea(value: string): number | null {
-  return Number.parseFloat(value) || null
+  const trimmed = value.trim()
+  if (trimmed === '') return null
+  return Number(trimmed)
 }
 
 export default function MapPropertyForm({
@@ -489,10 +515,9 @@ export default function MapPropertyForm({
             )}
           </div>
 
-          {/*
-            O campo é editável nos dois modos, mas na CRIAÇÃO o que for digitado
-            aqui não vai para o banco — ver `toInput` acima.
-          */}
+          {/* O campo é editável nos dois modos, e o que for digitado aqui é o
+              que vai para o banco nos dois — no original a criação o descartava
+              (ver `useCreateMapProperty`). */}
           {values.address && (
             <div className="space-y-2 bg-elevated p-3 rounded-lg border border-border">
               <Label className="text-soft">📍 Endereço Detectado</Label>
@@ -660,8 +685,8 @@ export default function MapPropertyForm({
                 type="number"
                 min="0"
                 step="0.01"
-                value={values.land_area_m2 ?? ''}
-                onChange={(e) => set('land_area_m2', parseArea(e.target.value))}
+                value={values.land_area_m2}
+                onChange={(e) => set('land_area_m2', e.target.value)}
                 placeholder="0.00"
               />
             </div>
@@ -673,8 +698,8 @@ export default function MapPropertyForm({
                 type="number"
                 min="0"
                 step="0.01"
-                value={values.project_area_m2 ?? ''}
-                onChange={(e) => set('project_area_m2', parseArea(e.target.value))}
+                value={values.project_area_m2}
+                onChange={(e) => set('project_area_m2', e.target.value)}
                 placeholder="0.00"
               />
             </div>

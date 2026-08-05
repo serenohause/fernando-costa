@@ -110,11 +110,14 @@ export function cleanStoredAddress(address: string | null | undefined): string {
   é NOT NULL com default (migration 0057), então esse ramo é inalcançável — e
   escrevê-lo aqui seria código morto.
 
-  PROJETO INVISÍVEL CONTA COMO SEM VÍNCULO, e isso é fidelidade a um efeito
-  colateral do original: lá o `lookup` de projetos é montado só com os visíveis
-  (MapaProjetos.jsx:158-160), então um pino preso a projeto oculto cai no rótulo
-  livre e no status visual. Está reportado ao usuário como comportamento
-  estranho, e não foi corrigido aqui.
+  PROJETO INVISÍVEL CONTA COMO SEM VÍNCULO para efeito de STATUS, e isso é
+  fidelidade a um efeito colateral do original: lá o `lookup` de projetos é
+  montado só com os visíveis (MapaProjetos.jsx:158-160), então um pino preso a
+  projeto oculto cai no status visual. Projeto invisível é projeto que ainda não
+  entrou na lista de Projetos nem no Fluxo (`visible_in_list`, migration 0032), e
+  mostrar o status dele no mapa seria decidir por conta própria que ele já conta
+  — o que não é migração. O NOME é outro caso, e foi corrigido: ver
+  `enrichMapProperties`.
 */
 export function resolveLinkedProject(row: MapPropertyRow): MapPropertyRow['project'] {
   return row.project?.visible_in_list ? row.project : null
@@ -135,6 +138,15 @@ export function resolveStatusLabel(row: MapPropertyRow): string {
 
   "Sem nome" e a ordem de precedência (`projeto vinculado → rótulo livre →
   'Sem nome'`) são microcopy do original e ficam literais.
+
+  O NOME SAI DO PROJETO MESMO QUE ELE ESTEJA INVISÍVEL, e aqui há uma correção.
+  No original o `lookup` de projetos só tem os visíveis (MapaProjetos.jsx:
+  158-160), então um pino preso a projeto oculto não acha nome nenhum, não tem
+  rótulo livre (as duas colunas são exclusivas) e a tela o chama de "Sem nome" —
+  na lista lateral, no balão e no resumo. O pino existe, tem projeto e tem nome:
+  o texto é falso, e falso justamente no dado que identifica a linha para quem
+  procura o pino. O vínculo continua sem valer para STATUS (`linkedProject`,
+  acima), que é onde a visibilidade quer dizer alguma coisa.
 */
 export function enrichMapProperties(rows: MapPropertyRow[]): EnrichedMapProperty[] {
   return rows.map((row) => {
@@ -143,7 +155,7 @@ export function enrichMapProperties(rows: MapPropertyRow[]): EnrichedMapProperty
     return {
       ...row,
       linkedProject,
-      displayName: linkedProject?.name || row.project_label || 'Sem nome',
+      displayName: row.project?.name || row.project_label || 'Sem nome',
       clientName: row.client?.name || row.client_label || null,
       statusLabel: resolveStatusLabel(row),
       cleanAddress: cleanStoredAddress(row.address),

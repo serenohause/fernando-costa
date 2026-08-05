@@ -23,7 +23,10 @@ import { Constants } from '@/lib/database.types'
   4. `map_properties_project_label_not_blank_check` / `_client_label_not_blank_check`
      — rótulo só com espaço, que `nullIfBlank` transforma em nulo antes.
   5. `map_properties_areas_positive_check` — área zero ou negativa. O
-     `<input type="number" min="0">` do original aceita 0 e o `parseFloat` manda.
+     `<input type="number" min="0">` do original aceita 0; lá o
+     `parseFloat(v) || null` transformava o zero em "não informado" sem avisar, e
+     agora ele chega até aqui e vira frase (ver `parseArea` em
+     MapPropertyForm.tsx).
 
   E duas regras que são do BANCO sem serem check:
   `map_property_land_types_property_id_land_type_key` e a irmã de finalidade — a
@@ -139,20 +142,20 @@ export const mapPropertyInputSchema = z
 export type MapPropertyInputParsed = z.infer<typeof mapPropertyInputSchema>
 
 /*
-  A COORDENADA DO PINO, com a validação do ORIGINAL — que é mais estrita e mais
-  errada que a do banco, e fica assim de propósito.
+  A COORDENADA DO PINO, alinhada com o CHECK DO BANCO.
 
-  MapaProjetos.jsx:386 e :532 recusam `lat === 0 || lng === 0`. Latitude zero é a
-  linha do Equador, que corta o Amapá: a regra recusa um pino legítimo em Macapá.
-  O check do banco (`map_properties_not_null_island_check`) recusa só o PAR
-  (0,0), que é sentinela e não lugar — a migration 0057 registra a divergência no
-  COMMENT da constraint e diz, com todas as letras, que a validação da tela não
-  foi alterada. A instrução deste módulo é fidelidade ao original; corrigir aqui
-  seria decidir sozinho. Está reportado ao usuário.
+  O ORIGINAL recusa `lat === 0 || lng === 0` (MapaProjetos.jsx:386 e :532).
+  Latitude zero é a linha do Equador, que corta o Amapá: a regra dele recusa um
+  pino legítimo em Macapá com "Localização inválida" — ação impossível sobre uma
+  coordenada que o banco aceita. CORRIGIDO: cai só o PAR (0,0), que é sentinela
+  de "coordenada não preenchida" e não lugar, exatamente o que
+  `map_properties_not_null_island_check` faz (migration 0057, que já registra a
+  divergência no COMMENT da constraint). A faixa do planeta continua sendo
+  cobrada, como nos dois `_range_check`. As duas frases de erro não mudaram.
 
-  O ARREDONDAMENTO PARA SEIS CASAS também é do original (`toFixed(6)`, :383) e
-  não é cosmético: `numeric(9,6)` arredondaria em silêncio, e seis casas valem
-  cerca de 11 cm no equador.
+  O ARREDONDAMENTO PARA SEIS CASAS é do original (`toFixed(6)`, :383) e não é
+  cosmético: `numeric(9,6)` arredondaria em silêncio, e seis casas valem cerca de
+  11 cm no equador.
 
   A MENSAGEM é parâmetro porque o original tem DUAS, uma por contexto: mover o
   pino pede "Reposicione o pin", criar pede "Clique novamente no mapa".
@@ -170,7 +173,7 @@ function withPinRules<T extends { lat: number; lng: number }>(
       lat: Number(value.lat.toFixed(6)),
       lng: Number(value.lng.toFixed(6)),
     }))
-    .refine((value) => value.lat !== 0 && value.lng !== 0, invalidMessage)
+    .refine((value) => value.lat !== 0 || value.lng !== 0, invalidMessage)
     .refine(
       (value) =>
         value.lat >= -90 && value.lat <= 90 && value.lng >= -180 && value.lng <= 180,

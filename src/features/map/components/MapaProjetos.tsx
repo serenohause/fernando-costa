@@ -89,20 +89,28 @@ import PropertySummaryModal from './PropertySummaryModal'
   (`map_properties_select_active_collaborator`).
   ────────────────────────────────────────────────────────────────────────────
 
-  DEFEITOS DO ORIGINAL REPRODUZIDOS AQUI, cada um comentado no ponto em que
-  acontece, e todos reportados ao usuário:
+  DEFEITOS DO ORIGINAL CORRIGIDOS, cada um comentado no ponto em que acontece.
 
-  1. A validação de coordenada recusa latitude OU longitude igual a zero, o que
-     recusa um pino legítimo em Macapá. O banco recusa só o par (0,0).
-  2. Editar o endereço ao CRIAR um pino não tem efeito (a gravação usa o endereço
-     do clique). Na edição funciona.
-  3. `visual_status` é gravado mesmo em pino vinculado a projeto, onde a leitura o
-     ignora.
-  4. Pino preso a projeto que não está visível vira "Sem nome".
-  5. Salvar "Editar Informações" mostra DOIS toasts de sucesso.
-  6. A lista de resultados da busca de localização reabre sozinha depois de a
-     pessoa escolher um deles.
-  7. O botão da camada ativa fica com texto branco sobre fundo branco.
+  A regra que valia até aqui era reproduzir o defeito junto com o resto; ela
+  mudou: aparência, microcopy e layout continuam fiéis, mas comportamento que
+  perde dado, impede entrada, impede ação ou diz coisa falsa é corrigido.
+
+  1. Área em m² não aceitava decimal e transformava "0" em "não informado"
+     (MapPropertyForm.tsx, `parseArea`).
+  2. Editar o endereço ao CRIAR um pino não tinha efeito (hooks.ts,
+     `useCreateMapProperty`).
+  3. A lista de resultados da busca de localização reabria sozinha depois da
+     escolha (`handleSelectGeoResult`, abaixo).
+  4. Salvar "Editar Informações" mostrava DOIS toasts de sucesso
+     (`handleUpdatePropertyInfo`, abaixo).
+  5. O botão da camada ativa ficava com texto branco sobre fundo branco (os dois
+     botões de camada, abaixo).
+  6. A validação de coordenada recusava latitude OU longitude igual a zero, e com
+     isso um pino legítimo em Macapá (schemas.ts, `withPinRules`).
+  7. Pino preso a projeto que não está visível virava "Sem nome" (list.ts,
+     `enrichMapProperties`).
+  8. `visual_status` era gravado mesmo em pino vinculado a projeto, onde a
+     leitura o ignora (hooks.ts, `visualStatusColumn`).
 
   NÃO PORTADO: `showOnlyNoLocation` (:126), estado declarado e nunca usado —
   virar um filtro de verdade seria feature nova, não migração. `replaceModal`
@@ -275,10 +283,9 @@ export default function MapaProjetos() {
     if (!editingPin || !tempMarkerPosition) return
 
     /*
-      A REGRA É A DO ORIGINAL (:386), e ela é mais estrita que a do banco: recusa
-      latitude OU longitude igual a zero. Latitude zero é a linha do Equador, que
-      corta o Amapá — um pino em Macapá é recusado aqui. O check do banco recusa
-      só o par (0,0), que é sentinela e não lugar. Está em
+      A REGRA AGORA É A DO BANCO: cai só o par (0,0). O original recusa latitude
+      OU longitude igual a zero (:386), e latitude zero é a linha do Equador, que
+      corta o Amapá — um pino em Macapá era recusado. Está em
       `movedPinPositionSchema`, com a mesma frase de erro do original.
     */
     const parsed = movedPinPositionSchema.safeParse({
@@ -365,7 +372,7 @@ export default function MapaProjetos() {
   const handlePropertyCreated = (input: MapPropertyInput) => {
     if (modal?.type !== 'CREATE') return
 
-    /* Mesma validação estrita de cima, com a segunda frase do original (:533). */
+    /* Mesma regra de cima, com a segunda frase do original (:533). */
     const parsed = newPinLocationSchema.safeParse(modal.location)
     if (!parsed.success) {
       toast.error(
@@ -415,11 +422,13 @@ export default function MapaProjetos() {
       {
         onSuccess: () => {
           /*
-            DOIS TOASTS, e é o que o original faz: um vem do `onSuccess` da
-            mutation compartilhada (:240) e o outro do fim do handler (:769).
-            Reproduzido junto com o resto.
+            UM TOAST SÓ. O original mostra DOIS empilhados para a mesma gravação:
+            "Propriedade atualizada", do `onSuccess` da mutation compartilhada
+            com o ajuste de pino (:240), e "Informações atualizadas", do fim
+            deste handler (:769). Fica o segundo, que é o que descreve esta ação
+            — o primeiro continua sendo o do "Ajustar Localização"
+            (`handleSavePin`), que é de quem ele é. Nenhuma frase nova.
           */
-          toast.success('Propriedade atualizada')
           setEditingPin(null)
           setTempMarkerPosition(null)
           closeModal()
@@ -473,20 +482,35 @@ export default function MapaProjetos() {
   const geoResults = useMemo(() => placesQuery.data ?? [], [placesQuery.data])
 
   /*
+    O NOME DO LUGAR JÁ ESCOLHIDO, guardado para não reabrir a lista por causa
+    dele. Ref e não estado: nada na tela depende deste valor, e ele é lido dentro
+    do efeito abaixo, que roda depois do debounce.
+  */
+  const chosenPlaceLabel = useRef<string | null>(null)
+
+  /*
     Abrir a lista quando o resultado chega é o que `handleGeoSearch` faz (:592 e
-    :608) — e é também o que a REABRE depois de a pessoa escolher um lugar, porque
-    escolher grava o nome do resultado no campo (:681) e isso dispara outra busca.
-    Defeito do original, reproduzido: a única saída é o X da caixa.
+    :608). No original isso também a REABRE ~300ms depois de a pessoa escolher um
+    lugar: escolher grava o nome do resultado no campo (:681), o campo dispara
+    outra busca, e a lista volta por cima do mapa sem ninguém ter pedido — e sem
+    clique-fora, só o X a fecha.
+
+    CORRIGIDO com uma condição: o resultado que chega para o termo que a própria
+    escolha escreveu não abre a lista. Qualquer outra digitação abre, como antes,
+    e clicar no campo de novo também (`onFocus`, abaixo) — nada foi tirado.
   */
   useEffect(() => {
     if (debouncedGeoTerm.trim().length < 3) {
       setShowGeoResults(false)
       return
     }
+    if (debouncedGeoTerm === chosenPlaceLabel.current) return
     if (placesQuery.data) setShowGeoResults(true)
   }, [debouncedGeoTerm, placesQuery.data])
 
   const handleSelectGeoResult = (result: PlaceSearchResult) => {
+    chosenPlaceLabel.current = result.displayName
+
     setSearchMarker({ lat: result.lat, lng: result.lng, label: result.displayName })
 
     if (result.boundingBox) {
@@ -512,6 +536,7 @@ export default function MapaProjetos() {
     setGeoSearchTerm('')
     setShowGeoResults(false)
     setSearchMarker(null)
+    chosenPlaceLabel.current = null
   }
 
   /* ── Busca por cliente (CRM) ───────────────────────────────────────────── */
@@ -887,15 +912,18 @@ export default function MapaProjetos() {
           {/* Controles do mapa */}
           <div className="absolute top-4 right-4 z-1000 flex gap-2">
             {/*
-              `bg-card` sobre a variante `default` deixa o botão ATIVO com texto
-              da cor do fundo — é o `bg-white` do original (:1080) sobre
-              `text-white`, e o rótulo some. Reproduzido.
+              O ORIGINAL PÕE `bg-white` NOS DOIS BOTÕES (:1080 e :1089),
+              inclusive por cima da variante `default` do botão ATIVO, que tem
+              texto branco: o rótulo da camada selecionada some no fundo branco.
+              CORRIGIDO tirando o fundo do botão ativo — ele fica com as cores da
+              própria variante `default`. O botão inativo não mudou em nada:
+              continua `outline` com fundo de cartão e a mesma sombra.
             */}
             <Button
               size="sm"
               variant={mapType === 'standard' ? 'default' : 'outline'}
               onClick={() => setMapType('standard')}
-              className="bg-card shadow-lg"
+              className={mapType === 'standard' ? 'shadow-lg' : 'bg-card shadow-lg'}
             >
               <MapIcon className="w-4 h-4 mr-1" />
               Padrão
@@ -904,7 +932,7 @@ export default function MapaProjetos() {
               size="sm"
               variant={mapType === 'satellite' ? 'default' : 'outline'}
               onClick={() => setMapType('satellite')}
-              className="bg-card shadow-lg"
+              className={mapType === 'satellite' ? 'shadow-lg' : 'bg-card shadow-lg'}
             >
               <Satellite className="w-4 h-4 mr-1" />
               Satélite
