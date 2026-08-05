@@ -37,6 +37,7 @@
     "test:schema:map": "supabase/tests/run-sql.sh supabase/tests/map-schema.sql",
     "seed:budget": "node supabase/seed/08-budget.mjs",
     "seed:map": "node supabase/seed/09-map.mjs",
+    "seed:second-office": "node supabase/seed/second-office.mjs",
     "test:forged": "node supabase/tests/forged-token.mjs"
   },
   "dependencies": {

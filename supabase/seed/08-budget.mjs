@@ -72,6 +72,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
+import { assertOnlyTestTenants } from './tenants.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TEST_TENANT_SLUG = 'fernando-costa-teste'
@@ -389,12 +390,10 @@ const SUPPLIERS = [
 async function main() {
   console.log(`\nSeed do módulo 8 (Fornecedores e Orçamento) — ${env.VITE_SUPABASE_URL}\n`)
 
-  const { data: foreign } = await db
-    .from('tenants')
-    .select('slug')
-    .neq('slug', TEST_TENANT_SLUG)
-    .limit(1)
-  if (foreign?.length) fail(`existe tenant que não é o de teste: ${foreign[0].slug}`)
+  // Trava de seguranca: aborta se houver no banco tenant fora da lista de
+  // escritorios de teste. A lista, e o que acontece quando o escritorio real
+  // nascer, estao em supabase/seed/tenants.mjs.
+  await assertOnlyTestTenants(db)
 
   const { data: tenant } = await db
     .from('tenants')

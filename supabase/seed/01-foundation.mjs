@@ -16,8 +16,10 @@
 //   npm run seed
 //
 // SEGURANCA
-//   - Escreve SOMENTE no tenant de slug TEST_TENANT_SLUG. Se existir qualquer
-//     outro tenant no banco, aborta: sinal de que ha dado real por perto.
+//   - Escreve SOMENTE no tenant de slug TEST_TENANT_SLUG. Se existir no banco
+//     qualquer tenant fora da lista de escritorios de teste, aborta: sinal de
+//     que ha dado real por perto. A lista e a trava vivem em
+//     supabase/seed/tenants.mjs, compartilhadas pelos nove seeds.
 //   - As senhas sao sorteadas a cada execucao e gravadas em
 //     supabase/seed/credenciais.local (ignorado pelo git por *.local).
 //   - Rodar de novo apaga o tenant de teste e recria do zero. Nunca toca em
@@ -30,6 +32,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
+import { assertOnlyTestTenants } from './tenants.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '../..')
@@ -193,18 +196,10 @@ async function main() {
   console.log(`\nSeed do modulo 1 — ${URL}\n`)
 
   // 1. Trava de seguranca -----------------------------------------------------
-  const { data: allTenants, error: tenantsError } = await db.from('tenants').select('id, slug, name')
-  if (tenantsError) fail(`nao consegui ler tenants: ${tenantsError.message}`)
-
-  const foreign = allTenants.filter((t) => t.slug !== TEST_TENANT_SLUG)
-  if (foreign.length > 0) {
-    fail(
-      `existe tenant que nao e o de teste no banco:\n` +
-        foreign.map((t) => `    - ${t.slug} (${t.name})`).join('\n') +
-        `\n  Este seed so escreve no escritorio de teste "${TEST_TENANT_SLUG}".\n` +
-        `  Se o dado real ja entrou, use outro projeto Supabase para desenvolvimento.`,
-    )
-  }
+  // Aborta se houver no banco tenant fora da lista de escritorios de teste.
+  // A lista, e o que acontece quando o escritorio real nascer, estao em
+  // supabase/seed/tenants.mjs.
+  const allTenants = await assertOnlyTestTenants(db)
 
   // 2. Limpeza do que sobrou de execucao anterior -----------------------------
   const previous = allTenants.find((t) => t.slug === TEST_TENANT_SLUG)

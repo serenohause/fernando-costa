@@ -1,0 +1,91 @@
+// Escritorios de teste conhecidos e a trava que os seeds compartilham.
+//
+// POR QUE A TRAVA EXISTE
+//   Todo seed deste diretorio escreve com a service role key, que ignora RLS.
+//   Rodado por engano contra o projeto Supabase errado, um seed apagaria o
+//   escritorio real e recriaria dado ficticio no lugar. A trava e a unica coisa
+//   entre um `npm run seed` distraido e essa perda: antes de escrever, o seed
+//   olha TODOS os tenants do banco e aborta se encontrar um que nao esteja na
+//   lista abaixo. Banco de desenvolvimento so tem escritorio de teste; achar
+//   outro significa que ha dado real por perto.
+//
+// O QUE ACONTECE NO DIA EM QUE O ESCRITORIO REAL NASCER
+//   No minuto em que o tenant de producao for criado, TODOS os nove seeds
+//   passam a abortar contra aquele banco. Isso e o comportamento correto, nao
+//   um bug e nao um sinal de que a lista precisa crescer: seed nao roda em
+//   banco com dado de cliente. Desenvolvimento continua em outro projeto
+//   Supabase, com sua propria URL no .env. Adicionar o slug de producao aqui
+//   para "destravar" e exatamente a perda que a trava evita.
+//
+// COMO ACRESCENTAR UM ESCRITORIO DE TESTE
+//   Uma entrada nova em TEST_TENANTS, com slug e dominio de e-mail proprios. O
+//   dominio precisa ser distinto: e-mail e global no Auth do Supabase, e dois
+//   escritorios com o mesmo dominio colidem no cadastro do primeiro login
+//   repetido.
+//
+// POR QUE E UM MODULO E NAO NOVE COPIAS
+//   A mesma checagem estava copiada nos nove seeds, com tres redacoes
+//   diferentes. Trava de seguranca replicada e trava que diverge: bastava um
+//   seed novo copiar a versao mais frouxa para o banco ficar aberto por um lado
+//   so. Agora ha um lugar so para mudar, e um lugar so para auditar.
+
+export const TEST_TENANTS = {
+  // Goiania/GO. Povoado pelos nove seeds numerados (npm run seed ... seed:map).
+  'fernando-costa-teste': {
+    name: 'Fernando Costa Arquitetura (teste)',
+    emailDomain: 'fc-teste.com.br',
+  },
+  // Florianopolis/SC. Povoado de uma vez por npm run seed:second-office.
+  'atelie-mirante-teste': {
+    name: 'Ateliê Mirante Arquitetura (teste)',
+    emailDomain: 'mirante-teste.com.br',
+  },
+}
+
+export const TEST_TENANT_SLUGS = Object.keys(TEST_TENANTS)
+
+function abort(message) {
+  console.error(`\n  ABORTADO: ${message}\n`)
+  process.exit(1)
+}
+
+// Aborta o processo se existir no banco qualquer tenant fora de
+// TEST_TENANT_SLUGS. Chamada por todos os seeds antes da primeira escrita.
+//
+// Devolve os escritorios de teste que ja existem — o seed do modulo 1 usa a
+// lista para achar a execucao anterior e limpar.
+//
+// A pergunta e feita AO BANCO ("existe tenant fora desta lista?"), e nao lendo
+// todos os tenants para filtrar aqui. Filtrar no cliente depende de a lista vir
+// inteira: com `max-rows` configurado no projeto, ou com muitos tenants, um
+// tenant estranho fora da primeira pagina passaria sem ser visto e o seed
+// seguiria escrevendo. Trava que falha em silencio e pior que trava ausente.
+export async function assertOnlyTestTenants(db) {
+  const knownList = `(${TEST_TENANT_SLUGS.join(',')})`
+
+  const { data: foreign, error: foreignError } = await db
+    .from('tenants')
+    .select('slug, name')
+    .not('slug', 'in', knownList)
+    .limit(5)
+  if (foreignError) abort(`nao consegui verificar os tenants: ${foreignError.message}`)
+
+  if (foreign.length > 0) {
+    abort(
+      `existe tenant que nao e de teste no banco:\n` +
+        foreign.map((t) => `    - ${t.slug} (${t.name})`).join('\n') +
+        `\n  Os seeds so escrevem nos escritorios de teste conhecidos:\n` +
+        TEST_TENANT_SLUGS.map((s) => `    - ${s}`).join('\n') +
+        `\n  Se o dado real ja entrou neste banco, use outro projeto Supabase\n` +
+        `  para desenvolvimento. Nao acrescente o slug de producao a lista.`,
+    )
+  }
+
+  const { data: known, error: knownError } = await db
+    .from('tenants')
+    .select('id, slug, name')
+    .in('slug', TEST_TENANT_SLUGS)
+  if (knownError) abort(`nao consegui ler os escritorios de teste: ${knownError.message}`)
+
+  return known
+}

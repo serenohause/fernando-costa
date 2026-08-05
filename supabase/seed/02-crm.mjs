@@ -13,8 +13,9 @@
 //   teste. Nao recria colaborador nem permissao — so clientes.
 //
 // SEGURANCA
-//   - Escreve SOMENTE no tenant de slug TEST_TENANT_SLUG. Aborta se houver
-//     qualquer outro tenant no banco: sinal de que ha dado real por perto.
+//   - Escreve SOMENTE no tenant de slug TEST_TENANT_SLUG. Aborta se houver no
+//     banco qualquer tenant fora da lista de escritorios de teste: sinal de que
+//     ha dado real por perto. Lista e trava em supabase/seed/tenants.mjs.
 //   - Rodar de novo apaga apenas os clientes daquele tenant e recria.
 //   - Nao toca em colaborador, permissao nem solicitacao de acesso.
 //
@@ -28,6 +29,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
+import { assertOnlyTestTenants } from './tenants.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TEST_TENANT_SLUG = 'fernando-costa-teste'
@@ -237,27 +239,10 @@ async function main() {
   console.log(`\nSeed do módulo 2 (CRM) — ${URL}\n`)
 
   // 1. Trava de segurança -----------------------------------------------------
-  //
-  // A pergunta é feita ao banco como "existe tenant diferente do de teste?", e
-  // não lendo a lista para filtrar aqui. Filtrar no cliente depende de a lista
-  // vir inteira: com `max-rows` configurado no projeto, ou com muitos tenants,
-  // um tenant estranho fora da primeira página passaria sem ser visto e o seed
-  // seguiria escrevendo. Trava que falha em silêncio é pior que trava ausente.
-  const { data: foreign, error: foreignError } = await db
-    .from('tenants')
-    .select('slug, name')
-    .neq('slug', TEST_TENANT_SLUG)
-    .limit(5)
-
-  if (foreignError) fail(`não consegui verificar os tenants: ${foreignError.message}`)
-
-  if (foreign.length > 0) {
-    fail(
-      `existe tenant que não é o de teste no banco:\n` +
-        foreign.map((t) => `    - ${t.slug} (${t.name})`).join('\n') +
-        `\n  Este seed só escreve no escritório de teste "${TEST_TENANT_SLUG}".`,
-    )
-  }
+  // Trava de seguranca: aborta se houver no banco tenant fora da lista de
+  // escritorios de teste. A lista, e o que acontece quando o escritorio real
+  // nascer, estao em supabase/seed/tenants.mjs.
+  await assertOnlyTestTenants(db)
 
   const { data: tenant, error: tenantError } = await db
     .from('tenants')
