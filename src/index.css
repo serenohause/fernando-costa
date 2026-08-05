@@ -92,6 +92,17 @@
   /* emerald-500 do original, o par de --chart-sky no gráfico de valor. */
   --chart-emerald: 160.1 84.1% 39.4%;
 
+  /*
+    O TEXTO DOS EIXOS dos três gráficos do módulo 10.
+
+    O recharts pinta o rótulo do eixo com `#666` fixo quando ninguém passa
+    `tick`, e é assim que o original desenha os três gráficos — este valor é
+    exatamente aquele cinza em HSL, então o tema claro continua idêntico ao dele.
+    Existe como token porque no escuro `#666` fica quase apagado sobre o cartão
+    (contraste ~2:1), e cor que muda por tema é o que este arquivo resolve.
+  */
+  --chart-axis: 0 0% 40%;
+
   --radius: 0.5rem;
   /*
     Sidebar branca sobre página slate-50 — é assim no original. Com a sidebar
@@ -169,6 +180,13 @@
   --chart-4: 280 65% 68%;
   --chart-5: 340 75% 62%;
 
+  /* O mesmo 66% de luminância de --muted-foreground no escuro: o rótulo do eixo
+     é texto de apoio e passa AA sobre o cartão, onde o #666 do claro não
+     passaria. --chart-sky e --chart-emerald não têm par escuro de propósito
+     (são a cor da SÉRIE, e o original não tem um segundo valor para elas); o
+     rótulo do eixo é a única coisa do gráfico que é texto. */
+  --chart-axis: 215 18% 66%;
+
   --sidebar-background: 222.2 47% 8%;
   --sidebar-foreground: 215 20% 78%;
   --sidebar-primary: 210 40% 96%;
@@ -214,6 +232,7 @@
   --color-chart-5: hsl(var(--chart-5));
   --color-chart-sky: hsl(var(--chart-sky));
   --color-chart-emerald: hsl(var(--chart-emerald));
+  --color-chart-axis: hsl(var(--chart-axis));
   --color-sidebar: hsl(var(--sidebar-background));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
@@ -262,6 +281,40 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
+}
+
+/*
+  AS DUAS VARIÁVEIS DE CAMADA QUE FALTAVAM.
+
+  `--z-header` e `--z-tooltip` eram USADAS e nunca definidas: AppLayout as põe no
+  cabeçalho e na navegação inferior, e o tooltip na dele. Variável CSS inexistente
+  não é erro — `z-index: var(--nada)` vira `auto`. Ou seja, os três ficavam sem
+  camada nenhuma: o cabeçalho fixo passava por baixo de conteúdo rolado, a
+  navegação inferior do celular era coberta por qualquer rodapé fixo (foi assim
+  que o rodapé do orçamento a escondeu), e o tooltip aparecia atrás de tudo.
+
+  A escala completa existe no original (globals.css:28-40) e o port trouxe os
+  usos sem trazer as definições.
+
+  OS VALORES NÃO SÃO OS DO ORIGINAL, e é de propósito. Lá a escala inteira cabe
+  abaixo de 2400; aqui os overlays vêm do shadcn e usam outra faixa:
+
+    sheet 40000/40001 · dialog 50000/50001 · alert-dialog 60000/60001
+    dropdown 10000 · select e popover 99999
+
+  Copiar `--z-tooltip: 2200` faria o tooltip sumir atrás de qualquer diálogo —
+  seria fiel ao número e infiel ao comportamento, que é o tooltip ficar por cima.
+  Então cada variável recebe o valor que preserva a RELAÇÃO do original dentro
+  desta escala:
+
+  - `--z-header: 100` é o próprio valor do original, e continua funcionando:
+    acima do conteúdo da página, abaixo de todo overlay (o menor deles é 40000).
+  - `--z-tooltip: 100000` fica acima de select e popover (99999), como no
+    original o tooltip ficava acima de dropdown e popover.
+*/
+:root {
+  --z-header: 100;
+  --z-tooltip: 100000;
 }
 
 /*
