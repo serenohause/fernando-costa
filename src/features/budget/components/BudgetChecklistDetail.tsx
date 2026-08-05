@@ -48,7 +48,7 @@ import {
 } from '../hooks'
 import BudgetItemDrawer from './BudgetItemDrawer'
 import BudgetItemForm, { toFormValues, type BudgetItemFormValues } from './BudgetItemForm'
-import { ITEM_STATUS_BADGE } from './budget-styles'
+import { CHECKLIST_STATUS_BADGE, ITEM_STATUS_BADGE } from './budget-styles'
 import type {
   BudgetChecklistItemInput,
   BudgetChecklistItemRow,
@@ -264,12 +264,15 @@ export default function BudgetChecklistDetail({
           </p>
           <div className="flex flex-wrap gap-2 mt-2">
             {/*
-              AZUL PARA TODOS OS STATUS, defeito do original incluído e reportado
-              (ChecklistDetalhe.jsx:104): o cartão da listagem pinta cada status
-              de uma cor, e este crachá ignora o mapa. Sem o `&&` do original: a
-              coluna é NOT NULL com default `open`.
+              O MESMO MAPA DE CORES DA LISTAGEM (`CHECKLIST_STATUS_BADGE`). O
+              original pinta este crachá de azul fixo (ChecklistDetalhe.jsx:104),
+              sem consultar mapa nenhum: "Cancelado" chega aqui azul depois de ter
+              sido vermelho no cartão que abriu a tela, e cor de status que muda de
+              significado entre duas telas diz a coisa errada. As cores em si são
+              as do original — o que mudou é qual delas cada status recebe. Sem o
+              `&&` do original: a coluna é NOT NULL com default `open`.
             */}
-            <Badge className="text-xs bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400">
+            <Badge className={`text-xs ${CHECKLIST_STATUS_BADGE[checklist.status]}`}>
               {labelOf(BUDGET_CHECKLIST_STATUS, checklist.status)}
             </Badge>
             {checklist.responsible?.name && (
@@ -457,8 +460,21 @@ export default function BudgetChecklistDetail({
         </div>
       )}
 
-      {/* Rodapé resumo */}
-      <div className="fixed bottom-0 left-0 right-0 lg:left-72 bg-card border-t border-border px-6 py-4 z-10">
+      {/*
+        Rodapé resumo.
+
+        O ORIGINAL O PRENDE EM `bottom-0`, e no celular ele cai exatamente em cima
+        da barra de navegação inferior do AppLayout (`md:hidden fixed bottom-0`,
+        h-16): quem abre um checklist no telefone perde Início, CRM, Tarefas e o
+        resto até voltar. Navegação bloqueada é ação impossível, não estética.
+
+        Abaixo de `md` o rodapé sobe a altura da barra (4rem), mais a faixa segura
+        do aparelho — a mesma que a barra reserva no `padding-bottom`. De `md`
+        para cima a barra não existe e o rodapé volta a `bottom-0`, exatamente como
+        no original. O espaçador logo abaixo cresce junto, para a última linha da
+        lista continuar alcançável.
+      */}
+      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 lg:left-72 bg-card border-t border-border px-6 py-4 z-10">
         <div className="flex flex-wrap items-center justify-between gap-4 max-w-6xl mx-auto">
           <div className="flex gap-6 text-sm">
             <div>
@@ -495,8 +511,9 @@ export default function BudgetChecklistDetail({
         </div>
       </div>
 
-      {/* Espaço para o rodapé */}
-      <div className="h-20" />
+      {/* Espaço para o rodapé — os 80px do original, mais a barra de navegação
+          inferior enquanto ela existe (ver o rodapé acima). */}
+      <div className="h-36 md:h-20" />
 
       <BudgetItemDrawer
         open={itemDrawerOpen}

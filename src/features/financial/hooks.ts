@@ -40,6 +40,10 @@ export const financialKeys = {
     [...financialKeys.receivables(), filters] as const,
   payables: () => [...financialKeys.all, 'payables'] as const,
   payableList: (filters: PayableFilters) => [...financialKeys.payables(), filters] as const,
+  /* DENTRO de `payables()`: a contagem do grupo muda a cada exclusão, e quem
+     invalida a lista depois de apagar precisa derrubar o número junto. */
+  recurrenceGroup: (parentId: string) =>
+    [...financialKeys.payables(), 'recurrence-group', parentId] as const,
   categories: () => [...financialKeys.all, 'categories'] as const,
 }
 
@@ -234,18 +238,29 @@ export function usePayables(filters: PayableFilters) {
 }
 
 /*
-  Os quatro botões de status, traduzidos para WHERE. São os mesmos recortes do
-  original (AccountsReceivable.jsx:173-191):
+  Os quatro botões de status, traduzidos para WHERE. Os recortes do original
+  (AccountsReceivable.jsx:173-191), com UMA correção:
 
   - `overdue`  → `is_overdue`, que é "não pago e vencido" (migration 0046).
   - `paid`     → `status = 'paid'`.
-  - `pending`  → `status = 'forecast'`. O original testa
+  - `pending`  → `status <> 'paid'`. O original testa
     `'Previsto' || 'Pendente'`, e 'Pendente' não é valor de status em lugar
     nenhum do base44 — é ramo morto.
 
-  FICA REGISTRADO, e não foi corrigido: parcela `renegotiated` que ainda não
-  venceu não aparece em nenhum dos três recortes, só em "Todos". É o
-  comportamento do original.
+  POR QUE `<> 'paid'` E NÃO `= 'forecast'`: com o teste do original, a parcela
+  `renegotiated` que ainda NÃO VENCEU não aparecia em recorte nenhum — nem em
+  "Previsto" (o status não é `forecast`), nem em "Recebido", nem em "Em atraso"
+  (ainda não venceu). Só em "Todos". Dinheiro a receber invisível justamente na
+  tela onde se cobra, e some também do cartão "Previsto", que soma as mesmas
+  linhas.
+
+  É a mesma escolha que a migration 0046 já fez do lado do banco, e pelo mesmo
+  motivo: o predicado de dinheiro que não entrou é "diferente de pago", e assim
+  status novo no enum já nasce contando.
+
+  O QUE NÃO MUDOU, de propósito: parcela vencida e não paga continua contando NOS
+  DOIS recortes, "Previsto" e "Em atraso", como no original — "Previsto" é o que
+  há a receber, vencido ou não. Está no relatório.
 */
 /*
   UMA função para as duas listas, e não a mesma cadeia de `if` copiada nas duas:
@@ -254,8 +269,9 @@ export function usePayables(filters: PayableFilters) {
   e é só isso que este tipo exige de quem chama.
 */
 type StatusFilterable<T> = {
-  eq(column: 'status', value: 'paid' | 'forecast'): T
+  eq(column: 'status', value: 'paid'): T
   eq(column: 'is_overdue', value: boolean): T
+  neq(column: 'status', value: 'paid'): T
 }
 
 function applyStatusFilter<T extends StatusFilterable<T>>(
@@ -264,7 +280,7 @@ function applyStatusFilter<T extends StatusFilterable<T>>(
 ): T {
   if (status === 'overdue') return query.eq('is_overdue', true)
   if (status === 'paid') return query.eq('status', 'paid')
-  if (status === 'pending') return query.eq('status', 'forecast')
+  if (status === 'pending') return query.neq('status', 'paid')
   return query
 }
 
@@ -325,6 +341,60 @@ export function useHasAnyPayables() {
 }
 
 /*
+  OS DOIS NÚMEROS DO DIÁLOGO DE EXCLUSÃO DE RECORRÊNCIA, contados sobre o GRUPO
+  INTEIRO — e é uma correção em relação ao que estava aqui.
+
+  O original conta em memória, sobre a lista completa de despesas, que lá desce
+  toda para o navegador (AccountsPayable.jsx:418-435). Como o recorte de mês
+  virou WHERE, a lista que a tela tem é de UM MÊS: a mesma conta em memória
+  anunciava "1 pagamento futuro" para uma recorrência de dois anos, enquanto a
+  exclusão — que roda no banco, sobre o grupo todo (`useDeleteRecurringPayables`)
+  — apagava as vinte e quatro. Confirmação destrutiva que sub-relata o estrago é
+  instrução falsa, então a contagem passou a ser consulta.
+
+  `head: true` nas duas: a contagem viaja no cabeçalho e nenhuma linha desce.
+
+  OS DOIS RECORTES SÃO OS DA EXCLUSÃO, e não "o grupo" genérico:
+
+  - futuras = as OCORRÊNCIAS que `all_future` apaga (mesma recorrência, vencendo
+    de hoje em diante, não pagas). A linha-MÃE fica de fora porque ela não é
+    apagada, só encerrada — contá-la diria "será excluído" sobre uma linha que
+    continua lá.
+  - pagas = as do grupo inteiro, mãe inclusive, que é o que a exclusão preserva.
+*/
+export type RecurrenceGroupStats = { futureCount: number; paidCount: number }
+
+export function useRecurrenceGroupStats(parentId: string | null | undefined) {
+  return useQuery({
+    queryKey: financialKeys.recurrenceGroup(parentId ?? ''),
+    enabled: Boolean(parentId),
+    queryFn: async (): Promise<RecurrenceGroupStats> => {
+      if (!parentId) return { futureCount: 0, paidCount: 0 }
+      const today = todayISO()
+
+      const [future, paid] = await Promise.all([
+        supabase
+          .from('accounts_payable')
+          .select('id', { count: 'exact', head: true })
+          .eq('recurrence_parent_id', parentId)
+          .gte('due_date', today)
+          .neq('status', 'paid'),
+        supabase
+          .from('accounts_payable')
+          .select('id', { count: 'exact', head: true })
+          .or(`id.eq.${parentId},recurrence_parent_id.eq.${parentId}`)
+          .eq('status', 'paid'),
+      ])
+
+      if (future.error) throw future.error
+      if (paid.error) throw paid.error
+
+      return { futureCount: future.count ?? 0, paidCount: paid.count ?? 0 }
+    },
+  })
+}
+
+/*
   Categorias financeiras. ATENÇÃO: nenhuma tela do original lê esta entidade
   (migration 0041) — não há de onde portar uma. A leitura existe porque a tabela
   existe; a tela que a consumir é decisão do usuário.
@@ -380,7 +450,10 @@ export function summarizeFinancial(rows: FinancialLike[]): FinancialSummary {
   return {
     total: sum(rows),
     paid: sum(rows.filter((row) => row.status === 'paid')),
-    pending: sum(rows.filter((row) => row.status === 'forecast')),
+    /* "Diferente de pago", e não "igual a previsto" — o mesmo recorte de
+       `applyStatusFilter`, pelo mesmo motivo: parcela renegociada a vencer
+       sumia do cartão. */
+    pending: sum(rows.filter((row) => row.status !== 'paid')),
     overdue: sum(rows.filter((row) => row.is_overdue)),
   }
 }
@@ -392,7 +465,7 @@ export function countFinancialByStatus(rows: FinancialLike[]): FinancialStatusCo
     all: rows.length,
     overdue: rows.filter((row) => row.is_overdue).length,
     paid: rows.filter((row) => row.status === 'paid').length,
-    pending: rows.filter((row) => row.status === 'forecast').length,
+    pending: rows.filter((row) => row.status !== 'paid').length,
   }
 }
 
@@ -415,6 +488,56 @@ export function useCreateReceivable() {
 
       if (error) throw error
       return data.id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: financialKeys.receivables() })
+    },
+  })
+}
+
+/*
+  O PARCELAMENTO MANUAL DO FORMULÁRIO, EM UMA GRAVAÇÃO SÓ.
+
+  O original manda as N parcelas num `bulkCreate` (AccountsReceivable.jsx:111).
+  A tela daqui vinha chamando `useCreateReceivable` em sequência, uma requisição
+  por parcela: falha no meio — no limite de tamanho, na RLS, na unicidade
+  `(tenant_id, contract_id, installment_number)` — deixava as parcelas anteriores
+  criadas e a pessoa com meio parcelamento gravado, sem nada para desfazer.
+
+  UM `insert` COM O ARRAY é um único INSERT no Postgres, e portanto uma única
+  transação: ou entram todas, ou não entra nenhuma. Não é RPC nova nem migration
+  — é o mesmo recurso que a geração de ocorrências de despesa recorrente já usa
+  (`useCreatePayable`).
+
+  As parcelas DE CONTRATO continuam sendo `generate_contract_installments`
+  (migration 0044): lá a soma precisa fechar com o valor assinado e a bandeira do
+  contrato muda na mesma transação. Aqui os valores são digitados um a um na
+  tela, e o total é o que a pessoa escreveu.
+*/
+export function useCreateReceivableInstallments() {
+  const queryClient = useQueryClient()
+  const tenantId = useTenantId()
+
+  return useMutation({
+    mutationFn: async (inputs: ReceivableInput[]) => {
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+
+      const rows = inputs.map((input) => ({
+        ...receivableInputSchema.parse(input),
+        tenant_id: tenantId,
+      }))
+
+      const { data, error } = await supabase.from('accounts_receivable').insert(rows).select('id')
+
+      if (error) throw error
+      /* INSERT barrado pela policy levanta erro (42501), diferente de UPDATE e
+         DELETE; a conferência existe para o caso de o retorno vir vazio por
+         outro caminho e a tela anunciar parcelas que não existem. */
+      assertRowAffected(
+        data,
+        'Nenhuma parcela foi criada. É preciso permissão de edição em Recebíveis.',
+      )
+      return data.length
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: financialKeys.receivables() })

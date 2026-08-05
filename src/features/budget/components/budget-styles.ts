@@ -29,9 +29,10 @@ export const ITEM_STATUS_BADGE: Record<BudgetItemStatus, string> = {
   (OrcamentoCliente.jsx:15-21), com as mesmas decisões do mapa acima: cada cor de
   estado ganha variante escura e o tom neutro vira token.
 
-  Ela NÃO governa o crachá do cabeçalho do detalhe: lá o original pinta todos os
-  status de azul, sem consultar mapa nenhum (ChecklistDetalhe.jsx:104). A
-  divergência é do original e está reproduzida como está, e reportada.
+  Ela governa TAMBÉM o crachá do cabeçalho do detalhe. No original aquele crachá é
+  azul fixo (ChecklistDetalhe.jsx:104), o que faz "Cancelado" mudar de vermelho
+  para azul entre o cartão e a tela que ele abre; ver o comentário em
+  BudgetChecklistDetail.tsx.
 */
 export const CHECKLIST_STATUS_BADGE: Record<BudgetChecklistStatus, string> = {
   open: 'bg-muted text-soft',

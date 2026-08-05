@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Progress } from '@/components/ui/progress'
+import { formatCurrencyBRL } from '@/lib/format'
 import {
   Select,
   SelectContent,
@@ -109,21 +110,23 @@ const ZERO_TOTALS: Omit<BudgetChecklistTotals, 'checklist_id' | 'tenant_id'> = {
 }
 
 /*
-  `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` do original
-  (OrcamentoCliente.jsx:278 e :284), e NÃO `formatCurrencyBRL`: sem
-  `maximumFractionDigits` o Intl usa três casas, então 1234.5 vira "R$ 1.234,5"
-  aqui e "R$ 1.234,50" no rodapé do detalhe. É o formato que este cartão mostra
-  hoje; a divergência entre os dois lugares é do original e está reportada.
+  Os dois totais do cartão, no formato do resto do sistema (`formatCurrencyBRL`).
 
-  DIVERGÊNCIA CONSCIENTE no valor ZERO: o original escreve
+  O original escreve `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`
+  (OrcamentoCliente.jsx:278 e :284): sem `maximumFractionDigits` o Intl usa até
+  três casas, então 1234.5 vira "R$ 1.234,5" no cartão e "R$ 1.234,50" no rodapé
+  do detalhe do MESMO checklist. O mesmo dinheiro escrito de duas formas na mesma
+  tela é número errado, não escolha de estilo — e o rodapé é quem já está certo.
+
+  DIVERGÊNCIA CONSCIENTE no valor ZERO, e ela continua: o original escreve
   `valor_total_estimado ? formatado : '-'`, e ali o campo é GRAVADO e pode não
   existir — daí o traço. Aqui o total vem da view e existe sempre, inclusive para
-  o checklist sem item nenhum, onde é zero. Mostrar "R$ 0" é o mesmo número que o
-  rodapé do detalhe mostra para o mesmo checklist; manter o traço faria a
+  o checklist sem item nenhum, onde é zero. Mostrar "R$ 0,00" é o mesmo número que
+  o rodapé do detalhe mostra para o mesmo checklist; manter o traço faria a
   listagem dizer "não sei" sobre um valor que o banco sabe.
 */
 function cardMoney(value: number): string {
-  return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`
+  return formatCurrencyBRL(value)
 }
 
 export default function BudgetChecklists() {

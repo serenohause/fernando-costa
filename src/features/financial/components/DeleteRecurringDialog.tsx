@@ -21,10 +21,14 @@ import type { DeleteRecurringOption } from '../types'
   já pagos e a cor do botão de confirmar mudando conforme a opção são os do
   original.
 
-  `futureCount` e `paidCount` chegam prontos de quem abre o diálogo — e HOJE eles
-  contam só o mês carregado, não a série inteira. Ver `recurringStats` em
-  payables-list.ts: a exclusão em si é do banco e alcança o grupo todo; o que
-  está estreito é o aviso.
+  `futureCount` e `paidCount` chegam prontos de quem abre o diálogo, e agora
+  contam a SÉRIE INTEIRA (`useRecurrenceGroupStats`), não o mês carregado — ver o
+  comentário do hook. Antes o aviso dizia "1 pagamento futuro" para uma
+  recorrência de dois anos, enquanto a exclusão apagava as vinte e quatro.
+
+  `isLoading` também é correção: no original o botão de confirmar não desabilita
+  enquanto a exclusão está no ar (ele não é `AlertDialogAction`, então o diálogo
+  segue aberto), e o segundo clique dispara a exclusão de novo.
 */
 export default function DeleteRecurringDialog({
   open,
@@ -32,12 +36,14 @@ export default function DeleteRecurringDialog({
   onConfirm,
   futureCount,
   paidCount,
+  isLoading,
 }: {
   open: boolean
   onClose: () => void
   onConfirm: (option: DeleteRecurringOption) => void
   futureCount: number
   paidCount: number
+  isLoading: boolean
 }) {
   const [deleteOption, setDeleteOption] = useState<DeleteRecurringOption>('single')
 
@@ -128,11 +134,14 @@ export default function DeleteRecurringDialog({
         </div>
 
         <AlertDialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancelar
           </Button>
+          {/* O texto é o do original; `disabled` é que passou a existir, para o
+              segundo clique não disparar uma segunda exclusão. */}
           <Button
             onClick={() => onConfirm(deleteOption)}
+            disabled={isLoading}
             className={
               deleteOption === 'all_future'
                 ? 'bg-rose-600 text-white hover:bg-rose-700'

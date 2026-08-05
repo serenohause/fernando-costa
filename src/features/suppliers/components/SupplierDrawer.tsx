@@ -152,14 +152,23 @@ export default function SupplierDrawer({
                 : null
             }
           />
+          {/*
+            ZERO NÃO É "SEM VALOR", mesma correção da tabela: o original testa o
+            número (`percentual_comissao ?`), e `0` é falsy, então a linha some do
+            drawer como se o percentual não existisse. Comissão de 0% é acordo
+            fechado sem comissão, e precisa aparecer. O teste é sobre NULO; a
+            linha continua sumindo quando não há valor, que é o que `InfoRow` faz.
+          */}
           <InfoRow
             label="% Comissão"
-            value={supplier.commission_percent ? `${supplier.commission_percent}%` : null}
+            value={supplier.commission_percent == null ? null : `${supplier.commission_percent}%`}
           />
           <InfoRow
             label="Desconto Padrão"
             value={
-              supplier.standard_discount_percent ? `${supplier.standard_discount_percent}%` : null
+              supplier.standard_discount_percent == null
+                ? null
+                : `${supplier.standard_discount_percent}%`
             }
           />
           <InfoRow

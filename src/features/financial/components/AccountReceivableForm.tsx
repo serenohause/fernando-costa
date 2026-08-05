@@ -191,15 +191,31 @@ function splitInCents(total: number, quantity: number): number[] {
 
 /*
   O vencimento de cada parcela: o mês do vencimento base, avançado de um em um
-  (linhas 132-133). O `setMonth` do original transborda — 31/01 mais um mês vira
-  03/03 — e isso É o que está no ar, então `new Date(ano, mês + i, dia)` mantém o
-  mesmo transbordo. O que muda é o fuso: o original constrói a data em UTC e a
-  serializa com `toISOString()`; aqui é local dos dois lados, como todo o resto
+  (linhas 132-133).
+
+  O ORIGINAL TRANSBORDA O MÊS, e isso foi CORRIGIDO: `setMonth(mês + i)` sobre
+  31/01 devolve 03/03, porque 31/02 não existe e o JavaScript segue contando os
+  dias. A parcela pula fevereiro inteiro e vence três dias dentro de março —
+  data errada em cobrança, não diferença de layout. Qualquer vencimento em 29,
+  30 ou 31 cai nisso.
+
+  Agora o dia é preso ao ÚLTIMO DIA do mês de destino: 31/01 vira 28/02 (ou
+  29/02 em ano bissexto) e a parcela seguinte volta para 31/03, porque a conta
+  parte sempre da data base. É a mesma regra que o resto do sistema já usa para
+  a mesma pergunta — `addMonths` do date-fns nas ocorrências de despesa
+  recorrente (hooks.ts) e `date + interval 'n months'` do Postgres nas parcelas
+  de contrato (migration 0044).
+
+  O que continua diferente do original é o fuso: lá a data é construída em UTC e
+  serializada com `toISOString()`; aqui é local dos dois lados, como todo o resto
   do módulo (ver `toISODate` em hooks.ts).
 */
 function installmentDueDate(baseDate: string, offset: number): string {
   const [year, month, day] = baseDate.split('-').map(Number)
-  const date = new Date(year, month - 1 + offset, day)
+  const target = new Date(year, month - 1 + offset, 1)
+  /* Dia 0 do mês seguinte é o último dia do mês de destino. */
+  const lastDayOfTarget = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+  const date = new Date(target.getFullYear(), target.getMonth(), Math.min(day, lastDayOfTarget))
   const yyyy = date.getFullYear()
   const mm = String(date.getMonth() + 1).padStart(2, '0')
   const dd = String(date.getDate()).padStart(2, '0')

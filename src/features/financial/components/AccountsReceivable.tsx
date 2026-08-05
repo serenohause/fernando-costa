@@ -46,6 +46,7 @@ import {
   monthYearOf,
   summarizeFinancial,
   useCreateReceivable,
+  useCreateReceivableInstallments,
   useDeleteReceivable,
   useHasAnyReceivables,
   useMarkReceivablePaid,
@@ -144,6 +145,7 @@ export default function AccountsReceivable() {
   const contractsQuery = useContracts()
 
   const createMutation = useCreateReceivable()
+  const createInstallmentsMutation = useCreateReceivableInstallments()
   const updateMutation = useUpdateReceivable()
   const deleteMutation = useDeleteReceivable()
   const markPaidMutation = useMarkReceivablePaid()
@@ -208,38 +210,29 @@ export default function AccountsReceivable() {
       return
     }
 
-    void createInstallments(submit.inputs)
+    createInstallments(submit.inputs)
   }
 
   /*
-    O parcelamento do original é um `bulkCreate` (linha 111) — uma chamada só.
-    Aqui são N gravações em sequência, porque a camada de dados deste módulo não
-    oferece criação em lote de recebível: o que ela tem é
-    `generate_contract_installments`, que é a geração das parcelas DE UM CONTRATO
-    e cobra o plano de parcelamento dele.
+    O parcelamento é uma gravação só, como o `bulkCreate` do original (linha 111)
+    — e é correção do que estava aqui: eram N gravações em sequência, e falha no
+    meio deixava as parcelas anteriores criadas. Ver
+    `useCreateReceivableInstallments`: um `insert` com o array é um INSERT só, ou
+    seja, uma transação só.
 
-    CONSEQUÊNCIA QUE FICA REGISTRADA: falha no meio deixa as parcelas anteriores
-    criadas. A mensagem diz quantas entraram, em vez de anunciar sucesso sobre um
-    lote que não fechou — que é o que o original faz ao engolir o erro do
-    `bulkCreate` num `catch` genérico.
+    A MENSAGEM DE ERRO CONTINUA DIZENDO O MOTIVO, em vez de anunciar sucesso
+    sobre um lote que não fechou — que é o que o original faz ao engolir o erro
+    do `bulkCreate` num `catch` genérico. O que ela não precisa mais dizer é
+    quantas entraram: ou entram todas, ou nenhuma.
   */
-  const createInstallments = async (inputs: ReceivableInput[]) => {
-    let created = 0
-    try {
-      for (const input of inputs) {
-        await createMutation.mutateAsync(input)
-        created += 1
-      }
-      closeForm()
-      toast.success(`${inputs.length} parcelas criadas com sucesso!`)
-    } catch (error) {
-      toast.error(
-        created === 0
-          ? 'Erro ao criar parcelas: ' + describeDatabaseError(error)
-          : `Apenas ${created} de ${inputs.length} parcelas foram criadas: ` +
-              describeDatabaseError(error),
-      )
-    }
+  const createInstallments = (inputs: ReceivableInput[]) => {
+    createInstallmentsMutation.mutate(inputs, {
+      onSuccess: (created) => {
+        closeForm()
+        toast.success(`${created} parcelas criadas com sucesso!`)
+      },
+      onError: (error) => toast.error('Erro ao criar parcelas: ' + describeDatabaseError(error)),
+    })
   }
 
   const confirmDelete = () => {
@@ -544,7 +537,11 @@ export default function AccountsReceivable() {
         onClose={closeForm}
         onSubmit={handleSubmit}
         initialData={formInitialData}
-        isLoading={createMutation.isPending || updateMutation.isPending}
+        isLoading={
+          createMutation.isPending ||
+          createInstallmentsMutation.isPending ||
+          updateMutation.isPending
+        }
         clients={clientsQuery.data ?? []}
         projects={projectsQuery.data ?? []}
         contracts={contractsQuery.data ?? []}

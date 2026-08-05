@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { formatCurrencyBRL } from '@/lib/format'
 import {
   BUDGET_ITEM_PRIORITY,
   BUDGET_ITEM_STATUS,
@@ -50,11 +51,13 @@ import type { BudgetChecklistItemInput, BudgetChecklistItemRow } from '../types'
      apaga a primeira em silêncio (e o drawer marca as duas como "Escolhido").
      Aqui adicionar de novo o mesmo fornecedor ATUALIZA o valor da linha que já
      está lá, preserva a observação dela e diz o que aconteceu.
-  4. `estimated_value` continua SEM campo, como no original — o valor é somado no
-     rodapé do checklist e exibido no drawer, e hoje só a importação consegue
-     preenchê-lo (defeito registrado na migration 0049, nota b, e reportado). Ele
-     viaja pelo formulário intacto, para que editar um item não apague o que
-     estiver lá.
+  4. `estimated_value` GANHOU CAMPO, e o original não tem nenhum. Sem ele o valor
+     só entrava pela importação (defeito registrado na migration 0049, nota b):
+     pela tela, "Total Estimado" — que é somado no rodapé do checklist, exibido no
+     cartão da listagem e mostrado no drawer do item — é sempre zero, um número
+     morto ocupando lugar de destaque. O campo é "Valor Estimado (R$)", no mesmo
+     padrão de "Valor Aprovado (R$)" que já estava ali, e entra DEPOIS dele, para
+     que nenhum campo do original mude de lugar.
   5. `client_approved`, `approval_date` e `is_required` também viajam sem input,
      como no original — que os declara no estado inicial e nunca os oferece.
 */
@@ -85,6 +88,7 @@ export type BudgetItemFormValues = {
   status: BudgetItemStatus
   priority: PriorityLevel
 
+  estimated_value: string
   approved_value: string
 
   chosen_supplier_id: string
@@ -94,7 +98,6 @@ export type BudgetItemFormValues = {
   quotes: BudgetItemQuoteFormValue[]
 
   /* Sem input na tela — carregados do item e devolvidos como vieram. */
-  estimated_value: number | null
   client_approved: boolean
   approval_date: string | null
   is_required: boolean
@@ -114,6 +117,7 @@ function emptyValues(): BudgetItemFormValues {
     status: 'pending',
     priority: 'medium',
 
+    estimated_value: '',
     approved_value: '',
 
     chosen_supplier_id: '',
@@ -122,7 +126,6 @@ function emptyValues(): BudgetItemFormValues {
     notes: '',
     quotes: [],
 
-    estimated_value: null,
     client_approved: false,
     approval_date: null,
     /* `obrigatorio: true` do original (ItemOrcamentoForm.jsx:28). */
@@ -145,6 +148,7 @@ export function toFormValues(item: BudgetChecklistItemRow): BudgetItemFormValues
     status: item.status,
     priority: item.priority,
 
+    estimated_value: numberText(item.estimated_value),
     approved_value: numberText(item.approved_value),
 
     chosen_supplier_id: item.chosen_supplier_id ?? '',
@@ -158,7 +162,6 @@ export function toFormValues(item: BudgetChecklistItemRow): BudgetItemFormValues
       notes: quote.notes,
     })),
 
-    estimated_value: item.estimated_value,
     client_approved: item.client_approved,
     approval_date: item.approval_date,
     is_required: item.is_required,
@@ -193,7 +196,7 @@ function toInput(values: BudgetItemFormValues): BudgetChecklistItemInput {
     status: values.status,
     priority: values.priority,
 
-    estimated_value: values.estimated_value,
+    estimated_value: numberOrNull(values.estimated_value),
     approved_value: numberOrNull(values.approved_value),
 
     chosen_supplier_id: selectedId(values.chosen_supplier_id),
@@ -214,13 +217,16 @@ function toInput(values: BudgetItemFormValues): BudgetChecklistItemInput {
 }
 
 /*
-  `R$ ${Number(v).toLocaleString('pt-BR')}` do original (ItemOrcamentoForm.jsx:201),
-  sem `minimumFractionDigits` — 1234.5 vira "R$ 1.234,5" aqui e "R$ 1.234,50" em
-  todo o resto do sistema. É o formato que esta lista mostra hoje; a divergência
-  em relação a `formatCurrencyBRL` está reportada.
+  O valor de cada cotado, no formato do resto do sistema (`formatCurrencyBRL`).
+
+  O original escreve `R$ ${Number(v).toLocaleString('pt-BR')}`
+  (ItemOrcamentoForm.jsx:201), sem `minimumFractionDigits`: 1234.5 vira
+  "R$ 1.234,5" aqui e "R$ 1.234,50" no drawer que mostra a MESMA cotação, dois
+  cliques depois. Dinheiro com uma casa decimal se lê como outro número — é
+  informação errada na tela, não escolha de estilo.
 */
 function quoteValueLabel(value: string): string {
-  return `R$ ${Number(value).toLocaleString('pt-BR')}`
+  return formatCurrencyBRL(Number(value))
 }
 
 const emptyQuote: BudgetItemQuoteFormValue = {
@@ -435,6 +441,19 @@ export default function BudgetItemForm({
                 type="number"
                 value={values.approved_value}
                 onChange={(e) => set('approved_value', e.target.value)}
+              />
+            </div>
+            {/* CAMPO NOVO — o original não tem nenhum para `estimated_value`, e
+                por isso "Total Estimado" é sempre zero pela tela. Entra depois de
+                "Valor Aprovado" e no mesmo padrão dele, para que nenhum campo do
+                original mude de posição. Ver o cabeçalho deste arquivo. */}
+            <div className="space-y-1">
+              <Label htmlFor="item-estimated-value">Valor Estimado (R$)</Label>
+              <Input
+                id="item-estimated-value"
+                type="number"
+                value={values.estimated_value}
+                onChange={(e) => set('estimated_value', e.target.value)}
               />
             </div>
           </div>

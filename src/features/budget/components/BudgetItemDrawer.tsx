@@ -230,15 +230,16 @@ export default function BudgetItemDrawer({
                         </Badge>
                       )}
                     </div>
-                    {/* `fc.valor &&` do original, DEFEITO INCLUÍDO e reportado:
-                        cotação de zero real — a de cortesia, que o COMMENT de
-                        `budget_item_quotes.value` reconhece como legítima — não
-                        mostra valor nenhum aqui. */}
-                    {quote.value ? (
+                    {/* O original testa `fc.valor &&`, e `0` é falsy: a cotação
+                        de cortesia — zero real, que o COMMENT de
+                        `budget_item_quotes.value` reconhece como legítima —
+                        aparecia sem valor nenhum, indistinguível de cotação que
+                        ainda não chegou. O teste passa a ser sobre NULO. */}
+                    {quote.value == null ? null : (
                       <span className="text-sm font-semibold text-soft">
                         {formatCurrencyBRL(quote.value)}
                       </span>
-                    ) : null}
+                    )}
                   </div>
                   {quote.notes && <p className="text-xs text-muted-foreground">{quote.notes}</p>}
                   <PdfAttachButton

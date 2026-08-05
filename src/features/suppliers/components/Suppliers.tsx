@@ -27,9 +27,9 @@ import {
   PARTNERSHIP_TIER,
   SUPPLIER_CATEGORY,
   SUPPLIER_STATUS,
+  SUPPLIER_TYPOLOGY,
   labelOf,
   optionsOf,
-  type SupplierCategory,
 } from '@/lib/enums'
 import { filterSuppliersBySearch } from '../list'
 import {
@@ -71,45 +71,23 @@ import type { SupplierFilters, SupplierInput, SupplierRow } from '../types'
 */
 
 /*
-  A LISTA DE TIPOLOGIA DO FILTRO É A DO ORIGINAL, DEFEITO INCLUÍDO — reproduzida
-  literalmente porque é o que roda hoje, e reportada ao usuário.
+  A LISTA DE TIPOLOGIA DO FILTRO É A DAS TIPOLOGIAS QUE EXISTEM NO CADASTRO
+  (`SUPPLIER_TYPOLOGY`, src/lib/enums.ts) — a mesma do formulário de fornecedor.
 
-  O defeito: esta lista (Fornecedores.jsx:27-34) não é a mesma do formulário de
-  cadastro (FornecedorForm.jsx:11-18). Ela
+  O ORIGINAL USA UMA TERCEIRA LISTA AQUI (Fornecedores.jsx:27-34), e ela está
+  errada dos dois lados:
 
   - OFERECE quatro categorias que fornecedor nenhum pode ter — Revestimento de
     Fachada, Revestimento de Piscina, Impermeabilização e Gesso e Drywall são só
     de item de orçamento, e `suppliers_category_domain_check` as barra na coluna.
     Filtrar por qualquer uma delas devolve lista vazia, sempre.
   - ESCONDE três que existem no cadastro — Madeira, Elevadores e Bombas e Filtros
-    de Piscina. Fornecedor com essas tipologias é inalcançável pelo filtro.
+    de Piscina. Fornecedor cadastrado com uma delas fica INALCANÇÁVEL pelo filtro.
 
-  `SupplierFilters.category` aceita os 23 valores justamente para permitir esta
-  cópia sem que o tipo minta sobre o resultado. Corrigir a lista é decisão do
-  usuário, não desta implementação.
+  Filtro que não alcança um cadastro é dado perdido na tela, e opção que devolve
+  vazio sempre é instrução falsa — nenhum dos dois é aparência. A ordem, o texto
+  do item "Todas tipologias" e a largura do controle continuam os do original.
 */
-const FILTER_CATEGORIES: SupplierCategory[] = [
-  'ceramics_porcelain',
-  'fixtures_sanitaryware',
-  'natural_stone',
-  'indoor_lighting',
-  'outdoor_lighting',
-  'frames_openings',
-  'facade_cladding',
-  'pool_cladding',
-  'home_automation',
-  'solar_energy',
-  'paint_texture',
-  'landscaping',
-  'cabinetry',
-  'structure_foundation',
-  'waterproofing',
-  'drywall_plaster',
-  'electrical_plumbing',
-  'hvac',
-  'glass_mirrors',
-  'other',
-]
 
 export default function Suppliers() {
   const [search, setSearch] = useState('')
@@ -275,9 +253,9 @@ export default function Suppliers() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas tipologias</SelectItem>
-            {FILTER_CATEGORIES.map((category) => (
-              <SelectItem key={category} value={category}>
-                {SUPPLIER_CATEGORY[category]}
+            {optionsOf(SUPPLIER_TYPOLOGY).map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -419,13 +397,21 @@ export default function Suppliers() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-sm text-soft">{supplier.contact_whatsapp || '-'}</td>
+                  {/*
+                    ZERO NÃO É "SEM VALOR". O original testa `percentual_comissao ?`
+                    (Fornecedores.jsx), e `0` é falsy: "comissão de 0%" e "comissão
+                    não combinada" viram o mesmo traço na tela, e são coisas
+                    diferentes no negócio — uma é acordo fechado sem comissão, a
+                    outra é conversa que não houve. O teste passa a ser sobre NULO;
+                    o traço continua exatamente onde continua não havendo valor.
+                  */}
                   <td className="px-4 py-3 text-sm text-soft">
-                    {supplier.commission_percent ? `${supplier.commission_percent}%` : '-'}
+                    {supplier.commission_percent == null ? '-' : `${supplier.commission_percent}%`}
                   </td>
                   <td className="px-4 py-3 text-sm text-soft">
-                    {supplier.standard_discount_percent
-                      ? `${supplier.standard_discount_percent}%`
-                      : '-'}
+                    {supplier.standard_discount_percent == null
+                      ? '-'
+                      : `${supplier.standard_discount_percent}%`}
                   </td>
                   <td className="px-4 py-3">
                     <span

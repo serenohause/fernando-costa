@@ -527,12 +527,12 @@ export type SupplierTypology = Exclude<
   A lista de tipologia do formulário de FORNECEDOR (FornecedorForm.jsx:11-18):
   os 19 valores que a entidade aceita, na mesma ordem relativa do mapa acima.
 
-  ATENÇÃO, e está reportado ao usuário: o FILTRO da tela de Fornecedores
-  (Fornecedores.jsx:27) oferece uma TERCEIRA lista, com 20 valores — ela inclui
-  os quatro † (que fornecedor nenhum pode ter, ou seja, filtram sempre vazio) e
-  esconde Madeira, Elevadores e Bombas e Filtros de Piscina (que existem no
-  cadastro e ficam inalcançáveis pelo filtro). Nenhum mapa foi criado para essa
-  lista: a decisão de reproduzi-la ou de usar esta é do usuário.
+  É TAMBÉM a lista do FILTRO da tela de Fornecedores. O original oferece ali uma
+  TERCEIRA lista, com 20 valores (Fornecedores.jsx:27) — ela inclui os quatro †,
+  que fornecedor nenhum pode ter e portanto filtram sempre vazio, e esconde
+  Madeira, Elevadores e Bombas e Filtros de Piscina, que existem no cadastro e
+  ficam inalcançáveis pelo filtro. Nenhum mapa foi criado para essa lista; o
+  motivo de não reproduzi-la está em Suppliers.tsx.
 */
 export const SUPPLIER_TYPOLOGY = {
   ceramics_porcelain: 'Cerâmica e Porcelanato',

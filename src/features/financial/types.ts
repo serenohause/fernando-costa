@@ -197,11 +197,12 @@ export type FinancialCategoryInput = {
   O filtro de status das duas telas, na ordem dos botões do original
   (AccountsReceivable.jsx:680-719 e AccountsPayable.jsx:989-1028).
 
-  `pending` é `status = 'forecast'` e nada mais — é o que o original faz
-  (`status === 'Previsto' || status === 'Pendente'`, e 'Pendente' não é valor de
-  AccountReceivable.status em lugar nenhum do base44). CONSEQUÊNCIA QUE FICA
-  REGISTRADA: parcela `renegotiated` que ainda não venceu não aparece em NENHUM
-  dos três recortes — só em "Todos". É assim no original, e não foi corrigido.
+  `pending` é `status <> 'paid'`. O original testa
+  `status === 'Previsto' || status === 'Pendente'` ('Pendente' não é valor de
+  AccountReceivable.status em lugar nenhum do base44), e com esse teste a parcela
+  `renegotiated` que ainda não venceu não aparecia em NENHUM dos três recortes —
+  só em "Todos". Corrigido em `applyStatusFilter`, com o mesmo predicado que a
+  migration 0046 usa para "Em atraso"; ver o comentário lá.
 */
 export type FinancialStatusFilter = 'all' | 'overdue' | 'pending' | 'paid'
 

@@ -100,13 +100,20 @@ function emptyValues(): SupplierFormValues {
     commission_percent: '',
 
     /*
-      "Fortaleza" / "CE" pré-preenchidos são os do original
-      (FornecedorForm.jsx:23). Ficam porque é o que a tela mostra hoje ao abrir
-      um cadastro novo — a migration 0049 tirou o default da COLUNA, o que é
-      outra coisa, e está reportado que o escritório é de Goiânia.
+      CIDADE E ESTADO NASCEM VAZIOS. O original pré-preenche "Fortaleza" / "CE"
+      (FornecedorForm.jsx:23), de quando o sistema era de um escritório de
+      Fortaleza; este é de Goiânia, e foi por isso que a migration 0049 tirou o
+      default da coluna. Cadastro novo salvo sem olhar esses dois campos gravava
+      um fornecedor de Goiânia como sendo do Ceará, e o valor errado se parece
+      com valor preenchido — ninguém volta para conferir.
+
+      Vazio, e não "Goiânia" / "GO": o campo continua opcional, e o formulário
+      não deve adivinhar a praça do fornecedor. Quem digita vê o campo em branco
+      e preenche o que é. O rótulo, a posição e a largura dos dois campos são os
+      do original.
     */
-    city: 'Fortaleza',
-    state: 'CE',
+    city: '',
+    state: '',
     address: '',
     has_showroom: false,
     serves_outside_fortaleza: false,

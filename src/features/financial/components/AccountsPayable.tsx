@@ -63,10 +63,11 @@ import {
   useHasAnyPayables,
   useMarkPayablePaid,
   usePayables,
+  useRecurrenceGroupStats,
   useSetRecurrenceStatus,
   useUpdatePayable,
 } from '../hooks'
-import { filterPayablesBySearch, recurringStats } from '../payables-list'
+import { filterPayablesBySearch } from '../payables-list'
 import { exportPayablesPDF } from '../payables-pdf'
 import AccountPayableForm, { toFormValues, type PayableFormValues } from './AccountPayableForm'
 import DeleteRecurringDialog from './DeleteRecurringDialog'
@@ -207,6 +208,18 @@ export default function AccountsPayable() {
   const payablesQuery = usePayables(filters)
   const hasAnyQuery = useHasAnyPayables()
   const projectsQuery = useProjects()
+
+  /*
+    Os dois números do diálogo de exclusão de recorrência vêm do BANCO, sobre a
+    série inteira (`useRecurrenceGroupStats`) — antes eram contados em memória
+    sobre o mês carregado, e o aviso sub-relatava o que a exclusão apaga. O grupo
+    é `recurrence_parent_id || id`, um nível só, como no original.
+  */
+  const recurringTarget = deleteRecurringDialog.account
+  const recurringGroupQuery = useRecurrenceGroupStats(
+    recurringTarget ? (recurringTarget.recurrence_parent_id ?? recurringTarget.id) : null,
+  )
+  const recurringCounts = recurringGroupQuery.data ?? { futureCount: 0, paidCount: 0 }
 
   const payables = useMemo(() => payablesQuery.data ?? [], [payablesQuery.data])
 
@@ -525,11 +538,6 @@ export default function AccountsPayable() {
     },
   ]
 
-  const recurringTarget = deleteRecurringDialog.account
-  const recurringCounts = recurringTarget
-    ? recurringStats(payables, recurringTarget)
-    : { futureCount: 0, paidCount: 0 }
-
   return (
     <div>
       <PageHeader
@@ -739,6 +747,10 @@ export default function AccountsPayable() {
           onConfirm={confirmDeleteRecurring}
           futureCount={recurringCounts.futureCount}
           paidCount={recurringCounts.paidCount}
+          /* Enquanto a exclusão está no ar o botão de confirmar fica travado: o
+             diálogo não fecha sozinho no clique, e o segundo clique excluía de
+             novo. */
+          isLoading={deleteRecurringMutation.isPending}
         />
       )}
 

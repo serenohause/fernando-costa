@@ -52,9 +52,12 @@ import type { PayableInput, PayableRow } from '../types'
      de/para para a data do primeiro dia do mês é `parseCompetenceMonth` /
      `formatCompetenceMonth`, em schemas.ts (migration 0041, item 5).
 
-  `updateAllRecurring` NÃO é reiniciado ao abrir o formulário, como no original
-  (linha 43, sem efeito de reset): marcar a caixa numa ocorrência e depois abrir
-  outra da mesma série a mostra ainda marcada. Fica registrado no relatório.
+  `updateAllRecurring` PASSOU A SER REINICIADO ao abrir o formulário. No original
+  ele fica fora do efeito de reset (linha 43): marcar a caixa numa ocorrência e
+  depois abrir outra da mesma série mostra a caixa ainda marcada, e a próxima
+  gravação regrava os irmãos futuros sem ninguém ter pedido. É perda de dado
+  silenciosa — não é aparência —, então a caixa volta desmarcada a cada abertura,
+  junto com o resto do formulário.
 */
 
 export type PayableFormValues = {
@@ -185,9 +188,12 @@ export default function AccountPayableForm({
   const [values, setValues] = useState<PayableFormValues>(() => initialData ?? emptyValues())
   const [updateAllRecurring, setUpdateAllRecurring] = useState(false)
 
-  /* O original reinicia o formulário quando `initialData` ou `open` mudam. */
+  /* O original reinicia o formulário quando `initialData` ou `open` mudam — e
+     deixa `updateAllRecurring` de fora, o que arrasta a escolha de uma ocorrência
+     para a próxima. Aqui a caixa reinicia junto (ver o cabeçalho deste arquivo). */
   useEffect(() => {
     setValues(initialData ?? emptyValues())
+    setUpdateAllRecurring(false)
   }, [initialData, open])
 
   const set = <K extends keyof PayableFormValues>(key: K, value: PayableFormValues[K]) =>

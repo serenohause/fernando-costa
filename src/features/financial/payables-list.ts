@@ -34,33 +34,12 @@ export function filterPayablesBySearch(rows: PayableRow[], term: string): Payabl
 }
 
 /*
-  Os dois números que o diálogo de exclusão de recorrência mostra
-  (AccountsPayable.jsx:418-435): quantas ocorrências futuras ainda não pagas
-  seriam excluídas, e quantas já pagas seriam preservadas. O grupo é
-  `recurrence_parent_id || id`, um nível só, como no original.
+  A CONTAGEM DO GRUPO DE UMA RECORRÊNCIA SAIU DAQUI, e o motivo fica registrado.
 
-  DIVERGÊNCIA QUE NÃO FOI CORRIGIDA, E É VISÍVEL: no original a conta é feita
-  sobre a lista INTEIRA de despesas, que lá desce toda para o navegador. Aqui a
-  lista é de UM MÊS (o recorte virou WHERE na consulta), então os dois números
-  descrevem só o mês aberto — uma recorrência de dois anos aparece como "1
-  pagamento futuro". A EXCLUSÃO em si continua certa: quem apaga é
-  `useDeleteRecurringPayables`, que roda no banco sobre o grupo todo. O que está
-  errado é o aviso, não o efeito. Falta um hook que conte o grupo inteiro; está
-  no relatório do módulo.
+  Ela existia como cópia do original (AccountsPayable.jsx:418-435), que conta em
+  memória sobre a lista INTEIRA de despesas — lá a carteira toda desce para o
+  navegador. Aqui a lista é de UM MÊS (o recorte virou WHERE na consulta), então
+  a mesma conta descrevia só o mês aberto: uma recorrência de dois anos aparecia
+  como "1 pagamento futuro" no diálogo que a apaga inteira. Agora quem conta é
+  `useRecurrenceGroupStats` (hooks.ts), no banco, sobre o grupo todo.
 */
-export function recurringStats(rows: PayableRow[], account: PayableRow) {
-  const parentId = account.recurrence_parent_id ?? account.id
-  const group = rows.filter((row) => row.recurrence_parent_id === parentId || row.id === parentId)
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const futureCount = group.filter((row) => {
-    const [year, month, day] = row.due_date.split('-').map(Number)
-    return new Date(year, month - 1, day) >= today && row.status !== 'paid'
-  }).length
-
-  const paidCount = group.filter((row) => row.status === 'paid').length
-
-  return { futureCount, paidCount }
-}
