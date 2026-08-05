@@ -29,8 +29,15 @@ import TabNavigationWrapper, {
 import QuickActions from '@/components/header/QuickActions'
 import AcessoIndisponivel from '@/features/auth/components/AcessoIndisponivel'
 import AcessoPendente from '@/features/auth/components/AcessoPendente'
+import TenantName from '@/features/auth/components/TenantName'
 import { MAIN_MENU_PAGES, redirectTargetFor } from '@/features/auth/access'
-import { useAppNavigation, useCurrentCollaborator, useSession, useSignOut } from '@/features/auth/hooks'
+import {
+  useAppNavigation,
+  useCurrentCollaborator,
+  useCurrentTenant,
+  useSession,
+  useSignOut,
+} from '@/features/auth/hooks'
 import { COLLABORATOR_AREA, labelOf } from '@/lib/enums'
 import { createPageUrl } from '@/lib/page-url'
 
@@ -105,6 +112,7 @@ export default function AppLayout() {
   const navigationQuery = useAppNavigation()
   const navigation = navigationQuery.items
   const signOut = useSignOut()
+  const tenantName = useCurrentTenant().data?.name ?? null
 
   const isDirector = currentCollaborator?.role === 'director'
   const loadingPermissions = collaboratorQuery.isLoading || navigationQuery.isLoading
@@ -181,6 +189,22 @@ export default function AppLayout() {
     navigation,
     navigationQuery.permissionCount,
   ])
+
+  /*
+    O título da aba também dizia "Fernando Costa", escrito no index.html. Num
+    sistema multitenant isso é o nome do escritório errado na aba de todo mundo
+    que não seja o primeiro, então o index.html ficou só com "Backoffice" (que é
+    verdade para qualquer escritório e aparece antes de existir sessão) e o nome
+    entra aqui, quando o tenant chega. A limpeza devolve o título neutro ao sair
+    do shell — quem desloga vai para o login, que não é de escritório nenhum.
+  */
+  useEffect(() => {
+    const baseTitle = 'Backoffice'
+    document.title = tenantName ? `${baseTitle} ${tenantName}` : baseTitle
+    return () => {
+      document.title = baseTitle
+    }
+  }, [tenantName])
 
   const handleLogout = () => {
     signOut.mutate()
@@ -260,9 +284,24 @@ export default function AppLayout() {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
-            <div className="text-center w-full py-2">
-              <h1 className="font-light text-foreground text-lg tracking-[0.15em] leading-tight">
-                FERNANDO COSTA
+            {/*
+              O nome sai do tenant (`TenantName`), e não mais da string
+              "FERNANDO COSTA" que estava aqui. Tipografia intocada: font-light,
+              text-lg, tracking-[0.15em], leading-tight e o "BACKOFFICE"
+              embaixo são os do original.
+
+              `uppercase` é NOVO e não muda um pixel do que se vê: a caixa alta
+              era literal na string, e o banco guarda "Fernando Costa". Fazendo
+              pelo CSS, o dado continua sendo o nome que a pessoa cadastrou.
+
+              `truncate` + `min-w-0` é o transbordo, que o original nunca
+              precisou tratar porque o nome cabia. Sem eles, um nome comprido
+              quebra em duas linhas dentro de um cabeçalho de altura fixa (h-16)
+              e empurra o "BACKOFFICE" para fora.
+            */}
+            <div className="text-center w-full min-w-0 py-2">
+              <h1 className="font-light text-foreground text-lg tracking-[0.15em] leading-tight uppercase truncate">
+                <TenantName />
               </h1>
               <p className="text-[10px] text-muted-foreground tracking-[0.3em] mt-1">BACKOFFICE</p>
             </div>

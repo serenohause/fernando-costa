@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { buildNavigation } from './navigation'
-import type { MenuRow, PermissionRow } from './types'
+import type { MenuRow, PermissionRow, Tenant } from './types'
 
 export const authKeys = {
   all: ['auth'] as const,
   session: () => [...authKeys.all, 'session'] as const,
   collaborator: (userId: string | undefined) => [...authKeys.all, 'collaborator', userId] as const,
+  tenant: (tenantId: string | undefined) => [...authKeys.all, 'tenant', tenantId] as const,
   menus: () => [...authKeys.all, 'menus'] as const,
   permissions: (collaboratorId: string | undefined) =>
     [...authKeys.all, 'permissions', collaboratorId] as const,
@@ -90,6 +91,51 @@ export function useCurrentCollaborator() {
   return {
     ...collaboratorQuery,
     isLoading: sessionQuery.isLoading || collaboratorQuery.isLoading,
+  }
+}
+
+/*
+  O escritório da sessão. Existe porque o nome no topo da barra lateral e na tela
+  de entrada era a string "FERNANDO COSTA" no código, e o sistema é multitenant:
+  o nome é dado do tenant, igual ao nome de qualquer outra linha.
+
+  O `tenant_id` sai do colaborador logado — o mesmo caminho que os `useTenantId()`
+  de cada feature já usam para escrever. Nenhuma migration foi necessária: a
+  policy `tenants_select_own_tenant` (migration 0008) já libera a leitura, e ela
+  devolve no máximo uma linha, a do próprio escritório, e só para colaborador
+  `active`.
+
+  `maybeSingle`, não `single`: quem ainda não foi aprovado, ou teve o vínculo
+  revogado, lê zero linhas por força da mesma policy. Isso é ausência de dado, e
+  não falha — `single` transformaria a situação prevista em erro na tela.
+
+  `staleTime: Infinity` porque nome de escritório não muda durante uma sessão;
+  quando mudar, é por outra tela, que invalida a chave.
+*/
+export function useCurrentTenant() {
+  const collaboratorQuery = useCurrentCollaborator()
+  const tenantId = collaboratorQuery.data?.tenant_id
+
+  const tenantQuery = useQuery({
+    queryKey: authKeys.tenant(tenantId),
+    enabled: Boolean(tenantId),
+    queryFn: async (): Promise<Tenant | null> => {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('id, name, slug')
+        .eq('id', tenantId!)
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+    staleTime: Infinity,
+  })
+
+  return {
+    ...tenantQuery,
+    data: tenantQuery.data ?? null,
+    isLoading: collaboratorQuery.isLoading || tenantQuery.isLoading,
+    isError: Boolean(collaboratorQuery.error ?? tenantQuery.error),
   }
 }
 

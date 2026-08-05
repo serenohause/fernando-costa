@@ -4,6 +4,10 @@ import type { CollaboratorRole } from '@/lib/enums'
 
 export type Collaborator = Tables<'collaborators'>
 
+/* Só o que a tela usa do escritório. `status` e as datas não têm leitor no
+   frontend — a policy de 0008 já só devolve o próprio tenant. */
+export type Tenant = Pick<Tables<'tenants'>, 'id' | 'name' | 'slug'>
+
 export type MenuRow = Pick<Tables<'menus'>, 'key' | 'label_pt' | 'sort_order' | 'parent_key'>
 
 export type PermissionRow = Pick<
