@@ -171,10 +171,28 @@ async function main() {
     regressao de GRANT passou despercebida neste projeto (migration 0036): o
     teste de negacao recebia 42501 em vez de resultado vazio e parecia sucesso.
   */
+  /*
+    As credenciais vêm do ARQUIVO, não escritas aqui.
+
+    Elas estavam fixas neste teste, e o seed que regenera as contas mudou a
+    senha — o controle positivo parou de existir e o arquivo abortou. Abortar
+    foi o desenho funcionando (senão os casos de negação acima passariam a não
+    provar nada, calados), mas a causa era esta linha: segredo copiado para um
+    segundo lugar envelhece no primeiro dia em que o primeiro muda.
+  */
+  const creds = readFileSync(resolve(ROOT, 'supabase/seed/credenciais.local'), 'utf8')
+  const match = creds.match(/email:\s+(diretora\S+)\n\s+senha:\s+(\S+)/)
+  if (!match) {
+    fail(
+      'não achei as credenciais da Diretora em supabase/seed/credenciais.local. ' +
+        'Sem elas não há controle positivo. Rode: npm run seed',
+    )
+  }
+
   const loginRes = await fetch(`${env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: { apikey: env.VITE_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'diretora@fc-teste.com.br', password: 'Fcf5gHM3kBFXAV!7' }),
+    body: JSON.stringify({ email: match[1], password: match[2] }),
   })
   const login = await loginRes.json()
   if (!login.access_token) {

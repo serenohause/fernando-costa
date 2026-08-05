@@ -29,15 +29,29 @@
 //   seed novo copiar a versao mais frouxa para o banco ficar aberto por um lado
 //   so. Agora ha um lugar so para mudar, e um lugar so para auditar.
 
+/*
+  O `name` E O QUE APARECE NO TOPO DA TELA, e por isso e o nome do escritorio e
+  nada mais.
+
+  Ele era 'Fernando Costa Arquitetura (teste)'. Isso deixou de caber no dia em
+  que o cabecalho parou de ser texto fixo e passou a ler o tenant: sao 33
+  caracteres numa barra lateral que comporta cerca de 14 com o `tracking` do
+  original, entao a equipe leria "FERNANDO COSTA ARQUI..." todo dia, no lugar
+  do "FERNANDO COSTA" que o original mostra.
+
+  O "(teste)" nao se perdeu — ele vive no SLUG, que e onde marcar ambiente
+  serve para alguma coisa: e o slug que aparece em log, em URL e nesta trava de
+  seguranca. O nome e para gente ler.
+*/
 export const TEST_TENANTS = {
   // Goiania/GO. Povoado pelos nove seeds numerados (npm run seed ... seed:map).
   'fernando-costa-teste': {
-    name: 'Fernando Costa Arquitetura (teste)',
+    name: 'Fernando Costa',
     emailDomain: 'fc-teste.com.br',
   },
   // Florianopolis/SC. Povoado de uma vez por npm run seed:second-office.
   'atelie-mirante-teste': {
-    name: 'Ateliê Mirante Arquitetura (teste)',
+    name: 'Ateliê Mirante',
     emailDomain: 'mirante-teste.com.br',
   },
 }

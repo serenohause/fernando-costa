@@ -32,7 +32,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
-import { assertOnlyTestTenants } from './tenants.mjs'
+import { assertOnlyTestTenants, TEST_TENANTS } from './tenants.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '../..')
@@ -222,7 +222,7 @@ async function main() {
   // 3. Escritorio -------------------------------------------------------------
   const { data: tenant, error: tenantError } = await db
     .from('tenants')
-    .insert({ name: 'Fernando Costa Arquitetura (teste)', slug: TEST_TENANT_SLUG })
+    .insert({ name: TEST_TENANTS[TEST_TENANT_SLUG].name, slug: TEST_TENANT_SLUG })
     .select()
     .single()
   if (tenantError) fail(`criar tenant: ${tenantError.message}`)
