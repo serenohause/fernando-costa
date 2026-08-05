@@ -79,8 +79,10 @@ export default function CollaboratorProjectsDialog({
         <div className="flex gap-3 py-4 border-b border-border">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
-            {/* O placeholder é o do original, e ele promete mais do que a busca
-                faz: só o nome é procurado — ver `searchAndSortProjects`. */}
+            {/* O placeholder é o do original e agora é verdade: a busca olha o
+                nome E o número do contrato, que é o "código" que este schema tem
+                para um projeto. Antes ela só olhava o nome, e digitar o código
+                esvaziava a gaveta — ver `searchAndSortProjects`. */}
             <Input
               placeholder="Buscar por nome ou código..."
               value={search}
@@ -140,13 +142,18 @@ export default function CollaboratorProjectsDialog({
                           </Badge>
                         )}
                         {/*
-                          O `?projeto=` NÃO FILTRA NADA, e é do original: o Fluxo
-                          do Projeto (Tasks.jsx) nunca lê esse parâmetro, então o
-                          link abre o quadro inteiro numa aba nova. Reproduzido
-                          como está — o endereço é o mesmo que está no ar hoje.
+                          O `?projeto=<id>` SAIU DO ENDEREÇO. No original o link
+                          é `Tasks?projeto=<id>` e o Fluxo do Projeto (Tasks.jsx)
+                          nunca lê esse parâmetro — a aba nova abre o quadro
+                          inteiro, e o endereço promete um filtro que não existe.
+                          Ler o parâmetro seria mexer na tela de Tarefas, que não
+                          é deste módulo; então o link para de prometer e leva
+                          para onde sempre levou. Está no relatório: fazer o
+                          Fluxo aceitar o parâmetro é a outra metade, e é decisão
+                          do usuário.
                         */}
                         <a
-                          href={`${createPageUrl('Tasks')}?projeto=${project.id}`}
+                          href={createPageUrl('Tasks')}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="opacity-0 group-hover:opacity-100 transition-opacity"

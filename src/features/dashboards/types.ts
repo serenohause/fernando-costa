@@ -65,14 +65,21 @@ export type ClosedContracts = { count: number; value: number }
 /*
   "Projetos por Etapa" — os três números do bloco 4.
 
-  ATENÇÃO, e é do original: os três recortes NÃO PARTICIONAM os projetos.
-  Projeto "Em contrato" na fase Briefing não entra em nenhum deles; projeto
-  "Concluído" na fase "Não iniciado" entra em dois. Ver `countProjectStages`.
+  OS TRÊS PARTICIONAM a lista: cada projeto cai em exatamente um, e a soma é o
+  total. No original os recortes se sobrepunham e deixavam projeto de fora — ver
+  `countProjectStages`.
 */
 export type ProjectStageCount = { notStarted: number; inProgress: number; completed: number }
 
 /* Uma linha de "Próximas Entregas - 15 dias". */
 export type UpcomingDelivery = { task: TaskRow; daysRemaining: number }
+
+/*
+  O bloco inteiro: a lista CORTADA em 10, que é o que a tela desenha, e o total
+  contado ANTES do corte, que é o que o crachá mostra. No original os dois são a
+  mesma coisa e o crachá satura em "10" — ver `upcomingDeliveries`.
+*/
+export type UpcomingDeliveries = { items: UpcomingDelivery[]; total: number }
 
 /* Uma linha de "Contas em Atraso". Recorte próprio, e não `ReceivableRow`: o
    bloco mostra três campos e o painel não precisa carregar a parcela inteira. */
@@ -123,18 +130,22 @@ export type DashboardActivity = Pick<
 >
 
 /*
-  O que o BANCO conta para o bloco "Visão Geral" — quatro `count` com o critério
+  O que o BANCO conta para o bloco "Visão Geral" — cinco `count` com o critério
   no WHERE, e nenhuma linha descendo. Ver `useActivityCounts`.
 
-  `forecast` não é cartão: é o denominador de "Produtividade", e está aqui porque
-  o numerador e o denominador precisam sair do MESMO recorte para a divisão
-  significar alguma coisa.
+  OS DOIS ÚLTIMOS NÃO SÃO CARTÃO: são as duas pontas de "Produtividade".
+  `forecast` é o conjunto PREVISTO para o período (prazo dentro dele, concluída
+  ou não) e `forecastCompleted` é a parte dele que foi concluída — o numerador é
+  subconjunto do denominador, que é o que faz a divisão significar alguma coisa.
+  No original o denominador saía do recorte por DATA DE CONCLUSÃO e o cartão
+  ficava preso em 100%; ver `activityMetrics`.
 */
 export type ActivityCounts = {
   inProgress: number
   completed: number
   overdue: number
   forecast: number
+  forecastCompleted: number
 }
 
 /* Os quatro cartões do bloco "Visão Geral". */
@@ -142,7 +153,7 @@ export type ActivityMetrics = {
   inProgress: number
   completed: number
   overdue: number
-  /* "Meta vs concluído", em %. Ver a ressalva em `activityMetrics`. */
+  /* "Concluídas / previstas" do período, em %. Ver `activityMetrics`. */
   productivity: number
 }
 
@@ -157,7 +168,9 @@ export type OperationalMetrics = {
   blocked: number
 }
 
-/* O responsável do CARD do Fluxo do Projeto — não o do projeto. */
+/* Quem responde pelo projeto no Fluxo: a coluna `operational_responsible_id`
+   quando existe, senão o responsável do card mais antigo — ver
+   `projectResponsibleMap`. */
 export type ProjectResponsible = { id: string; name: string }
 
 export type CollaboratorLoad = {
@@ -241,10 +254,12 @@ export type FunnelStageTotals = {
   value: number
 }
 
-export type StalledNegotiation = { negotiation: NegotiationRow; daysInFunnel: number }
+/* Dias SEM MOVIMENTAÇÃO (`updated_at`), a mesma régua do crachá "Parada há N
+   dias" da tela de Negociações — ver `velocityMetrics`. */
+export type StalledNegotiation = { negotiation: NegotiationRow; daysStalled: number }
 
 export type VelocityMetrics = {
-  /* Em dias, sobre TODAS as ganhas de todos os tempos — não só as do mês. */
+  /* Em dias, sobre as ganhas do MÊS escolhido. */
   averageDaysToClose: number
   stalled: StalledNegotiation[]
 }

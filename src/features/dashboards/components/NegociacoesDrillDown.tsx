@@ -23,14 +23,17 @@ import type { NegotiationRow } from '@/features/pipeline/types'
   `zIndex: 50` (o mesmo valor do Layout.jsx original), e a gaveta vem depois no
   DOM, então cobre a barra exatamente como lá.
 
-  QUEM DECIDE O QUE ENTRA NA LISTA É QUEM CHAMA. Esta tela só desenha — inclusive
-  quando a lista chega vazia porque o cartão de origem carrega o bug do original
-  (ver `commercialDrilldown` em features/dashboards/list.ts, caso 'ganhas').
+  QUEM DECIDE O QUE ENTRA NA LISTA É QUEM CHAMA. Esta tela só desenha; o vazio
+  aqui significa que o conjunto é vazio mesmo — a gaveta de "Negociações Ganhas",
+  que no original abria sempre vazia por filtrar a lista errada, foi corrigida na
+  origem (ver `commercialDrilldown` em features/dashboards/list.ts, caso
+  'ganhas').
 
   A LINHA SÓ LEVA PARA A TELA DE NEGOCIAÇÕES, sem selecionar nada: o original
   recebe o id da negociação clicada e o descarta (linha 29-32), navegando para a
-  lista inteira. Reproduzido — o parâmetro que ninguém usa é que não fica, porque
-  o lint deste projeto não aceita argumento morto.
+  lista inteira. Continua assim — a tela de destino é de outro módulo e não lê
+  seleção nenhuma hoje; está no relatório. O parâmetro que ninguém usa é que não
+  fica, porque o lint deste projeto não aceita argumento morto.
 */
 
 const statusColors: Record<NegotiationStatus, string> = {

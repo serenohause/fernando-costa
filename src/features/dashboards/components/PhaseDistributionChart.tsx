@@ -1,5 +1,6 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { ProjectPhase } from '@/lib/enums'
+import { AXIS_TICK_FILL } from '../chart-theme'
 import type { PhaseCount } from '../types'
 
 /*
@@ -26,10 +27,14 @@ import type { PhaseCount } from '../types'
 
   O TEMA ESCURO É REPARO, NÃO REDESENHO: o recharts pinta o texto do eixo em
   `#666` e o balão do tooltip em branco por atributo/estilo embutido, o que no
-  escuro dá texto apagado e um balão branco com texto claro por cima. As duas
-  correções abaixo só existem dentro de `.dark` — no claro o gráfico continua
-  sendo o do original, atributo por atributo. Mesma decisão já tomada no
-  StatsCard.
+  escuro dá texto apagado e um balão branco com texto claro por cima. No claro o
+  gráfico continua sendo o do original, atributo por atributo. Mesma decisão já
+  tomada no StatsCard.
+
+  O TEXTO DO EIXO passou a sair do token `--chart-axis` (ver `AXIS_TICK_FILL`),
+  que é o MESMO mecanismo dos dois gráficos do painel comercial e vale para o
+  claro e para o escuro — antes era um `fill` só dentro de `.dark` aqui e nada
+  lá. O valor do token no tema claro é o próprio `#666` do recharts.
 */
 
 /* O recorte do estado do recharts que o clique usa. O tipo completo
@@ -45,7 +50,7 @@ export default function PhaseDistributionChart({
   onSelectPhase: (phase: ProjectPhase) => void
 }) {
   return (
-    <div className="dark:[&_.recharts-cartesian-axis-tick-value]:fill-muted-foreground dark:[&_.recharts-default-tooltip]:!border-border dark:[&_.recharts-default-tooltip]:!bg-card">
+    <div className="dark:[&_.recharts-default-tooltip]:!border-border dark:[&_.recharts-default-tooltip]:!bg-card">
       <ResponsiveContainer width="100%" height={300}>
         <BarChart
           data={data}
@@ -55,8 +60,14 @@ export default function PhaseDistributionChart({
           }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-muted)" />
-          <XAxis dataKey="label" angle={-45} textAnchor="end" height={100} tick={{ fontSize: 11 }} />
-          <YAxis />
+          <XAxis
+            dataKey="label"
+            angle={-45}
+            textAnchor="end"
+            height={100}
+            tick={{ fontSize: 11, fill: AXIS_TICK_FILL }}
+          />
+          <YAxis tick={{ fill: AXIS_TICK_FILL }} />
           <Tooltip cursor={{ fill: 'hsl(var(--chart-sky) / 0.1)' }} />
           <Bar
             dataKey="count"

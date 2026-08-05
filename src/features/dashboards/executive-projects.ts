@@ -1,7 +1,6 @@
 import { PROJECT_PHASE, labelOf, type ProjectPhase } from '@/lib/enums'
 import { normalizeText } from '@/lib/format'
-import { isTaskOverdue } from '@/features/projects/list'
-import type { ProjectProgress, ProjectRow, TaskRow } from '@/features/projects/types'
+import type { ProjectProgress, ProjectRow } from '@/features/projects/types'
 import { isProjectBlocked } from './list'
 import type { ProjectProgressRow } from './types'
 
@@ -19,8 +18,8 @@ import type { ProjectProgressRow } from './types'
   lado. Mesmo precedente de pipeline/filters.ts e projects/project-phase.ts.
 
   NENHUMA DESTAS FUNÇÕES É A FONTE DE UM NÚMERO DE CARTÃO. Os números vêm de
-  `operationalMetrics` e `progressMetrics` (list.ts), e "Em Risco" vem contado do
-  banco (`useAtRiskProjectCount`). Ver a ressalva de `atRiskProjects`.
+  `operationalMetrics` e `progressMetrics` (list.ts), e "Em Risco" sai do conjunto
+  de ids que o banco devolve (`useAtRiskProjectIds`) — o mesmo que abre a gaveta.
 */
 
 /* "Aguardando Cliente" (DashboardExecutivo.jsx:621). */
@@ -44,21 +43,14 @@ export function projectsInPhase(projects: ProjectRow[], phase: ProjectPhase): Pr
   daquela função explica por que ela não foi corrigida, e este painel não corrige
   por conta própria: o cartão passaria a discordar do quadro.
 
-  ESTA LISTA E O CARTÃO PODEM DISCORDAR, e é consequência do módulo 10 e não do
-  original. O NÚMERO do cartão "Em Risco" é contado no banco
-  (`useAtRiskProjectCount`), sobre a tabela inteira; esta lista é peneirada sobre
-  as até 500 tarefas que `useTasks` baixou. Passado esse teto, a gaveta abre com
-  menos projetos do que o cartão anuncia. No original os dois lados saíam da
-  mesma lista e o teto não existia. Está no relatório do módulo.
+  A LISTA E O CARTÃO SAEM DO MESMO LUGAR: o conjunto de ids vem do banco
+  (`useAtRiskProjectIds`, com a régua acima traduzida para WHERE) e serve tanto
+  para contar quanto para abrir a gaveta. Antes o cartão contava no banco e a
+  gaveta peneirava as até 500 tarefas baixadas, o que fazia os dois discordarem
+  passado esse teto.
 */
-export function atRiskProjects(
-  projects: ProjectRow[],
-  tasks: TaskRow[],
-  now: Date = new Date(),
-): ProjectRow[] {
-  return projects.filter((project) =>
-    tasks.some((task) => task.project_id === project.id && isTaskOverdue(task, now)),
-  )
+export function atRiskProjects(projects: ProjectRow[], atRiskIds: Set<string>): ProjectRow[] {
+  return projects.filter((project) => atRiskIds.has(project.id))
 }
 
 /* "Bloqueados": checklist obrigatório incompleto, lido da view `project_progress`
@@ -92,13 +84,19 @@ export type ProjectSortKey = 'name' | 'progress-asc' | 'progress-desc' | 'phase'
   A busca e a ordenação da gaveta "Projetos de <colaborador>"
   (DashboardExecutivo.jsx:863-886).
 
-  TRÊS COISAS QUE VÊM DO ORIGINAL E FICAM:
+  A CAIXA DIZ "nome ou código" E AGORA PROCURA OS DOIS. No original ela promete
+  código e filtra só por nome (linhas 840 e 869): digitar o número do contrato
+  esvazia a gaveta, e a instrução escrita dentro do campo é falsa. O "código" que
+  este schema tem para um projeto é o NÚMERO DO CONTRATO
+  (`contract.contract_number`, embed que a lista de projetos já carrega — a
+  coluna `contract_number` copiada em `projects` saiu na migration 0032), então é
+  ele que entra na busca. Placeholder intacto; o que mudou foi ele passar a ser
+  verdade.
 
-  1. A CAIXA DIZ "nome ou código" E SÓ PROCURA NOME (linhas 840 e 869). Projeto
-     não tem código neste schema — quem tem número é o contrato. O texto do
-     placeholder é o do original e a busca continua sendo só por nome.
-  2. Sem termo, a ordem padrão é por NOME, e não a que a lista de fora usava.
-  3. O progresso ordenado é o mesmo que a linha mostra.
+  DUAS COISAS QUE VÊM DO ORIGINAL E FICAM:
+
+  1. Sem termo, a ordem padrão é por NOME, e não a que a lista de fora usava.
+  2. O progresso ordenado é o mesmo que a linha mostra.
 
   DUAS DIFERENÇAS DE IMPLEMENTAÇÃO, sem efeito de layout:
 
@@ -121,7 +119,11 @@ export function searchAndSortProjects(
 ): ProjectRow[] {
   const needle = normalizeText(search)
   const filtered = needle
-    ? projects.filter((project) => normalizeText(project.name).includes(needle))
+    ? projects.filter(
+        (project) =>
+          normalizeText(project.name).includes(needle) ||
+          normalizeText(project.contract?.contract_number ?? '').includes(needle),
+      )
     : projects
 
   const progressOf = (project: ProjectRow) =>

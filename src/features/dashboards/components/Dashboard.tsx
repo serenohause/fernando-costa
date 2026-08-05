@@ -40,8 +40,8 @@ import StatsCard from './StatsCard'
 
   NENHUMA CONTA MORA AQUI. Tudo vem de `useOverviewDashboard`, e cada número
   está documentado em features/dashboards/list.ts ao lado da linha do original
-  que ele reproduz — inclusive os defeitos preservados, resumidos abaixo onde
-  aparecem na tela.
+  que ele reproduz — inclusive os defeitos CORRIGIDOS, com o que o original fazia
+  escrito onde eles apareciam na tela.
 
   DOIS BLOCOS DO ORIGINAL NÃO EXISTEM E NUNCA EXISTIRAM: `FinancialChart` e
   `TopList` são importados por Dashboard.jsx (linhas 19-20) e não são
@@ -91,9 +91,11 @@ export default function Dashboard() {
   const {
     financial,
     overdueReceivables,
+    overdueReceivablesCount,
     contractsClosed,
     projectStages,
     upcomingDeliveries,
+    upcomingDeliveriesCount,
     isLoadingFinancial,
     isError,
     error,
@@ -207,15 +209,16 @@ export default function Dashboard() {
                 </div>
                 Contas em Atraso
                 {/*
-                  ESTE NÚMERO SATURA EM 5, e é do original: lá a lista é cortada
-                  em cinco (Dashboard.jsx:188) ANTES de o crachá medir o tamanho
-                  dela (linha 333), então quarenta parcelas vencidas mostram "5".
-                  A consulta reproduz o mesmo teto (ver `useOverdueReceivables`).
-                  Reproduzido de propósito e reportado: corrigir é uma segunda
-                  consulta de contagem, e é decisão do usuário.
+                  ESTE NÚMERO SATURAVA EM 5: no original a lista é cortada em
+                  cinco (Dashboard.jsx:188) ANTES de o crachá medir o tamanho
+                  dela (linha 333), então quarenta parcelas vencidas mostravam
+                  "5" — um alerta escondendo o tamanho do que alerta. Agora ele
+                  vem de uma contagem no banco com o mesmo WHERE da lista
+                  (`useOverdueReceivablesCount`); a lista abaixo continua com
+                  cinco linhas e a tela mostrando três, como no original.
                 */}
                 <span className="ml-auto text-xs font-normal bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 px-2 py-1 rounded-full">
-                  {overdueReceivables.length}
+                  {overdueReceivablesCount}
                 </span>
               </CardTitle>
             </CardHeader>
@@ -294,11 +297,13 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               {/*
-                OS TRÊS NÚMEROS NÃO PARTICIONAM OS PROJETOS, e é do original
-                (ver `countProjectStages`): projeto "Em contrato" na fase
-                Briefing não entra em nenhum deles, e projeto "Concluído" cuja
-                fase ainda é "Não iniciado" entra em dois. Somar os três não dá o
-                total de projetos. Reproduzido e reportado.
+                OS TRÊS NÚMEROS AGORA PARTICIONAM OS PROJETOS. No original
+                (ver `countProjectStages`) projeto "Em contrato" na fase Briefing
+                não entrava em nenhum dos três e projeto "Concluído" na fase "Não
+                iniciado" entrava em dois, então somar os três não dava o total —
+                num bloco cuja leitura é justamente como o escritório se divide.
+                Os rótulos são os mesmos; o que mudou é cada projeto cair em
+                exatamente um.
               */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center p-4 bg-elevated rounded-lg">
@@ -329,10 +334,13 @@ export default function Dashboard() {
                   <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 Próximas Entregas - 15 dias
-                {/* Mesmo teto do bloco de atraso, com outro número: a lista é
-                    cortada em 10, então o crachá satura em "10". */}
+                {/* Mesmo defeito do bloco de atraso, com outro teto: no original
+                    a lista é cortada em 10 e o crachá media o tamanho dela, então
+                    ele saturava em "10". Agora o total é contado ANTES do corte
+                    (ver `upcomingDeliveries`); a lista continua com 10 e a tela
+                    mostrando três. */}
                 <span className="ml-auto text-xs font-normal bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-full">
-                  {upcomingDeliveries.length}
+                  {upcomingDeliveriesCount}
                 </span>
               </CardTitle>
             </CardHeader>

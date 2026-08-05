@@ -41,7 +41,9 @@ import PhaseDistributionChart from './PhaseDistributionChart'
 
   NENHUMA CONTA MORA AQUI. Tudo vem de `useExecutiveDashboard`; os subconjuntos
   que as gavetas abrem vêm de features/dashboards/executive-projects.ts. Cada
-  número está documentado ao lado da linha do original que ele reproduz.
+  número está documentado ao lado da linha do original que ele reproduz — e,
+  onde o original erra a conta, ao lado do que ele fazia e do que passou a
+  fazer.
 
   SEIS AGREGAÇÕES DO ORIGINAL NÃO FORAM PORTADAS PORQUE NUNCA APARECERAM EM
   TELA: `deadlineMetrics` (próximas entregas e tarefas atrasadas),
@@ -180,7 +182,8 @@ export default function DashboardExecutivo() {
 
   const {
     projects,
-    tasks,
+    allProjects,
+    atRiskIds,
     progressByProject,
     responsibleByProject,
     collaborators,
@@ -230,7 +233,7 @@ export default function DashboardExecutivo() {
     contagem viaja. Zero é uma resposta, e "nenhuma atividade concluída neste
     período" não pode ser indistinguível de "ainda estou contando".
   */
-  const isFirstLoad = isLoading && projects.length === 0 && collaborators.length === 0
+  const isFirstLoad = isLoading && allProjects.length === 0 && collaborators.length === 0
   const isRecounting = isLoading && !isFirstLoad
 
   if (isFirstLoad) {
@@ -278,7 +281,11 @@ export default function DashboardExecutivo() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Todos projetos</SelectItem>
-                {projects.map((project) => (
+                {/* A lista de opções vem dos projetos ativos SEM o recorte da
+                    própria barra (`allProjects`): agora que o filtro alcança o
+                    painel inteiro, alimentá-la com a lista já filtrada deixaria
+                    só a opção escolhida no seletor. */}
+                {allProjects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.name}
                   </SelectItem>
@@ -337,10 +344,12 @@ export default function DashboardExecutivo() {
               dela. Quem lê o escritório vê os rótulos do original; quem lê só a
               própria carga vê o rótulo dizer isso.
 
-              DOIS DELES AINDA IGNORAM A BARRA DE FILTROS logo acima, e isso é do
-              original (ver `activityMetrics`): "Em Andamento" e "Atrasadas"
-              contam tudo, sem período, sem projeto e sem colaborador. Só
-              "Concluídas" e "Produtividade" respeitam o que a barra diz.
+              OS QUATRO RESPEITAM PROJETO E COLABORADOR da barra logo acima. No
+              original "Em Andamento" e "Atrasadas" contavam o escritório inteiro
+              ali do lado dos dois que respeitavam. O PERÍODO continua alcançando
+              só "Concluídas" e "Produtividade", e não por omissão: os outros dois
+              são fotografia de agora, e as quatro opções do seletor contêm todas
+              o dia de hoje — ver a nota em `activityMetrics`.
             */}
             {isRecounting ? (
               /* A recontagem por filtro, na mesma grade e na mesma altura dos
@@ -377,12 +386,19 @@ export default function DashboardExecutivo() {
                     <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
                       {activity.completed}
                     </div>
-                    {/* O rótulo do período NÃO COBRE "Todas": o ternário do
-                        original (linha 553) cai em "Hoje" quando o filtro é
-                        "Todas", e o cartão passa a dizer "Hoje" mostrando a
-                        contagem de todos os tempos. Reproduzido. */}
+                    {/* O RÓTULO DO PERÍODO COBRE AS QUATRO OPÇÕES. O ternário do
+                        original (linha 553) só tem três saídas e cai em "Hoje"
+                        quando o filtro é "Todas": o cartão dizia "Hoje" embaixo
+                        da contagem de todos os tempos. As quatro palavras são as
+                        do próprio seletor, logo acima. */}
                     <p className="text-xs text-muted-foreground mt-1">
-                      {period === 'mes' ? 'Este mês' : period === 'semana' ? 'Esta semana' : 'Hoje'}
+                      {period === 'mes'
+                        ? 'Este mês'
+                        : period === 'semana'
+                          ? 'Esta semana'
+                          : period === 'todas'
+                            ? 'Todas'
+                            : 'Hoje'}
                     </p>
                   </CardContent>
                 </Card>
@@ -410,18 +426,20 @@ export default function DashboardExecutivo() {
                   </CardHeader>
                   <CardContent>
                     {/*
-                      MÉTRICA QUEBRADA, REPRODUZIDA COMO TAL (ver `activityMetrics`):
-                      é `concluídas ÷ previstas`, e "previstas" sai do mesmo recorte
-                      já filtrado por DATA DE CONCLUSÃO — ou seja, de atividades que
-                      necessariamente já foram concluídas. Denominador quase igual
-                      ao numerador, cartão em ~100% sempre. E o rótulo diz "Meta vs
-                      concluído" sem que exista meta em lugar nenhum do sistema.
-                      Consertar exige decidir o que é a meta, e isso é do usuário.
+                      A CONTA MUDOU E O RÓTULO JUNTO (ver `activityMetrics`). No
+                      original é `concluídas ÷ previstas` com "previstas" saindo
+                      do mesmo recorte já filtrado por DATA DE CONCLUSÃO — um
+                      denominador feito só de atividades já concluídas, que
+                      prendia o cartão em ~100%. Agora é a taxa de cumprimento do
+                      período: das atividades com PRAZO no período, quantas foram
+                      concluídas. O rótulo deixa de citar meta, que não existe em
+                      lugar nenhum do sistema, e passa a dizer a divisão — mesma
+                      forma dos cartões de taxa do painel comercial.
                     */}
                     <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
                       {activity.productivity}%
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">Meta vs concluído</p>
+                    <p className="text-xs text-muted-foreground mt-1">Concluídas / previstas</p>
                   </CardContent>
                 </Card>
               </div>
@@ -446,6 +464,13 @@ export default function DashboardExecutivo() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
+                  {/* ESTE CARTÃO RESPEITA A BARRA DE FILTROS, e no original não
+                      respeitava: ele contava todos os projetos ativos enquanto o
+                      cartão "Projetos Ativos" do bloco de baixo, com o mesmo
+                      rótulo "Total ativo", já obedecia aos mesmos seletores. Dois
+                      totais diferentes, a uma rolagem um do outro. Agora os cinco
+                      números deste bloco saem do mesmo recorte (`scopeProjects`)
+                      e os dois cartões concordam. */}
                   <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                     {operational.totalProjects}
                   </div>
@@ -476,14 +501,16 @@ export default function DashboardExecutivo() {
                 </CardContent>
               </Card>
 
-              {/* O NÚMERO VEM DO BANCO E A GAVETA VEM DA LISTA — os dois podem
-                  discordar passadas 500 tarefas. Ver `atRiskProjects`. */}
+              {/* O NÚMERO E A GAVETA SAEM DO MESMO CONJUNTO de ids vindo do
+                  banco (`useAtRiskProjectIds`). Antes o cartão contava no banco e
+                  a gaveta peneirava as 500 tarefas baixadas, e os dois podiam
+                  discordar. Ver `atRiskProjects`. */}
               <Card
                 className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-all"
                 onClick={() =>
                   setDrilldown({
                     title: 'Projetos Em Risco',
-                    projects: atRiskProjects(projects, tasks),
+                    projects: atRiskProjects(projects, atRiskIds),
                   })
                 }
               >
@@ -644,10 +671,10 @@ export default function DashboardExecutivo() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {/* Este cartão RESPEITA os filtros de projeto e colaborador, ao
-                      contrário do "Total Ativo" do bloco de cima, que conta
-                      todos — os dois ficam a uma rolagem um do outro. É do
-                      original (ver `teamMetrics`). */}
+                  {/* Este cartão sempre respeitou os filtros de projeto e
+                      colaborador; o que mudou é "Total Ativo", lá em cima,
+                      passar a respeitar também — os dois dizem "Total ativo" e
+                      no original discordavam. Ver `scopeProjects`. */}
                   <div className="text-3xl font-bold text-violet-600 dark:text-violet-400">
                     {team.activeProjects}
                   </div>
@@ -764,11 +791,13 @@ export default function DashboardExecutivo() {
                                 <span className="text-xs text-muted-foreground">
                                   📍 {labelOf(PROJECT_PHASE, row.project.current_phase)}
                                 </span>
-                                {/* O responsável é o da ÚLTIMA TAREFA que a
-                                    consulta devolveu, sem critério de desempate —
-                                    é o `map.set` do original. Criar uma tarefa
-                                    nova pode trocar este nome e mexer em
-                                    "Projetos por Colaborador" logo acima. Ver
+                                {/* O responsável tem CRITÉRIO agora: a coluna
+                                    `operational_responsible_id` do projeto e, na
+                                    falta dela, o responsável do card mais antigo.
+                                    No original era a última tarefa que a consulta
+                                    devolvesse, então criar uma tarefa trocava
+                                    este nome e mexia em "Projetos por
+                                    Colaborador" logo acima. Ver
                                     `projectResponsibleMap`. */}
                                 <span className="text-xs text-muted-foreground">
                                   👤{' '}
@@ -782,11 +811,12 @@ export default function DashboardExecutivo() {
                                   ACTIVITY_LABELS): ele conta as atividades que
                                   QUEM ESTÁ OLHANDO pode ler, não as do projeto.
 
-                                  E ele conta uma coisa diferente do cartão
-                                  "Concluídas": aqui a atividade excluída fica de
-                                  fora, lá ela entra (o original filtra
-                                  `atividade_excluida` neste bloco e não filtra no
-                                  cartão). Reproduzido nos dois lugares.
+                                  E ele conta o MESMO universo do cartão
+                                  "Concluídas" lá em cima: atividade excluída fica
+                                  de fora nos dois. No original ela ficava de fora
+                                  aqui e entrava no cartão, então excluir uma
+                                  atividade mexia num número e não no outro — ver
+                                  `aliveActivityCountQuery`.
                                 */}
                                 {row.openActivities > 0 && (
                                   <Badge

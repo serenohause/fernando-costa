@@ -34,6 +34,7 @@ import { FUNNEL_STAGE, labelOf } from '@/lib/enums'
 import { formatCurrencyBRL } from '@/lib/format'
 import type { MonthYear } from '@/features/financial/types'
 import type { NegotiationRow } from '@/features/pipeline/types'
+import { AXIS_TICK_FILL } from '../chart-theme'
 import { useCommercialDashboard } from '../hooks'
 import { commercialDrilldown } from '../list'
 import type { CommercialDrilldown } from '../types'
@@ -51,8 +52,8 @@ import NegociacoesDrillDown from './NegociacoesDrillDown'
 
   NENHUMA CONTA MORA AQUI. Tudo vem de `useCommercialDashboard`, e cada número
   está documentado em features/dashboards/list.ts ao lado da linha do original que
-  reproduz — inclusive os defeitos preservados, repetidos abaixo onde aparecem na
-  tela.
+  reproduz — inclusive os defeitos CORRIGIDOS, com o que o original fazia escrito
+  no ponto em que eles apareciam na tela.
 
   O QUE O ORIGINAL TEM E NÃO FOI PORTADO, por ser código morto lá:
   - `Contract.list()` (linha 49): baixado e nunca usado, só segurava o esqueleto.
@@ -87,6 +88,19 @@ const MONTH_NAMES = [
   'Novembro',
   'Dezembro',
 ]
+
+/*
+  QUAIS DAS SETE GAVETAS SÃO DO MÊS ESCOLHIDO: as quatro de fechamento, que saem
+  de `closingMetrics`. As três que faltam (ativas, valor em negociação, em risco)
+  são o funil ATIVO, que é fotografia de agora e não tem mês — ver
+  `funnelMetrics`. É essa divisão que o subtítulo da gaveta passa a respeitar.
+*/
+const MONTH_SCOPED_DRILLDOWNS = new Set<CommercialDrilldown>([
+  'ganhas',
+  'valor_ganho',
+  'perdidas',
+  'valor_perdido',
+])
 
 /* Os títulos da gaveta, um por cartão clicável (linhas 165-210). */
 const DRILLDOWN_TITLES: Record<CommercialDrilldown, string> = {
@@ -157,21 +171,25 @@ export default function DashboardComercial() {
         viu, e não reage à troca de mês por baixo dela (que fica atrás do véu de
         qualquer forma).
 
-        A GAVETA DE "NEGOCIAÇÕES GANHAS" ABRE SEMPRE VAZIA, e é o bug mais
-        visível desta tela: `commercialDrilldown` filtra a lista de PERDIDAS
-        procurando status "Ganha" (DashboardComercial.jsx:185), então o cartão
-        mostra 4 e a gaveta diz "Nenhuma negociação encontrada". Reproduzido de
-        propósito e reportado ao usuário: a correção é uma linha, e é decisão
-        dele.
+        A GAVETA DE "NEGOCIAÇÕES GANHAS" ABRIA SEMPRE VAZIA, e era o bug mais
+        visível desta tela: `commercialDrilldown` filtrava a lista de PERDIDAS
+        procurando status "Ganha" (DashboardComercial.jsx:185), dois conjuntos
+        disjuntos — o cartão mostrava 1 e a gaveta dizia "Nenhuma negociação
+        encontrada". Corrigido lá, onde o caso agora devolve as ganhas do mês.
       */
       negotiations: commercialDrilldown(kind, negotiations, closing),
       title: DRILLDOWN_TITLES[kind],
       /*
-        O SUBTÍTULO FALA DO MÊS EM TODAS AS SETE GAVETAS, inclusive nas quatro
-        que ignoram o mês (ativas, valor em negociação, em risco e — por
-        tabela — a de ganhas, que vem vazia). É do original, linha 163.
+        O SUBTÍTULO DIZ DE QUE CONJUNTO A GAVETA É. No original ele afirma
+        "Exibindo negociações de <mês>" nas SETE gavetas (linha 163), inclusive
+        nas três que não olham mês nenhum — a gaveta de "Negociações Ativas"
+        anunciava um recorte de agosto e listava o funil inteiro. As quatro de
+        fechamento continuam com a frase do original; as três de funil dizem o
+        que realmente estão mostrando.
       */
-      subtitle: `Exibindo negociações de ${periodLabel}`,
+      subtitle: MONTH_SCOPED_DRILLDOWNS.has(kind)
+        ? `Exibindo negociações de ${periodLabel}`
+        : 'Exibindo o funil atual — independe do mês selecionado',
     })
   }
 
@@ -265,17 +283,25 @@ export default function DashboardComercial() {
         <>
           {/* BLOCO 1 — VISÃO GERAL DO FUNIL */}
           {/*
-            ESTE BLOCO IGNORA OS DOIS SELETORES DO CABEÇALHO, e é do original: os
-            quatro cartões somam TODAS as negociações ativas, de qualquer época.
-            O microcopy ("Em andamento", "Pipeline total", "Por negociação") é o
-            que separa este bloco do de baixo — nenhum deles menciona o mês.
-            Reproduzido e reportado.
+            ESTE BLOCO IGNORA OS DOIS SELETORES DO CABEÇALHO, e continua assim
+            por ser o que ele mede: os quatro cartões somam as negociações
+            ATIVAS, e negociação está ativa AGORA — não "em agosto". Recortar por
+            mês daria um número que não responde a pergunta nenhuma.
+
+            O QUE MUDOU É A LINHA ABAIXO DO TÍTULO. No original o seletor de
+            mês/ano fica ao lado do título da página e nada avisa que estes
+            quatro números o ignoram; o microcopy dos cartões ("Em andamento",
+            "Pipeline total", "Por negociação") só não menciona o mês. Filtro
+            visível que não afeta o número precisa dizer isso.
           */}
           <div>
-            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
               <Target className="w-5 h-5" />
               Visão Geral do Funil
             </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Posição atual do funil — independe do mês selecionado
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card
                 className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-all group"
@@ -389,8 +415,8 @@ export default function DashboardComercial() {
                   <CardTitle className="text-sm font-medium text-soft">Negociações Ganhas</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {/* O cartão conta certo; a gaveta que ele abre vem vazia — ver
-                      o comentário em `openDrillDown`. */}
+                  {/* O cartão sempre contou certo; era a gaveta dele que abria
+                      vazia — ver o comentário em `openDrillDown`. */}
                   <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition-colors">
                     {closing.wonCount}
                   </div>
@@ -503,9 +529,10 @@ export default function DashboardComercial() {
 
           {/* BLOCO 3 — FUNIL COMERCIAL */}
           {/*
-            OS DOIS GRÁFICOS TAMBÉM IGNORAM O SELETOR DE MÊS: são as negociações
-            ATIVAS de qualquer época, distribuídas pelas cinco etapas do quadro
-            (`funnelStageTotals`). É do original.
+            OS DOIS GRÁFICOS TAMBÉM IGNORAM O SELETOR DE MÊS, pela mesma razão do
+            bloco 1: são as negociações ATIVAS distribuídas pelas cinco etapas do
+            quadro (`funnelStageTotals`), fotografia de agora. Aqui também a
+            linha abaixo do título passa a dizer isso.
 
             AS CORES DAS BARRAS SÃO AS DO ORIGINAL — sky-500 na quantidade e
             emerald-500 no valor —, e vêm dos tokens `--chart-sky` e
@@ -517,16 +544,20 @@ export default function DashboardComercial() {
             claro é exatamente o slate-100 do original e no escuro deixa de ser
             uma linha branca sobre fundo escuro.
 
-            O TEXTO DOS EIXOS FICA NO PADRÃO DO recharts (cinza #666, só com o
-            `fontSize: 11` que o original passa). No tema escuro ele tem pouco
-            contraste — está reportado, não corrigido: mexer nisso é mexer na cor
-            de um elemento que o original desenha assim.
+            O TEXTO DOS EIXOS SAI DO TOKEN `--chart-axis` (src/index.css), e não
+            mais do padrão do recharts. O padrão é `#666` fixo, que é exatamente
+            o valor do token no TEMA CLARO — o gráfico continua o do original, ao
+            pixel — e que no escuro fica quase apagado sobre o cartão. O token
+            resolve a cor por tema, como todo o resto da paleta deste projeto.
           */}
           <div>
-            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
               <TrendingUp className="w-5 h-5" />
               Funil Comercial (Ativas)
             </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Posição atual do funil — independe do mês selecionado
+            </p>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <Card className="border-0 shadow-sm">
                 <CardHeader>
@@ -541,9 +572,9 @@ export default function DashboardComercial() {
                         angle={-45}
                         textAnchor="end"
                         height={100}
-                        tick={{ fontSize: 11 }}
+                        tick={{ fontSize: 11, fill: AXIS_TICK_FILL }}
                       />
-                      <YAxis />
+                      <YAxis tick={{ fill: AXIS_TICK_FILL }} />
                       <Tooltip />
                       {/* `name` reproduz o rótulo do balão: no original a série
                           não tem nome e o recharts cai no `dataKey`, que lá é
@@ -572,9 +603,9 @@ export default function DashboardComercial() {
                         angle={-45}
                         textAnchor="end"
                         height={100}
-                        tick={{ fontSize: 11 }}
+                        tick={{ fontSize: 11, fill: AXIS_TICK_FILL }}
                       />
-                      <YAxis />
+                      <YAxis tick={{ fill: AXIS_TICK_FILL }} />
                       <Tooltip
                         formatter={(value) =>
                           formatCurrencyBRL(Number(value), { withCents: false })
@@ -597,15 +628,24 @@ export default function DashboardComercial() {
 
           {/* BLOCO 5 — TEMPO E VELOCIDADE DE VENDA */}
           {/*
-            O TERCEIRO BLOCO QUE IGNORA O SELETOR: o tempo médio é sobre todas as
-            ganhas de todos os tempos, e a lista de paradas é sobre o funil ativo
-            inteiro.
+            O BLOCO TEM AS DUAS NATUREZAS, e agora cada metade diz a sua:
 
-            "PARADAS (+30 DIAS)" MEDE ENTRADA NO FUNIL, NÃO ÚLTIMA MOVIMENTAÇÃO —
-            negociação trabalhada ontem aparece aqui se entrou há 31 dias. E a
-            tela de Negociações usa OUTRA régua para a mesma palavra
-            (`updated_at` há mais de 5 dias). Dois lugares, duas contas, o mesmo
-            rótulo; os dois são do original. Reproduzido e reportado.
+            - "Tempo Médio de Fechamento" PASSOU A RESPEITAR O MÊS. No original é
+              a média de todas as ganhas de todos os tempos, com o seletor logo
+              acima que não a movia; fechamento tem data, e é a mesma do mês dos
+              blocos 2 e 2B. O rodapé do cartão passa a nomear o mês, como os
+              outros cartões de fechamento já fazem.
+            - "Negociações Paradas (+30 dias)" continua sendo o funil ativo
+              inteiro, sem mês — fotografia de agora.
+
+            "PARADAS" MEDIA ENTRADA NO FUNIL, NÃO ÚLTIMA MOVIMENTAÇÃO: no
+            original, negociação trabalhada ontem aparecia aqui por ter entrado
+            há 31 dias, e negociação esquecida há meses sumia se tivesse entrado
+            ontem. E a tela de Negociações usa a mesma palavra para outra conta
+            (`updated_at` há mais de 5 dias). Agora o conceito é um só —
+            movimentação, por `updated_at` — e o que separa as duas telas é a
+            régua, escrita em cada rótulo: 5 dias no crachá do quadro, 30 dias
+            aqui. Ver `velocityMetrics`.
           */}
           <div>
             <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -623,7 +663,11 @@ export default function DashboardComercial() {
                   <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">
                     {Math.round(velocity.averageDaysToClose)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Dias (entrada → fechamento)</p>
+                  {/* O mês entra no rodapé porque o número passou a ser dele —
+                      ver o comentário do bloco. */}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Dias (entrada → fechamento) • {periodLabel}
+                  </p>
                 </CardContent>
               </Card>
 
@@ -633,6 +677,12 @@ export default function DashboardComercial() {
                     <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                     Negociações Paradas (+30 dias)
                   </CardTitle>
+                  {/* A linha diz as duas coisas que o rótulo sozinho não dizia:
+                      o que é "parada" (sem movimentação, e não tempo de funil) e
+                      que a lista é o funil de agora, não o do mês escolhido. */}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sem movimentação — funil atual, independe do mês selecionado
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
@@ -644,7 +694,7 @@ export default function DashboardComercial() {
                         Nenhuma negociação parada
                       </p>
                     ) : (
-                      velocity.stalled.map(({ negotiation, daysInFunnel }) => (
+                      velocity.stalled.map(({ negotiation, daysStalled }) => (
                         <div
                           key={negotiation.id}
                           className="flex items-center justify-between p-3 bg-rose-50 dark:bg-rose-950/20 rounded-lg border border-rose-200 dark:border-rose-900"
@@ -672,7 +722,7 @@ export default function DashboardComercial() {
                           </div>
                           <div className="ml-4 text-right">
                             <div className="text-lg font-bold text-rose-600 dark:text-rose-400">
-                              {daysInFunnel} dias
+                              {daysStalled} dias
                             </div>
                             <div className="text-xs text-soft">
                               {formatCurrencyBRL(negotiation.estimated_value, { withCents: false })}

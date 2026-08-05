@@ -37,7 +37,7 @@ import type {
   ProjectStageCount,
   StalledNegotiation,
   TeamMetrics,
-  UpcomingDelivery,
+  UpcomingDeliveries,
   VelocityMetrics,
 } from './types'
 
@@ -223,42 +223,67 @@ export function closedContractsIn(
 /*
   "Projetos por Etapa" (Dashboard.jsx:235-240).
 
-  OS TRÊS RECORTES SÃO DO ORIGINAL, INCLUSIVE O QUE ELES TÊM DE ERRADO, e isso
-  precisa estar visível para quem for desenhar a tela:
+  CORRIGIDO EM RELAÇÃO AO ORIGINAL — os três recortes de lá não particionam:
 
-  - Eles NÃO cobrem todo mundo. Projeto com status "Em contrato" e fase
-    "Briefing" não aparece em nenhum dos três, então a soma dos três números é
-    menor que o total de projetos do fluxo.
-  - Eles se SOBREPÕEM. Projeto "Concluído" cuja fase ainda é "Não iniciado"
-    é contado em "Não iniciado" e em "Finalizado" ao mesmo tempo.
+  - NÃO COBRIAM todo mundo. Projeto com status "Em contrato" e fase "Briefing"
+    não entrava em nenhum dos três (`status` não é `prospecting`, `in_development`
+    nem `in_approval`, e a fase não é `not_started` nem `finished`), então a soma
+    dos três dava MENOS que o total do fluxo.
+  - SE SOBREPUNHAM. Projeto "Concluído" cuja fase ainda é "Não iniciado" era
+    contado em "Não iniciado" E em "Finalizado" ao mesmo tempo, e a soma dava
+    MAIS que o total.
 
-  Reproduzido como está: são três números visíveis na tela do cliente hoje.
+  Os dois defeitos produzem número errado num bloco cuja leitura é justamente
+  "como o escritório se divide", então viraram uma ESCADA EXCLUSIVA: cada projeto
+  cai em exatamente um balde e a soma dos três é o total da lista.
+
+  A ORDEM DA ESCADA é a precedência do original quando ele contava duas vezes:
+  terminal primeiro (status "Concluído" OU fase "Finalizado" — quem terminou
+  terminou, qualquer que seja a outra coluna), depois "não iniciado", e o resto
+  cai em "em andamento". Os três rótulos da tela continuam os mesmos.
+
+  CONSEQUÊNCIA REGISTRADA: projeto SUSPENSO, que antes não entrava em nenhum
+  balde, agora conta em "Em andamento" — é o balde do "nem terminou nem está por
+  começar". Os três rótulos são os do original e não há um quarto para suspenso;
+  criar um seria redesenhar o bloco.
 */
 export function countProjectStages(projects: ProjectRow[]): ProjectStageCount {
-  return {
-    notStarted: projects.filter(
-      (project) => project.status === 'prospecting' || project.current_phase === 'not_started',
-    ).length,
-    inProgress: projects.filter(
-      (project) => project.status === 'in_development' || project.status === 'in_approval',
-    ).length,
-    completed: projects.filter(
-      (project) => project.status === 'completed' || project.current_phase === 'finished',
-    ).length,
+  const count = { notStarted: 0, inProgress: 0, completed: 0 }
+
+  for (const project of projects) {
+    if (project.status === 'completed' || project.current_phase === 'finished') {
+      count.completed += 1
+    } else if (project.status === 'prospecting' || project.current_phase === 'not_started') {
+      count.notStarted += 1
+    } else {
+      count.inProgress += 1
+    }
   }
+
+  return count
 }
 
 /*
   "Próximas Entregas - 15 dias" (Dashboard.jsx:220-233): tarefa não concluída com
   prazo entre AGORA e daqui a 15 dias, da mais próxima para a mais distante.
 
-  DUAS COISAS QUE VÊM DO ORIGINAL E FICAM:
+  O QUE VEM DO ORIGINAL E FICA: o piso da janela é o INSTANTE atual, não o começo
+  do dia — então tarefa que vence HOJE nunca aparece neste bloco. Ela some da
+  lista de "próximas entregas" no mesmo momento em que passa a valer como
+  atrasada no kanban.
 
-  1. O piso da janela é o INSTANTE atual, não o começo do dia — então tarefa que
-     vence HOJE nunca aparece neste bloco. Ela some da lista de "próximas
-     entregas" no mesmo momento em que passa a valer como atrasada no kanban.
-  2. A lista é cortada em 10 e o crachá do cabeçalho mostra o tamanho dela, então
-     o contador satura em "10" por mais entregas que existam.
+  O QUE FOI CORRIGIDO: no original a lista é cortada em 10 e o crachá do
+  cabeçalho mede o tamanho DELA (Dashboard.jsx:220-233 e 425), então o contador
+  satura em "10" por mais entregas que existam — quinze entregas nos próximos
+  quinze dias apareciam como "10". Agora a função devolve as duas coisas
+  separadas: `items`, com o mesmo corte de 10 que a lista sempre teve, e `total`,
+  contado ANTES do corte. A lista não mudou; o número ao lado dela passou a ser o
+  real.
+
+  O TETO DE 500 TAREFAS de `useTasks` continua de pé e é o limite que sobra
+  daqui: `total` é exato dentro das tarefas que desceram. Passar disso pede uma
+  contagem no banco, com a tradução de fuso que a janela exige — está no
+  relatório do módulo.
 
   `daysRemaining` é o cálculo que o original faz dentro do JSX
   (Dashboard.jsx:431) e que aqui sai pronto — conta não mora no render.
@@ -266,23 +291,26 @@ export function countProjectStages(projects: ProjectRow[]): ProjectStageCount {
 const UPCOMING_DAYS = 15
 const UPCOMING_LIMIT = 10
 
-export function upcomingDeliveries(tasks: TaskRow[], now: Date = new Date()): UpcomingDelivery[] {
+export function upcomingDeliveries(tasks: TaskRow[], now: Date = new Date()): UpcomingDeliveries {
   const horizon = new Date(now.getTime() + UPCOMING_DAYS * 24 * 60 * 60 * 1000)
 
-  return tasks
+  const upcoming = tasks
     .filter((task) => {
       if (task.status === 'completed' || !task.due_date) return false
       const due = parseISO(task.due_date)
       return due >= now && due <= horizon
     })
     .sort((a, b) => parseISO(a.due_date!).getTime() - parseISO(b.due_date!).getTime())
-    .slice(0, UPCOMING_LIMIT)
-    .map((task) => ({
+
+  return {
+    total: upcoming.length,
+    items: upcoming.slice(0, UPCOMING_LIMIT).map((task) => ({
       task,
       daysRemaining: Math.ceil(
         (parseISO(task.due_date!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
       ),
-    }))
+    })),
+  }
 }
 
 /* ═══ Recortes do Fluxo do Projeto ═══════════════════════════════════════ */
@@ -315,27 +343,60 @@ export function flowTasks(tasks: TaskRow[], flowProjects: ProjectRow[]): TaskRow
 }
 
 /*
-  `getProjectResponsibleMap`: quem responde pelo CARD do projeto no Fluxo — que
-  no original não é `projects.operational_responsible_id`, e sim o responsável da
-  TAREFA. É por isso que o painel fala em "Sem responsável no Fluxo do Projeto"
-  e manda a pessoa resolver lá, e não no cadastro do projeto.
+  `getProjectResponsibleMap`: quem responde pelo projeto no Fluxo.
 
-  A ÚLTIMA TAREFA VENCE, e é o original (o `map.set` sobrescreve sem critério).
-  Projeto com duas tarefas de responsáveis diferentes tem responsável decidido
-  pela ordem em que as tarefas chegaram da consulta — que é `created_at`
-  decrescente em `useTasks`, e no base44 era a ordem padrão da entidade. Quer
-  dizer: o número de "Projetos por Colaborador" muda se alguém criar uma tarefa.
-  Reproduzido como está e registrado no relatório.
+  O DEFEITO DO ORIGINAL ERA A FALTA DE CRITÉRIO: lá o mapa é um `map.set` dentro
+  de um `forEach` sobre TODAS as tarefas (flowProjectsQuery.jsx:56-66), então
+  quem "vence" é simplesmente a última tarefa que a consulta devolveu — ordem que
+  neste projeto é `created_at` decrescente (`useTasks`) e no base44 era a ordem
+  padrão da entidade. Consequência visível: CRIAR UMA TAREFA trocava o nome do
+  responsável no card e mexia nos números de "Projetos por Colaborador", sem
+  ninguém ter reatribuído nada. Isso não é uma escolha de produto, é o resultado
+  de não haver escolha nenhuma.
+
+  O CRITÉRIO NOVO, em duas metades e as duas estáveis:
+
+  1. `projects.operational_responsible_id`, quando existir. É a coluna que o
+     schema declara como "quem executa - responsavel operacional, definido no
+     Fluxo de Projeto" (migration 0032, item 4) — campo explícito ganha de campo
+     inferido, e é exatamente o sujeito de que o painel fala.
+  2. Sem ela, o responsável da tarefa MAIS ANTIGA do projeto (`created_at`
+     crescente, desempate por `id` para a consulta nunca decidir sozinha). A
+     metade 2 existe porque "Alterar Responsável" no card do quadro é a única
+     forma que a aplicação oferece HOJE de definir responsável no Fluxo — sem
+     ela, a instrução que o painel dá ("Defina um Arquiteto, Estagiário ou
+     Coordenador no card do Fluxo de Projeto") não teria como ser cumprida.
+
+  As duas metades não mudam quando uma tarefa nova é criada, que é o ponto.
+
+  O QUE NÃO MUDA: o conceito continua sendo "responsável no Fluxo do Projeto", e
+  o balde "Sem responsável" continua sendo projeto sem nenhum dos dois.
 */
-export function projectResponsibleMap(tasks: TaskRow[]): Map<string, ProjectResponsible> {
+export function projectResponsibleMap(
+  tasks: TaskRow[],
+  projects: ProjectRow[],
+): Map<string, ProjectResponsible> {
   const map = new Map<string, ProjectResponsible>()
 
-  for (const task of tasks) {
-    if (task.project_id && task.responsible_id) {
-      map.set(task.project_id, {
-        id: task.responsible_id,
+  for (const project of projects) {
+    if (project.operational_responsible_id) {
+      map.set(project.id, {
+        id: project.operational_responsible_id,
         /* Nome ATUAL do cadastro, via embed — no original é a cópia congelada
            `responsible_name`. */
+        name: project.operational_responsible?.name ?? '—',
+      })
+    }
+  }
+
+  const oldestFirst = [...tasks].sort(
+    (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
+  )
+
+  for (const task of oldestFirst) {
+    if (task.project_id && task.responsible_id && !map.has(task.project_id)) {
+      map.set(task.project_id, {
+        id: task.responsible_id,
         name: task.responsible?.name ?? '—',
       })
     }
@@ -367,6 +428,47 @@ export function isProjectBlocked(progress: ProjectProgress | undefined): boolean
 /* ═══ Painel 2: "Painel Executivo" ═══════════════════════════════════════ */
 
 /*
+  O RECORTE QUE A BARRA DE FILTROS DO TOPO PRODUZ, em um lugar só.
+
+  No original este recorte existe DENTRO do bloco "Capacidade do Time"
+  (DashboardExecutivo.jsx:498-508) e não sai de lá: os quatro cartões de "Visão
+  Geral de Projetos Ativos", o gráfico de fases e o bloco "Evolução dos Projetos"
+  contam o escritório inteiro, com a barra de filtros logo acima deles. O
+  sintoma mais visível era "Total Ativo" (bloco 2) e "Projetos Ativos" (bloco 4)
+  discordando na mesma tela, com o mesmo rótulo, a uma rolagem um do outro.
+
+  Extraído e aplicado a TODOS os blocos de projeto do painel. Filtro visível que
+  não muda o número ao lado é engano, e aqui ele tinha até um contraexemplo na
+  própria tela.
+
+  O PERÍODO NÃO ENTRA — e não é omissão: `period` é o recorte de ATIVIDADE
+  (hoje/semana/mês pela data de conclusão), e projeto não tem data de conclusão
+  para peneirar. É o mesmo alcance que o filtro tinha no bloco 4 do original.
+
+  COLABORADOR É PELO RESPONSÁVEL NO FLUXO, não pelo responsável comercial — ver
+  `projectResponsibleMap`.
+*/
+export function scopeProjects(
+  activeProjects: ProjectRow[],
+  responsibleByProject: Map<string, ProjectResponsible>,
+  filters: ExecutiveFilters,
+): ProjectRow[] {
+  let scoped = activeProjects
+
+  if (filters.projectId) {
+    scoped = scoped.filter((project) => project.id === filters.projectId)
+  }
+
+  if (filters.collaboratorId) {
+    scoped = scoped.filter(
+      (project) => responsibleByProject.get(project.id)?.id === filters.collaboratorId,
+    )
+  }
+
+  return scoped
+}
+
+/*
   Os quatro cartões do bloco "Visão Geral" (DashboardExecutivo.jsx:151-261).
 
   AS QUATRO CONTAGENS VÊM DO BANCO, uma a uma, com o critério no WHERE — ver
@@ -376,17 +478,40 @@ export function isProjectBlocked(progress: ProjectProgress | undefined): boolean
   meses, e o cartão passaria a mostrar um número menor que o real sem nada avisar.
   O que sobra para esta função é a única conta que não é contagem — a divisão.
 
-  DOIS DELES IGNORAM OS FILTROS DO TOPO, e é do original: "Em Andamento" e
-  "Atrasadas" contam tudo, sem período, sem projeto e sem colaborador. Só
-  "Concluídas" e "Produtividade" respeitam a barra de filtros. Quem desenhar a
-  tela precisa saber disso — a barra fica logo acima dos quatro.
+  OS QUATRO PASSARAM A RESPEITAR PROJETO E COLABORADOR da barra de filtros. No
+  original, "Em Andamento" e "Atrasadas" contavam o escritório inteiro com a
+  barra logo acima deles dizendo o contrário — filtrar por um projeto e ver o
+  número não se mexer é engano puro. Os WHERE estão em `useActivityCounts`.
 
-  "PRODUTIVIDADE" É UMA MÉTRICA QUEBRADA, e está reproduzida como tal. A conta é
-  `concluídas / previstas`, mas "previstas" sai do MESMO recorte já filtrado por
-  data de conclusão — ou seja, de atividades que necessariamente já foram
-  concluídas. O denominador é praticamente igual ao numerador, e o cartão marca
-  100% quase sempre. O rótulo na tela é "Meta vs concluído"; não há meta em lugar
-  nenhum do sistema. Corrigir exige decidir o que é a meta, e isso é do usuário.
+  O PERÍODO CONTINUA FORA DESSES DOIS, e a razão é que ele não teria como entrar:
+  "Em Andamento" e "Atrasadas" são fotografia de AGORA, e as quatro opções do
+  seletor (Hoje, Esta semana, Este mês, Todas) contêm todas o dia de hoje.
+  Recortar "atrasada" por "prazo dentro de hoje" daria zero por construção — todo
+  atraso está no passado. Está no relatório do módulo.
+
+  "PRODUTIVIDADE" DEIXOU DE MARCAR ~100% SEMPRE. A conta do original é
+  `concluídas / previstas`, mas "previstas" saía do MESMO recorte já filtrado por
+  DATA DE CONCLUSÃO, acrescido só de `prazo_inicio <= hoje` — ou seja, de
+  atividades que necessariamente já tinham sido concluídas. Denominador igual ao
+  numerador a menos de um caso de borda, resultado preso em 100% (ou em 0% quando
+  nada fechou no período). E o rótulo dizia "Meta vs concluído" sem existir meta
+  em lugar nenhum do sistema.
+
+  A CONTA NOVA é a taxa de cumprimento do período: das atividades PREVISTAS para
+  o período — as que têm PRAZO (`end_date`) dentro dele, concluídas ou não —
+  quantas foram concluídas. Numerador e denominador saem do mesmo conjunto, o
+  numerador é subconjunto próprio do denominador, o resultado é sempre 0–100% e
+  varia de verdade. Escolhida em vez de "deixar de prometer meta" porque um
+  painel executivo sem nenhuma medida de execução perde o sentido do bloco, e
+  porque "prazo no período" é um conjunto que já existe no dado — não precisa de
+  meta cadastrada, que é o que o sistema não tem. O rótulo da tela deixa de citar
+  meta e passa a dizer a divisão, como os cartões de taxa do painel comercial
+  ("Ganhos / Finalizadas").
+
+  `completed` (o cartão "Concluídas") continua saindo da DATA DE CONCLUSÃO, que é
+  o que aquele cartão sempre mediu e o que o Relatório de Produtividade mede. Por
+  isso ele NÃO é o numerador desta divisão: são duas perguntas diferentes sobre o
+  mesmo período.
 */
 export function activityMetrics(counts: ActivityCounts): ActivityMetrics {
   return {
@@ -394,7 +519,7 @@ export function activityMetrics(counts: ActivityCounts): ActivityMetrics {
     completed: counts.completed,
     overdue: counts.overdue,
     productivity:
-      counts.forecast > 0 ? Math.round((counts.completed / counts.forecast) * 100) : 0,
+      counts.forecast > 0 ? Math.round((counts.forecastCompleted / counts.forecast) * 100) : 0,
   }
 }
 
@@ -414,33 +539,41 @@ export const EXECUTIVE_PHASES: ProjectPhase[] = (
 ).filter((phase) => phase !== 'finished' && phase !== 'post_approval')
 
 /*
-  "EM RISCO" VEM DE FORA, contado no banco (`useAtRiskProjectCount`): é a única
-  das cinco medidas deste bloco que dependia da lista de TAREFAS, e a lista de
-  tarefas é a que cresce (~100 projetos × 10 a 30 tarefas), além de vir com o
-  checklist inteiro pendurado no embed. Contar projeto vencido não precisa de
-  nada disso.
+  "EM RISCO" VEM DE FORA, do CONJUNTO de projetos com tarefa vencida que o banco
+  devolve (`useAtRiskProjectIds`): é a única das cinco medidas deste bloco que
+  dependia da lista de TAREFAS, e a lista de tarefas é a que cresce (~100
+  projetos × 10 a 30 tarefas), além de vir com o checklist inteiro pendurado no
+  embed. Saber QUAIS projetos estão em risco não precisa de nada disso.
 
-  As outras quatro continuam sobre a lista de PROJETOS, que a tela toda já usa —
-  contá-las no banco criaria um segundo caminho para o mesmo número, com risco de
-  o cartão discordar do gráfico logo abaixo dele. Elas herdam o teto de 500
-  projetos, que hoje é ~100 e é o menor dos limites do sistema.
+  POR QUE UM CONJUNTO E NÃO UMA CONTAGEM: com a contagem vinda do banco e a
+  gaveta peneirada sobre as 500 tarefas baixadas, o cartão e a gaveta podiam
+  discordar — e agora que o cartão respeita os filtros do topo, a contagem
+  sozinha nem serviria (o banco não sabe quem é o responsável do card, que é
+  cruzamento de tela). Com o conjunto de ids, o cartão conta os projetos do
+  recorte que estão nele e a gaveta abre exatamente esses. Um lugar, um número.
+
+  AS CINCO RESPEITAM O RECORTE que a barra de filtros do topo produz — ver
+  `scopeProjects`. No original os quatro cartões e o gráfico contavam o
+  escritório inteiro enquanto o cartão "Projetos Ativos" do bloco de baixo, a uma
+  rolagem dali, já respeitava os mesmos filtros: dois totais diferentes, com o
+  mesmo nome, na mesma tela.
 */
 export function operationalMetrics(
-  activeProjects: ProjectRow[],
+  scopedProjects: ProjectRow[],
   progressByProject: Map<string, ProjectProgress>,
-  atRiskCount: number,
+  atRiskIds: Set<string>,
 ): OperationalMetrics {
   return {
-    totalProjects: activeProjects.length,
+    totalProjects: scopedProjects.length,
     byPhase: EXECUTIVE_PHASES.map((phase) => ({
       phase,
       label: PROJECT_PHASE[phase],
-      count: activeProjects.filter((project) => project.current_phase === phase).length,
+      count: scopedProjects.filter((project) => project.current_phase === phase).length,
     })),
-    awaitingClient: activeProjects.filter((project) => project.current_phase === 'awaiting_client')
+    awaitingClient: scopedProjects.filter((project) => project.current_phase === 'awaiting_client')
       .length,
-    atRisk: atRiskCount,
-    blocked: activeProjects.filter((project) => isProjectBlocked(progressByProject.get(project.id)))
+    atRisk: scopedProjects.filter((project) => atRiskIds.has(project.id)).length,
+    blocked: scopedProjects.filter((project) => isProjectBlocked(progressByProject.get(project.id)))
       .length,
   }
 }
@@ -467,23 +600,9 @@ export const UNASSIGNED_BUCKET_ID = 'sem-responsavel'
 
 export function teamMetrics(
   collaborators: Collaborator[],
-  activeProjects: ProjectRow[],
+  scoped: ProjectRow[],
   responsibleByProject: Map<string, ProjectResponsible>,
-  filters: ExecutiveFilters,
 ): TeamMetrics {
-  let scoped = activeProjects
-
-  if (filters.projectId) {
-    scoped = scoped.filter((project) => project.id === filters.projectId)
-  }
-
-  if (filters.collaboratorId) {
-    /* Pelo responsável do CARD, não pelo do projeto — ver `projectResponsibleMap`. */
-    scoped = scoped.filter(
-      (project) => responsibleByProject.get(project.id)?.id === filters.collaboratorId,
-    )
-  }
-
   const operational = collaborators.filter(
     (collaborator) =>
       collaborator.status === 'active' && OPERATIONAL_ROLES.includes(collaborator.role),
@@ -590,11 +709,16 @@ const sumEstimated = (negotiations: NegotiationRow[]): number =>
 /*
   Bloco 1 — "Visão Geral do Funil" (DashboardComercial.jsx:81-105).
 
-  NÃO RESPEITA O FILTRO DE MÊS do cabeçalho, e é do original: os quatro cartões
-  somam todas as negociações ativas, de qualquer época. O seletor de mês/ano ao
-  lado do título sugere o contrário. Quem desenhar a tela precisa reproduzir o
-  microcopy do original ("Em andamento", "Pipeline total"), que não menciona
-  período — é o que separa este bloco do de baixo.
+  NÃO RESPEITA O FILTRO DE MÊS, E ISSO FICA: os quatro cartões somam as
+  negociações ATIVAS — negociação está ativa AGORA, não "em agosto de 2026". É
+  fotografia do funil no instante em que a tela abre, e recortá-la por mês
+  produziria um número que não corresponde a pergunta nenhuma ("quanto do
+  pipeline de hoje entrou em agosto?" não é o que o cartão diz).
+
+  O QUE FOI CORRIGIDO É O RÓTULO, não a conta: a tela agora escreve, embaixo do
+  título do bloco, que ele é a posição atual e independe do mês selecionado — no
+  original o seletor fica ao lado do título e nada avisa que estes quatro números
+  o ignoram. Ver DashboardComercial.tsx.
 
   "Em risco" é previsão de fechamento vencida, com a régua compartilhada do
   pipeline (`isExpectedCloseOverdue`), a mesma do crachá do quadro.
@@ -679,6 +803,11 @@ export function closingMetrics(
   Bloco 3 — as cinco etapas do funil, só com as ativas
   (DashboardComercial.jsx:221-236). A ordem é a de declaração de `FUNNEL_STAGE`,
   que é a ordem das colunas do quadro; o original repete a lista à mão.
+
+  TAMBÉM É FOTOGRAFIA DO FUNIL ATUAL, pela mesma razão do bloco 1: os dois
+  gráficos distribuem as negociações ativas pelas etapas do quadro, e "ativa" não
+  tem mês. O seletor não alcança este bloco, e agora a tela diz isso embaixo do
+  título em vez de deixar o filtro parecer global.
 */
 export function funnelStageTotals(negotiations: NegotiationRow[]): FunnelStageTotals[] {
   const active = negotiations.filter((negotiation) => negotiation.status === 'active')
@@ -697,24 +826,49 @@ export function funnelStageTotals(negotiations: NegotiationRow[]): FunnelStageTo
 /*
   Bloco 5 — "Velocidade e Gargalos" (DashboardComercial.jsx:243-276).
 
-  O tempo médio de fechamento é sobre TODAS as ganhas de todos os tempos, não as
-  do mês escolhido — de novo, o filtro do cabeçalho não alcança este bloco. É do
-  original.
+  "TEMPO MÉDIO DE FECHAMENTO" PASSOU A RESPEITAR O MÊS. No original ele é a média
+  sobre todas as ganhas de todos os tempos, com o seletor de mês/ano logo acima
+  no cabeçalho — mexer no seletor não movia o número. É uma medida de FECHAMENTO,
+  e fechamento tem data: o mesmo `closed_at` dentro do mesmo `monthRange` que os
+  blocos 2 e 2B já usam. Mês sem nenhuma ganha mostra 0, como a Taxa de Conversão
+  já mostra 0,0% no mês em que nada fechou.
 
-  "Paradas" é negociação ativa que entrou no funil há mais de 30 dias. O nome
-  engana: nada disso olha a última movimentação, então uma negociação trabalhada
-  ontem aparece como parada se entrou há 31 dias. A lista de Negociações usa
-  outra régua para a mesma palavra (`updated_at` há mais de 5 dias,
-  Negociacoes.tsx:234) — duas telas, dois significados, os dois do original.
+  "PARADAS" MEDIA A COISA ERRADA. No original é negociação ativa que ENTROU no
+  funil há mais de 30 dias (`data_entrada_funil`), ou seja, nada ali olha
+  movimentação: negociação trabalhada ontem aparecia como parada por ter entrado
+  há 31 dias, e negociação esquecida há meses sumia da lista se tivesse entrado
+  ontem. Pior, a tela de Negociações usa a palavra "Parada" para OUTRA conta
+  (`updated_at` há mais de 5 dias, Negociacoes.tsx:234), então o mesmo termo
+  significava duas coisas em duas telas.
+
+  AGORA É UM CONCEITO SÓ: parada = sem movimentação, medida por `updated_at`, a
+  mesma coluna e a mesma leitura da tela de Negociações. O que separa as duas
+  telas é só a RÉGUA, e ela está escrita em cada rótulo: o crachá do quadro
+  avisa a partir de 5 dias ("Parada há N dias"), este bloco lista o gargalo a
+  partir de 30 ("Negociações Paradas (+30 dias)"). O número da linha passa a ser
+  dias SEM MOVIMENTAÇÃO — é o que a palavra sempre prometeu.
+
+  A LISTA CONTINUA SENDO O FUNIL ATIVO INTEIRO, sem recorte de mês, pela mesma
+  razão do bloco 1: é fotografia de agora.
+
+  `updated_at` é NOT NULL no schema; o `?? created_at` da tela de Negociações é
+  defesa de dado importado, não caso deste caminho.
 */
 const STALLED_DAYS = 30
 
 export function velocityMetrics(
   negotiations: NegotiationRow[],
+  period: MonthYear,
   now: Date = new Date(),
 ): VelocityMetrics {
+  const { from, to } = monthRange(period)
+
   const won = negotiations.filter(
-    (negotiation) => negotiation.status === 'won' && negotiation.closed_at != null,
+    (negotiation) =>
+      negotiation.status === 'won' &&
+      negotiation.closed_at != null &&
+      negotiation.closed_at >= from &&
+      negotiation.closed_at <= to,
   )
 
   const totalDays = won.reduce(
@@ -727,10 +881,10 @@ export function velocityMetrics(
     .filter((negotiation) => negotiation.status === 'active')
     .map((negotiation) => ({
       negotiation,
-      daysInFunnel: differenceInDays(now, parseISO(negotiation.funnel_entry_date)),
+      daysStalled: differenceInDays(now, parseISO(negotiation.updated_at)),
     }))
-    .filter((row) => row.daysInFunnel > STALLED_DAYS)
-    .sort((a, b) => b.daysInFunnel - a.daysInFunnel)
+    .filter((row) => row.daysStalled > STALLED_DAYS)
+    .sort((a, b) => b.daysStalled - a.daysStalled)
 
   return {
     averageDaysToClose: won.length > 0 ? totalDays / won.length : 0,
@@ -741,12 +895,12 @@ export function velocityMetrics(
 /*
   Os sete cartões clicáveis (DashboardComercial.jsx:160-218).
 
-  BUG DO ORIGINAL REPRODUZIDO, e este é o que mais importa desta tela: o
-  drill-down de "Negociações Ganhas" filtra a lista de PERDIDAS procurando status
-  "Ganha" (linha 185), então ele abre SEMPRE VAZIO — a gaveta diz "Nenhuma
-  negociação encontrada" enquanto o cartão logo acima mostra, por exemplo, 4.
-  Está reproduzido de propósito, com este comentário, e reportado ao usuário: a
-  correção é uma linha (`closing.won`), e é decisão dele.
+  BUG DO ORIGINAL CORRIGIDO, e era o mais visível desta tela: o drill-down de
+  "Negociações Ganhas" filtrava a lista de PERDIDAS procurando status "Ganha"
+  (linha 185) — dois conjuntos disjuntos, então a interseção é vazia por
+  construção. O cartão mostrava 1 e a gaveta dizia "Nenhuma negociação
+  encontrada". Agora o caso 'ganhas' devolve `closing.won`, que é exatamente o
+  conjunto que o cartão conta: gaveta e cartão saem do mesmo lugar.
 
   DIFERENÇA SEM EFEITO NA TELA: onde o original ordena a lista de perdidas com
   `.sort()` direto sobre o array do memo — mutando o resultado memoizado e
@@ -771,8 +925,9 @@ export function commercialDrilldown(
     case 'em_risco':
       return active.filter((negotiation) => isExpectedCloseOverdue(negotiation, now))
     case 'ganhas':
-      /* Sim, sobre `lost`. Ver o cabeçalho: é o bug do original, preservado. */
-      return closing.lost.filter((negotiation) => negotiation.status === 'won')
+      /* Era `closing.lost.filter(status === 'won')` — o bug do original. Ver o
+         cabeçalho: é o mesmo conjunto que o cartão "Negociações Ganhas" conta. */
+      return closing.won
     case 'valor_ganho':
       return byValueDesc(closing.won)
     case 'perdidas':

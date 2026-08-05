@@ -31,11 +31,12 @@ import { useHomeDashboardTarget } from '../hooks'
   para desenhar, e o original nesse ramo manda para o login, que é o que o
   AppLayout faz.
 
-  DEFEITO DO ORIGINAL PRESERVADO — a navegação é SEM `replace`
-  (Home.jsx:24-35), então esta tela fica no histórico: quem apertar "voltar" cai
-  de novo aqui e é mandado para frente outra vez, sem conseguir passar deste
-  ponto. Reproduzido de propósito e reportado; corrigir é acrescentar
-  `{ replace: true }`, e é decisão do usuário.
+  A NAVEGAÇÃO É COM `replace`, e é correção: no original (Home.jsx:24-35) ela é
+  um `navigate` comum, então esta tela de espera FICA NO HISTÓRICO — quem apertar
+  "voltar" cai de novo aqui, é redirecionado para frente no quadro seguinte e não
+  consegue passar deste ponto. O botão "voltar" do navegador deixava de funcionar
+  na primeira tela do sistema. `replace` troca a entrada em vez de empilhar: a
+  rota de entrada some do histórico, que é o que uma rota de entrada faz.
 */
 export default function Home() {
   const navigate = useNavigate()
@@ -43,7 +44,7 @@ export default function Home() {
 
   useEffect(() => {
     if (isLoading || isError) return
-    navigate(createPageUrl(target))
+    navigate(createPageUrl(target), { replace: true })
   }, [isLoading, isError, target, navigate])
 
   return (
