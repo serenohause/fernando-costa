@@ -115,11 +115,23 @@ function emptyValues(): NegotiationFormValues {
   }
 }
 
+/*
+  `commercial_owner_id` e `funnel_entry_date` deixaram de ser NOT NULL na migration
+  0064 e chegam nulos em 15 e em 1 negociação do base44, respectivamente. Os dois
+  viram campo EM BRANCO aqui — o mesmo que `client_id` já faz — e não um valor de
+  enfeite: preencher o responsável com alguém escolhido por nós apontaria o
+  vínculo para quem pode não ter tocado a negociação, e preencher a data com hoje
+  gravaria "entrou no funil hoje" numa oportunidade de meses atrás, que é
+  exatamente o que a data de entrada mede. Quem preenche é a pessoa, se preencher.
+
+  Os dois campos continuam obrigatórios para GRAVAR, como já eram; o aviso abaixo
+  de cada um explica por que o campo apareceu vazio numa negociação que já existe.
+*/
 export function toFormValues(negotiation: NegotiationRow): NegotiationFormValues {
   return {
     name: negotiation.name,
     client_id: negotiation.client_id ?? '',
-    commercial_owner_id: negotiation.commercial_owner_id,
+    commercial_owner_id: negotiation.commercial_owner_id ?? '',
     services: negotiation.services.map((service) => service.service_type),
     estimated_value: negotiation.estimated_value == null ? '' : String(negotiation.estimated_value),
     close_probability:
@@ -128,7 +140,7 @@ export function toFormValues(negotiation: NegotiationRow): NegotiationFormValues
     funnel_stage: negotiation.funnel_stage,
     origin: negotiation.origin ?? '',
     referrer_name: negotiation.referrer_name ?? '',
-    funnel_entry_date: negotiation.funnel_entry_date,
+    funnel_entry_date: negotiation.funnel_entry_date ?? '',
     expected_close_date: negotiation.expected_close_date ?? '',
     closed_at: negotiation.closed_at ?? '',
     loss_reason: negotiation.loss_reason ?? '',
@@ -438,6 +450,12 @@ export default function NegociacaoForm({
                     ))}
                   </SelectContent>
                 </Select>
+                {isEditing && !formData.commercial_owner_id && (
+                  <p className="text-xs text-muted-foreground">
+                    O responsável desta negociação não está mais cadastrado. Escolha um para
+                    salvar.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -469,6 +487,11 @@ export default function NegociacaoForm({
                 onChange={(e) => setFormData({ ...formData, funnel_entry_date: e.target.value })}
                 required
               />
+              {isEditing && !formData.funnel_entry_date && (
+                <p className="text-xs text-muted-foreground">
+                  A data de entrada no funil não foi registrada. Informe uma para salvar.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

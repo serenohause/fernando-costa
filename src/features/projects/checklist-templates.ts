@@ -7,8 +7,10 @@ import type { TaskChecklistItem, TaskPhase } from './types'
   É a lista de itens que a tarefa ganha ao entrar em cada etapa. Os títulos são
   os do original, letra por letra — são procedimento do escritório, não texto de
   interface. As oito etapas que o original cobre continuam sendo oito: `revision`,
-  `building_permit` e `awaiting_client` não têm template lá, e a tarefa que entra
-  nelas não ganha item nenhum.
+  `building_permit`, `under_construction` e `awaiting_client` não têm template lá,
+  e a tarefa que entra nelas não ganha item nenhum. `under_construction` é a fase
+  que a migration 0061 acrescentou, e o original não tem procedimento escrito para
+  ela — inventar um checklist de obra seria inventar procedimento.
 
   `opcionais` é array vazio nas oito etapas do original. A distinção continua
   existindo no banco (`task_checklist_items.is_required`) porque é ela que trava

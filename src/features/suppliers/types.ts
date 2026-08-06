@@ -5,7 +5,6 @@ import type {
   PartnershipTier,
   SupplierCategory,
   SupplierStatus,
-  SupplierTypology,
 } from '@/lib/enums'
 
 export type Supplier = Tables<'suppliers'>
@@ -63,9 +62,19 @@ export type SupplierCommissionTotals = {
   `brands` NÃO é coluna: é a lista de `supplier_brands` que a gravação sincroniza
   junto, porque a tela edita as marcas dentro do mesmo formulário do fornecedor.
 
-  `category` é `SupplierTypology`, e não `SupplierCategory`: os quatro valores que
-  só valem para item de orçamento são barrados por
-  `suppliers_category_domain_check` (migration 0049).
+  `category` é `SupplierCategory`, e não `SupplierTypology`, DESDE A MIGRATION
+  0063 — e a diferença não é afrouxamento do domínio, é o que permite carregar de
+  volta o que já está gravado. Os quatro valores que só valem para item de
+  orçamento continuam barrados em fornecedor por `suppliers_category_domain_check`
+  (migration 0049), com UMA exceção que a 0063 abriu e que acompanha a linha:
+  fornecedor importado do base44 (`legacy_id` não nulo) pode tê-los, e há um
+  cadastrado como "Revestimento de Fachada" (`facade_cladding`).
+
+  Se este tipo continuasse sendo `SupplierTypology`, editar aquele fornecedor
+  obrigaria a converter a tipologia real para outra coisa só para o formulário
+  fechar. O formulário continua NÃO OFERECENDO os quatro (ver `typologyOptionsFor`
+  em SupplierForm.tsx); o que ele passou a fazer é devolver intacto o valor que já
+  estava lá — mesmo princípio dos quatro campos sem input logo abaixo.
 
   QUATRO CAMPOS QUE A COLUNA TEM E O FORMULÁRIO DO ORIGINAL NÃO OFERECE —
   `standard_discount_percent`, `commission_payment_term`, `average_delivery_time`
@@ -75,7 +84,7 @@ export type SupplierCommissionTotals = {
 */
 export type SupplierInput = {
   name: string
-  category: SupplierTypology
+  category: SupplierCategory
   contact_whatsapp: string
   partnership_tier: PartnershipTier
 

@@ -524,9 +524,11 @@ export function activityMetrics(counts: ActivityCounts): ActivityMetrics {
 }
 
 /*
-  As ONZE fases do gráfico "Distribuição por Fase"
-  (DashboardExecutivo.jsx:268-272), na ordem em que o original as lista — que é a
-  ordem de declaração de `PROJECT_PHASE`, ou seja, a ordem das colunas do kanban.
+  As fases do gráfico "Distribuição por Fase" (DashboardExecutivo.jsx:268-272),
+  na ordem em que o original as lista — que é a ordem de declaração de
+  `PROJECT_PHASE`, ou seja, a ordem das colunas do kanban. Eram onze; com
+  `under_construction` (migration 0061) são doze, e a barra "Em Obra" apareceu
+  sozinha justamente porque a lista é derivada.
 
   DERIVADA do enum em vez de escrita à mão: `finished` fica de fora porque
   projeto finalizado não é projeto ativo, e `post_approval` porque só existe para
@@ -863,9 +865,22 @@ export function velocityMetrics(
 ): VelocityMetrics {
   const { from, to } = monthRange(period)
 
+  /*
+    `funnel_entry_date != null` É DO ORIGINAL, e não defesa nova: ele filtra
+    `n.data_entrada_funil && n.data_fechamento` antes de medir o tempo de
+    fechamento (DashboardComercial.jsx:245-246). A condição tinha sumido daqui
+    porque a coluna era NOT NULL; a migration 0064 a tornou anulável (1
+    negociação do base44 entrou sem data registrada) e ela volta ao lugar.
+
+    Sem ela, a negociação sem data entraria no cálculo como se tivesse entrado no
+    funil na virada de 1970 e o "tempo médio de fechamento" viraria dezenas de
+    milhares de dias. Negociação sem data registrada não mede tempo de funil —
+    fica fora da média, como no original.
+  */
   const won = negotiations.filter(
     (negotiation) =>
       negotiation.status === 'won' &&
+      negotiation.funnel_entry_date != null &&
       negotiation.closed_at != null &&
       negotiation.closed_at >= from &&
       negotiation.closed_at <= to,
@@ -873,7 +888,8 @@ export function velocityMetrics(
 
   const totalDays = won.reduce(
     (sum, negotiation) =>
-      sum + differenceInDays(parseISO(negotiation.closed_at!), parseISO(negotiation.funnel_entry_date)),
+      sum +
+      differenceInDays(parseISO(negotiation.closed_at!), parseISO(negotiation.funnel_entry_date!)),
     0,
   )
 

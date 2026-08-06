@@ -47,8 +47,9 @@ import type { TaskChecklistItem, TaskInput, TaskPhase, TaskRow } from '../types'
 /*
   Porta de projeto-original/src/pages/Tasks.jsx.
 
-  O cabeçalho, os dois filtros (responsável e projeto), o quadro de doze colunas,
-  o formulário e o diálogo de exclusão são os do original, na mesma ordem.
+  O cabeçalho, os dois filtros (responsável e projeto), o quadro de colunas (as
+  doze do original mais "Em Obra", migration 0061), o formulário e o diálogo de
+  exclusão são os do original, na mesma ordem.
 
   AUTORIZAÇÃO — a RLS decide, esta tela só reflete (migration 0033):
 

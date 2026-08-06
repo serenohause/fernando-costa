@@ -105,8 +105,19 @@ export function toFormValues(client: Client): ClientFormValues {
     address_number: client.address_number ?? '',
     address_district: client.address_district ?? '',
     address_complement: client.address_complement ?? '',
-    address_city: client.address_city,
-    address_state: client.address_state,
+    /*
+      Anuláveis desde a migration 0064: 1 cliente do base44 não tem NENHUM campo
+      de endereço preenchido — nem o da residência, nem o da obra — e não há de
+      onde deduzir cidade e UF. Campo em branco é a leitura honesta ("não foi
+      informado"), e é o mesmo que os outros vinte campos deste formulário já
+      fazem com nulo. "Fortaleza/CE" porque é onde o escritório fica seria gravar
+      endereço que ninguém informou.
+
+      Os dois continuam obrigatórios para gravar (`Cidade *`, `Estado *`, e
+      `clientInputSchema`), como no passo 1 do cadastro do original.
+    */
+    address_city: client.address_city ?? '',
+    address_state: client.address_state ?? '',
     address_country: client.address_country,
     site_zipcode: client.site_zipcode ?? '',
     site_street: client.site_street ?? '',

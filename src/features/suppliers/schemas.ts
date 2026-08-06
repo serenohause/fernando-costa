@@ -161,3 +161,28 @@ export const supplierInputSchema = z.object({
 })
 
 export type SupplierInputParsed = z.infer<typeof supplierInputSchema>
+
+/*
+  O MESMO ESQUEMA, com o domínio de tipologia dos 23 valores — e SÓ na EDIÇÃO.
+
+  A migration 0063 reescreveu `suppliers_category_domain_check` como
+  `category não é uma das quatro OU legacy_id não é nulo`: a exceção acompanha a
+  LINHA, não a operação. Um fornecedor importado do base44 pode manter
+  `facade_cladding` num UPDATE, e há um cadastrado assim ("Revestimento de
+  Fachada", tipologia real do escritório).
+
+  Se a edição validasse pelos 19, salvar qualquer outro campo daquele fornecedor —
+  um telefone, uma marca — falharia com "Selecione a tipologia do fornecedor",
+  ainda que a tipologia não tivesse sido tocada; e a única saída pela tela seria
+  trocá-la por outra, apagando o fato.
+
+  A CRIAÇÃO CONTINUA NOS 19, sem exceção, porque linha nova não tem `legacy_id` e
+  o banco a recusaria com 23514. Quem monta a lista do select é
+  `typologyOptionsFor` (SupplierForm.tsx), e ela só acrescenta a tipologia de fora
+  do cadastro quando ela JÁ É a do fornecedor aberto — nunca como opção nova.
+*/
+export const supplierUpdateSchema = supplierInputSchema.extend({
+  category: z.enum(Constants.public.Enums.supplier_category, {
+    error: 'Selecione a tipologia do fornecedor.',
+  }),
+})

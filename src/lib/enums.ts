@@ -249,11 +249,11 @@ export const PROJECT_STATUS = {
 export type ProjectStatus = keyof typeof PROJECT_STATUS
 
 /*
-  UM enum, DOIS usos (migration 0031). `projects.current_phase` aceita os doze
-  valores; `tasks.phase` aceita onze — `finished` é barrado por check na tabela.
+  UM enum, DOIS usos (migration 0031). `projects.current_phase` aceita os treze
+  valores; `tasks.phase` aceita doze — `finished` é barrado por check na tabela.
 
   A ordem é a das colunas do kanban do original (TaskKanban.jsx:21-34), e não a
-  ordem de percentual: `awaiting_client` vem entre `building_permit` e
+  ordem de percentual: `awaiting_client` vem entre `under_construction` e
   `finished` na tela, mesmo não tendo percentual próprio na view.
 */
 export const PROJECT_PHASE = {
@@ -267,6 +267,20 @@ export const PROJECT_PHASE = {
   construction_docs: 'Projeto Executivo',
   engineering_docs: 'Projetos Complementares',
   building_permit: 'Alvará de Construção',
+  /*
+    ENTROU NA MIGRATION 0061, vinda da importação: 14 tarefas do escritório estão
+    em "Em Obra" e nenhum dos treze valores anteriores significava isso
+    (`building_permit` é o ALVARÁ, não a obra). O rótulo é o de docs/ENUM-MAP.md.
+
+    A POSIÇÃO É PARTE DO DADO, não arrumação: aqui, DEPOIS de `building_permit` e
+    ANTES de `awaiting_client`, é onde a 0061 a pôs no tipo do Postgres, é a
+    coluna dela no kanban e é o degrau dela em `PHASE_ORDER` / `phaseIndex`
+    (src/features/projects/project-phase.ts). Obra vem depois do alvará.
+
+    Como `awaiting_client`, ela NÃO tem percentual próprio na view
+    `project_progress` — cai no `NULL` do `CASE` e é ignorada no `max()`.
+  */
+  under_construction: 'Em Obra',
   awaiting_client: 'Aguardando Cliente',
   finished: 'Finalizado',
   /*
@@ -485,9 +499,18 @@ export type CostCenter = keyof typeof COST_CENTER
   A ordem é a do formulário de ITEM (ItemOrcamentoForm.jsx:11-19), que é a lista
   com os 23 valores — a mesma de docs/ENUM-MAP.md.
 
-  Os quatro marcados abaixo NÃO valem para fornecedor: `suppliers_category_domain_check`
-  (migration 0049) os barra, como `tasks.phase` barra `finished`. Quem monta
-  select de fornecedor usa `SUPPLIER_TYPOLOGY`, logo abaixo.
+  Os quatro marcados abaixo NÃO valem para fornecedor CADASTRADO PELA TELA:
+  `suppliers_category_domain_check` (migration 0049) os barra, como `tasks.phase`
+  barra `finished`. Quem monta select de fornecedor usa `SUPPLIER_TYPOLOGY`, logo
+  abaixo.
+
+  A MIGRATION 0063 ABRIU UMA EXCEÇÃO QUE ACOMPANHA A LINHA, e não a operação: o
+  check passou a ser `não é uma das quatro OU legacy_id não é nulo`, porque 1
+  fornecedor do base44 está cadastrado como "Revestimento de Fachada" — tipologia
+  real, cuja troca por "Outros" apagaria um fato. `SupplierTypology` e
+  `SUPPLIER_TYPOLOGY` continuam sendo os 19, porque a lista OFERECIDA não mudou;
+  quem carrega de volta o valor já gravado é `typologyOptionsFor`
+  (src/features/suppliers/components/SupplierForm.tsx).
 */
 export const SUPPLIER_CATEGORY = {
   ceramics_porcelain: 'Cerâmica e Porcelanato',
@@ -517,7 +540,9 @@ export const SUPPLIER_CATEGORY = {
 
 export type SupplierCategory = keyof typeof SUPPLIER_CATEGORY
 
-/* O recorte que `suppliers_category_domain_check` cobra do banco. */
+/* O recorte que `suppliers_category_domain_check` cobra de toda linha que NASCE
+   nesta aplicação. Fornecedor importado do base44 pode carregar um dos quatro
+   (migration 0063) — ver o comentário acima. */
 export type SupplierTypology = Exclude<
   SupplierCategory,
   'facade_cladding' | 'pool_cladding' | 'waterproofing' | 'drywall_plaster'

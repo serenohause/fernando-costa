@@ -13,7 +13,7 @@ import type { Client, ClientInput, ClientListRow, DuplicateField, ZipcodeAddress
 export const crmKeys = {
   all: ['crm'] as const,
   clients: (search: string) => [...crmKeys.all, 'clients', search] as const,
-  client: (id: string | undefined) => [...crmKeys.all, 'client', id] as const,
+  client: (id: string | null | undefined) => [...crmKeys.all, 'client', id] as const,
 }
 
 /* `Client.list('name', 500)` é como o original carrega a tela. */
@@ -208,7 +208,10 @@ export async function fetchClient(id: string): Promise<Client> {
   return data
 }
 
-export function useClient(id: string | undefined) {
+/* `null` além de `undefined` desde a migration 0064: `client_intakes.client_id`
+   virou anulável, e quem chama passa a coluna direto. O `enabled` já trata os
+   dois — a consulta simplesmente não sai. */
+export function useClient(id: string | null | undefined) {
   return useQuery({
     queryKey: crmKeys.client(id),
     enabled: Boolean(id),

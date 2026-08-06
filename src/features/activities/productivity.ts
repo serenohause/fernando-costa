@@ -148,6 +148,31 @@ export type CollaboratorRanking = {
 }
 
 /*
+  A chave e o rótulo da atividade SEM RESPONSÁVEL.
+
+  `activities.collaborator_id` deixou de ser NOT NULL na migration 0064: 1
+  atividade do base44 tem responsável que não está no export de Collaborator, e
+  nulo ali diz "essa pessoa não está mais cadastrada".
+
+  ELA CONTINUA NO RANKING, num balde próprio, e não sai da lista: o cartão "Total
+  de Atividades" do mesmo relatório conta essa linha, e descartá-la aqui faria a
+  soma da coluna "Total" do ranking não bater com o cartão logo acima — dois
+  números diferentes na mesma tela, que é o defeito que este projeto já corrigiu
+  em outros lugares. O original também não descarta: ele indexa `grupos` por
+  `undefined`, o que cria um grupo com nome em branco.
+
+  "Sem responsável" é a microcopy do PRÓPRIO original para este caso
+  (Dashboard.jsx:437, DashboardComercial.jsx:623), e agrupar o que não tem
+  responsável num balde ao lado dos outros é o que ele faz no Painel Executivo
+  ('sem-responsavel', DashboardExecutivo.jsx:376-384).
+
+  A chave não pode ser um id de colaborador de verdade — `DataTable` identifica a
+  linha por `id`, e este balde não abre cadastro nenhum.
+*/
+export const UNASSIGNED_ACTIVITY_ID = 'sem-responsavel'
+const UNASSIGNED_ACTIVITY_NAME = 'Sem responsável'
+
+/*
   RelatorioProdutividade.jsx:147-178. A "Posição" é calculada aqui e não no
   render: o `DataTable` deste projeto passa só a linha para a célula, e a posição
   é dado da linha — depende da ordenação, não de onde ela está sendo desenhada.
@@ -156,11 +181,14 @@ export function rankByCollaborator(activities: ActivityRow[]): CollaboratorRanki
   const groups = new Map<string, { name: string; total: number; minutes: number; late: number }>()
 
   for (const activity of activities) {
-    const key = activity.collaborator_id
+    const key = activity.collaborator_id ?? UNASSIGNED_ACTIVITY_ID
     const group = groups.get(key) ?? {
       /* Nome ATUAL do cadastro, via join — no original ele é a cópia congelada
          `colaborador_name`. */
-      name: activity.collaborator?.name ?? '—',
+      name:
+        activity.collaborator_id == null
+          ? UNASSIGNED_ACTIVITY_NAME
+          : (activity.collaborator?.name ?? '—'),
       total: 0,
       minutes: 0,
       late: 0,

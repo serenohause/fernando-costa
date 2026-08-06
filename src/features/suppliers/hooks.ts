@@ -7,7 +7,7 @@ import {
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
 import { useCurrentCollaborator } from '@/features/auth/hooks'
-import { supplierInputSchema } from './schemas'
+import { supplierInputSchema, supplierUpdateSchema } from './schemas'
 import type {
   SupplierCommissionTotals,
   SupplierFilters,
@@ -251,7 +251,11 @@ export function useUpdateSupplier() {
 
   return useMutation({
     mutationFn: async ({ id, input }: { id: string; input: SupplierInput }) => {
-      const parsed = supplierInputSchema.parse(input)
+      /* `supplierUpdateSchema`, e não `supplierInputSchema`: a edição precisa
+         deixar passar a tipologia que a linha JÁ TEM, inclusive as quatro que só
+         fornecedor importado pode carregar (migration 0063). Ver o comentário
+         do esquema. */
+      const parsed = supplierUpdateSchema.parse(input)
       const { brands, ...columns } = parsed
 
       const { data, error } = await supabase

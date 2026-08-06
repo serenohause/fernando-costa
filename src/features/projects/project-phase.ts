@@ -28,8 +28,20 @@ export function phaseIndex(phase: ProjectPhase): number {
 
   `not_started` não entra na varredura do item 3, como no original: tarefa não
   iniciada não puxa o projeto de volta para o começo.
+
+  `under_construction` (migration 0061) ENTRA NA VARREDURA, e entra no TOPO dela:
+  obra é a fase mais avançada que uma tarefa pode ter, então um projeto com
+  qualquer tarefa aberta em "Em Obra" está em "Em Obra" — vence inclusive
+  "Alvará de Construção", que é o passo anterior. O que NÃO muda é a regra 2:
+  "Aguardando Cliente" continua vencendo tudo, obra inclusive, porque ela não é
+  um degrau do fluxo e sim um bloqueio dele.
+
+  Sem essa entrada, a fase nunca seria devolvida e — pior — o projeto cuja única
+  tarefa aberta está em obra caía direto no `return 'finished'` do fim da função,
+  ou seja, era calculado como CONCLUÍDO com trabalho em andamento.
 */
 const ADVANCED_TO_INITIAL: ProjectPhase[] = [
+  'under_construction',
   'building_permit',
   'engineering_docs',
   'construction_docs',

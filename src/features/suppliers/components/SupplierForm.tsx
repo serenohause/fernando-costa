@@ -16,12 +16,13 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   PARTNERSHIP_MODEL,
   PARTNERSHIP_TIER,
+  SUPPLIER_CATEGORY,
   SUPPLIER_TYPOLOGY,
   optionsOf,
   type CommissionPaymentTerm,
   type PartnershipModel,
   type PartnershipTier,
-  type SupplierTypology,
+  type SupplierCategory,
 } from '@/lib/enums'
 import type { SupplierInput, SupplierRow } from '../types'
 
@@ -51,7 +52,8 @@ import type { SupplierInput, SupplierRow } from '../types'
 
 export type SupplierFormValues = {
   name: string
-  category: SupplierTypology | ''
+  /* `SupplierCategory`, e não `SupplierTypology`: ver `typologyOptions` abaixo. */
+  category: SupplierCategory | ''
   partnership_tier: PartnershipTier
 
   brands: string[]
@@ -133,8 +135,10 @@ const text = (value: string | null): string => value ?? ''
 export function toFormValues(supplier: SupplierRow): SupplierFormValues {
   return {
     name: supplier.name,
-    /* `suppliers_category_domain_check` garante o recorte de 19 na coluna. */
-    category: supplier.category as SupplierTypology,
+    /* SEM CAST: a tipologia entra como está gravada. Desde a migration 0063 ela
+       pode ser uma das quatro de item de orçamento, em fornecedor importado —
+       ver `typologyOptions`. */
+    category: supplier.category,
     partnership_tier: supplier.partnership_tier,
 
     brands: supplier.brands.map((brand) => brand.name),
@@ -164,6 +168,36 @@ export function toFormValues(supplier: SupplierRow): SupplierFormValues {
   }
 }
 
+/*
+  A LISTA DO SELECT DE TIPOLOGIA: os 19 do original, mais a tipologia ATUAL do
+  fornecedor aberto quando ela não está entre eles.
+
+  A migration 0063 abriu uma exceção em `suppliers_category_domain_check` que
+  acompanha a linha (`legacy_id` não nulo), e há um fornecedor real importado do
+  base44 com `facade_cladding` — "Revestimento de Fachada", uma das quatro
+  tipologias que só valem em item de orçamento. Sem esta função o select abriria
+  no placeholder "Selecione", como se a tipologia nunca tivesse sido preenchida, e
+  a gravação exigiria escolher outra coisa: a tela apagaria um fato do escritório
+  para conseguir salvar um telefone.
+
+  A opção extra SÓ APARECE quando já é o valor do fornecedor aberto. Ela não é
+  oferecida em cadastro novo e some assim que a pessoa escolhe outra — trocar a
+  tipologia continua sendo um gesto deliberado, e depois de trocada não há como
+  voltar por aqui, porque o valor deixou de ser o atual. É o mesmo desenho de
+  "manter o que está gravado sem oferecer o que não se pode escolher" que o
+  formulário já usa nos quatro campos sem input.
+
+  O rótulo da opção extra vem de `SUPPLIER_CATEGORY`, o mapa dos 23 — ele é o
+  mesmo texto que a listagem e o drawer já mostram para esse fornecedor.
+*/
+type TypologyOption = { value: SupplierCategory; label: string }
+
+function typologyOptionsFor(current: SupplierCategory | ''): TypologyOption[] {
+  const options: TypologyOption[] = optionsOf(SUPPLIER_TYPOLOGY)
+  if (current === '' || options.some((option) => option.value === current)) return options
+  return [...options, { value: current, label: SUPPLIER_CATEGORY[current] }]
+}
+
 function orNull(value: string): string | null {
   const trimmed = value.trim()
   return trimmed === '' ? null : trimmed
@@ -174,7 +208,7 @@ function toInput(values: SupplierFormValues): SupplierInput {
     name: values.name.trim(),
     /* O `required` da marcação barra o nome e o WhatsApp vazios; a tipologia
        vazia é o schema quem recusa, com frase em português. */
-    category: values.category as SupplierTypology,
+    category: values.category as SupplierCategory,
     contact_whatsapp: values.contact_whatsapp.trim(),
     partnership_tier: values.partnership_tier,
 
@@ -229,6 +263,8 @@ export default function SupplierForm({
     setNewBrand('')
   }, [initialData, open])
 
+  const typologyOptions = typologyOptionsFor(values.category)
+
   const set = <K extends keyof SupplierFormValues>(key: K, value: SupplierFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }))
 
@@ -273,13 +309,13 @@ export default function SupplierForm({
               <Label>Tipologia *</Label>
               <Select
                 value={values.category}
-                onValueChange={(value) => set('category', value as SupplierTypology)}
+                onValueChange={(value) => set('category', value as SupplierCategory)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {optionsOf(SUPPLIER_TYPOLOGY).map((option) => (
+                  {typologyOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>

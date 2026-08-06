@@ -77,16 +77,26 @@ import type { SupplierFilters, SupplierInput, SupplierRow } from '../types'
   O ORIGINAL USA UMA TERCEIRA LISTA AQUI (Fornecedores.jsx:27-34), e ela está
   errada dos dois lados:
 
-  - OFERECE quatro categorias que fornecedor nenhum pode ter — Revestimento de
-    Fachada, Revestimento de Piscina, Impermeabilização e Gesso e Drywall são só
-    de item de orçamento, e `suppliers_category_domain_check` as barra na coluna.
-    Filtrar por qualquer uma delas devolve lista vazia, sempre.
+  - OFERECE quatro categorias que fornecedor cadastrado por esta tela não pode ter
+    — Revestimento de Fachada, Revestimento de Piscina, Impermeabilização e Gesso
+    e Drywall são só de item de orçamento, e `suppliers_category_domain_check` as
+    barra na coluna.
   - ESCONDE três que existem no cadastro — Madeira, Elevadores e Bombas e Filtros
     de Piscina. Fornecedor cadastrado com uma delas fica INALCANÇÁVEL pelo filtro.
 
   Filtro que não alcança um cadastro é dado perdido na tela, e opção que devolve
   vazio sempre é instrução falsa — nenhum dos dois é aparência. A ordem, o texto
   do item "Todas tipologias" e a largura do controle continuam os do original.
+
+  PONTO EM ABERTO DESDE A MIGRATION 0063, reportado ao usuário e NÃO decidido
+  aqui: a exceção de `suppliers_category_domain_check` para linha importada fez
+  Revestimento de Fachada deixar de ser impossível — há um fornecedor real do
+  base44 com essa tipologia, e ele não é alcançável por este filtro. É o mesmo
+  defeito do segundo item acima, agora vindo do outro lado. As saídas são
+  acrescentar as quatro (e voltar a ter opção que devolve vazio nas outras três)
+  ou deixar como está (o fornecedor continua achável pela busca por texto e por
+  "Todas tipologias"). Trocar a lista de um filtro é mudança visível de tela e a
+  escolha é do usuário.
 */
 
 export default function Suppliers() {

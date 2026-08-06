@@ -133,16 +133,26 @@ export default function NegociacoesDrillDown({
                           </span>
                         </div>
 
-                        {/* `funnel_entry_date` é NOT NULL, então a condição
-                            externa do original está sempre satisfeita. */}
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="w-4 h-4 text-faint" />
-                          {neg.closed_at ? (
-                            <span>Fechado em {formatDateBR(neg.closed_at)}</span>
-                          ) : (
-                            <span>Criado em {formatDateBR(neg.funnel_entry_date)}</span>
-                          )}
-                        </div>
+                        {/* A CONDIÇÃO EXTERNA É A DO ORIGINAL
+                            (NegociacoesDrillDown.jsx:116-125), de volta ao
+                            lugar: ela tinha sumido porque `funnel_entry_date`
+                            era NOT NULL e o ramo nunca podia falhar. A migration
+                            0064 a tornou anulável (1 negociação do base44 entrou
+                            sem data registrada), e sem a condição a linha viraria
+                            um ícone de calendário ao lado de "Criado em " e nada
+                            — o `formatDateBR` de nulo devolve string vazia.
+                            Negociação sem nenhuma das duas datas não desenha a
+                            linha, exatamente como lá. */}
+                        {(neg.closed_at || neg.funnel_entry_date) && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Calendar className="w-4 h-4 text-faint" />
+                            {neg.closed_at ? (
+                              <span>Fechado em {formatDateBR(neg.closed_at)}</span>
+                            ) : (
+                              <span>Criado em {formatDateBR(neg.funnel_entry_date)}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 

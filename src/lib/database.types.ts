@@ -327,7 +327,7 @@ export type Database = {
       activities: {
         Row: {
           client_id: string | null
-          collaborator_id: string
+          collaborator_id: string | null
           completed_at: string | null
           completed_by: string | null
           coordinator_id: string | null
@@ -353,7 +353,7 @@ export type Database = {
         }
         Insert: {
           client_id?: string | null
-          collaborator_id: string
+          collaborator_id?: string | null
           completed_at?: string | null
           completed_by?: string | null
           coordinator_id?: string | null
@@ -379,7 +379,7 @@ export type Database = {
         }
         Update: {
           client_id?: string | null
-          collaborator_id?: string
+          collaborator_id?: string | null
           completed_at?: string | null
           completed_by?: string | null
           coordinator_id?: string | null
@@ -746,6 +746,7 @@ export type Database = {
           created_at: string
           id: string
           item_id: string
+          legacy_id: string | null
           notes: string | null
           quote_file_name: string | null
           quote_file_path: string | null
@@ -758,6 +759,7 @@ export type Database = {
           created_at?: string
           id?: string
           item_id: string
+          legacy_id?: string | null
           notes?: string | null
           quote_file_name?: string | null
           quote_file_path?: string | null
@@ -770,6 +772,7 @@ export type Database = {
           created_at?: string
           id?: string
           item_id?: string
+          legacy_id?: string | null
           notes?: string | null
           quote_file_name?: string | null
           quote_file_path?: string | null
@@ -827,7 +830,7 @@ export type Database = {
           address_zipcode: string | null
           birth_date: string | null
           city: string | null
-          client_id: string
+          client_id: string | null
           client_type: Database["public"]["Enums"]["client_type"] | null
           country: string | null
           created_at: string
@@ -866,7 +869,7 @@ export type Database = {
           address_zipcode?: string | null
           birth_date?: string | null
           city?: string | null
-          client_id: string
+          client_id?: string | null
           client_type?: Database["public"]["Enums"]["client_type"] | null
           country?: string | null
           created_at?: string
@@ -905,7 +908,7 @@ export type Database = {
           address_zipcode?: string | null
           birth_date?: string | null
           city?: string | null
-          client_id?: string
+          client_id?: string | null
           client_type?: Database["public"]["Enums"]["client_type"] | null
           country?: string | null
           created_at?: string
@@ -960,12 +963,12 @@ export type Database = {
       }
       clients: {
         Row: {
-          address_city: string
+          address_city: string | null
           address_complement: string | null
           address_country: string
           address_district: string | null
           address_number: string | null
-          address_state: string
+          address_state: string | null
           address_street: string | null
           address_zipcode: string | null
           birth_date: string | null
@@ -994,12 +997,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          address_city: string
+          address_city?: string | null
           address_complement?: string | null
           address_country?: string
           address_district?: string | null
           address_number?: string | null
-          address_state: string
+          address_state?: string | null
           address_street?: string | null
           address_zipcode?: string | null
           birth_date?: string | null
@@ -1028,12 +1031,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          address_city?: string
+          address_city?: string | null
           address_complement?: string | null
           address_country?: string
           address_district?: string | null
           address_number?: string | null
-          address_state?: string
+          address_state?: string | null
           address_street?: string | null
           address_zipcode?: string | null
           birth_date?: string | null
@@ -1720,11 +1723,11 @@ export type Database = {
           client_id: string | null
           close_probability: number | null
           closed_at: string | null
-          commercial_owner_id: string
+          commercial_owner_id: string | null
           created_at: string
           estimated_value: number | null
           expected_close_date: string | null
-          funnel_entry_date: string
+          funnel_entry_date: string | null
           funnel_stage: Database["public"]["Enums"]["funnel_stage"]
           generates_contract: boolean
           id: string
@@ -1742,11 +1745,11 @@ export type Database = {
           client_id?: string | null
           close_probability?: number | null
           closed_at?: string | null
-          commercial_owner_id: string
+          commercial_owner_id?: string | null
           created_at?: string
           estimated_value?: number | null
           expected_close_date?: string | null
-          funnel_entry_date?: string
+          funnel_entry_date?: string | null
           funnel_stage?: Database["public"]["Enums"]["funnel_stage"]
           generates_contract?: boolean
           id?: string
@@ -1764,11 +1767,11 @@ export type Database = {
           client_id?: string | null
           close_probability?: number | null
           closed_at?: string | null
-          commercial_owner_id?: string
+          commercial_owner_id?: string | null
           created_at?: string
           estimated_value?: number | null
           expected_close_date?: string | null
-          funnel_entry_date?: string
+          funnel_entry_date?: string | null
           funnel_stage?: Database["public"]["Enums"]["funnel_stage"]
           generates_contract?: boolean
           id?: string
@@ -2894,6 +2897,7 @@ export type Database = {
       }
       auth_tenant_id: { Args: never; Returns: string }
       can_edit_menu: { Args: { p_menu_key: string }; Returns: boolean }
+      can_view_menu: { Args: { p_menu_key: string }; Returns: boolean }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       generate_contract_installments: {
         Args: { p_contract_id: string }
@@ -3070,6 +3074,7 @@ export type Database = {
         | "construction_docs"
         | "engineering_docs"
         | "building_permit"
+        | "under_construction"
         | "awaiting_client"
         | "finished"
         | "post_approval"
@@ -3400,6 +3405,7 @@ export const Constants = {
         "construction_docs",
         "engineering_docs",
         "building_permit",
+        "under_construction",
         "awaiting_client",
         "finished",
         "post_approval",

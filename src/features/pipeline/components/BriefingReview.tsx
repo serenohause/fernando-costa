@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, Check, ClipboardCheck } from 'lucide-react'
+import { ArrowRight, Check, ClipboardCheck, UserX } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -119,6 +119,28 @@ function BriefingComparison({ intake }: { intake: ClientIntake }) {
      quando o cadastro é relido, mas o retorno da consulta demora — sem isto a
      linha fica na tela com o botão parecendo não ter feito nada. */
   const [applied, setApplied] = useState<string[]>([])
+
+  /*
+    `client_id` virou anulável na migration 0064: 18 briefings do base44 foram
+    gerados para clientes que depois saíram do CRM. O briefing continua no
+    histórico do escritório — é onde ele tem valor — mas não há cadastro do outro
+    lado, e conferir campo a campo é comparar com nada.
+
+    Este ramo vem ANTES de `isLoading`: com `client_id` nulo a consulta nem sai
+    (`enabled: Boolean(id)`), e o estado de consulta desligada cairia no
+    "Cadastro não encontrado" logo abaixo — que diz outra coisa ("não está mais
+    visível para o SEU ACESSO", ou seja, é questão de permissão). São dois fatos
+    diferentes e a tela precisa dizer o certo.
+  */
+  if (intake.client_id == null) {
+    return (
+      <EmptyState
+        icon={UserX}
+        title="Cliente não cadastrado"
+        description="Este briefing foi preenchido para um cliente que não está mais no CRM. Ele fica no histórico, mas não há cadastro com o que comparar."
+      />
+    )
+  }
 
   if (clientQuery.isLoading) {
     return (

@@ -92,7 +92,16 @@ const text = (value: string | null): string => value ?? ''
 export function toFormValues(activity: ActivityRow): ActivityFormValues {
   return {
     description: activity.description,
-    collaborator_id: activity.collaborator_id,
+    /*
+      Anulável desde a migration 0064: 1 atividade do base44 tem responsável que
+      não está no export de Collaborator. Vira campo EM BRANCO, e não um
+      colaborador escolhido por nós — atribuir a atividade a quem não a executou
+      grava um fato falso, e desfazer isso depois é trabalho manual. O select
+      mostra o próprio "Selecione o colaborador" que ele já mostra em atividade
+      nova; o aviso abaixo dele diz por que o campo veio vazio numa atividade que
+      já existe.
+    */
+    collaborator_id: activity.collaborator_id ?? '',
     coordinator_id: text(activity.coordinator_id),
     project_id: text(activity.project_id),
     client_id: text(activity.client_id),
@@ -271,6 +280,11 @@ export default function AtividadeForm({
                 ))}
               </SelectContent>
             </Select>
+            {initialData && !values.collaborator_id && (
+              <p className="text-xs text-muted-foreground">
+                O responsável desta atividade não está mais cadastrado. Escolha um para salvar.
+              </p>
+            )}
             {!canAssign && (
               <p className="text-xs text-muted-foreground">
                 Apenas Admin, Diretor ou Coordenador podem reatribuir atividades

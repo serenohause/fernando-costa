@@ -21,16 +21,24 @@ export type ClientIntake = Tables<'client_intakes'>
   em UMA consulta, e não como a lista inteira de clientes baixada em paralelo
   (que é como o original resolve).
 
-  `owner` aparece anulável porque é assim que o PostgREST tipa qualquer embed,
-  mas `commercial_owner_id` é not null com FK: na prática não vem nulo. A tela
-  trata o nulo mesmo assim — é mais barato que uma asserção que mente.
+  `owner` aparece anulável porque é assim que o PostgREST tipa qualquer embed —
+  e desde a migration 0064 ele TAMBÉM vem nulo de verdade: `commercial_owner_id`
+  deixou de ser NOT NULL para que as 15 negociações do base44 cujo responsável
+  não está no export de Collaborator pudessem entrar. Nulo ali diz "o responsável
+  não está mais cadastrado". A tela já tratava o nulo (`-` na coluna
+  Responsável), e é esse o tratamento que vale.
+
+  `client.address_city` e `client.address_state` viraram anuláveis pelo mesmo
+  motivo, na mesma migration: 1 cliente do base44 não tem endereço nenhum
+  preenchido. A célula de cidade já lida com os dois vazios — mostra "-", que é
+  o que o original mostra em campo vazio.
 */
 export type NegotiationRow = Negotiation & {
   client: {
     id: string
     name: string
-    address_city: string
-    address_state: string
+    address_city: string | null
+    address_state: string | null
   } | null
   owner: { id: string; name: string } | null
   services: { service_type: ServiceType }[]

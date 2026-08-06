@@ -45,8 +45,10 @@ import type { ProjectProgress, TaskChecklistItem, TaskPhaseMove, TaskRow } from 
 /*
   Porta de projeto-original/src/components/tasks/TaskKanban.jsx.
 
-  As doze colunas na mesma ordem, a largura fixa de 280px, as alturas
-  `calc(100vh - 280px)` e `calc(100vh - 300px)`, o cabeçalho colorido por coluna,
+  As doze colunas do original na mesma ordem — mais "Em Obra", que veio da
+  migration 0061 e não existe lá (ver COLUMNS) —, a largura fixa de 280px, as
+  alturas `calc(100vh - 280px)` e `calc(100vh - 300px)`, o cabeçalho colorido por
+  coluna,
   o aviso de travamento em rosa, a dica "← Deslize →" no celular, o cartão com
   selo de progresso, prioridade, etapa, responsável, prazo, horas e o checklist
   retrátil são os do original.
@@ -75,9 +77,19 @@ import type { ProjectProgress, TaskChecklistItem, TaskPhaseMove, TaskRow } from 
 
 type Column = { id: ProjectPhase; color: string }
 
-/* As cores do original (linhas 21-34), com variante escura acrescentada: no
-   escuro, um fundo de tom 100 vira faixa branca sob texto claro. O cinza da
-   primeira coluna é o próprio degrau neutro do tema. */
+/*
+  As cores do original (linhas 21-34), com variante escura acrescentada: no
+  escuro, um fundo de tom 100 vira faixa branca sob texto claro. O cinza da
+  primeira coluna é o próprio degrau neutro do tema.
+
+  A LISTA CONTINUA FIXA E ESCRITA À MÃO, e não derivada de `PROJECT_PHASE`: cada
+  coluna precisa de uma cor, e cor não sai do enum. O preço é este — fase nova no
+  banco não aparece aqui sozinha, e a tarefa some da tela sem erro. Foi o que
+  aconteceu com `under_construction` (migration 0061) até esta linha existir.
+
+  `post_approval` não tem coluna de propósito: `tasks_phase_no_post_approval_check`
+  (0049) recusa o valor em tarefa, então a coluna seria sempre vazia.
+*/
 const COLUMNS: Column[] = [
   { id: 'not_started', color: 'bg-muted' },
   { id: 'briefing', color: 'bg-blue-100 dark:bg-blue-950/40' },
@@ -89,6 +101,17 @@ const COLUMNS: Column[] = [
   { id: 'construction_docs', color: 'bg-indigo-100 dark:bg-indigo-950/40' },
   { id: 'engineering_docs', color: 'bg-pink-100 dark:bg-pink-950/40' },
   { id: 'building_permit', color: 'bg-lime-100 dark:bg-lime-950/40' },
+  /*
+    COR ESCOLHIDA AQUI, porque o original não tem esta coluna — é a única do
+    quadro sem cor de lá. Teal é o único matiz da escala que ainda não estava em
+    uso e que se distingue à primeira vista dos dois vizinhos (lime à esquerda,
+    rose à direita); cyan e emerald, os mais próximos dele, ficam a cinco e a
+    duas colunas de distância. Laranja seria o palpite óbvio — é o que
+    StatusBadge.jsx:60 do original dá à palavra "Obra" — mas laranja já é
+    "Aprovação Condomínio" neste mesmo quadro, e duas colunas da mesma cor tiram
+    da cor a única função que ela tem aqui. Escolha reportada ao usuário.
+  */
+  { id: 'under_construction', color: 'bg-teal-100 dark:bg-teal-950/40' },
   { id: 'awaiting_client', color: 'bg-rose-100 dark:bg-rose-950/40' },
   { id: 'finished', color: 'bg-emerald-100 dark:bg-emerald-950/40' },
 ]
