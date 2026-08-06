@@ -374,6 +374,94 @@ provedor por enquanto. Consequências:
 - Quando um provedor for escolhido (Resend ou SMTP do escritório), a copy
   original volta junto com o envio.
 
+## Como se cadastra um escritório novo
+
+Por comando, não por tela:
+
+```
+npm run create-tenant -- \
+  --name "Ateliê Norte" \
+  --slug atelie-norte \
+  --director-name "Fulano de Tal" \
+  --director-email fulano@atelienorte.com.br \
+  [--director-area projects] \
+  [--email-domain atelienorte.com.br]
+```
+
+Ele cria, em uma execução: o tenant, o usuário de login do primeiro Diretor
+(senha gerada), o colaborador, o vínculo em `tenant_users` e as 16 linhas de
+permissão. A senha vai para `scripts/credenciais-<slug>.local` (modo 0600,
+ignorado pelo git por `*.local`) e nunca para o terminal — é entregue por canal
+seguro, mesmo caminho já usado nas 15 contas do escritório real. Ao terminar, o
+comando prova com **login real** (chave publicável, não a de serviço) que o
+Diretor novo entra, vê o escritório dele e só ele, vê zero linha dos outros, e
+que um usuário de outro escritório vê zero do novo.
+
+**Por que comando e não tela.** Criar tenant é a operação mais privilegiada de
+um sistema multitenant: quem a faz nasce fora de todo escritório, antes de
+existir a fronteira que a RLS aplica. Uma tela exigiria um papel acima de
+Diretor, uma rota alcançável pela internet e uma policy que escreve em
+`tenants` — três superfícies novas no produto para uma operação que acontece
+uma vez por cliente. A escolha do usuário foi não acrescentar nenhuma: quem
+cadastra escritório é quem tem a chave de serviço.
+
+**Por que o primeiro Diretor nasce ativo.** O fluxo normal de entrada passa por
+`access_requests` e exige que um **Diretor** aprove (migration 0013). Um
+escritório recém-criado não tem Diretor nenhum: ninguém poderia aprovar
+ninguém, e ele nasceria permanentemente inacessível. Por isso este primeiro
+Diretor é criado já `active` e já vinculado, sem passar por `access_requests`.
+É a única exceção ao fluxo de aprovação no sistema inteiro, ela acontece fora
+do produto, e é ela que justifica o comando existir. Do segundo colaborador em
+diante o caminho é o normal, pela tela de Controle de Acesso.
+
+**Permissões do Diretor: gravadas, mas não é delas que o acesso depende.**
+`can_edit_menu` (0019) e `can_view_menu` (0059) devolvem `true` para Diretor
+`active` do tenant do JWT sem consultar a matriz, e a barra lateral também não
+consulta (`src/features/auth/navigation.ts` devolve o menu inteiro quando
+`role === 'director'`). As 16 linhas existem por causa da tela: o
+`PermissoesManager` monta a matriz de `MENUS_SISTEMA` e cai para `false` onde
+não há linha, então um Diretor sem elas apareceria no Controle de Acesso com as
+16 caixas desmarcadas — a tela dizendo "não acessa nada" sobre quem acessa
+tudo. É a mesma escolha do seed do módulo 1.
+
+**Domínio de e-mail é opcional, e domínio público é recusado.** A unicidade de
+`tenant_email_domains.domain` é **global** (migration 0002): cadastrar
+`gmail.com` rotearia qualquer usuário de Gmail do mundo para aquele escritório
+e impediria qualquer outro tenant de reivindicar o domínio, para sempre. É o
+motivo pelo qual o escritório Fernando Costa está fora dessa tabela. O comando
+carrega uma lista de domínios públicos conhecidos e recusa; a lista é um piso e
+não um teto, por isso o domínio também aparece na confirmação digitada.
+
+**Este é o único script do projeto sem a trava de escritório de teste**, e é
+deliberado. Os dez seeds de `supabase/seed/` abortam ao encontrar qualquer
+tenant fora de `supabase/seed/tenants.mjs`, porque seed reescreve dado e não
+pode rodar perto de dado de cliente. Este comando é o contrário: ele existe
+justamente para rodar contra o banco de produção, que é onde escritório novo
+nasce. Herdar a trava seria herdá-la ao contrário. O que a substitui:
+
+- confirmação digitada antes da primeira escrita — o operador precisa digitar o
+  slug por extenso, com a URL do projeto na tela (`--sim-criar-escritorio-de-verdade`
+  pula, e o nome é longo de propósito). É fácil ter o `.env` do banco errado; é
+  difícil digitar o slug de um escritório que não se pretendia criar;
+- recusa se o slug já existir, dizendo o que achou — nunca sobrescreve;
+- recusa se o e-mail do Diretor já tiver conta no Auth (e-mail é global; reusar
+  poria alguém de outro escritório dentro deste em silêncio);
+- **nenhum `delete` fora do desfazer do próprio erro** — diferente dos seeds,
+  este script só cria;
+- desfazer automático se falhar no meio, e instrução exata de limpeza se o
+  desfazer também falhar. Tenant órfão sem Diretor é um escritório que ninguém
+  acessa e que trava os seeds para sempre.
+
+A conferência **não** desfaz o escritório se falhar: ele foi criado e existe, e
+apagar dado por causa de uma sonda que pode ter falhado sozinha é pior do que
+avisar. O comando sai com código 1, grita, e imprime como limpar à mão.
+
+**O que o comando não cumpre sozinho:** ele cria **um** Diretor, que é o mínimo
+para destravar o ovo e a galinha. "Garantir mais de um Diretor" continua sendo
+item obrigatório desta doc — com um só, o escritório fica sem quem administre no
+primeiro afastamento. O comando avisa isso no fim; o segundo Diretor entra pela
+tela de Controle de Acesso.
+
 ## Segurança — estado e decisões
 
 Auditoria do módulo 1 rodada antes do primeiro deploy. Resumo do que foi
