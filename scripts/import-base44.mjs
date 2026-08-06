@@ -2550,11 +2550,42 @@ async function main() {
     //
     // O recorte e `legacy_id is null` e nao "tudo deste escritorio": as linhas
     // que ESTA execucao vai gravar tem legacy_id e sao atualizadas em vez de
-    // recriadas, o que preserva o uuid delas entre execucoes. Fica escrito o
-    // que o recorte alcanca: cotacao criada PELA TELA tambem tem legacy_id nulo
-    // e seria apagada por aqui. Hoje nao existe nenhuma — a tabela so tem saida
-    // de importacao —, e este script e a etapa de migracao, nao rotina.
+    // recriadas, o que preserva o uuid delas entre execucoes.
+    //
+    // MAS `legacy_id is null` NAO QUER DIZER "sobra da importacao anterior".
+    // Cotacao criada PELA TELA tambem nasce com legacy_id nulo, e seria apagada
+    // por aqui. Hoje nao existe nenhuma — a tabela so tem saida de importacao —,
+    // e este script e etapa de migracao e nao rotina. Mas "hoje nao existe" e
+    // exatamente o tipo de premissa que envelhece: basta o escritorio comecar a
+    // cotar pela tela antes de uma quarta passada.
+    //
+    // Entao o script NAO CONFIA no recorte: ele confere se tudo que vai apagar e
+    // mesmo coisa que vai regravar, e ABORTA se achar uma linha que nao
+    // reconhece. Apagar o que nao se reconhece e perda de dado do escritorio;
+    // parar e pedir ajuda e um seed que nao rodou.
     if (!DRY_RUN) {
+      const willWrite = new Set(rows.map((r) => `${r.item_id}|${r.supplier_id}`))
+
+      const { data: orphans, error: readError } = await db
+        .from('budget_item_quotes')
+        .select('id, item_id, supplier_id')
+        .eq('tenant_id', T())
+        .is('legacy_id', null)
+      if (readError) abort(`ler cotacoes sem legacy_id: ${readError.message}`)
+
+      const unknown = (orphans ?? []).filter(
+        (q) => !willWrite.has(`${q.item_id}|${q.supplier_id}`),
+      )
+      if (unknown.length) {
+        abort(
+          `${unknown.length} cotacao(oes) sem legacy_id que esta importacao NAO vai regravar.\n` +
+            `    Elas nao vieram do base44 — provavelmente foram criadas pela tela de Orcamento.\n` +
+            `    Apagar seria perder dado do escritorio, entao a importacao para aqui.\n` +
+            `    Resolva a mao (apague ou de legacy_id a elas) e rode de novo.\n` +
+            `    ids: ${unknown.map((q) => q.id).join(', ')}`,
+        )
+      }
+
       const { error: delError } = await db
         .from('budget_item_quotes')
         .delete()
