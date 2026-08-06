@@ -45,8 +45,15 @@
 */
 export const TEST_TENANTS = {
   // Goiania/GO. Povoado pelos nove seeds numerados (npm run seed ... seed:map).
+  /*
+    "FC Teste", e nao "Fernando Costa": desde a importacao existe um tenant REAL
+    com esse nome (slug `fernando-costa`), e o nome e o que aparece no topo da
+    tela. Dois escritorios com o mesmo rotulo tornam impossivel saber, olhando,
+    se o que esta na tela e dado de cliente ou dado inventado — e essa e
+    exatamente a duvida que ninguem pode ter.
+  */
   'fernando-costa-teste': {
-    name: 'Fernando Costa',
+    name: 'FC Teste',
     emailDomain: 'fc-teste.com.br',
   },
   // Florianopolis/SC. Povoado de uma vez por npm run seed:second-office.

@@ -1102,7 +1102,8 @@ h1('10. ligacoes que os dois lados gravam e podem discordar');
   for (const r of data.AccountReceivable) {
     const c = contractById.get(r.contract_id);
     if (!c) { arNoContract += 1; continue; }
-    (c.contract_number.trim() === r.contract_number.trim() ? arSame++ : arDiff++);
+    if (c.contract_number.trim() === r.contract_number.trim()) arSame += 1;
+    else arDiff += 1;
   }
   push(`AccountReceivable.contract_number x Contract.contract_number: igual=${arSame} DIFERENTE=${arDiff} sem contrato=${arNoContract}`);
 }
