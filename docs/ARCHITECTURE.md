@@ -574,6 +574,20 @@ Aberto e registrado como decisão:
 
 ### Obrigatório antes da importação do dado real
 
+> **A importação já aconteceu** (`scripts/import-base44.mjs`, tenant
+> `fernando-costa`). O estado desta lista no momento em que o dado real entrou:
+>
+> | Item | Estado |
+> |---|---|
+> | Separar produção de desenvolvimento em dois projetos Supabase | **NÃO FEITO.** O dado real convive com os dois escritórios de teste no mesmo projeto. É o item aberto de maior gravidade. Mitigação parcial: os dez seeds abortam neste banco desde que o tenant real nasceu, e a conferência da importação prova que nenhum `legacy_id` do base44 caiu em outro tenant. |
+> | Restringir acesso ao banco por rede | **NÃO FEITO.** |
+> | Apagar as contas de teste do seed | **NÃO FEITO.** As 12 contas de teste (senhas conhecidas, em `supabase/seed/credenciais*.local`) continuam ativas no mesmo projeto Auth. |
+> | Resolver cadastro aberto + auto-vínculo | **NÃO FEITO.** |
+> | Cadastrar o domínio de e-mail real em `tenant_email_domains` | **DECIDIDO NÃO FAZER**, e o motivo é o dado: são 7 domínios para 15 pessoas, 11 delas com e-mail pessoal. A unicidade de `domain` é global — cadastrar `gmail.com` rotearia qualquer usuário de Gmail do mundo para este escritório. O acesso é por conta criada com senha inicial e vinculada ao colaborador por `legacy_id`; o auto-cadastro por domínio não é usado por este escritório. |
+> | Garantir mais de um Diretor | **FEITO.** O export tem três Diretores ativos, os três com login. |
+> | Decidir o que fazer com o Nominatim | **NÃO FEITO**, e agora vale para dado real: 218 pinos de propriedade de cliente estão no banco. |
+> | Configurar a chave do Google antes de existir chave | Sem mudança: a variável continua não existindo. |
+
 Nenhum destes bloqueia o deploy do escritório de teste, e todos bloqueiam a
 entrada de dado de produção:
 

@@ -88,9 +88,11 @@ rótulo "Equipe" no original e são coisas diferentes — o grupo e o item
 Colaboradores dentro dele.
 
 Consolidação: quando as duas grafias existirem para o mesmo colaborador com
-valores diferentes de `can_view`/`can_edit`, **prevalece o mais permissivo**,
-e a linha vai para o relatório de conflitos para conferência humana. Não há
-como saber qual das duas o escritório considera correta.
+valores diferentes de `can_view`/`can_edit`, **prevalece o mais restritivo**
+(decisão do usuário na etapa de importação), e a linha vai para o relatório de
+conflitos para conferência humana. Não há como saber qual das duas o escritório
+considera correta — e, quando não se sabe, o erro que não se percebe é o de dar
+acesso a mais.
 
 Também aparece `Minhas Atividades` na navegação, mas ela nunca é checada
 contra permissão — é liberada por função (Arquiteto, Estagiário,

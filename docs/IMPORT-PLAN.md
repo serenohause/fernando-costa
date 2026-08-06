@@ -26,7 +26,7 @@ e 19 itens de orçamento dentro de `ChecklistOrcamento`.
 
 | # | O quê | Linhas |
 |---|---|---|
-| 1 | `Task.checklist_tarefa`: item obrigatório e concluído, e a fonte **não tem campo de data de conclusão** | 1.178 itens |
+| 1 | ~~`Task.checklist_tarefa`: item obrigatório e concluído sem data~~ **DECIDIDO: entra sem data (migration `0060`)** | 1.178 itens |
 | 2 | `PermissoesUsuario` de colaborador que não está no export de `Collaborator` | 94 |
 | 3 | `Task`: `phase` e `status` com valor fora do de/para, projeto órfão, responsável órfão | 74 |
 | 4 | `ClientIntake`: cliente órfão (18, e `client_id` é NOT NULL) e negociação órfã (21) | 39 |
@@ -243,11 +243,15 @@ Dentro de `checklist_tarefa`, as chaves são `ordem`, `titulo`, `etapa`,
 `obrigatorio`, `concluido`. Mapeiam para `display_order`, `title`, `phase`,
 `is_required`, `is_completed`. As 8 fases distintas estão todas no de/para.
 
-**Não existe campo de data de conclusão no item do base44.** Nossa
-`task_checklist_items_required_completed_needs_date_check` exige
-`completed_at` quando o item é obrigatório e concluído. São **1.178 itens**
+**Não existe campo de data de conclusão no item do base44.** A
+`task_checklist_items_required_completed_needs_date_check` exigia
+`completed_at` quando o item era obrigatório e concluído. São **1.178 itens**
 nessa situação (e coincidem exatamente com o total de itens concluídos: todo
-item concluído no export é obrigatório). Sem decisão, nenhum deles entra.
+item concluído no export é obrigatório).
+
+**DECIDIDO: o item entra sem data.** A migration `0060` derrubou o check.
+`completed_at` fica nulo e significa "concluído, e o quando não foi
+registrado". Nenhuma data sentinela é inventada.
 
 ### 1.10 `Atividade` (156) → `activities`
 
@@ -608,11 +612,18 @@ menu:
 | `dashboard_overview` | 2 | `Visão Geral` / `Dashboard Geral` |
 | `dashboard_executive` | 1 | `Painel Executivo` / `Dashboard Executivo` |
 
+**REGRA EM VIGOR: vence o mais restritivo.** Decisão do usuário, tomada na
+etapa de importação e aplicada por `scripts/import-base44.mjs`. Em conflito,
+`can_view` e `can_edit` só ficam verdadeiros se **todas** as grafias daquele
+menu disserem verdadeiro. A regra antiga ("o mais permissivo", que estava no
+`SCHEMA-PLAN` e no `ENUM-MAP`) está superada, e os dois documentos foram
+corrigidos para não deixarem duas regras escritas.
+
 Padrão dominante e o que ele significa: em 13 dos 44, uma pessoa tem
 `Fluxo do Projeto` com `view=true edit=true` e `Tarefas` com
-`view=false edit=false`. Aplicar "o mais permissivo", como o `SCHEMA-PLAN`
-determina, **dá acesso de edição ao Fluxo do Projeto para 13 pessoas** —
-inclusive perfis de Arquiteto e Estagiário. Não é uma escolha óbvia. Existe
+`view=false edit=false`. Aplicar "o mais permissivo" **daria acesso de edição
+ao Fluxo do Projeto para 13 pessoas** — inclusive perfis de Arquiteto e
+Estagiário. Não é uma escolha óbvia. Existe
 o caso simétrico: três colaboradores (um deles uma conta de teste) têm o
 padrão **invertido** em `crm`, `contracts`, `pipeline`, `team`, `payables` e
 `receivables` — lá a grafia nova é a permissiva e a antiga é a negada. Isso
@@ -856,16 +867,18 @@ Em ordem de quanto travam:
    enum, viram uma das 12 existentes, ou as 36 tarefas ficam de fora?
 2. **`Project.project_type` com lista de serviços** (18 projetos, NOT NULL).
    Qual dos 4 valores cada uma dessas 18 recebe?
-3. **`task_checklist_items`**: 1.178 itens obrigatórios e concluídos sem data
-   de conclusão, que a fonte não tem. Relaxar o check, gravar uma data
-   sentinela (qual?), ou importar os itens como não-concluídos (o que perde a
-   informação de que foram feitos)?
+3. ~~**`task_checklist_items`**: 1.178 itens obrigatórios e concluídos sem
+   data.~~ **DECIDIDO: entram sem data.** O check foi derrubado pela migration
+   `0060`; `completed_at` nulo significa "concluído, e o quando não foi
+   registrado".
 4. **As 7 pessoas com permissão e sem cadastro de colaborador** (94 linhas).
    Quais são contas de teste para descartar e quais são pessoas reais para
    recadastrar?
-5. **Os 44 conflitos de permissão duplicada.** Aplicar "o mais permissivo"
-   está registrado como regra, mas em 13 casos ele dá edição de Fluxo do
-   Projeto a quem tinha `Tarefas` negado. Confirma?
+5. ~~**Os 44 conflitos de permissão duplicada.**~~ **DECIDIDO: vence o mais
+   restritivo.** Aplicado por `scripts/import-base44.mjs`; os 38 conflitos
+   que envolvem colaborador com cadastro (os outros 6 são de pessoas fora do
+   export) saem listados um a um em `scripts/import-pendencias.local` para
+   conferência humana.
 6. **`tenant_email_domains`** — os três caminhos da seção 7.3.
 7. **`Negociacao.responsavel_comercial_id`**: 1 pessoa, 15 negociações, campo
    NOT NULL. Recadastrar a pessoa como colaborador?

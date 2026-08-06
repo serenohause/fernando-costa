@@ -977,7 +977,14 @@ Ficam registradas aqui para não se perderem no caminho:
 2. **Conflito de permissões duplicadas.** Colaboradores que tenham
    `Clientes` e `CRM` (ou outra dupla) com valores diferentes de
    `can_view`/`can_edit` precisam de conferência humana — a importação
-   aplica o mais permissivo e lista o caso.
+   aplica **o mais restritivo** (decisão do usuário, tomada na etapa de
+   importação) e lista o caso. A regra anterior escrita aqui era "o mais
+   permissivo": ela está **superada**, e o motivo é o dado real. Em 13 dos
+   44 conflitos, o mais permissivo daria edição de `Fluxo do Projeto` a
+   quem tinha `Tarefas` negado — inclusive a Arquiteto e Estagiário. As
+   duas grafias foram gravadas por telas diferentes em momentos diferentes,
+   nenhuma é "a certa" por construção, e o erro que não se percebe é o de
+   dar acesso a mais.
 3. **Vínculo colaborador ↔ login.** O base44 guarda `user_auth_email`. Na
    importação, cada colaborador precisa virar um convite do Supabase Auth,
    e o `user_id` só é preenchido quando a pessoa aceita.

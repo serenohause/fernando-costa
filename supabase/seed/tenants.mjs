@@ -86,12 +86,27 @@ export async function assertOnlyTestTenants(db) {
 
   if (foreign.length > 0) {
     abort(
-      `existe tenant que nao e de teste no banco:\n` +
+      `este banco tem escritorio com DADO REAL DE CLIENTE, e seed nao roda aqui.\n\n` +
+        `  Encontrado:\n` +
         foreign.map((t) => `    - ${t.slug} (${t.name})`).join('\n') +
-        `\n  Os seeds so escrevem nos escritorios de teste conhecidos:\n` +
+        `\n\n  Os seeds so escrevem nos dois escritorios de teste:\n` +
         TEST_TENANT_SLUGS.map((s) => `    - ${s}`).join('\n') +
-        `\n  Se o dado real ja entrou neste banco, use outro projeto Supabase\n` +
-        `  para desenvolvimento. Nao acrescente o slug de producao a lista.`,
+        `\n\n  ISTO NAO E UM BUG, E NAO E SINAL DE QUE A LISTA PRECISA CRESCER.\n` +
+        `  O escritorio real foi criado de proposito por scripts/import-base44.mjs,\n` +
+        `  com os 17 CSV de db/. No minuto em que ele nasceu, os dez seeds passaram\n` +
+        `  a abortar contra este banco — que e exatamente o que esta trava existe\n` +
+        `  para fazer. Todo seed escreve com a service role key, que ignora RLS: um\n` +
+        `  "npm run seed" distraido aqui apagaria o escritorio real e poria dado\n` +
+        `  ficticio no lugar.\n\n` +
+        `  O que fazer, conforme o que voce queria:\n` +
+        `    - popular dado de teste  -> use OUTRO projeto Supabase, com sua propria\n` +
+        `                                URL no .env. Desenvolvimento nao acontece\n` +
+        `                                mais neste banco.\n` +
+        `    - reimportar/atualizar o dado real -> node scripts/import-base44.mjs\n` +
+        `                                (idempotente por legacy_id; rodar de novo\n` +
+        `                                nao duplica e traz o que estava pendente)\n\n` +
+        `  Acrescentar o slug do escritorio real a TEST_TENANTS "para destravar" e\n` +
+        `  exatamente a perda que esta trava evita. Nao faca isso.`,
     )
   }
 
