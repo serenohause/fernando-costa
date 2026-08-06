@@ -127,7 +127,11 @@ create temp table ids on commit drop as select
   'd2500000-0000-4000-8000-000000000001'::uuid as project_b,
   'd1600000-0000-4000-8000-000000000001'::uuid as task_legal_a,
   'd1600000-0000-4000-8000-000000000002'::uuid as task_briefing_a,
-  'd1600000-0000-4000-8000-000000000003'::uuid as task_waiting_a;
+  'd1600000-0000-4000-8000-000000000003'::uuid as task_waiting_a,
+  -- Tarefa SEM projeto, exclusiva da secao 7. Sem projeto, nenhuma linha de
+  -- project_progress a soma — que e a unica forma de a secao 7 escrever a
+  -- vontade sem mexer nos numeros que a secao 8 afirma.
+  'd1600000-0000-4000-8000-000000000004'::uuid as task_checklist_a;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 values ((select user_a from ids), '00000000-0000-0000-0000-000000000000'::uuid,
@@ -175,7 +179,9 @@ insert into public.tasks (id, tenant_id, title, project_id, phase) values
   ((select task_briefing_a from ids), (select tenant_a from ids), 'Levantar briefing',
    (select project_full_a from ids), 'briefing'),
   ((select task_waiting_a from ids), (select tenant_a from ids), 'Aguardar retorno do cliente',
-   (select project_full_a from ids), 'awaiting_client');
+   (select project_full_a from ids), 'awaiting_client'),
+  ((select task_checklist_a from ids), (select tenant_a from ids), 'Tarefa avulsa da secao 7',
+   null, 'briefing');
 
 -- 1. contract_id: FK composta para contracts -----------------------------------
 --
@@ -277,23 +283,48 @@ select pg_temp.chk('6.2', 'CONTROLE: inicio e prazo no mesmo dia entram', 'OK:1'
   values (%L, 'Projeto legal', '2026-05-10', '2026-05-10')
 $q$, (select tenant_a from ids)));
 
--- 7. Item de checklist obrigatorio concluido exige data -------------------------
+-- 7. Item de checklist: o que a data de conclusao pode e nao pode ---------------
 --
--- Item obrigatorio concluido e o que libera a tarefa a avancar de etapa. Sem
--- data nao ha como auditar quando a trava caiu.
+-- ESTA SECAO MUDOU DE SENTIDO NA MIGRATION 0060, e o motivo importa mais que os
+-- casos: o check que exigia data em item obrigatorio concluido CAIU, porque o
+-- base44 nao guarda essa data e 1.178 itens reais chegam so com a bandeira.
+-- `completed_at` nulo passa a significar "concluido, e o quando nao foi
+-- registrado". O caminho contrario continua proibido.
+--
+-- OS INSERTS DESTA SECAO USAM TAREFA PROPRIA E SEM PROJETO (`task_checklist_a`).
+-- Antes usavam `task_legal_a`: enquanto 7.1 esperava RECUSA isso era inofensivo,
+-- mas no instante em que ela passou a INSERIR, o progresso da secao 8 mudou
+-- junto e 8.2 quebrou sem ter nada a ver com o assunto. Tarefa sem projeto nao
+-- entra em project_progress, entao a secao 7 escreve a vontade. Foi o mesmo
+-- acidente da suite de orcamento — secao que escreve no que outra conta.
 
-select pg_temp.chk('7.1', 'item obrigatorio concluido SEM data e recusado', 'ERR:23514', format($q$
+select pg_temp.chk('7.1', 'item obrigatorio concluido SEM data entra (0060)', 'OK:1', format($q$
   insert into public.task_checklist_items (tenant_id, task_id, title, is_required, is_completed)
   values (%L, %L, 'Assinatura do responsavel tecnico', true, true)
-$q$, (select tenant_a from ids), (select task_legal_a from ids)));
+$q$, (select tenant_a from ids), (select task_checklist_a from ids)));
 
--- O item OPCIONAL continua podendo ser concluido sem data: la a data nunca
--- decidiu nada. Sem este caso, o check poderia estar valendo para todo item e
--- 7.1 passaria igual.
+-- O item OPCIONAL sempre pode. Sem este caso, 7.1 passaria igual se o check
+-- tivesse sido derrubado por engano para todo item.
 select pg_temp.chk('7.2', 'CONTROLE: item OPCIONAL concluido sem data entra', 'OK:1', format($q$
   insert into public.task_checklist_items (tenant_id, task_id, title, is_required, is_completed)
   values (%L, %L, 'Anexar foto do terreno', false, true)
-$q$, (select tenant_a from ids), (select task_legal_a from ids)));
+$q$, (select tenant_a from ids), (select task_checklist_a from ids)));
+
+-- O QUE A 0060 NAO AFROUXOU, e este caso e a razao de a secao continuar
+-- existindo: data sem conclusao segue recusada. Item com `completed_at` e
+-- `is_completed = false` seria uma linha que diz "nao concluido" e "concluido
+-- em tal dia" ao mesmo tempo.
+select pg_temp.chk('7.3', 'data de conclusao SEM conclusao continua recusada', 'ERR:23514', format($q$
+  insert into public.task_checklist_items (tenant_id, task_id, title, is_required, is_completed, completed_at)
+  values (%L, %L, 'Item incoerente', true, false, now())
+$q$, (select tenant_a from ids), (select task_checklist_a from ids)));
+
+-- CONTROLE do 7.3: a mesma linha, coerente, entra. Sem ele o ERR:23514 acima
+-- passaria tambem se a tarefa nao existisse ou o tenant estivesse errado.
+select pg_temp.chk('7.4', 'CONTROLE: concluido COM data entra', 'OK:1', format($q$
+  insert into public.task_checklist_items (tenant_id, task_id, title, is_required, is_completed, completed_at)
+  values (%L, %L, 'Item coerente', true, true, now())
+$q$, (select tenant_a from ids), (select task_checklist_a from ids)));
 
 -- 8. A view project_progress ----------------------------------------------------
 --
