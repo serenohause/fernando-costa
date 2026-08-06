@@ -397,6 +397,15 @@ comando prova com **login real** (chave publicável, não a de serviço) que o
 Diretor novo entra, vê o escritório dele e só ele, vê zero linha dos outros, e
 que um usuário de outro escritório vê zero do novo.
 
+A quarta asserção usa uma conta de **escritório de teste**, cuja senha está em
+`supabase/seed/credenciais*.local` e é legitimamente nossa. Ela não personifica
+pessoa de verdade: minerar sessão de um Diretor real pela admin API (magic link)
+seria tecnicamente possível e deixaria um evento de login no nome dessa pessoa,
+para sempre, num Auth com dado de cliente. Se o banco não tiver escritório de
+teste, a asserção 4 é **pulada e anunciada** num bloco "conferência incompleta",
+com o motivo — asserção pulada e anunciada é honesta; asserção que passa por
+cima de uma pessoa real, não. Falha sai com código 1; pulada sai com 0.
+
 **Por que comando e não tela.** Criar tenant é a operação mais privilegiada de
 um sistema multitenant: quem a faz nasce fora de todo escritório, antes de
 existir a fronteira que a RLS aplica. Uma tela exigiria um papel acima de
@@ -448,9 +457,36 @@ nasce. Herdar a trava seria herdá-la ao contrário. O que a substitui:
   poria alguém de outro escritório dentro deste em silêncio);
 - **nenhum `delete` fora do desfazer do próprio erro** — diferente dos seeds,
   este script só cria;
-- desfazer automático se falhar no meio, e instrução exata de limpeza se o
-  desfazer também falhar. Tenant órfão sem Diretor é um escritório que ninguém
-  acessa e que trava os seeds para sempre.
+- **diário em disco e desfazer automático, inclusive por interrupção** (abaixo).
+
+**O diário, e o pior estado que este comando poderia produzir.** Não é erro — é
+morte súbita no meio. Ctrl-C, queda de rede ou `kill` entre criar o tenant e
+criar o Diretor deixa um escritório que ninguém acessa (entrar exige aprovação
+de um Diretor, e não há nenhum) e que **trava os dez seeds para sempre** (a
+trava conta tenants, não Diretores), sem nada em lugar nenhum explicando por
+quê. Por isso, antes de cada escrita o estado vai para
+`scripts/create-tenant-<slug>.journal.local` (0600, gravado por arquivo
+temporário + `rename`, que é atômico). Daí decorrem três coisas:
+
+1. `SIGINT`/`SIGTERM` disparam o mesmo desfazer do erro tratado, e o fluxo de
+   criação **para** — sem isso, criação e limpeza correm juntas e o que for
+   gravado depois do apagamento sobrevive;
+2. o desfazer **pergunta ao banco** o que existe (por slug e por e-mail) em vez
+   de confiar numa lista em memória. Uma lista não enxerga a escrita que já
+   saiu pela rede e ainda não voltou: foi assim que um `SIGTERM` anunciou "nada
+   ficou pela metade" deixando um usuário de Auth vivo. O handler também espera
+   a escrita em voo terminar antes de reconciliar;
+3. a execução **seguinte** lê os diários pendentes, confere no banco o que de
+   fato ficou, mostra inclusive quantos Diretores o tenant tem, e oferece
+   limpar antes de seguir — em vez de a pessoa descobrir pelo seed abortando
+   semanas depois. Com `--sim-criar-escritorio-de-verdade` ele **aborta** em vez
+   de apagar sozinho.
+
+O que o diário **não** cobre, e fica na mão: ele é um arquivo local, então uma
+execução seguinte em outra máquina não vê pendência nenhuma; `kill -9` durante
+o próprio `rename`, ou perda de energia antes de o filesystem gravar de fato
+(não há `fsync`). Nesses casos a limpeza é apagar o tenant pelo slug (que
+cascateia) e o usuário do Auth pelo e-mail, no painel.
 
 A conferência **não** desfaz o escritório se falhar: ele foi criado e existe, e
 apagar dado por causa de uma sonda que pode ter falhado sozinha é pior do que
