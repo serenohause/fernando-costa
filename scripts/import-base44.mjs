@@ -24,16 +24,29 @@
 //   A saida do terminal e so contagem. Nada que identifique pessoa vai para o
 //   stdout, porque terminal vira log, log vira anexo de mensagem.
 //
-// AS DUAS REGRAS QUE GOVERNAM O QUE ENTRA
-//   1. Linha orfa nao e descartada em silencio nem apontada para nulo. Se um
-//      ponteiro aponta para um legacy_id que nao existe no export, ou para uma
-//      linha que a propria importacao recusou, a linha inteira vai para o
-//      relatorio de pendencias com o motivo.
-//   2. Valor de lista fora do de/para de docs/ENUM-MAP.md nunca vira `other`
-//      calado. Vai para pendencias tambem.
+// AS REGRAS QUE GOVERNAM O QUE ENTRA (revistas na SEGUNDA PASSADA)
+//   O principio: nao inventar fato, mas tambem nao recusar dado por causa de
+//   formato. Valor que existe e e verdadeiro entra, mesmo que precise de
+//   traducao. Continua proibido gravar como verdade algo que ninguem registrou
+//   — data de conclusao inventada, valor chutado, vinculo adivinhado.
 //
-//   O efeito das duas juntas e que uma linha ou entra inteira ou nao entra, e
-//   por isso vale a conferencia final "importadas + pendencias = total do CSV".
+//   1. Ponteiro ORFAO (aponta para um legacy_id que nao existe no export) em
+//      coluna que aceita nulo entra como NULO, e a linha entra. A ausencia e a
+//      verdade: a linha apontada nao existe em lugar nenhum. Vai para a secao
+//      AJUSTES do relatorio, nunca em silencio. Em coluna NOT NULL continua
+//      derrubando a linha.
+//   2. Ponteiro em CASCATA (aponta para uma linha que existe no export e que
+//      esta importacao recusou) continua derrubando a linha. O vinculo e real e
+//      volta sozinho quando a raiz for destravada — o script e idempotente por
+//      legacy_id, entao re-rodar recupera a cascata inteira.
+//   3. Valor de lista fora do de/para de docs/ENUM-MAP.md nunca vira `other`
+//      calado. Ou o de/para ganha a entrada (com o criterio escrito na doc), ou
+//      a linha vai para pendencias.
+//   4. Traducao de FORMATO (competencia "012026", parcela "n" sem total, prazo
+//      0 querendo dizer "nao se aplica") e feita, e registrada nos AJUSTES.
+//
+//   A conferencia final continua sendo "consumidas + pendencias = total do CSV".
+//   AJUSTES nao e pendencia: a linha entrou.
 //
 // AS DUAS DECISOES QUE O USUARIO TOMOU E QUE ESTAO CODIFICADAS AQUI
 //   1. Item de checklist de tarefa concluido e sem data ENTRA. A migration 0060
@@ -252,11 +265,42 @@ const ENUMS = {
   },
   collaborator_status: { Ativo: 'active', 'Férias': 'vacation', Afastado: 'on_leave' },
   access_request_status: { Pendente: 'pending', Aprovada: 'approved', Recusada: 'rejected' },
-  lead_source: { Instagram: 'instagram', 'Indicação': 'referral', Site: 'website', Outros: 'other' },
-  client_type: { 'Pessoa Física': 'individual', 'Pessoa Jurídica': 'company' },
+  lead_source: {
+    Instagram: 'instagram', 'Indicação': 'referral', Site: 'website', Outros: 'other',
+    // SEGUNDA PASSADA: WhatsApp e canal real do escritorio e a lista fechada do
+    // base44 nao o tem. `other` e o valor que a propria lista oferece para
+    // "canal que nao esta aqui" — e agora esta escrito no ENUM-MAP, entao nao e
+    // mais um `other` calado. Criar `whatsapp` seria migration de enum.
+    WhatsApp: 'other',
+  },
+  client_type: {
+    'Pessoa Física': 'individual', 'Pessoa Jurídica': 'company',
+    // SEGUNDA PASSADA: `Lead` nao e tipo de pessoa, e estagio de funil — e o
+    // funil ja vive em negotiations. A coluna aceita nulo, e nulo aqui diz
+    // exatamente o que se sabe: o tipo de pessoa nao foi informado.
+    Lead: null, lead: null,
+  },
   service_type: {
     Arquitetura: 'architecture', Interiores: 'interiors', Estrutura: 'structural',
     'Hidrosanitário': 'plumbing', 'Elétrico': 'electrical', Consultoria: 'consulting',
+    // SEGUNDA PASSADA: rotulo de Contract usado em campo de servico. Mesmo
+    // conceito, grafia da outra entidade.
+    'Projeto de Arquitetura': 'architecture',
+    // SEGUNDA PASSADA: `Complementares` e o guarda-chuva de Estrutura +
+    // Hidrosanitario + Eletrico, e na unica linha em que aparece os TRES ja
+    // estao listados um a um ao lado dele. Expandir em tres linhas inventaria
+    // tres servicos onde o escritorio registrou um rotulo; mapear para um deles
+    // escolheria por conta propria. Nao vira linha, e o registro fica nos
+    // AJUSTES.
+    Complementares: null,
+  },
+  client_intake_status: { Ativo: 'active', Expirado: 'expired', Enviado: 'submitted' },
+  client_intake_validation_status: {
+    CRIADO: 'created', OK: 'ok', EXPIRADO: 'expired', ENVIADO: 'already_submitted',
+    EXPIRADO_NO_ENVIO: 'expired_on_submit',
+    // 1 das 42 linhas tem o campo vazio. `created` e o que aconteceu com ela:
+    // o link foi criado e nunca foi aberto, igual as outras 41.
+    '': 'created',
   },
   negotiation_status: { Ativa: 'active', Ganha: 'won', Perdida: 'lost' },
   funnel_stage: {
@@ -303,12 +347,49 @@ const ENUMS = {
     'Projetos Complementares': 'engineering_docs', 'Alvará de Construção': 'building_permit',
     'Aguardando Cliente': 'awaiting_client', Finalizado: 'finished',
     'Pós-aprovação': 'post_approval',
+    // SEGUNDA PASSADA — tres fases que a operacao usa e que o base44 nunca
+    // declarou. O criterio e o significado no dominio, conferido contra o
+    // titulo das tarefas que carregam cada uma:
+    //
+    //   `Estudo preliminar` (18): primeira fase de projeto, a mesma que o
+    //   contrato chama de prazo_estudo_layout -> layout_study_days. As tarefas
+    //   sao as de abertura ("Iniciar projeto - <cliente>", "<numero> -
+    //   <cliente>"). Briefing e a coleta com o cliente, que vem antes; o estudo
+    //   preliminar E o estudo de layout.
+    'Estudo preliminar': 'layout',
+    //   `Anteprojeto` (3): fase seguinte ao estudo preliminar na NBR 13532, e
+    //   as tres tarefas sao "Modelar volumetria no SketchUp", "Detalhar fachada
+    //   frontal" e uma de cliente — trabalho de volumetria 3D, que nesta lista
+    //   e Perspectivas.
+    Anteprojeto: 'renderings',
+    //   `Executivo` (1): forma curta de Projeto Executivo. A tarefa e
+    //   "Compatibilizacao estrutural", que so existe no executivo.
+    Executivo: 'construction_docs',
+    //
+    // `Em Obra` (14) NAO ESTA AQUI, DE PROPOSITO. E fase de obra, depois da
+    // aprovacao, e nenhum dos 13 valores do enum significa isso: `Alvará de
+    // Construção` e o alvara, nao a obra, e `Pós-aprovação` — que seria o
+    // equivalente — e barrado em tasks pelo check tasks_phase_not_post_approval.
+    // Entrar exige migration (valor novo no enum, ou soltar o check), e
+    // migration com dado real dentro e decisao do usuario. As 14 tarefas ficam
+    // em pendencias com este motivo.
   },
   geocode_status: { PENDING: 'pending', OK: 'ok', FAILED: 'failed', '': 'pending' },
   priority_level: { Baixa: 'low', 'Média': 'medium', Alta: 'high', Urgente: 'urgent' },
   work_status: {
     'Não iniciado': 'not_started', 'Não iniciada': 'not_started',
     'Em andamento': 'in_progress', 'Concluída': 'completed',
+    // SEGUNDA PASSADA — quatro linhas de Task com status que a operacao digitou
+    // e a entidade nao declara. O enum tem tres estados, e cada um destes cai
+    // em um deles sem ambiguidade:
+    //   `A fazer` = a fazer = ainda nao comecou.
+    'A fazer': 'not_started',
+    //   `Em revisão` e `Em espera cliente` sao trabalho JA em curso e ainda nao
+    //   concluido. Nenhum dos dois e "nao iniciado" e nenhum e "concluida".
+    //   Os dois perdem a nuance de "parada esperando alguem", que no dado vive
+    //   em Task.tag_operacional — campo sem coluna no nosso schema (ver
+    //   IGNORED_ON_PURPOSE). A perda esta registrada nos AJUSTES.
+    'Em revisão': 'in_progress', 'Em espera cliente': 'in_progress',
   },
   task_type: {
     'Técnica': 'technical', 'Reunião': 'meeting', 'Revisão': 'review',
@@ -377,6 +458,11 @@ const ENUMS = {
   map_visual_status: {
     'Não iniciado': 'not_started', 'Em desenvolvimento': 'in_development',
     Pausado: 'paused', 'Concluído': 'completed',
+    // SEGUNDA PASSADA: 1 linha com `Em andamento`. Dentro dos quatro estados
+    // deste enum (nao iniciado / em desenvolvimento / pausado / concluido),
+    // "em andamento" so pode ser o segundo. A grafia veio de project_status,
+    // que e enum vizinho e diferente — o significado, nao.
+    'Em andamento': 'in_development',
   },
   // Texto livre de PermissoesUsuario.menu -> menus.key. 27 rotulos, 16 menus.
   // As duas grafias corrompidas entram pelo codepoint, nao pela aparencia:
@@ -481,6 +567,19 @@ function pend(entity, legacyId, reason, label = '') {
 // Conflitos de permissao resolvidos pela regra do mais restritivo. Nao sao
 // pendencia (a linha entra), mas precisam de conferencia humana.
 const permissionConflicts = []
+
+// AJUSTES — a linha ENTROU, com um campo traduzido, nulificado ou descartado.
+// Nao e pendencia e nao entra na conta "consumidas + pendencias = origem": e a
+// lista do que mudou entre o que o base44 tinha e o que o banco passou a ter,
+// para que nenhuma dessas mudancas aconteca em silencio.
+const adjustments = []
+const adjByEntity = new Map()
+
+function adjust(entity, legacyId, what, label = '') {
+  adjustments.push({ entity, legacyId, what, label })
+  if (!adjByEntity.has(entity)) adjByEntity.set(entity, [])
+  adjByEntity.get(entity).push({ legacyId, what, label })
+}
 
 // Contabilidade da conferencia final: para cada entidade de destino,
 // consumidas + pendencias tem que dar o total de linhas de origem.
@@ -601,6 +700,7 @@ class RowGuard {
     this.legacyId = legacyId
     this.label = label
     this.reasons = []
+    this.notes = []
   }
 
   enum(enumName, raw, column) {
@@ -615,6 +715,29 @@ class RowGuard {
     return r.id
   }
 
+  // Ponteiro em coluna que ACEITA NULO. Orfao (o alvo nao existe em lugar
+  // nenhum do export) vira nulo e a linha entra: a ausencia e a verdade, e
+  // segurar a linha inteira por um ponteiro para o nada nao devolve o ponteiro
+  // a ninguem. Cascata continua derrubando — ali o alvo existe, so nao entrou
+  // ainda, e a re-execucao recupera o vinculo de verdade em vez de apaga-lo.
+  softFk(index, rawId, targetLabel, column) {
+    const r = link(index, rawId, targetLabel)
+    if (r.ok) return r.id
+    if (r.reason.startsWith('orfao')) {
+      adjust(this.entity, this.legacyId, `${column} gravado NULO — ${r.reason}`, this.label)
+      return null
+    }
+    this.reasons.push(`${column}: ${r.reason}`)
+    return null
+  }
+
+  // Ajuste aplicado a ESTA linha. Fica bufferizado ate se saber se a linha
+  // entrou: ajuste anotado em linha que acabou recusada seria ruido, e o
+  // relatorio precisa que AJUSTES signifique "isto esta no banco assim".
+  note(what) {
+    this.notes.push(what)
+  }
+
   require(condition, reason) {
     if (!condition) this.reasons.push(reason)
     return condition
@@ -622,6 +745,15 @@ class RowGuard {
 
   get failed() {
     return this.reasons.length > 0
+  }
+
+  // Usada no lugar de `if (g.failed) { g.reject(); continue }`. Recusa a linha
+  // e devolve true, ou publica os ajustes bufferizados e devolve false.
+  get rejected() {
+    if (this.failed) { this.reject(); return true }
+    for (const n of this.notes) adjust(this.entity, this.legacyId, n, this.label)
+    this.notes = []
+    return false
   }
 
   reject() {
@@ -755,7 +887,7 @@ async function main() {
     const status = g.enum('collaborator_status', r.status, 'status')
     g.require(name !== '', 'name vazio (NOT NULL)')
     g.require(EMAIL_RE.test(r.email.trim()), `email "${r.email.trim()}" fora do formato aceito`)
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -864,13 +996,18 @@ async function main() {
     const status = g.enum('access_request_status', r.status, 'status')
     // aprovado_por_id nao e Collaborator.id em nenhuma das 22 linhas: sao ids
     // de USUARIO DA PLATAFORMA base44, que no base44 coexistem com o
-    // colaborador e nao tem ligacao declarada. O check do banco permitiria
-    // decided_by nulo aqui (a proibicao e so para pedido pendente), mas
-    // nulificar em silencio e exatamente o que a regra do projeto proibe.
-    const decidedBy = g.fk(ix.collaborator, r.aprovado_por_id, 'colaborador', 'aprovado_por_id')
+    // colaborador e nao tem ligacao declarada.
+    //
+    // SEGUNDA PASSADA: entra NULO e a linha entra. decided_by e nullable e o
+    // check access_requests_pending_has_no_decision so proibe decisao em pedido
+    // PENDENTE — as 22 sao Aprovada. O que importa da solicitacao e que ela
+    // existiu e qual foi o desfecho; quem aprovou aponta para uma identidade de
+    // uma plataforma que vai ser desligada. Nao e silencio: o par (id da
+    // plataforma, linha) sai na secao AJUSTES do relatorio.
+    const decidedBy = g.softFk(ix.collaborator, r.aprovado_por_id, 'colaborador', 'aprovado_por_id')
     g.require(EMAIL_RE.test(r.email.trim()), `email "${r.email.trim()}" fora do formato aceito`)
     g.require(txt(r.nome) !== null, 'nome vazio (NOT NULL)')
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -929,8 +1066,16 @@ async function main() {
       g.require(txt(r.phone) !== null, 'phone vazio (NOT NULL + check nao-vazio)')
       g.require(txt(r.current_city) !== null, 'address_city vazio (NOT NULL + check nao-vazio)')
       g.require(txt(r.current_state) !== null, 'address_state vazio (NOT NULL + check nao-vazio)')
-      if (txt(r.email) !== null) {
-        g.require(EMAIL_RE.test(r.email.trim()), `email "${r.email.trim()}" fora do formato aceito`)
+      // SEGUNDA PASSADA: e-mail fora do formato NAO derruba mais o cliente. O
+      // check clients_email_format_check recusaria a coluna, e so a coluna — o
+      // nome, o telefone, o endereco e o documento desse cliente sao dado bom.
+      // Entra com email nulo e o valor cru vai para os AJUSTES, para que o
+      // escritorio corrija de onde ele sabe corrigir. E 1 linha em 122, com um
+      // e-mail sem dominio completo.
+      let email = txt(r.email)
+      if (email !== null && !EMAIL_RE.test(email)) {
+        g.note(`email fora do formato gravado NULO (valor original guardado abaixo): ${email}`)
+        email = null
       }
       if (duplicates.has(r.id)) {
         g.reasons.push(
@@ -938,14 +1083,14 @@ async function main() {
             'esta precisa de decisao de fusao ou descarte',
         )
       }
-      if (g.failed) { g.reject(); continue }
+      if (g.rejected) continue
 
       const row = {
         tenant_id: T(),
         legacy_id: r.id,
         name: r.name.trim(),
         phone: r.phone.trim(),
-        email: txt(r.email),
+        email,
         client_type: clientType,
         lead_source: leadSource,
         tax_id: txt(r.cpf_cnpj),
@@ -989,14 +1134,20 @@ async function main() {
     const funnelStage = g.enum('funnel_stage', r.etapa_funil, 'etapa_funil')
     const origin = g.enum('lead_origin', r.origem, 'origem')
     const lossReason = g.enum('loss_reason', r.motivo_perda, 'motivo_perda')
-    const clientId = g.fk(ix.client, r.cliente_id, 'cliente', 'cliente_id')
+    // client_id e nullable. Orfao vira nulo (SEGUNDA PASSADA); cascata continua
+    // derrubando, porque o cliente existe e volta na proxima execucao.
+    const clientId = g.softFk(ix.client, r.cliente_id, 'cliente', 'cliente_id')
+    // commercial_owner_id e NOT NULL: aqui orfao continua derrubando a linha.
+    // Nao ha valor honesto para "quem e o responsavel comercial" quando a
+    // pessoa nao existe no cadastro.
     const ownerId = g.fk(ix.collaborator, r.responsavel_comercial_id, 'colaborador', 'responsavel_comercial_id')
-    // contrato_vinculado_id e o lado oposto de contracts.negotiation_id. Um
-    // ponteiro quebrado aqui nao pode virar nulo em silencio: vai para
-    // pendencias como qualquer outro orfao.
+    // contrato_vinculado_id e o lado oposto de contracts.negotiation_id.
+    // SEGUNDA PASSADA: ponteiro para contrato que nao existe no export nao
+    // derruba mais a negociacao — o vinculo simplesmente nao existe, e e isso
+    // que o banco passa a dizer. Fica registrado nos AJUSTES.
     const contractLink = link(ix.contract, r.contrato_vinculado_id, 'contrato')
     if (!contractLink.ok && contractLink.reason.startsWith('orfao')) {
-      g.reasons.push(`contrato_vinculado_id: ${contractLink.reason}`)
+      g.note(`contrato_vinculado_id ignorado — ${contractLink.reason}`)
     }
     g.require(txt(r.responsavel_comercial_id) !== null, 'responsavel_comercial_id vazio (commercial_owner_id e NOT NULL)')
     g.require(txt(r.nome_negociacao) !== null, 'name vazio (NOT NULL)')
@@ -1011,7 +1162,7 @@ async function main() {
     if (txt(r.motivo_perda) !== null || txt(r.observacoes_perda) !== null) {
       g.require(status === 'lost', 'motivo/observacao de perda com status que nao e Perdida')
     }
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -1058,9 +1209,17 @@ async function main() {
           pend('negotiation_services', r.id, `cascata: negociacao ${r.id} nao foi importada`, String(s))
           continue
         }
-        const value = ENUMS.service_type[s]
-        if (!value) {
+        if (!Object.prototype.hasOwnProperty.call(ENUMS.service_type, s)) {
           pend('negotiation_services', r.id, `tipo_servico: valor "${s}" nao esta em docs/ENUM-MAP.md`, r.nome_negociacao)
+          continue
+        }
+        const value = ENUMS.service_type[s]
+        if (value === null) {
+          // Rotulo guarda-chuva mapeado para "nao vira linha" no de/para
+          // (`Complementares`). Nao e recusa e nao e servico: e um rotulo a
+          // menos, com os servicos que ele resume ja listados ao lado.
+          adjust('negotiation_services', r.id, `tipo_servico "${s}" e rotulo guarda-chuva e nao virou linha`, r.nome_negociacao)
+          stat('negotiation_services').consumed += 1
           continue
         }
         if (seen.has(value)) {
@@ -1160,23 +1319,56 @@ async function main() {
       g.require(txt(r.contract_type) !== null, 'contract_type vazio (NOT NULL)')
       g.require(num(r.total_value) !== null, 'total_value vazio (NOT NULL)')
 
-      const plan = [int(r.quantidade_parcelas), date(r.data_primeiro_vencimento), frequency]
+      // PLANO DE PARCELAMENTO INCOMPLETO — 6 contratos, 1 ou 2 dos 3 campos.
+      //
+      // SEGUNDA PASSADA: o contrato entra, com o plano NULO. O check
+      // contracts_installment_plan_all_or_none exige os tres ou nenhum, e um
+      // plano de 2 campos nao e um plano: nao da para gerar parcela com ele, e
+      // completar o terceiro campo seria inventar quantidade ou vencimento. O
+      // que se perde e um pedaco de plano inutilizavel; o que se ganha e o
+      // contrato inteiro — cliente, valor, datas, copia congelada — e o dinheiro
+      // dele na carteira. Os valores descartados saem um a um nos AJUSTES para
+      // que o escritorio recomponha o plano na tela.
+      let plan = [int(r.quantidade_parcelas), date(r.data_primeiro_vencimento), frequency]
       const planFilled = plan.filter((v) => v !== null && v !== undefined).length
-      g.require(
-        planFilled === 0 || planFilled === 3,
-        `plano de parcelamento incompleto: ${planFilled} de 3 campos (o check e all-or-none)`,
-      )
-      if (bool(r.installments_generated) === true) {
-        g.require(plan[0] !== null, 'installments_generated=true sem plano de parcelamento')
+      let installmentsGenerated = bool(r.installments_generated) ?? false
+      if (planFilled > 0 && planFilled < 3) {
+        g.note(
+          `plano de parcelamento incompleto (${planFilled} de 3) gravado NULO — ` +
+            `quantidade=${JSON.stringify(r.quantidade_parcelas)} ` +
+            `primeiro_vencimento=${JSON.stringify(r.data_primeiro_vencimento)} ` +
+            `periodicidade=${JSON.stringify(r.periodicidade_parcelas)}`,
+        )
+        plan = [null, null, null]
       }
+      // installments_generated=true sem plano viola
+      // contracts_installments_generated_requires_plan. Vai a false, e a
+      // consequencia esta escrita: gerar parcela de novo exige antes recompor o
+      // plano na tela, e a unique (tenant_id, contract_id, installment_number)
+      // da 0041 barra duplicata de qualquer forma.
+      if (installmentsGenerated && plan[0] === null) {
+        g.note('installments_generated=true sem plano de parcelamento gravado como false (o check exige plano)')
+        installmentsGenerated = false
+      }
+      // PRAZO DE FASE ZERO — 2 contratos, os cinco prazos em zero.
+      // O check exige > 0 e a coluna e nullable: zero num campo de prazo nao e
+      // "zero dias", e "nao se aplica", que e exatamente o que nulo diz aqui.
+      // Traducao de formato, nao invencao.
+      const phaseDaysValue = {}
       for (const [src, dst] of phaseDays) {
         const v = int(r[src])
-        if (v !== null) g.require(v > 0, `${dst}: prazo ${v} (o check exige > 0; vazio e o jeito de dizer "nao se aplica")`)
+        if (v === 0) {
+          g.note(`${dst}: prazo 0 gravado NULO (o check exige > 0; nulo e como o schema diz "nao se aplica")`)
+          phaseDaysValue[dst] = null
+        } else {
+          if (v !== null) g.require(v > 0, `${dst}: prazo ${v} negativo`)
+          phaseDaysValue[dst] = v
+        }
       }
       if (date(r.start_date) && date(r.signature_date)) {
         g.require(date(r.start_date) >= date(r.signature_date), 'start_date anterior a signature_date')
       }
-      if (g.failed) { g.reject(); continue }
+      if (g.rejected) continue
 
       const row = {
         tenant_id: T(),
@@ -1195,12 +1387,12 @@ async function main() {
         installment_count: plan[0],
         first_due_date: plan[1],
         installment_frequency: plan[2],
-        installments_generated: bool(r.installments_generated) ?? false,
-        layout_study_days: int(r.prazo_estudo_layout),
-        renderings_days: int(r.prazo_perspectivas),
-        legal_permit_days: int(r.prazo_projeto_legal),
-        construction_docs_days: int(r.prazo_projeto_executivo),
-        engineering_docs_days: int(r.prazo_projetos_complementares),
+        installments_generated: installmentsGenerated,
+        layout_study_days: phaseDaysValue.layout_study_days,
+        renderings_days: phaseDaysValue.renderings_days,
+        legal_permit_days: phaseDaysValue.legal_permit_days,
+        construction_docs_days: phaseDaysValue.construction_docs_days,
+        engineering_docs_days: phaseDaysValue.engineering_docs_days,
         // Copia congelada do cliente no momento da assinatura. Diverge do
         // cadastro atual em 7 dos 69 — e o comportamento esperado.
         client_legal_name: txt(r.client_full_name),
@@ -1239,20 +1431,81 @@ async function main() {
   // -------------------------------------------------------------------------
   step(12, 'client_intakes  <- ClientIntake')
   stat('client_intakes').source = csv.ClientIntake.length
-  for (const r of csv.ClientIntake) {
-    const g = new RowGuard('client_intakes', r.id, r.nome || r.cliente_crm_name)
-    // A nossa coluna `token` e uuid e e a CREDENCIAL de um formulario publico.
-    // O base44 usa "<timestamp>-<sufixo>": 42 de 42 nao sao uuid. Gerar um uuid
-    // novo criaria uma credencial que nunca existiu — inventar credencial e
-    // pior do que perder o link. E o que se perde e proximo de zero: os 42 sao
-    // links criados, nunca abertos e ja expirados, com as 25 colunas de
-    // formulario 100% vazias.
-    g.reasons.push('token do base44 nao e uuid e a coluna token e uuid (gerar um novo seria inventar credencial de acesso publico)')
-    g.fk(ix.client, r.cliente_crm_id, 'cliente', 'cliente_crm_id')
-    g.fk(ix.negotiation, r.negociacao_id, 'negociacao', 'negociacao_id')
-    g.reject()
+  {
+    // O TOKEN: POR QUE ELE E GERADO NOVO, E O QUE ISSO SIGNIFICA
+    //
+    //   A nossa coluna `token` e uuid; o base44 usa "<timestamp>-<sufixo>" e 42
+    //   de 42 nao sao uuid. Na primeira passada isso derrubou as 42 linhas.
+    //
+    //   SEGUNDA PASSADA: o token e a credencial de um link PUBLICO que ja
+    //   EXPIROU — o mais novo dos 42 venceu em julho/2026. Ele nao vale nada
+    //   hoje, nem para quem tinha o link. O que tem valor e o registro do
+    //   briefing: para qual cliente, de qual negociacao, quando foi enviado e
+    //   se chegou a ser aberto.
+    //
+    //   Por isso cada linha recebe um uuid NOVO, gerado pelo banco no default
+    //   da coluna, e entra com status `expired` e o `expires_at` original (que
+    //   ja passou). O TOKEN NOVO NAO E O TOKEN ORIGINAL e NAO DEVE SER
+    //   DISTRIBUIDO: ele nao abre nada (open_client_intake confere expires_at e
+    //   status no servidor), e nao corresponde a nenhum link que alguem tenha
+    //   recebido um dia. Ele existe porque a coluna e `not null unique`, e nao
+    //   porque algum link novo foi criado.
+    //
+    //   O que NAO e recuperado: nenhuma resposta de formulario. As 25 colunas
+    //   de conteudo do briefing estao 100% vazias nas 42 linhas — os links
+    //   foram criados e nunca abertos (ultimo_status_validacao = CRIADO). O
+    //   conteudo importado e o registro do envio, nao o briefing preenchido,
+    //   porque briefing preenchido nao existe neste export.
+    for (const r of csv.ClientIntake) {
+      const g = new RowGuard('client_intakes', r.id, r.cliente_crm_name || r.negociacao_name)
+      const status = g.enum('client_intake_status', r.status, 'status')
+      const validation = g.enum('client_intake_validation_status', r.ultimo_status_validacao, 'ultimo_status_validacao')
+      // client_id e NOT NULL: orfao aqui continua derrubando a linha.
+      const clientId = g.fk(ix.client, r.cliente_crm_id, 'cliente', 'cliente_crm_id')
+      const negotiationId = g.softFk(ix.negotiation, r.negociacao_id, 'negociacao', 'negociacao_id')
+      const createdAt = ts(r.criado_em) ?? ts(r.created_date)
+      const expiresAt = ts(r.expira_em)
+      g.require(createdAt !== null, 'criado_em e created_date vazios (created_at e NOT NULL)')
+      g.require(expiresAt !== null, 'expira_em vazio (expires_at e NOT NULL)')
+      if (createdAt && expiresAt) {
+        g.require(expiresAt > createdAt, 'expira_em anterior a criacao (check client_intakes_expires_after_creation)')
+      }
+
+      // Link vencido e link vencido, independente do que o base44 gravou em
+      // `status` (as 42 dizem `Ativo` porque o base44 so muda o status quando
+      // alguem tenta abrir). Marcar `expired` nao inventa nada: e o que
+      // expires_at ja diz, escrito tambem na coluna que a tela le.
+      const expired = expiresAt !== null && expiresAt <= new Date().toISOString()
+      if (expired && status !== 'expired') {
+        g.note(`status "${r.status}" gravado como expired — o link venceu em ${expiresAt.slice(0, 10)}`)
+      }
+      g.note('token do base44 descartado e substituido por uuid novo gerado pelo banco: o token novo NAO e o link original e nao deve ser distribuido')
+      if (g.rejected) continue
+
+      const row = {
+        tenant_id: T(),
+        legacy_id: r.id,
+        // `token` fica FORA do payload de proposito: o default da coluna e
+        // gen_random_uuid(), e deixar o banco gerar e o unico caminho em que
+        // ninguem — nem este script, nem o log dele — chega a escolher o valor.
+        negotiation_id: negotiationId,
+        client_id: clientId,
+        status: expired ? 'expired' : (status ?? 'active'),
+        expires_at: expiresAt,
+        submitted_at: null, // nenhuma das 42 foi enviada
+        country: txt(r.pais) ?? 'Brasil',
+        last_validation_status: validation ?? 'created',
+        // link_publico nao entra: URL absoluta do dominio do original.
+        created_at: createdAt,
+        updated_at: ts(r.updated_date),
+      }
+      const res = await insertOne('client_intakes', row, 'tenant_id,legacy_id')
+      if (res.error) { pend('client_intakes', r.id, `erro do banco: ${res.error.message}`, r.cliente_crm_name); continue }
+      stat('client_intakes').consumed += 1
+      stat('client_intakes').written += 1
+    }
+    log(`  ${stat('client_intakes').written} de ${csv.ClientIntake.length}  (token novo, registro expirado)`)
   }
-  log(`  0 de ${csv.ClientIntake.length}  (todos para pendencias — ver o motivo no relatorio)`)
 
   // -------------------------------------------------------------------------
   // Passo 13 — projects
@@ -1262,17 +1515,58 @@ async function main() {
   for (const r of csv.Project) {
     const g = new RowGuard('projects', r.id, r.name)
     // project_type e NOT NULL e 18 linhas trazem a LISTA DE SERVICOS da
-    // negociacao ("Arquitetura, Estrutura, Hidrosanitario, Eletrico"), nao um
-    // tipo de contrato. Nao ha traducao possivel sem adivinhar.
-    const projectType = g.enum('contract_type', r.project_type, 'project_type')
+    // negociacao ("Arquitetura, Estrutura, Hidrosanitario, Eletrico"), em 8
+    // grafias, nao um tipo de contrato.
+    //
+    // SEGUNDA PASSADA: nao e dado ausente, e formato ruim — e a lista tem
+    // dentro dela exatamente o que os quatro valores de contract_type
+    // descrevem. O criterio (escrito em docs/ENUM-MAP.md) le o CONJUNTO de
+    // servicos, nao a string:
+    //
+    //   tem Interiores E algum complementar (Estrutura/Hidro/Eletrico) -> full
+    //   tem Interiores e nenhum complementar        -> architecture_interiors
+    //   tem complementar e nao tem Interiores       -> architecture_engineering
+    //   so Arquitetura                              -> architecture
+    //
+    // E o mesmo significado dos quatro rotulos do original ("Arquitetura +
+    // Complementares", "Arquitetura + Interiores", "Todos"), lido do conjunto e
+    // nao da ordem — as 8 grafias sao 4 conjuntos escritos em ordens
+    // diferentes. Nada e adivinhado: o conjunto esta escrito na propria celula.
+    //
+    // OS DEMAIS SERVICOS NAO SE PERDEM em 15 dos 18: esses projetos tem
+    // contrato, o contrato tem negociacao, e a lista de servicos daquela
+    // negociacao e IDENTICA a string — ela ja entrou linha a linha em
+    // negotiation_services (passo 9). Nos outros 3 nao ha contrato nem
+    // negociacao, e `projects` nao tem tabela-filha de servico: neles a lista
+    // sobrevive so como o tipo escolhido, e o texto original fica nos AJUSTES.
+    let projectType = null
+    if (r.project_type.includes(',')) {
+      const services = r.project_type.split(',').map((s) => s.trim()).filter(Boolean)
+      const unknown = services.filter((s) => !Object.prototype.hasOwnProperty.call(ENUMS.service_type, s))
+      if (unknown.length > 0) {
+        g.reasons.push(`project_type: lista com servico fora do de/para: ${unknown.join(', ')}`)
+      } else {
+        const set = new Set(services.map((s) => ENUMS.service_type[s]))
+        const hasInteriors = set.has('interiors')
+        const hasEngineering = ['structural', 'plumbing', 'electrical'].some((s) => set.has(s))
+        projectType = hasInteriors && hasEngineering ? 'full'
+          : hasInteriors ? 'architecture_interiors'
+            : hasEngineering ? 'architecture_engineering'
+              : 'architecture'
+        g.note(`project_type "${r.project_type}" (lista de servicos) lido como ${projectType}`)
+      }
+    } else {
+      projectType = g.enum('contract_type', r.project_type, 'project_type')
+    }
     const status = g.enum('project_status', r.status, 'status')
     const phase = g.enum('project_phase', r.fase_projeto_atual, 'fase_projeto_atual')
     const geocode = g.enum('geocode_status', r.obra_geocode_status, 'obra_geocode_status')
-    const clientId = g.fk(ix.client, r.client_id, 'cliente', 'client_id')
-    const contractId = g.fk(ix.contract, r.contract_id, 'contrato', 'contract_id')
-    const operational = g.fk(ix.collaborator, r.responsible_id, 'colaborador', 'responsible_id')
-    const commercial = g.fk(ix.collaborator, r.commercial_responsible_id, 'colaborador', 'commercial_responsible_id')
-    const pinBy = g.fk(ix.collaborator, r.obra_pin_updated_by, 'colaborador', 'obra_pin_updated_by')
+    // Os cinco sao nullable: orfao vira nulo, cascata continua derrubando.
+    const clientId = g.softFk(ix.client, r.client_id, 'cliente', 'client_id')
+    const contractId = g.softFk(ix.contract, r.contract_id, 'contrato', 'contract_id')
+    const operational = g.softFk(ix.collaborator, r.responsible_id, 'colaborador', 'responsible_id')
+    const commercial = g.softFk(ix.collaborator, r.commercial_responsible_id, 'colaborador', 'commercial_responsible_id')
+    const pinBy = g.softFk(ix.collaborator, r.obra_pin_updated_by, 'colaborador', 'obra_pin_updated_by')
     g.require(txt(r.name) !== null, 'name vazio (NOT NULL)')
     g.require(txt(r.project_type) !== null, 'project_type vazio (NOT NULL)')
     if (phase !== null) g.require(phase !== 'post_approval', 'current_phase = Pos-aprovacao (barrado por check em projects)')
@@ -1286,7 +1580,7 @@ async function main() {
       const v = int(r[src])
       if (v !== null) g.require(v > 0, `${dst}: prazo ${v} (o check exige > 0)`)
     }
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const lat = num(r.obra_lat)
     const lng = num(r.obra_lng)
@@ -1407,15 +1701,33 @@ async function main() {
   stat('tasks').source = csv.Task.length
   for (const r of csv.Task) {
     const g = new RowGuard('tasks', r.id, r.title)
-    // 36 linhas trazem fase que o base44 nunca declarou ("Estudo preliminar",
-    // "Em Obra", "Anteprojeto", "Executivo"). Nenhuma vira fase existente por
-    // deducao: "Executivo" PARECE "Projeto Executivo", e parecer nao basta.
-    const phase = g.enum('project_phase', r.phase, 'phase')
+    // As fases e os status que o base44 nunca declarou entraram no de/para na
+    // segunda passada, com o criterio escrito no bloco ENUMS e em
+    // docs/ENUM-MAP.md. `Em Obra` (14 linhas) e a unica que ficou de fora, e
+    // fica com motivo proprio: nao e lacuna de mapeamento, e falta de valor no
+    // enum do banco.
+    const phase = r.phase.trim() === 'Em Obra'
+      ? (g.reasons.push(
+          'phase "Em Obra": fase de obra que o enum project_phase nao tem. ' +
+            'O equivalente seria post_approval, barrado em tasks pelo check ' +
+            'tasks_phase_not_post_approval. Entrar exige MIGRATION (valor novo no enum ' +
+            'ou soltar o check) — decisao do usuario, nao do script.',
+        ), null)
+      : g.enum('project_phase', r.phase, 'phase')
     const status = g.enum('work_status', r.status, 'status')
     const priority = g.enum('priority_level', r.priority, 'priority')
     const taskType = g.enum('task_type', r.task_type, 'task_type')
-    const projectId = g.fk(ix.project, r.project_id, 'projeto', 'project_id')
-    const responsibleId = g.fk(ix.collaborator, r.responsible_id, 'colaborador', 'responsible_id')
+    // Os dois sao nullable: ponteiro para projeto/colaborador que nao existe em
+    // lugar nenhum do export vira nulo e a tarefa entra. Tarefa sem projeto e
+    // caso previsto no original (Tasks.jsx confere project_id antes de usar).
+    const projectId = g.softFk(ix.project, r.project_id, 'projeto', 'project_id')
+    const responsibleId = g.softFk(ix.collaborator, r.responsible_id, 'colaborador', 'responsible_id')
+    // A nuance que se perde nas duas linhas de status `Em revisão` / `Em espera
+    // cliente`, e nas 13 de tag_operacional: o schema nao tem onde dizer
+    // "parada esperando alguem".
+    if (txt(r.tag_operacional) !== null) {
+      g.note(`tag_operacional "${r.tag_operacional.trim()}" descartada: sem coluna no nosso schema`)
+    }
     g.require(txt(r.title) !== null, 'title vazio (NOT NULL)')
     if (phase !== null) {
       g.require(phase !== 'finished', 'phase = Finalizado (so existe em Project, barrado por check em tasks)')
@@ -1430,7 +1742,7 @@ async function main() {
     if (date(r.due_date) && date(r.start_date)) {
       g.require(date(r.due_date) >= date(r.start_date), 'due_date anterior a start_date')
     }
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -1530,13 +1842,18 @@ async function main() {
     const g = new RowGuard('activities', r.id, r.descricao?.slice(0, 60))
     const status = g.enum('work_status', r.status, 'status')
     const priority = g.enum('priority_level', r.prioridade, 'prioridade')
+    // collaborator_id e NOT NULL — orfao continua derrubando. Os outros cinco
+    // sao nullable: orfao vira nulo e a atividade entra.
     const collaboratorId = g.fk(ix.collaborator, r.colaborador_id, 'colaborador', 'colaborador_id')
-    const coordinatorId = g.fk(ix.collaborator, r.coordenador_id, 'colaborador', 'coordenador_id')
-    const startedBy = g.fk(ix.collaborator, r.iniciado_por, 'colaborador', 'iniciado_por')
-    const completedBy = g.fk(ix.collaborator, r.concluido_por, 'colaborador', 'concluido_por')
+    const coordinatorId = g.softFk(ix.collaborator, r.coordenador_id, 'colaborador', 'coordenador_id')
+    const startedBy = g.softFk(ix.collaborator, r.iniciado_por, 'colaborador', 'iniciado_por')
+    const completedBy = g.softFk(ix.collaborator, r.concluido_por, 'colaborador', 'concluido_por')
+    // deleted_by nao pode virar nulo sozinho: o check activities_deleted_pair
+    // exige que deleted_at e deleted_by andem juntos, e nulificar so um lado
+    // "desapagaria" a atividade.
     const deletedBy = g.fk(ix.collaborator, r.usuario_exclusao_id, 'colaborador', 'usuario_exclusao_id')
-    const projectId = g.fk(ix.project, r.projeto_id, 'projeto', 'projeto_id')
-    const clientId = g.fk(ix.client, r.cliente_id, 'cliente', 'cliente_id')
+    const projectId = g.softFk(ix.project, r.projeto_id, 'projeto', 'projeto_id')
+    const clientId = g.softFk(ix.client, r.cliente_id, 'cliente', 'cliente_id')
     g.require(txt(r.descricao) !== null, 'descricao vazia (NOT NULL)')
     g.require(txt(r.colaborador_id) !== null, 'colaborador_id vazio (NOT NULL)')
     g.require(date(r.prazo_inicio) !== null, 'prazo_inicio vazio (NOT NULL)')
@@ -1556,7 +1873,7 @@ async function main() {
       (ts(r.data_exclusao) !== null) === (txt(r.usuario_exclusao_id) !== null),
       'exclusao logica sem o par completo (deleted_at e deleted_by andam juntos)',
     )
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -1600,7 +1917,7 @@ async function main() {
     const costCenter = g.enum('cost_center', r.cost_center, 'cost_center')
     g.require(txt(r.name) !== null, 'name vazio (NOT NULL)')
     g.require(txt(r.type) !== null, 'type vazio (NOT NULL)')
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
     const row = {
       tenant_id: T(),
       legacy_id: r.id,
@@ -1627,9 +1944,9 @@ async function main() {
     const g = new RowGuard('accounts_receivable', r.id, r.description?.slice(0, 60))
     const status = g.enum('financial_status', r.status, 'status')
     const method = g.enum('payment_method', r.payment_method, 'payment_method')
-    const clientId = g.fk(ix.client, r.client_id, 'cliente', 'client_id')
-    const contractId = g.fk(ix.contract, r.contract_id, 'contrato', 'contract_id')
-    const projectId = g.fk(ix.project, r.project_id, 'projeto', 'project_id')
+    const clientId = g.softFk(ix.client, r.client_id, 'cliente', 'client_id')
+    const contractId = g.softFk(ix.contract, r.contract_id, 'contrato', 'contract_id')
+    const projectId = g.softFk(ix.project, r.project_id, 'projeto', 'project_id')
     g.require(txt(r.description) !== null, 'description vazia (NOT NULL)')
     g.require(date(r.due_date) !== null, 'due_date vazia (NOT NULL)')
     const value = num(r.value)
@@ -1649,14 +1966,19 @@ async function main() {
     if (raw !== '') {
       const m = /^(\d+)\s*\/\s*(\d+)$/.exec(raw)
       if (!m) {
-        g.reasons.push(`installment_number "${raw}" fora do formato "n/total" (o par numero+total e obrigatorio)`)
+        // 1 linha em 279 traz so "1", sem o total. O check
+        // accounts_receivable_installment_pair exige os dois ou nenhum, e o
+        // total nao esta em lugar nenhum — deduzi-lo do plano do contrato seria
+        // inventar. Entra sem o par, que e o que se sabe: nao ha total
+        // registrado. O valor cru fica nos AJUSTES.
+        g.note(`installment_number "${raw}" sem o total: par numero+total gravado NULO (o check exige os dois ou nenhum)`)
       } else {
         installmentNumber = Number(m[1])
         installmentTotal = Number(m[2])
         g.require(installmentNumber >= 1 && installmentNumber <= installmentTotal, `parcela ${raw} fora da faixa`)
       }
     }
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -1705,7 +2027,7 @@ async function main() {
       const category = g.enum('expense_category', r.category, 'category')
       const frequency = g.enum('recurrence_frequency', r.recurrence_frequency, 'recurrence_frequency')
       const recurrenceStatus = g.enum('recurrence_status', r.recurrence_status, 'recurrence_status')
-      const projectId = g.fk(ix.project, r.project_id, 'projeto', 'project_id')
+      const projectId = g.softFk(ix.project, r.project_id, 'projeto', 'project_id')
       const parentId = g.fk(ix.payable, r.recurrence_parent_id, 'conta a pagar', 'recurrence_parent_id')
       g.require(txt(r.supplier) !== null, 'supplier vazio (supplier_name e NOT NULL)')
       g.require(txt(r.description) !== null, 'description vazia (NOT NULL)')
@@ -1726,11 +2048,21 @@ async function main() {
         g.require(date(r.recurrence_start_date) !== null, 'is_recurring=true sem recurrence_start_date')
       }
       if (parentId !== null) g.require(isRecurring === false, 'ocorrencia marcada como is_recurring=true')
-      if (date(r.recurrence_end_date) && date(r.recurrence_start_date)) {
-        g.require(
-          date(r.recurrence_end_date) >= date(r.recurrence_start_date),
-          'recurrence_end_date anterior a recurrence_start_date',
+      // FIM DE RECORRENCIA ANTERIOR AO INICIO — 3 maes, todas com o fim caindo
+      // em janeiro e o inicio meses depois. Uma data que termina antes de
+      // comecar nao descreve nada, e o check a recusa. O fim entra NULO ("nao ha
+      // termino confiavel registrado") e o valor original vai para os AJUSTES;
+      // recusar a linha inteira tiraria da carteira uma despesa real, com valor
+      // e vencimento corretos. Nada e gerado a partir disso: ocorrencia so
+      // nasce quando alguem cria a conta pela tela (useCreatePayable), nunca a
+      // partir de linha importada.
+      let recurrenceEnd = date(r.recurrence_end_date)
+      if (recurrenceEnd && date(r.recurrence_start_date) && recurrenceEnd < date(r.recurrence_start_date)) {
+        g.note(
+          `recurrence_end_date ${recurrenceEnd} e anterior ao inicio ${date(r.recurrence_start_date)}: ` +
+            'gravado NULO (o check exige fim >= inicio)',
         )
+        recurrenceEnd = null
       }
 
       // competence_month vem como TEXTO "MM/AAAA"; a coluna e `date` com check
@@ -1738,12 +2070,20 @@ async function main() {
       const rawCompetence = (r.competence_month ?? '').trim()
       let competence = null
       if (rawCompetence !== '') {
-        const m = /^(\d{2})\/(\d{4})$/.exec(rawCompetence)
+        // "MMAAAA" sem a barra (2 linhas, ambas "012026") e a MESMA competencia
+        // escrita sem separador — traducao de formato, nao deducao: os seis
+        // digitos ja dizem mes e ano, na mesma ordem do formato bom.
+        const m = /^(\d{2})\/?(\d{4})$/.exec(rawCompetence)
         if (!m) g.reasons.push(`competence_month "${rawCompetence}" fora do formato MM/AAAA`)
         else if (Number(m[1]) < 1 || Number(m[1]) > 12) g.reasons.push(`competence_month "${rawCompetence}" com mes invalido`)
-        else competence = `${m[2]}-${m[1]}-01`
+        else {
+          competence = `${m[2]}-${m[1]}-01`
+          if (!rawCompetence.includes('/')) {
+            g.note(`competence_month "${rawCompetence}" lido como ${m[1]}/${m[2]} (mesma competencia, sem a barra)`)
+          }
+        }
       }
-      if (g.failed) { g.reject(); continue }
+      if (g.rejected) continue
 
       const row = {
         tenant_id: T(),
@@ -1761,7 +2101,7 @@ async function main() {
         is_recurring: isRecurring,
         recurrence_frequency: frequency,
         recurrence_start_date: date(r.recurrence_start_date),
-        recurrence_end_date: date(r.recurrence_end_date),
+        recurrence_end_date: recurrenceEnd,
         recurrence_count: int(r.recurrence_count),
         recurrence_parent_id: parentId,
         recurrence_status: recurrenceStatus,
@@ -1785,24 +2125,39 @@ async function main() {
   stat('suppliers').source = csv.Fornecedor.length
   for (const r of csv.Fornecedor) {
     const g = new RowGuard('suppliers', r.id, r.nome)
-    const category = g.enum('supplier_category', r.tipologia, 'tipologia')
+    // tipologia vazia (1 em 37) e `category` e NOT NULL. `other` ("Outros") e o
+    // valor que a propria lista do base44 oferece para fornecedor sem
+    // classificacao, e dois fornecedores ja o usam: nao afirma categoria
+    // nenhuma, so registra que nao ha uma. O ajuste fica no relatorio.
+    let category = null
+    if (txt(r.tipologia) === null) {
+      g.note('tipologia vazia gravada como other/Outros (category e NOT NULL; other e o valor de "sem classificacao")')
+      category = 'other'
+    } else {
+      category = g.enum('supplier_category', r.tipologia, 'tipologia')
+    }
     const model = g.enum('partnership_model', r.modelo_parceria, 'modelo_parceria')
     const term = g.enum('commission_payment_term', r.prazo_pagamento_comissao, 'prazo_pagamento_comissao')
     const tier = g.enum('partnership_tier', r.nivel_parceria, 'nivel_parceria')
     const status = g.enum('supplier_status', r.status, 'status')
     g.require(txt(r.nome) !== null, 'nome vazio (NOT NULL)')
-    g.require(txt(r.tipologia) !== null, 'tipologia vazia (category e NOT NULL)')
     g.require(txt(r.contato_whatsapp) !== null, 'contato_whatsapp vazio (NOT NULL)')
     if (category !== null) {
+      // 1 fornecedor tem `Revestimento de Fachada`, uma das quatro tipologias
+      // que o suppliers_category_domain_check barra. NAO vira `other`: a
+      // tipologia e real e conhecida, e trocar por "Outros" apagaria um fato que
+      // o escritorio registrou. Destravar exige MIGRATION (soltar o check) —
+      // decisao do usuario. Continua em pendencias com este motivo.
       g.require(
         !['facade_cladding', 'pool_cladding', 'waterproofing', 'drywall_plaster'].includes(category),
-        `tipologia "${r.tipologia}" so vale em item de orcamento (suppliers_category_domain_check)`,
+        `tipologia "${r.tipologia}" so vale em item de orcamento (suppliers_category_domain_check). ` +
+          'A tipologia e real: destravar exige MIGRATION que solte o check, nao traducao.',
       )
     }
     if (txt(r.contato_email) !== null) {
       g.require(EMAIL_RE.test(r.contato_email.trim()), `contato_email "${r.contato_email.trim()}" fora do formato aceito`)
     }
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -1891,7 +2246,7 @@ async function main() {
     if (date(r.data_inicio) && date(r.data_conclusao)) {
       g.require(date(r.data_conclusao) >= date(r.data_inicio), 'data_conclusao anterior a data_inicio')
     }
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -1943,7 +2298,7 @@ async function main() {
     g.require(legacy !== '', 'item_id vazio (sem legacy_id nao ha idempotencia)')
     const clientApproved = it.aprovado_cliente === true
     if (date(it.data_aprovacao)) g.require(clientApproved, 'data_aprovacao sem aprovado_cliente')
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -2033,8 +2388,12 @@ async function main() {
   for (const r of csv.PropriedadeMapa) {
     const g = new RowGuard('map_properties', r.id, r.project_label || r.client_label || r.address?.slice(0, 40))
     const visual = g.enum('map_visual_status', r.status_visual, 'status_visual')
-    const projectId = g.fk(ix.project, r.project_id, 'projeto', 'project_id')
-    const clientId = g.fk(ix.client, r.client_id, 'cliente', 'client_id')
+    // Nullable, e o pino tem rotulo de texto para quando nao ha vinculo: pino
+    // apontando para projeto/cliente que nao existe no export entra sem vinculo,
+    // e o rotulo (project_label/client_label) assume, como ja acontece nas 201
+    // linhas que nunca tiveram vinculo.
+    const projectId = g.softFk(ix.project, r.project_id, 'projeto', 'project_id')
+    const clientId = g.softFk(ix.client, r.client_id, 'cliente', 'client_id')
     const lat = num(r.lat)
     const lng = num(r.lng)
     g.require(lat !== null && lng !== null, 'lat/lng vazios (NOT NULL)')
@@ -2048,7 +2407,7 @@ async function main() {
       const v = num(r[k])
       if (v !== null) g.require(v > 0, `${k} = ${v} (o check exige > 0)`)
     }
-    if (g.failed) { g.reject(); continue }
+    if (g.rejected) continue
 
     const row = {
       tenant_id: T(),
@@ -2282,6 +2641,37 @@ function writePendencies() {
 
   lines.push('')
   lines.push('='.repeat(78))
+  lines.push('AJUSTES APLICADOS (a linha ENTROU, com o campo traduzido ou nulo)')
+  lines.push('='.repeat(78))
+  lines.push('Nao sao pendencia. Sao as diferencas entre o que o base44 tinha e o que o')
+  lines.push('banco passou a ter, uma a uma, para que nenhuma traducao aconteca em silencio.')
+  lines.push('Tres familias: ponteiro orfao gravado NULO (o alvo nao existe em lugar nenhum')
+  lines.push('do export), valor traduzido pelo de/para novo de docs/ENUM-MAP.md, e formato')
+  lines.push('convertido (competencia sem barra, prazo 0, parcela sem total).')
+  lines.push('')
+  {
+    const byWhat = new Map()
+    for (const a of adjustments) {
+      const key = `${a.entity} :: ${a.what.replace(/\b[0-9a-f]{24}\b/g, '<id>')}`
+      byWhat.set(key, (byWhat.get(key) ?? 0) + 1)
+    }
+    lines.push('--- resumo ---')
+    for (const [key, n] of [...byWhat.entries()].sort((a, b) => b[1] - a[1])) {
+      lines.push(`${String(n).padStart(5)}  ${key}`)
+    }
+  }
+  for (const [entity, rows] of [...adjByEntity.entries()].sort()) {
+    lines.push('')
+    lines.push(`--- ${entity}  (${rows.length} ajuste(s)) ${'-'.repeat(Math.max(0, 46 - entity.length))}`)
+    for (const r of rows) {
+      lines.push(`  ${r.legacyId}  ${r.label ? `[${r.label}]  ` : ''}${r.what}`)
+    }
+  }
+  lines.push('')
+  lines.push(`total: ${adjustments.length} ajustes`)
+
+  lines.push('')
+  lines.push('='.repeat(78))
   lines.push('CONFLITOS DE PERMISSAO RESOLVIDOS PELO MAIS RESTRITIVO')
   lines.push('='.repeat(78))
   lines.push('Nao sao pendencia: a linha entrou. Sao os casos em que o mesmo menu foi')
@@ -2474,8 +2864,55 @@ async function verify(tenantId, credentials) {
     const ok = expected === observed
     const fmt = (c) => (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     log(`   ${ok ? 'ok  ' : 'FALHA'} ${table.padEnd(22)} banco=${fmt(observed).padStart(16)}  csv(importadas)=${fmt(expected).padStart(16)}`)
-    log(`        ${entity}: ficou de fora ${fmt(pendedMoney)} em ${sourceRows.length - inDb.size} linha(s) pendente(s)`)
+    log(`        ${entity}: CSV inteiro ${fmt(expected + pendedMoney)} — ficou de fora ${fmt(pendedMoney)} em ${sourceRows.length - inDb.size} linha(s) pendente(s)`)
     if (!ok) problems.push(`${table}: soma do banco ${fmt(observed)} != soma do CSV ${fmt(expected)}`)
+  }
+
+  // 4b. a tabela do diagnostico, relida do banco -----------------------------
+  //
+  // Uma linha por entidade que o Diretor abre na tela, com o que o CSV tem e o
+  // que o banco tem AGORA. `falta` e a diferenca, e cada unidade dela precisa
+  // ter um motivo no relatorio de pendencias.
+  log('\n4b. carteira: CSV x banco, entidade por entidade')
+  {
+    const CARTEIRA = [
+      ['Tarefas', 'Task', 'tasks'],
+      ['A receber', 'AccountReceivable', 'accounts_receivable'],
+      ['Briefings', 'ClientIntake', 'client_intakes'],
+      ['Mapa', 'PropriedadeMapa', 'map_properties'],
+      ['Atividades', 'Atividade', 'activities'],
+      ['Negociacoes', 'Negociacao', 'negotiations'],
+      ['Projetos', 'Project', 'projects'],
+      ['Solicitacoes', 'SolicitacaoAcesso', 'access_requests'],
+      ['A pagar', 'AccountPayable', 'accounts_payable'],
+      ['Contratos', 'Contract', 'contracts'],
+      ['Clientes', 'Client', 'clients'],
+      ['Colaboradores', 'Collaborator', 'collaborators'],
+      ['Fornecedores', 'Fornecedor', 'suppliers'],
+    ]
+    log(`   ${'entidade'.padEnd(16)}${'CSV'.padStart(6)}${'banco'.padStart(7)}${'falta'.padStart(7)}`)
+    let missing = 0
+    for (const [label, entity, table] of CARTEIRA) {
+      const source = csv[entity].length
+      const { count, error } = await db
+        .from(table)
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+      if (error) { problems.push(`${table}: nao consegui contar (${error.message})`); continue }
+      const gap = source - count
+      missing += gap
+      log(
+        `   ${label.padEnd(16)}${String(source).padStart(6)}${String(count).padStart(7)}` +
+          `${(gap === 0 ? '-' : String(gap)).padStart(7)}`,
+      )
+      // A diferenca precisa ser exatamente o que o relatorio de pendencias
+      // explica. Sobra sem motivo escrito e defeito, nao decisao.
+      const pended = (pendByEntity.get(table) ?? []).length
+      if (gap !== pended) {
+        problems.push(`${table}: faltam ${gap} linhas e o relatorio explica ${pended}`)
+      }
+    }
+    log(`   ${'TOTAL'.padEnd(16)}${''.padStart(6)}${''.padStart(7)}${String(missing).padStart(7)}`)
   }
 
   // 5. contas de acesso ------------------------------------------------------
@@ -2513,6 +2950,19 @@ function summary() {
     log(`  ${String(n).padStart(5)}  ${key}`)
   }
   log(`\n  TOTAL: ${pendencies.length} linhas recusadas`)
+
+  log('\n' + '='.repeat(78))
+  log('RESUMO DE AJUSTES POR TIPO (a linha ENTROU)')
+  log('='.repeat(78))
+  const byWhat = new Map()
+  for (const a of adjustments) {
+    const key = `${a.entity} :: ${a.what.split(':')[0].replace(/\b[0-9a-f]{24}\b/g, '<id>')}`
+    byWhat.set(key, (byWhat.get(key) ?? 0) + 1)
+  }
+  for (const [key, n] of [...byWhat.entries()].sort((a, b) => b[1] - a[1])) {
+    log(`  ${String(n).padStart(5)}  ${key}`)
+  }
+  log(`\n  TOTAL: ${adjustments.length} ajustes`)
   log('  Detalhe linha a linha em scripts/import-pendencias.local (nao versionado).')
   log('')
 }

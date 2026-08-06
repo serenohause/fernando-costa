@@ -860,6 +860,22 @@ nullable já expressa isso — mas alguém digitou 0 em vez de deixar vazio.
 
 ## 9. Decisões que o usuário precisa tomar antes de o script ser escrito
 
+> **Estado depois da 2ª passada da importação.** A régua da 1ª passada
+> ("linha órfã nunca aponta para nulo") recusou 398 linhas das 1.756 das onze
+> entidades principais, e a maior parte delas caiu por cascata, não por
+> defeito. A 2ª passada trocou a régua por: *ponteiro órfão em coluna que
+> aceita nulo entra como nulo* (a ausência é a verdade), *cascata continua
+> derrubando* (o vínculo é real e volta na re-execução) e *tradução de formato
+> é feita e registrada*. Sobraram **94 linhas**, todas com motivo escrito.
+>
+> Resolvidos por essa passada: itens 1 (parcialmente — `Em Obra` não), 2, 8,
+> 10 (parcialmente — `Revestimento de Fachada` não). Continuam abertos, e
+> **todos exigem migration**: `Task.phase = Em Obra` (14 linhas),
+> `Fornecedor.tipologia = Revestimento de Fachada` (1), o item 13 inteiro
+> (concluído/pago sem data: 15 recebíveis, 2 pagáveis, 9 atividades, 1 tarefa)
+> e o item 14 (4 recebíveis com valor zero). Detalhe do critério de cada
+> tradução em `docs/ENUM-MAP.md`, seção "O que a 2ª passada NÃO acrescentou".
+
 Em ordem de quanto travam:
 
 1. **Os 4 valores de `Task.phase` fora do enum** (36 tarefas): `Estudo

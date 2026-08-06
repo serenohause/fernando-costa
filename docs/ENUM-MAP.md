@@ -8,6 +8,17 @@
 > chegar do base44 e não estiver nesta tabela derruba a importação daquela
 > linha e vai para um relatório de pendências — nunca vira `other` no
 > silêncio.
+>
+> **Segunda passada da importação.** O de/para nasceu das declarações `enum`
+> das 16 entidades do base44, e o dado real trouxe 14 valores que a operação
+> digitou e que nenhuma entidade declara. Isso não é o dado estar errado: é o
+> de/para estar incompleto, porque o base44 não valida enum na escrita e o que
+> a operação usa no dia a dia é maior do que o que a entidade declara. As
+> entradas marcadas **(2ª passada)** abaixo foram acrescentadas com esse
+> critério, e cada uma tem escrito **por que aquele destino e não outro** — o
+> critério é sempre o significado no domínio, nunca a semelhança de string.
+> Onde não existia destino honesto, o valor **não** entrou no de/para e a linha
+> continua em pendências.
 
 Cada tabela ganha `legacy_id text` com o id original do base44, e
 `unique (tenant_id, legacy_id)`. É por ele que as ligações entre tabelas são
@@ -110,6 +121,13 @@ Coordenador). Não vira linha em `menus`.
 | Indicação | `referral` | Indicação |
 | Site | `website` | Site |
 | Outros | `other` | Outros |
+| **WhatsApp** (2ª passada) | `other` | Outros |
+
+`WhatsApp` é canal real do escritório e a lista fechada do base44 não o tem.
+`other` é o valor que a própria lista oferece para "canal que não está aqui", e
+escrito nesta tabela ele deixa de ser um `other` calado — que é o que a regra
+proíbe. Um valor `whatsapp` próprio seria migration de enum, e migration com
+dado real dentro é decisão do usuário. 1 linha.
 
 ### `client_type`
 
@@ -117,6 +135,12 @@ Coordenador). Não vira linha em `menus`.
 |---|---|---|
 | Pessoa Física | `individual` | Pessoa Física |
 | Pessoa Jurídica | `company` | Pessoa Jurídica |
+| **Lead** / **lead** (2ª passada) | — (nulo) | — |
+
+`Lead` não é tipo de pessoa: é estágio de funil, e o funil já vive em
+`negotiations`. A coluna `clients.client_type` aceita nulo, e nulo diz
+exatamente o que se sabe dessas 2 linhas — o tipo de pessoa não foi informado.
+Escolher `individual` ou `company` seria inventar o documento da pessoa.
 
 ---
 
@@ -132,6 +156,19 @@ Coordenador). Não vira linha em `menus`.
 | Hidrosanitário | `plumbing` | Hidrosanitário |
 | Elétrico | `electrical` | Elétrico |
 | Consultoria | `consulting` | Consultoria |
+| **Projeto de Arquitetura** (2ª passada) | `architecture` | Arquitetura |
+| **Complementares** (2ª passada) | — (não vira linha) | — |
+
+`Projeto de Arquitetura` é o rótulo que `Contract` usa para o mesmo conceito —
+a mesma unificação de rótulo que a seção Contratos já descreve, agora do lado
+do serviço. Na única linha em que aparece, `Arquitetura` também está na lista;
+a deduplicação por `(negotiation_id, service_type)` resolve.
+
+`Complementares` é o guarda-chuva de Estrutura + Hidrosanitário + Elétrico, e
+na única linha em que aparece **os três já estão listados um a um ao lado
+dele**. Expandir em três linhas inventaria três serviços onde o escritório
+registrou um rótulo; escolher um dos três seria pior. Não vira linha, e o
+descarte fica registrado na seção AJUSTES do relatório de importação.
 
 ### `negotiation_status`
 
@@ -199,6 +236,10 @@ texto livre acumula grafia divergente até ninguém conseguir agrupar por ela.
 | — | `submitted` | Enviado com sucesso |
 | TOKEN_VAZIO | — (não importável) | — |
 | NAO_ENCONTRADO | — (não importável) | — |
+| **(vazio)** (2ª passada) | `created` | Link criado |
+
+Uma das 42 linhas tem o campo vazio; as outras 41 dizem `CRIADO`. `created` é o
+que aconteceu com ela também — o link foi criado e nunca foi aberto.
 
 `TOKEN_VAZIO` e `NAO_ENCONTRADO` descrevem uma tentativa em que **nenhuma
 linha foi encontrada**, então não existe linha onde gravá-los — no original
@@ -221,6 +262,34 @@ tem equivalente no base44, onde o sucesso do envio só aparece na mudança de
 
 O rótulo difere entre as duas entidades no original ("Projeto de
 Arquitetura" vs "Arquitetura") para o mesmo conceito. A importação unifica.
+
+#### `Project.project_type` com **lista de serviços** (2ª passada)
+
+18 dos 73 projetos não trazem um dos quatro rótulos acima: trazem a lista de
+serviços da negociação, serializada com vírgula, em 8 grafias que descrevem 4
+conjuntos (as mesmas cinco palavras em ordens diferentes). Não é dado ausente
+— é `Negociacao.tipo_servico` no campo errado, e o conjunto que os quatro
+valores descrevem está escrito dentro da própria célula.
+
+**Critério (lê o conjunto de serviços, nunca a ordem nem a string):**
+
+| Conjunto de serviços na célula | `project_type` |
+|---|---|
+| tem Interiores **e** algum complementar (Estrutura/Hidrosanitário/Elétrico) | `full` |
+| tem Interiores e **nenhum** complementar | `architecture_interiors` |
+| tem complementar e **não** tem Interiores | `architecture_engineering` |
+| só Arquitetura | `architecture` |
+
+É a leitura literal dos quatro rótulos do original ("Arquitetura +
+Complementares", "Arquitetura + Interiores", "Todos"). Resultado: 8
+`architecture_engineering`, 4 `architecture_interiors`, 6 `full`.
+
+**Os demais serviços não se perdem em 15 dos 18.** Esses projetos têm
+contrato, o contrato tem negociação, e a lista de serviços daquela negociação
+é idêntica à string — ela já entrou item a item em `negotiation_services`. Nos
+outros 3 não há contrato nem negociação, e `projects` não tem tabela-filha de
+serviço: neles a lista sobrevive só como o tipo escolhido, e o texto original
+fica registrado no relatório de importação.
 
 ### `billing_type`
 
@@ -281,6 +350,36 @@ Arquitetura" vs "Arquitetura") para o mesmo conceito. A importação unifica.
 | Alvará de Construção | `building_permit` | Alvará de Construção |
 | Aguardando Cliente | `awaiting_client` | Aguardando Cliente |
 | Finalizado | `finished` | Finalizado |
+| **Estudo preliminar** (2ª passada) | `layout` | Layout |
+| **Anteprojeto** (2ª passada) | `renderings` | Perspectivas |
+| **Executivo** (2ª passada) | `construction_docs` | Projeto Executivo |
+
+As três últimas são fases que a operação usa em `Task.phase` e que nenhuma
+entidade do base44 declara. O critério é o significado no domínio, conferido
+contra o título das tarefas que carregam cada valor:
+
+- **`Estudo preliminar` (18 tarefas) → `layout`.** É a primeira fase de
+  projeto, a mesma que o contrato chama de `prazo_estudo_layout` →
+  `layout_study_days`: estudo preliminar **é** o estudo de layout. As tarefas
+  são as de abertura de projeto ("Iniciar projeto — *cliente*", "*número* —
+  *cliente*"). `Briefing` é a coleta com o cliente, que vem antes e é outra
+  coisa.
+- **`Anteprojeto` (3 tarefas) → `renderings`.** Na NBR 13532 o anteprojeto é a
+  fase seguinte ao estudo preliminar, e nesta lista o que ocupa esse lugar é
+  Perspectivas. As três tarefas são "Modelar volumetria no SketchUp",
+  "Detalhar fachada frontal" e uma de cliente — trabalho de volumetria 3D, que
+  é o que alimenta a perspectiva.
+- **`Executivo` (1 tarefa) → `construction_docs`.** Forma curta de Projeto
+  Executivo. A tarefa é "Compatibilização estrutural", que só existe no
+  executivo.
+
+**`Em Obra` (14 tarefas) NÃO entrou neste de/para.** É fase de obra, depois da
+aprovação, e nenhum dos 13 valores do enum significa isso: `Alvará de
+Construção` é o alvará, não a obra, e `Pós-aprovação` — que seria o
+equivalente — é barrado em `tasks` pelo check `tasks_phase_not_post_approval`.
+Entrar exige **migration** (valor novo no enum, ou soltar o check), e migration
+com dado real dentro é decisão do usuário. As 14 tarefas continuam em
+pendências, com esse motivo escrito.
 
 `Finalizado` só existe em `Project.fase_projeto_atual`; `Task.phase` não tem
 esse valor. O enum é único e `tasks` simplesmente nunca recebe `finished` —
@@ -337,9 +436,23 @@ Enum único `priority_level` com os quatro valores; `tasks` nunca recebe
 | Não iniciado | Não iniciada | `not_started` | Não iniciada |
 | Em andamento | Em andamento | `in_progress` | Em andamento |
 | Concluída | Concluída | `completed` | Concluída |
+| **A fazer** (2ª passada) | — | `not_started` | Não iniciada |
+| **Em revisão** (2ª passada) | — | `in_progress` | Em andamento |
+| **Em espera cliente** (2ª passada) | — | `in_progress` | Em andamento |
 
 Diferença de gênero no rótulo ("Não iniciado" vs "Não iniciada") some no
 enum e a UI passa a usar uma forma só.
+
+Os três valores da 2ª passada são de `Task.status` e o enum tem três estados —
+cada um cai em um deles sem ambiguidade. `A fazer` é a fazer, ou seja, ainda
+não começou. `Em revisão` e `Em espera cliente` são trabalho **já em curso e
+ainda não concluído**: nenhum dos dois é "não iniciada" e nenhum é "concluída".
+
+O que se perde nesses dois: a noção de "parada esperando alguém". Ela existe no
+dado em `Task.tag_operacional` (13 tarefas, valores `Em Revisão` e `Aguardando
+Cliente` — exatamente os mesmos dois estados), campo que o base44 nunca
+declarou e que **não tem coluna no nosso schema**. Criar essa coluna é feature,
+não importação; o descarte das 13 tags fica registrado no relatório.
 
 ### `task_type`
 
@@ -590,6 +703,12 @@ view `project_progress` nem coluna no kanban do original.
 | Em desenvolvimento | `in_development` | Em desenvolvimento |
 | Pausado | `paused` | Pausado |
 | Concluído | `completed` | Concluído |
+| **Em andamento** (2ª passada) | `in_development` | Em desenvolvimento |
+
+`Em andamento` aparece em 1 pino. Dentro dos quatro estados deste enum (não
+iniciado / em desenvolvimento / pausado / concluído) "em andamento" só pode ser
+o segundo. A grafia veio emprestada de `project_status`, que é enum vizinho e
+propositalmente diferente — o significado, dentro desta lista, não é ambíguo.
 
 Repare que não é igual a `project_status` (`Em desenvolvimento` e
 `Concluído` coincidem, `Pausado` vs `Suspenso` não). Enum separado, de
@@ -608,6 +727,26 @@ respectivamente, e tem um campo "Nova categoria..." que aceita qualquer texto
 digitado (`ProjectForm.jsx:270` e `:289`). Viraram tabela-filha de texto livre
 (`map_property_land_types`, `map_property_purposes`, migration 0057), como a
 0032 já tinha feito com os mesmos dois campos em `Project`.
+
+---
+
+## O que a 2ª passada NÃO acrescentou, e por quê
+
+Quatro casos ficaram de fora do de/para de propósito. Em todos, entrar exige
+**migration** — e migration com dado real dentro é decisão do usuário, não do
+script de importação.
+
+| Caso | Linhas | O que falta |
+|---|---|---|
+| `Task.phase` = `Em Obra` | 14 | Valor de fase de obra no enum `project_phase`, ou soltar `tasks_phase_not_post_approval_check` para aceitar `post_approval`. Nenhum dos 13 valores atuais significa "em obra". |
+| `Fornecedor.tipologia` = `Revestimento de Fachada` | 1 (+ 2 marcas) | Soltar `suppliers_category_domain_check`. A tipologia é **real e conhecida**; trocá-la por `other` apagaria um fato que o escritório registrou, então ela não vira `other`. |
+| Status "concluído/pago" **sem data** | 15 recebíveis, 2 pagáveis, 9 atividades, 1 tarefa | Afrouxar os checks `*_matches_status` para o mesmo lado que a migration `0060` já afrouxou em `task_checklist_items`: concluído sem data entra, e o nulo significa "o quando não foi registrado". Hoje o check é equivalência nos dois sentidos. |
+| Atividade excluída sem autor da exclusão | 1 | Afrouxar `activities_deleted_pair_check`. Nulificar só um dos dois lados "desapagaria" a atividade. |
+
+`Fornecedor.tipologia` **vazia** (1 linha) é caso diferente e entrou: `category`
+é NOT NULL, `other`/"Outros" é o valor que a própria lista do base44 oferece
+para fornecedor sem classificação (dois fornecedores já o usam), e ele não
+afirma categoria nenhuma — só registra que não há uma.
 
 ---
 
