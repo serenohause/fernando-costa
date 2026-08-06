@@ -889,8 +889,22 @@ nullable já expressa isso — mas alguém digitou 0 em vez de deixar vazio.
 > reimportação religa as linhas dela sozinha pelo `legacy_id`.
 >
 > **As migrations são necessárias e não são suficientes.** Os guardas do
-> `scripts/import-base44.mjs` espelham os checks antigos e continuam recusando as
-> mesmas linhas até serem afrouxados junto — a lista está no relatório da etapa.
+> `scripts/import-base44.mjs` espelhavam os checks antigos e continuavam
+> recusando as mesmas linhas.
+>
+> **Estado depois da 3ª passada** (2026-08-06). Os guardas foram afrouxados junto
+> com o banco, cada um virando `g.note(...)` — a linha entra e a exceção usada
+> sai na seção AJUSTES do relatório, linha a linha, em vez de virar silêncio. O
+> passo 27 (`budget_item_quotes`) mudou mais que os outros: as cotações ganharam
+> `legacy_id` no formato que a `0066` documenta
+> (`<item_id>:<fornecedor_id>:<posição no array>`) e o `onConflict` passou de
+> `item_id,supplier_id` para `tenant_id,legacy_id`, porque o índice virou parcial
+> e índice parcial não serve de alvo de `ON CONFLICT` (42P10).
+>
+> **Resultado: as 445 linhas entraram.** Restam as 94 `collaborator_permissions`
+> de 7 pessoas — o único caso, e ele não é de restrição. As três tabelas de
+> dinheiro batem 100% do CSV: contratos R$ 3.707.252,00, recebíveis
+> R$ 2.625.509,77, pagáveis R$ 2.572.690,45.
 
 Em ordem de quanto travam:
 

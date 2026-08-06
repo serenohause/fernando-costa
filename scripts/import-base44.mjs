@@ -48,6 +48,36 @@
 //   A conferencia final continua sendo "consumidas + pendencias = total do CSV".
 //   AJUSTES nao e pendencia: a linha entrou.
 //
+// A TERCEIRA PASSADA — A RESTRICAO PASSOU A DISTINGUIR IMPORTADO DE NASCIDO AQUI
+//   As migrations 0061–0066 mudaram o BANCO, e este script foi destravado junto:
+//   os guardas daqui espelhavam os checks antigos e continuavam recusando 445
+//   das 539 linhas do relatorio de pendencias mesmo depois de o banco passar a
+//   aceita-las.
+//
+//   A forma da mudanca no banco (docs/ARCHITECTURE.md, secao "A restricao
+//   distingue dado importado de dado nascido aqui"): onde havia `check (X)`,
+//   passou a haver `check (X or legacy_id is not null)`; onde havia NOT NULL que
+//   a origem nao tinha como preencher, a obrigatoriedade virou check da mesma
+//   familia; e onde havia unicidade que o base44 nunca teve, o indice unico
+//   virou PARCIAL (`where legacy_id is null`) com um trigger fechando o caso
+//   "linha nova colidindo com linha importada".
+//
+//   O QUE ISSO NAO E: nao e afrouxar o sistema. `legacy_id` so e preenchido por
+//   este script — a tela nunca o preenche, entao tudo que ela criar continua
+//   obrigado exatamente como antes. E onde a excecao larga seria perigosa, ela
+//   foi ESTREITADA em vez de generalizada: recebivel importado aceita valor
+//   ZERO e continua recusando negativo (0063), e este script espelha isso.
+//
+//   Cada guarda afrouxado aqui virou `g.note(...)`, e nao silencio: a linha
+//   entra e a excecao usada sai no relatorio, linha a linha, na secao AJUSTES.
+//
+//   O QUE CONTINUA RECUSADO, e esta certo: as 94 collaborator_permissions de 7
+//   pessoas que nao tem cadastro de colaborador. Nao e caso de restricao — a FK
+//   nao tem onde pendurar, e criar a pessoa exigiria inventar e-mail (NOT NULL,
+//   unico por escritorio) e funcao (NOT NULL, e e ela que define o que a pessoa
+//   pode fazer). Duas das sete sao conta de teste declarada no proprio dado.
+//   Recadastrada a pessoa, a reimportacao religa as linhas dela pelo legacy_id.
+//
 // AS DUAS DECISOES QUE O USUARIO TOMOU E QUE ESTAO CODIFICADAS AQUI
 //   1. Item de checklist de tarefa concluido e sem data ENTRA. A migration 0060
 //      derrubou o check que exigia data. `completed_at` fica nulo e significa
@@ -366,13 +396,13 @@ const ENUMS = {
     //   "Compatibilizacao estrutural", que so existe no executivo.
     Executivo: 'construction_docs',
     //
-    // `Em Obra` (14) NAO ESTA AQUI, DE PROPOSITO. E fase de obra, depois da
-    // aprovacao, e nenhum dos 13 valores do enum significa isso: `Alvará de
-    // Construção` e o alvara, nao a obra, e `Pós-aprovação` — que seria o
-    // equivalente — e barrado em tasks pelo check tasks_phase_not_post_approval.
-    // Entrar exige migration (valor novo no enum, ou soltar o check), e
-    // migration com dado real dentro e decisao do usuario. As 14 tarefas ficam
-    // em pendencias com este motivo.
+    // TERCEIRA PASSADA — `Em Obra` (14 tarefas) tem valor proprio desde a
+    // migration 0061, que acrescentou `under_construction` ao enum depois de
+    // `building_permit`. Nao e traducao: o valor foi criado PORQUE nenhum dos
+    // treze anteriores significava obra (`building_permit` e o alvara, nao a
+    // obra; `post_approval` e barrado em tasks pelo check da 0049). O de/para so
+    // reflete o que o banco passou a ter.
+    'Em Obra': 'under_construction',
   },
   geocode_status: { PENDING: 'pending', OK: 'ok', FAILED: 'failed', '': 'pending' },
   priority_level: { Baixa: 'low', 'Média': 'medium', Alta: 'high', Urgente: 'urgent' },
@@ -1037,12 +1067,20 @@ async function main() {
   step(7, 'clients  <- Client')
   stat('clients').source = csv.Client.length
   {
-    // A unique (tenant_id, tax_id_digits) e a unique (tenant_id, client_key)
-    // derrubam 3 linhas: sao 3 clientes cadastrados duas vezes (mesmo CPF,
-    // mesmo e-mail e mesmo nome). Qual das duas linhas o escritorio quer
-    // manter e decisao dele; o que o script faz e o minimo mecanico e
-    // reversivel: entra a MAIS ANTIGA, a outra vai para pendencias para que a
-    // fusao seja feita a mao.
+    // DUPLICATA DE CADASTRO — 3 pares (mesmo CPF, mesmo e-mail, mesmo nome).
+    //
+    // TERCEIRA PASSADA: as SEIS linhas entram. A migration 0065 tornou os dois
+    // unicos de clients PARCIAIS (`where legacy_id is null`) e pos um trigger
+    // no lugar da metade que o indice parcial nao expressa — "linha nascida
+    // aqui nao colide com nada; linha importada convive com linha importada".
+    // A deduplicacao continua inteira para o que a tela criar.
+    //
+    // Recusar a segunda linha de cada par (regra da segunda passada) perdia
+    // tambem tudo que apontava para ela, e a fusao e decisao de negocio: as
+    // duas linhas de cada par tem negociacao, contrato ou parcela penduradas em
+    // graus diferentes. Com as seis no banco, o escritorio funde com os dois
+    // registros a vista. O par continua listado nos AJUSTES para que a fusao
+    // nao seja esquecida.
     const digits = (s) => (s ?? '').replace(/[^0-9]/g, '')
     const byDoc = new Map()
     for (const r of csv.Client) {
@@ -1051,7 +1089,7 @@ async function main() {
       if (!byDoc.has(d)) byDoc.set(d, [])
       byDoc.get(d).push(r)
     }
-    const duplicates = new Map() // id -> id da linha que ficou
+    const duplicates = new Map() // id -> id da outra linha do par
     for (const [, rows] of byDoc) {
       if (rows.length < 2) continue
       const sorted = [...rows].sort((a, b) => (a.created_date < b.created_date ? -1 : 1))
@@ -1064,8 +1102,17 @@ async function main() {
       const leadSource = g.enum('lead_source', r.lead_source, 'lead_source')
       g.require(txt(r.name) !== null, 'name vazio (NOT NULL)')
       g.require(txt(r.phone) !== null, 'phone vazio (NOT NULL + check nao-vazio)')
-      g.require(txt(r.current_city) !== null, 'address_city vazio (NOT NULL + check nao-vazio)')
-      g.require(txt(r.current_state) !== null, 'address_state vazio (NOT NULL + check nao-vazio)')
+      // ENDERECO DA RESIDENCIA VAZIO — 1 cliente, e ele esta vazio em TODOS os
+      // campos de endereco, inclusive os da obra. TERCEIRA PASSADA: a migration
+      // 0064 tirou o NOT NULL de address_city/address_state e pos no lugar
+      // `check (coluna is not null or legacy_id is not null)`. Nulo aqui diz "o
+      // endereco nao foi informado", que e a verdade; preencher a cidade do
+      // escritorio gravaria um endereco que ninguem informou. O check de
+      // nao-vazio continua de pe para todo mundo — string vazia segue recusada,
+      // por isso txt() (que devolve nulo para "  ") e nao .trim().
+      if (txt(r.current_city) === null || txt(r.current_state) === null) {
+        g.note('endereco da residencia sem cidade/UF gravado NULO (0064: a exigencia vale para o que nasce na tela)')
+      }
       // SEGUNDA PASSADA: e-mail fora do formato NAO derruba mais o cliente. O
       // check clients_email_format_check recusaria a coluna, e so a coluna — o
       // nome, o telefone, o endereco e o documento desse cliente sao dado bom.
@@ -1078,9 +1125,9 @@ async function main() {
         email = null
       }
       if (duplicates.has(r.id)) {
-        g.reasons.push(
-          `CPF/CNPJ duplicado: a linha ${duplicates.get(r.id)} (mais antiga) entrou; ` +
-            'esta precisa de decisao de fusao ou descarte',
+        g.note(
+          `cadastro em duplicidade com a linha ${duplicates.get(r.id)} (mesmo CPF/CNPJ): as DUAS ` +
+            'entraram (0065) e a fusao e decisao do escritorio, com os dois registros a vista',
         )
       }
       if (g.rejected) continue
@@ -1101,8 +1148,8 @@ async function main() {
         address_number: txt(r.current_number),
         address_district: txt(r.current_neighborhood),
         address_complement: txt(r.current_complement),
-        address_city: r.current_city.trim(),
-        address_state: r.current_state.trim(),
+        address_city: txt(r.current_city),
+        address_state: txt(r.current_state),
         address_country: txt(r.country) ?? 'Brasil',
         site_zipcode: txt(r.construction_zipcode),
         site_street: txt(r.construction_address),
@@ -1137,10 +1184,15 @@ async function main() {
     // client_id e nullable. Orfao vira nulo (SEGUNDA PASSADA); cascata continua
     // derrubando, porque o cliente existe e volta na proxima execucao.
     const clientId = g.softFk(ix.client, r.cliente_id, 'cliente', 'cliente_id')
-    // commercial_owner_id e NOT NULL: aqui orfao continua derrubando a linha.
-    // Nao ha valor honesto para "quem e o responsavel comercial" quando a
-    // pessoa nao existe no cadastro.
-    const ownerId = g.fk(ix.collaborator, r.responsavel_comercial_id, 'colaborador', 'responsavel_comercial_id')
+    // RESPONSAVEL COMERCIAL QUE NAO ESTA NO EXPORT — 15 negociacoes, UMA
+    // pessoa. TERCEIRA PASSADA: a migration 0064 tirou o NOT NULL de
+    // commercial_owner_id. O vinculo era REAL (o nome esta em
+    // responsavel_comercial_name); o que falta e a linha do outro lado. Nulo diz
+    // "o responsavel nao esta mais cadastrado", que e a verdade, e se o
+    // escritorio recadastrar a pessoa a reimportacao religa as 15 sozinha pelo
+    // legacy_id — coisa que um responsavel substituto teria bloqueado. Cascata
+    // continua derrubando, como em todo softFk.
+    const ownerId = g.softFk(ix.collaborator, r.responsavel_comercial_id, 'colaborador', 'responsavel_comercial_id')
     // contrato_vinculado_id e o lado oposto de contracts.negotiation_id.
     // SEGUNDA PASSADA: ponteiro para contrato que nao existe no export nao
     // derruba mais a negociacao — o vinculo simplesmente nao existe, e e isso
@@ -1149,18 +1201,33 @@ async function main() {
     if (!contractLink.ok && contractLink.reason.startsWith('orfao')) {
       g.note(`contrato_vinculado_id ignorado — ${contractLink.reason}`)
     }
-    g.require(txt(r.responsavel_comercial_id) !== null, 'responsavel_comercial_id vazio (commercial_owner_id e NOT NULL)')
+    if (txt(r.responsavel_comercial_id) === null) {
+      g.note('responsavel_comercial_id vazio gravado NULO (0064: commercial_owner_id deixou de ser NOT NULL em linha importada)')
+    }
     g.require(txt(r.nome_negociacao) !== null, 'name vazio (NOT NULL)')
-    // funnel_entry_date e NOT NULL. O default do banco e CURRENT_DATE, mas
-    // gravar a data de hoje como "entrada no funil" de uma negociacao real e
-    // inventar data. A linha vai para pendencias.
-    g.require(date(r.data_entrada_funil) !== null, 'data_entrada_funil vazia (funnel_entry_date e NOT NULL)')
+    // DATA DE ENTRADA NO FUNIL VAZIA — 1 negociacao. TERCEIRA PASSADA: a
+    // migration 0064 tirou o NOT NULL, e o payload continua mandando o nulo
+    // EXPLICITO em vez de omitir a chave: o default da coluna e CURRENT_DATE, e
+    // deixar o default agir gravaria "entrou no funil hoje" numa oportunidade
+    // antiga — que e exatamente o que essa coluna mede. Nulo diz "nao foi
+    // registrado"; a data de hoje mentiria.
+    if (date(r.data_entrada_funil) === null) {
+      g.note('data_entrada_funil vazia gravada NULO (0064: o default CURRENT_DATE nao age, ele inventaria a data de entrada)')
+    }
     const closedAt = date(r.data_fechamento)
     if (closedAt !== null) {
       g.require(status === 'won' || status === 'lost', 'data_fechamento com status que nao e Ganha/Perdida')
     }
+    // MOTIVO DE PERDA EM NEGOCIACAO QUE NAO ESTA PERDIDA — 1 linha. TERCEIRA
+    // PASSADA: a migration 0063 abriu excecao para linha importada. Apagar o
+    // motivo perderia o texto que alguem escreveu sobre por que o negocio nao
+    // andou; trocar o status para Perdida inventaria um desfecho. As duas
+    // metades entram como estao, e o estado incoerente fica visivel no
+    // relatorio em vez de sumir.
     if (txt(r.motivo_perda) !== null || txt(r.observacoes_perda) !== null) {
-      g.require(status === 'lost', 'motivo/observacao de perda com status que nao e Perdida')
+      if (status !== 'lost') {
+        g.note(`motivo/observacao de perda mantidos com status "${r.status_negociacao}" (0063: nem o texto nem o desfecho sao alterados)`)
+      }
     }
     if (g.rejected) continue
 
@@ -1223,7 +1290,17 @@ async function main() {
           continue
         }
         if (seen.has(value)) {
-          pend('negotiation_services', r.id, `tipo_servico repetido na mesma negociacao: "${s}"`, r.nome_negociacao)
+          // DOIS ROTULOS PARA O MESMO SERVICO na mesma negociacao — 1 caso,
+          // "Projeto de Arquitetura" e "Arquitetura" lado a lado, que o de/para
+          // colapsa em `architecture` (o primeiro e a grafia de Contract, usada
+          // em campo de Negociacao). Nao e linha recusada: o fato "esta
+          // negociacao inclui arquitetura" ja esta no banco, gravado pela
+          // primeira ocorrencia, e a unique (negotiation_id, service_type) e
+          // justamente o que impede a mesma verdade de virar duas linhas.
+          // Mesmo tratamento que os 27 rotulos de menu que colapsam em 16
+          // (passo 5): a linha de origem conta como consumida.
+          adjust('negotiation_services', r.id, `tipo_servico "${s}" e a segunda grafia do mesmo servico (${value}) na mesma negociacao e nao virou linha nova`, r.nome_negociacao)
+          stat('negotiation_services').consumed += 1
           continue
         }
         seen.add(value)
@@ -1460,8 +1537,13 @@ async function main() {
       const g = new RowGuard('client_intakes', r.id, r.cliente_crm_name || r.negociacao_name)
       const status = g.enum('client_intake_status', r.status, 'status')
       const validation = g.enum('client_intake_validation_status', r.ultimo_status_validacao, 'ultimo_status_validacao')
-      // client_id e NOT NULL: orfao aqui continua derrubando a linha.
-      const clientId = g.fk(ix.client, r.cliente_crm_id, 'cliente', 'cliente_crm_id')
+      // BRIEFING DE CLIENTE QUE SAIU DO CRM — 18 links, 11 clientes. TERCEIRA
+      // PASSADA: a migration 0064 tirou o NOT NULL de client_id. A superficie
+      // publica continua correta com nulo — open_client_intake (0026) faz JOIN
+      // com clients, entao o token devolve `not_found`, a mesma recusa
+      // indistinguivel de token inexistente. Nada vaza e nada quebra; o briefing
+      // fica no historico do escritorio, que e onde ele tem valor.
+      const clientId = g.softFk(ix.client, r.cliente_crm_id, 'cliente', 'cliente_crm_id')
       const negotiationId = g.softFk(ix.negotiation, r.negociacao_id, 'negociacao', 'negociacao_id')
       const createdAt = ts(r.criado_em) ?? ts(r.created_date)
       const expiresAt = ts(r.expira_em)
@@ -1703,17 +1785,11 @@ async function main() {
     const g = new RowGuard('tasks', r.id, r.title)
     // As fases e os status que o base44 nunca declarou entraram no de/para na
     // segunda passada, com o criterio escrito no bloco ENUMS e em
-    // docs/ENUM-MAP.md. `Em Obra` (14 linhas) e a unica que ficou de fora, e
-    // fica com motivo proprio: nao e lacuna de mapeamento, e falta de valor no
-    // enum do banco.
-    const phase = r.phase.trim() === 'Em Obra'
-      ? (g.reasons.push(
-          'phase "Em Obra": fase de obra que o enum project_phase nao tem. ' +
-            'O equivalente seria post_approval, barrado em tasks pelo check ' +
-            'tasks_phase_not_post_approval. Entrar exige MIGRATION (valor novo no enum ' +
-            'ou soltar o check) — decisao do usuario, nao do script.',
-        ), null)
-      : g.enum('project_phase', r.phase, 'phase')
+    // docs/ENUM-MAP.md. `Em Obra` (14 linhas) era a unica que ficava de fora, e
+    // nao por lacuna de mapeamento: faltava valor no enum. A migration 0061
+    // criou `under_construction`, e o de/para passou a te-lo — nada de especial
+    // acontece aqui, a fase entra pelo mesmo caminho das outras.
+    const phase = g.enum('project_phase', r.phase, 'phase')
     const status = g.enum('work_status', r.status, 'status')
     const priority = g.enum('priority_level', r.priority, 'priority')
     const taskType = g.enum('task_type', r.task_type, 'task_type')
@@ -1735,10 +1811,17 @@ async function main() {
     }
     if (priority !== null) g.require(priority !== 'urgent', 'priority = Urgente (barrado por check em tasks)')
     const effectiveStatus = status ?? 'not_started'
-    g.require(
-      (effectiveStatus === 'completed') === (date(r.completion_date) !== null),
-      'completion_date x status incoerentes (o check exige data se e so se estiver concluida)',
-    )
+    // CONCLUIDA SEM DATA (ou o contrario) — 1 tarefa. TERCEIRA PASSADA: a
+    // migration 0062 abriu excecao para linha importada nos DOIS sentidos. O
+    // base44 guarda a bandeira e nao a data; nulo aqui significa "aconteceu, e o
+    // quando nao foi registrado". Nenhuma data e inventada, e as duas metades
+    // entram como o escritorio as tem.
+    if ((effectiveStatus === 'completed') !== (date(r.completion_date) !== null)) {
+      g.note(
+        `completion_date e status entram como estao (status="${r.status}", ` +
+          `completion_date=${JSON.stringify(date(r.completion_date))}) — 0062`,
+      )
+    }
     if (date(r.due_date) && date(r.start_date)) {
       g.require(date(r.due_date) >= date(r.start_date), 'due_date anterior a start_date')
     }
@@ -1842,37 +1925,56 @@ async function main() {
     const g = new RowGuard('activities', r.id, r.descricao?.slice(0, 60))
     const status = g.enum('work_status', r.status, 'status')
     const priority = g.enum('priority_level', r.prioridade, 'prioridade')
-    // collaborator_id e NOT NULL — orfao continua derrubando. Os outros cinco
-    // sao nullable: orfao vira nulo e a atividade entra.
-    const collaboratorId = g.fk(ix.collaborator, r.colaborador_id, 'colaborador', 'colaborador_id')
+    // RESPONSAVEL QUE NAO ESTA NO EXPORT — 1 atividade. TERCEIRA PASSADA: a
+    // migration 0064 tirou o NOT NULL de collaborator_id. O efeito na LEITURA
+    // APERTA em vez de afrouxar: as policies da 0038/0059 concedem leitura sem
+    // permissao de menu por `collaborator_id = auth_collaborator_id()`, e nulo
+    // nunca e igual a ninguem — a atividade sem dono so aparece para quem tem
+    // can_view/can_edit em `activities`.
+    const collaboratorId = g.softFk(ix.collaborator, r.colaborador_id, 'colaborador', 'colaborador_id')
     const coordinatorId = g.softFk(ix.collaborator, r.coordenador_id, 'colaborador', 'coordenador_id')
     const startedBy = g.softFk(ix.collaborator, r.iniciado_por, 'colaborador', 'iniciado_por')
     const completedBy = g.softFk(ix.collaborator, r.concluido_por, 'colaborador', 'concluido_por')
-    // deleted_by nao pode virar nulo sozinho: o check activities_deleted_pair
-    // exige que deleted_at e deleted_by andem juntos, e nulificar so um lado
-    // "desapagaria" a atividade.
-    const deletedBy = g.fk(ix.collaborator, r.usuario_exclusao_id, 'colaborador', 'usuario_exclusao_id')
+    // EXCLUSAO LOGICA PELA METADE — 1 atividade, com data de exclusao e sem
+    // autor. TERCEIRA PASSADA: a migration 0063 abriu excecao no par
+    // deleted_at/deleted_by para linha importada. Inventar o autor seria
+    // atribuir a alguem um ato que ele pode nao ter praticado; nulificar tambem
+    // a data seria "desapagar" a atividade, que e mudar o fato. Entra a metade
+    // que existe.
+    const deletedBy = g.softFk(ix.collaborator, r.usuario_exclusao_id, 'colaborador', 'usuario_exclusao_id')
     const projectId = g.softFk(ix.project, r.projeto_id, 'projeto', 'projeto_id')
     const clientId = g.softFk(ix.client, r.cliente_id, 'cliente', 'cliente_id')
     g.require(txt(r.descricao) !== null, 'descricao vazia (NOT NULL)')
-    g.require(txt(r.colaborador_id) !== null, 'colaborador_id vazio (NOT NULL)')
+    if (txt(r.colaborador_id) === null) {
+      g.note('colaborador_id vazio gravado NULO (0064: a atividade sem dono so aparece para quem tem permissao de menu)')
+    }
     g.require(date(r.prazo_inicio) !== null, 'prazo_inicio vazio (NOT NULL)')
     g.require(date(r.prazo_termino) !== null, 'prazo_termino vazio (NOT NULL)')
     if (date(r.prazo_inicio) && date(r.prazo_termino)) {
       g.require(date(r.prazo_termino) >= date(r.prazo_inicio), 'prazo_termino anterior a prazo_inicio')
     }
     const effectiveStatus = status ?? 'not_started'
-    g.require(
-      (effectiveStatus === 'completed') === (ts(r.data_conclusao_real) !== null),
-      'data_conclusao_real x status incoerentes (o check exige data se e so se estiver concluida)',
-    )
+    // CONCLUIDA SEM DATA, E O CONTRARIO — 9 atividades concluidas sem
+    // data_conclusao_real e 1 com a data preenchida e status "Nao iniciada"
+    // (foi reaberta, e o base44 guardou as duas metades). TERCEIRA PASSADA: a
+    // migration 0062 afrouxa a equivalencia nos DOIS sentidos para linha
+    // importada, e de proposito — a linha reaberta guarda o fato "ja foi
+    // concluida uma vez, em tal dia, e voltou a nao iniciada".
+    //
+    // O que NAO muda: activities_started_at_not_after_completed continua de pe,
+    // entao tempo negativo em total_minutes (coluna gerada) segue impossivel.
+    if ((effectiveStatus === 'completed') !== (ts(r.data_conclusao_real) !== null)) {
+      g.note(
+        `data_conclusao_real e status entram como estao (status="${r.status}", ` +
+          `data_conclusao_real=${JSON.stringify(ts(r.data_conclusao_real))}) — 0062`,
+      )
+    }
     if (ts(r.data_inicio_real) && ts(r.data_conclusao_real)) {
       g.require(ts(r.data_inicio_real) <= ts(r.data_conclusao_real), 'data_inicio_real posterior a data_conclusao_real')
     }
-    g.require(
-      (ts(r.data_exclusao) !== null) === (txt(r.usuario_exclusao_id) !== null),
-      'exclusao logica sem o par completo (deleted_at e deleted_by andam juntos)',
-    )
+    if ((ts(r.data_exclusao) !== null) !== (txt(r.usuario_exclusao_id) !== null)) {
+      g.note('exclusao logica pela metade mantida como esta (0063: inventar o autor seria pior que nao ter)')
+    }
     if (g.rejected) continue
 
     const row = {
@@ -1949,13 +2051,31 @@ async function main() {
     const projectId = g.softFk(ix.project, r.project_id, 'projeto', 'project_id')
     g.require(txt(r.description) !== null, 'description vazia (NOT NULL)')
     g.require(date(r.due_date) !== null, 'due_date vazia (NOT NULL)')
+    // PARCELA DE VALOR ZERO — 4 linhas, todas "Parcela 1/1" de contrato.
+    // TERCEIRA PASSADA: a migration 0063 estreitou o check para
+    // `value > 0 or (legacy_id is not null and value >= 0)`. A excecao e
+    // ESTREITA DE PROPOSITO e este guarda a espelha: importada aceita ZERO,
+    // nunca negativo. O export nao tem nenhum negativo, e como a excecao
+    // acompanha a linha para sempre, `>= 0` puro deixaria a tela editar uma
+    // parcela importada para -100.
     const value = num(r.value)
-    g.require(value !== null && value > 0, `value = ${r.value} (o check exige > 0)`)
+    g.require(value !== null && value >= 0, `value = ${r.value} (o check exige > 0, e >= 0 so em linha importada)`)
+    if (value === 0) {
+      g.note('value 0 mantido (0063: parcela de zero real nao e cobranca, mas recusa-la apagaria o contrato da conciliacao)')
+    }
     const effectiveStatus = status ?? 'forecast'
-    g.require(
-      (effectiveStatus === 'paid') === (date(r.payment_date) !== null),
-      'payment_date x status incoerentes (o check exige data se e so se estiver Pago)',
-    )
+    // PAGA SEM DATA — 15 parcelas (R$ 146.500). TERCEIRA PASSADA: a migration
+    // 0062 abriu excecao para linha importada. O base44 guarda a bandeira e nao
+    // a data; usar `updated_date` como se fosse o pagamento gravaria como FATO
+    // uma data que ninguem registrou. Nulo significa "recebida, e o quando nao
+    // foi registrado". A view accounts_receivable_status nao se abala: "em
+    // atraso" e calculado por due_date e status, nunca por payment_date.
+    if ((effectiveStatus === 'paid') !== (date(r.payment_date) !== null)) {
+      g.note(
+        `payment_date e status entram como estao (status="${r.status}", ` +
+          `payment_date=${JSON.stringify(date(r.payment_date))}) — 0062`,
+      )
+    }
     if (method !== null) g.require(method !== 'direct_debit', 'Debito automatico nao vale em recebivel (check de dominio)')
 
     // installment_number vem como TEXTO "n/total" no base44, e a nossa coluna e
@@ -2036,16 +2156,33 @@ async function main() {
       const value = num(r.value)
       g.require(value !== null && value > 0, `value = ${r.value} (o check exige > 0)`)
       const effectiveStatus = status ?? 'forecast'
-      g.require(
-        (effectiveStatus === 'paid') === (date(r.payment_date) !== null),
-        'payment_date x status incoerentes (o check exige data se e so se estiver Pago)',
-      )
+      // PAGA SEM DATA — 2 despesas (e com elas 3 ocorrencias que caiam so por
+      // cascata da linha-mae). Gemea do caso de accounts_receivable, e pelo
+      // mesmo motivo: migration 0062.
+      if ((effectiveStatus === 'paid') !== (date(r.payment_date) !== null)) {
+        g.note(
+          `payment_date e status entram como estao (status="${r.status}", ` +
+            `payment_date=${JSON.stringify(date(r.payment_date))}) — 0062`,
+        )
+      }
       if (method !== null) g.require(method !== 'cash', 'Especie nao vale em conta a pagar (check de dominio)')
 
+      // RECORRENCIA DECLARADA SEM PLANO COMPLETO — 2 despesas, as duas com data
+      // de inicio e sem frequencia. TERCEIRA PASSADA: a migration 0063 abriu
+      // excecao para linha importada. A recorrencia e um FATO do dado ("isto se
+      // repete"), e o check existe porque o ORIGINAL chuta o que falta (assume
+      // mensal quando a frequencia nao bate com o mapa, AccountsPayable.jsx:171)
+      // — chute vira lancamento financeiro em data que ninguem pediu. Importada,
+      // a recorrencia entra incompleta e NAO gera nada sozinha: quem gera
+      // ocorrencia e a tela, e a tela pede os campos.
       const isRecurring = bool(r.is_recurring) ?? false
-      if (isRecurring) {
-        g.require(frequency !== null, 'is_recurring=true sem recurrence_frequency')
-        g.require(date(r.recurrence_start_date) !== null, 'is_recurring=true sem recurrence_start_date')
+      if (isRecurring && (frequency === null || date(r.recurrence_start_date) === null)) {
+        g.note(
+          'recorrencia declarada com plano incompleto mantida como esta ' +
+            `(frequencia=${JSON.stringify(txt(r.recurrence_frequency))}, ` +
+            `inicio=${JSON.stringify(date(r.recurrence_start_date))}) — 0063; ` +
+            'nao gera ocorrencia sozinha, so a tela gera',
+        )
       }
       if (parentId !== null) g.require(isRecurring === false, 'ocorrencia marcada como is_recurring=true')
       // FIM DE RECORRENCIA ANTERIOR AO INICIO — 3 maes, todas com o fim caindo
@@ -2142,17 +2279,19 @@ async function main() {
     const status = g.enum('supplier_status', r.status, 'status')
     g.require(txt(r.nome) !== null, 'nome vazio (NOT NULL)')
     g.require(txt(r.contato_whatsapp) !== null, 'contato_whatsapp vazio (NOT NULL)')
-    if (category !== null) {
-      // 1 fornecedor tem `Revestimento de Fachada`, uma das quatro tipologias
-      // que o suppliers_category_domain_check barra. NAO vira `other`: a
-      // tipologia e real e conhecida, e trocar por "Outros" apagaria um fato que
-      // o escritorio registrou. Destravar exige MIGRATION (soltar o check) —
-      // decisao do usuario. Continua em pendencias com este motivo.
-      g.require(
-        !['facade_cladding', 'pool_cladding', 'waterproofing', 'drywall_plaster'].includes(category),
-        `tipologia "${r.tipologia}" so vale em item de orcamento (suppliers_category_domain_check). ` +
-          'A tipologia e real: destravar exige MIGRATION que solte o check, nao traducao.',
-      )
+    // TIPOLOGIA QUE SO VALE EM ITEM DE ORCAMENTO — 1 fornecedor,
+    // `Revestimento de Fachada` (+2 marcas que caiam por cascata). TERCEIRA
+    // PASSADA: a migration 0063 abriu excecao no suppliers_category_domain_check
+    // para linha importada. A tipologia e REAL e conhecida — virar `other`
+    // apagaria um fato que o escritorio registrou, e nao e o mesmo caso da
+    // tipologia VAZIA logo acima, onde nao ha fato a apagar.
+    //
+    // CONSEQUENCIA PARA A TELA, que esta escrita no COMMENT da constraint: o
+    // seletor de tipologia do formulario nao oferece esse valor, entao editar
+    // esse fornecedor por la exige escolher outra coisa. O valor sobrevive
+    // enquanto ninguem reeditar a tipologia.
+    if (['facade_cladding', 'pool_cladding', 'waterproofing', 'drywall_plaster'].includes(category)) {
+      g.note(`tipologia "${r.tipologia}" mantida (0063: valor de item de orcamento, aceito em fornecedor importado; o formulario nao o oferece)`)
     }
     if (txt(r.contato_email) !== null) {
       g.require(EMAIL_RE.test(r.contato_email.trim()), `contato_email "${r.contato_email.trim()}" fora do formato aceito`)
@@ -2340,7 +2479,24 @@ async function main() {
   {
     // ATENCAO: docs/IMPORT-PLAN.md diz "zero cotacoes". O levantamento procurou
     // a chave `cotacoes`, e a chave real e `fornecedores_cotados`. Ha 28
-    // cotacoes em 15 itens.
+    // cotacoes em 15 itens, e 10 delas repetem o fornecedor dentro do mesmo
+    // item, com valores diferentes.
+    //
+    // O legacy_id DESTA TABELA E O ENDERECO DO ELEMENTO NA ORIGEM, e nao um id
+    // de linha (migration 0066). No base44 a cotacao nao tem id proprio: e um
+    // objeto solto dentro do array `fornecedores_cotados`, que esta dentro do
+    // array `itens`, que esta dentro da linha de ChecklistOrcamento. O que
+    // identifica o elemento la e a POSICAO, e "a terceira cotacao do item X
+    // feita pelo fornecedor Y" e uma descricao verdadeira e estavel de onde
+    // aquele dado estava. Formato, na ordem que a 0066 documenta:
+    //
+    //     <item_id do base44>:<fornecedor_id do base44>:<indice no array>
+    //
+    // Sao os ids DA ORIGEM, nao os uuid deste banco: o endereco descreve o
+    // documento do base44, e uuid novo a cada execucao nao seria endereco de
+    // coisa nenhuma. O indice e a posicao crua no array (base 0), que e o que
+    // torna as duas cotacoes do mesmo fornecedor distinguiveis — e o que torna a
+    // reimportacao idempotente, junto com o unique (tenant_id, legacy_id).
     const rows = []
     for (const it of budgetItemsSource) {
       const quotes = Array.isArray(it.fornecedores_cotados) ? it.fornecedores_cotados : []
@@ -2348,22 +2504,32 @@ async function main() {
       const legacy = String(it.item_id ?? '').trim()
       const itemId = ix.budgetItem.byLegacy.get(legacy)
       const seen = new Set()
-      for (const q of quotes) {
+      quotes.forEach((q, position) => {
         const label = `${it.nome_item} / ${q?.fornecedor_nome ?? ''}`
-        if (!itemId) { pend('budget_item_quotes', legacy, `cascata: item de orcamento ${legacy} nao foi importado`, label); continue }
+        if (!itemId) { pend('budget_item_quotes', legacy, `cascata: item de orcamento ${legacy} nao foi importado`, label); return }
         const supplier = link(ix.supplier, q?.fornecedor_id, 'fornecedor')
-        if (!supplier.ok) { pend('budget_item_quotes', legacy, `fornecedor_id: ${supplier.reason}`, label); continue }
-        if (!supplier.id) { pend('budget_item_quotes', legacy, 'fornecedor_id vazio (NOT NULL)', label); continue }
-        if (seen.has(supplier.id)) {
-          // unique (item_id, supplier_id): o mesmo fornecedor cotado duas vezes
-          // no mesmo item, com valores diferentes. Qual das duas vale e decisao
-          // do escritorio.
-          pend('budget_item_quotes', legacy, 'fornecedor cotado mais de uma vez no mesmo item (unique item_id,supplier_id)', label)
-          continue
+        if (!supplier.ok) { pend('budget_item_quotes', legacy, `fornecedor_id: ${supplier.reason}`, label); return }
+        if (!supplier.id) { pend('budget_item_quotes', legacy, 'fornecedor_id vazio (NOT NULL)', label); return }
+        // FORNECEDOR REPETIDO NO MESMO ITEM — 10 cotacoes. TERCEIRA PASSADA: a
+        // migration 0066 tornou a unicidade (item, fornecedor) PARCIAL
+        // (`where legacy_id is null`), com um trigger fechando o caso "cotacao
+        // nova x cotacao importada". As duas entram: sao cotacoes reais, com
+        // valor, e recusar a segunda apagaria a comparacao de preco que o
+        // escritorio fez — nao ha como escolher qual fica sem escolher tambem
+        // qual preco vale.
+        const supplierLegacy = String(q?.fornecedor_id ?? '').trim()
+        if (seen.has(supplierLegacy)) {
+          adjust(
+            'budget_item_quotes', legacy,
+            'fornecedor cotado mais de uma vez no mesmo item: as duas cotacoes entraram (0066) e a ' +
+              'escolha de qual preco vale e do escritorio',
+            label,
+          )
         }
-        seen.add(supplier.id)
+        seen.add(supplierLegacy)
         rows.push({
           tenant_id: T(),
+          legacy_id: `${legacy}:${supplierLegacy}:${position}`,
           item_id: itemId,
           supplier_id: supplier.id,
           value: num(q?.valor),
@@ -2372,9 +2538,36 @@ async function main() {
           quote_file_name: null,
         })
         stat('budget_item_quotes').consumed += 1
-      }
+      })
     }
-    const res = await insertBatch('budget_item_quotes', rows, 'item_id,supplier_id')
+
+    // AS COTACOES DA PASSADA ANTERIOR ESTAO COM legacy_id NULO, e o upsert
+    // agora conflita por (tenant_id, legacy_id) — sem apagar antes, elas
+    // ficariam no banco ao lado das mesmas cotacoes gravadas de novo, e a
+    // conferencia veria 46 onde o CSV tem 28. Cotacao e filha PURA do item (ON
+    // DELETE CASCADE, nenhum dependente), entao apagar e regravar nao derruba
+    // nada em volta.
+    //
+    // O recorte e `legacy_id is null` e nao "tudo deste escritorio": as linhas
+    // que ESTA execucao vai gravar tem legacy_id e sao atualizadas em vez de
+    // recriadas, o que preserva o uuid delas entre execucoes. Fica escrito o
+    // que o recorte alcanca: cotacao criada PELA TELA tambem tem legacy_id nulo
+    // e seria apagada por aqui. Hoje nao existe nenhuma — a tabela so tem saida
+    // de importacao —, e este script e a etapa de migracao, nao rotina.
+    if (!DRY_RUN) {
+      const { error: delError } = await db
+        .from('budget_item_quotes')
+        .delete()
+        .eq('tenant_id', T())
+        .is('legacy_id', null)
+      if (delError) abort(`limpar cotacoes sem legacy_id: ${delError.message}`)
+    }
+
+    // onConflict por (tenant_id, legacy_id), como os outros 21 passos: o indice
+    // (item_id, supplier_id) virou PARCIAL na 0066, e indice parcial nao serve
+    // de alvo de ON CONFLICT sem repetir o predicado — o PostgREST nao repete e
+    // devolveria 42P10.
+    const res = await insertBatch('budget_item_quotes', rows, 'tenant_id,legacy_id')
     if (res.error) abort(`gravar budget_item_quotes: ${res.error.message}`)
     stat('budget_item_quotes').written = rows.length
     log(`  ${rows.length} de ${stat('budget_item_quotes').source}`)
@@ -2843,12 +3036,24 @@ async function verify(tenantId, credentials) {
   }
 
   // 4. dinheiro --------------------------------------------------------------
-  log('\n4. totais financeiros (soma do CSV das linhas importadas x soma no banco)')
+  //
+  // DUAS PERGUNTAS DIFERENTES, e a partir da terceira passada as duas sao
+  // conferidas:
+  //   a) o banco soma o mesmo que as linhas que ele tem? (gravacao fiel)
+  //   b) o banco soma o mesmo que o CSV INTEIRO? (nada ficou de fora)
+  // Ate a segunda passada so (a) era exigida, e (b) saia como informacao. A meta
+  // desta passada e 100% do dinheiro, entao (b) tambem derruba a conferencia:
+  // centavo que falta e linha que ficou de fora, e linha que fica de fora
+  // precisa de motivo escrito no relatorio de pendencias.
+  log('\n4. totais financeiros (CSV inteiro x banco)')
   const money = [
     ['contracts', 'total_value', csv.Contract, 'total_value', 'Contract'],
     ['accounts_receivable', 'value', csv.AccountReceivable, 'value', 'AccountReceivable'],
     ['accounts_payable', 'value', csv.AccountPayable, 'value', 'AccountPayable'],
   ]
+  const fmt = (c) => (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  let sourceTotal = 0
+  let dbTotal = 0
   for (const [table, column, sourceRows, sourceColumn, entity] of money) {
     const { rows, error } = await selectAll(table, `legacy_id, ${column}`, (q) => q.eq('tenant_id', tenantId))
     if (error) { problems.push(`${table}: nao consegui somar (${error.message})`); continue }
@@ -2862,11 +3067,18 @@ async function verify(tenantId, credentials) {
     }
     const observed = [...inDb.values()].reduce((a, v) => a + cents(v), 0)
     const ok = expected === observed
-    const fmt = (c) => (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const whole = pendedMoney === 0
+    sourceTotal += expected + pendedMoney
+    dbTotal += observed
     log(`   ${ok ? 'ok  ' : 'FALHA'} ${table.padEnd(22)} banco=${fmt(observed).padStart(16)}  csv(importadas)=${fmt(expected).padStart(16)}`)
-    log(`        ${entity}: CSV inteiro ${fmt(expected + pendedMoney)} — ficou de fora ${fmt(pendedMoney)} em ${sourceRows.length - inDb.size} linha(s) pendente(s)`)
-    if (!ok) problems.push(`${table}: soma do banco ${fmt(observed)} != soma do CSV ${fmt(expected)}`)
+    log(
+      `   ${whole ? 'ok  ' : 'FALHA'} ${entity.padEnd(22)} CSV inteiro=${fmt(expected + pendedMoney).padStart(11)}` +
+        `  ficou de fora=${fmt(pendedMoney).padStart(13)} em ${sourceRows.length - inDb.size} linha(s)`,
+    )
+    if (!ok) problems.push(`${table}: soma do banco ${fmt(observed)} != soma do CSV das importadas ${fmt(expected)}`)
+    if (!whole) problems.push(`${entity}: ${fmt(pendedMoney)} do CSV nao esta no banco (${sourceRows.length - inDb.size} linha(s))`)
   }
+  log(`   ${dbTotal === sourceTotal ? 'ok  ' : 'FALHA'} ${'TOTAL (3 tabelas)'.padEnd(22)} banco=${fmt(dbTotal).padStart(16)}  csv inteiro=${fmt(sourceTotal).padStart(16)}`)
 
   // 4b. a tabela do diagnostico, relida do banco -----------------------------
   //

@@ -742,9 +742,10 @@ digitado (`ProjectForm.jsx:270` e `:289`). Viraram tabela-filha de texto livre
 ## O que a 2ª passada NÃO acrescentou, e o que as migrations 0061–0066 resolveram
 
 Quatro casos ficaram de fora do de/para de propósito, porque entrar exigia
-**migration**. As migrations existem desde 2026-08-06 e os quatro estão
-resolvidos **no banco** — falta o script de importação parar de recusá-los pelos
-guardas dele, que espelham os checks antigos.
+**migration**. As migrations existem desde 2026-08-06, e a **3ª passada** da
+importação afrouxou junto os guardas de `scripts/import-base44.mjs`, que
+espelhavam os checks antigos. Os quatro estão resolvidos no banco **e no
+script**: as linhas estão importadas.
 
 | Caso | Linhas | Como ficou |
 |---|---|---|
