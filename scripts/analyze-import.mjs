@@ -1068,7 +1068,10 @@ h1('10. ligacoes que os dois lados gravam e podem discordar');
   for (const c of data.Contract) {
     const fromProject = projByContract.get(c.id);
     const fromContract = c.project_id.trim() || null;
-    if (fromProject && fromContract) (fromProject === fromContract ? agree++ : disagree++);
+    if (fromProject && fromContract) {
+      if (fromProject === fromContract) agree += 1;
+      else disagree += 1;
+    }
     else if (fromContract) onlyContract++;
     else if (fromProject) onlyProject++;
   }
@@ -1090,7 +1093,8 @@ h1('10. ligacoes que os dois lados gravam e podem discordar');
   for (const c of data.Contract) {
     const cl = clientById.get(c.client_id);
     if (!cl) { noClient += 1; continue; }
-    (digits(c.client_cpf_cnpj) === digits(cl.cpf_cnpj) ? snapSame++ : snapDiff++);
+    if (digits(c.client_cpf_cnpj) === digits(cl.cpf_cnpj)) snapSame += 1;
+    else snapDiff += 1;
   }
   push(`Copia congelada do cliente no contrato x cadastro atual (CPF/CNPJ): igual=${snapSame} DIFERENTE=${snapDiff} sem cliente=${noClient}`);
   push('  (divergencia e esperada e intencional — SCHEMA-PLAN, "Copia congelada do cliente")');
