@@ -384,6 +384,80 @@ select pg_temp.val('9.3', 'CONTROLE: lead_origin tem valor que lead_source nao t
   where v::text <> all (select unnest(enum_range(null::public.lead_source))::text)
 $q$);
 
+-- 10. A excecao da importacao: legacy_id distingue o que veio do base44 --------
+--
+-- Migrations 0063 e 0064. Tres regras do pipeline passaram a abrir excecao para
+-- linha com legacy_id preenchido: os campos de perda sem status Perdida, o
+-- responsavel comercial obrigatorio e a data de entrada no funil obrigatoria.
+-- Em client_intakes, o cliente obrigatorio.
+--
+-- CADA AFIRMACAO VEM EM PAR. Os casos 1.1 a 1.3 acima ja sao a metade negativa
+-- do primeiro (nenhum deles preenche legacy_id); os controles daqui repetem a
+-- negacao ao lado da excecao.
+
+select pg_temp.chk('10.1', 'negociacao IMPORTADA ativa com motivo de perda entra', 'OK:1', format($q$
+  insert into public.negotiations (tenant_id, legacy_id, name, commercial_owner_id, status,
+                                   loss_reason, loss_notes)
+  values (%L, 'b44-neg-motivo-sem-perda', 'Roberlando', %L, 'active',
+          'price', 'Achou caro e parou de responder')
+$q$, (select tenant_a from ids), (select owner_a from ids)));
+
+select pg_temp.chk('10.2', 'CONTROLE: a MESMA negociacao sem legacy_id e recusada', 'ERR:23514', format($q$
+  insert into public.negotiations (tenant_id, name, commercial_owner_id, status, loss_reason)
+  values (%L, 'Roberlando', %L, 'active', 'price')
+$q$, (select tenant_a from ids), (select owner_a from ids)));
+
+select pg_temp.chk('10.3', 'negociacao IMPORTADA SEM responsavel comercial entra', 'OK:1', format($q$
+  insert into public.negotiations (tenant_id, legacy_id, name)
+  values (%L, 'b44-neg-sem-responsavel', 'Maria Luiza Galvao')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('10.4', 'CONTROLE: negociacao sem responsavel e sem legacy_id e recusada', 'ERR:23514', format($q$
+  insert into public.negotiations (tenant_id, name)
+  values (%L, 'Maria Luiza Galvao')
+$q$, (select tenant_a from ids)));
+
+-- O DEFAULT continua agindo em quem nao manda a coluna - e por isso que a
+-- importacao precisa mandar NULO explicito. Gravar "entrou no funil hoje" numa
+-- oportunidade antiga seria uma afirmacao falsa sobre o tempo de funil.
+select pg_temp.chk('10.5', 'negociacao IMPORTADA com data de entrada NULA entra', 'OK:1', format($q$
+  insert into public.negotiations (tenant_id, legacy_id, name, commercial_owner_id, funnel_entry_date)
+  values (%L, 'b44-neg-sem-data-funil', 'Bruno Seabra', %L, null)
+$q$, (select tenant_a from ids), (select owner_a from ids)));
+
+select pg_temp.chk('10.6', 'CONTROLE: data de entrada nula sem legacy_id e recusada', 'ERR:23514', format($q$
+  insert into public.negotiations (tenant_id, name, commercial_owner_id, funnel_entry_date)
+  values (%L, 'Bruno Seabra', %L, null)
+$q$, (select tenant_a from ids), (select owner_a from ids)));
+
+select pg_temp.val('10.7', 'CONTROLE: quem nao manda a coluna continua recebendo o default de hoje',
+  current_date::text, format($q$
+  with novo as (
+    insert into public.negotiations (tenant_id, name, commercial_owner_id)
+    values (%L, 'Nasceu aqui', %L)
+    returning funnel_entry_date
+  ) select funnel_entry_date::text from novo
+$q$, (select tenant_a from ids), (select owner_a from ids)));
+
+select pg_temp.chk('10.8', 'briefing IMPORTADO SEM cliente entra', 'OK:1', format($q$
+  insert into public.client_intakes (tenant_id, legacy_id)
+  values (%L, 'b44-intake-sem-cliente')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('10.9', 'CONTROLE: briefing sem cliente e sem legacy_id e recusado', 'ERR:23514', format($q$
+  insert into public.client_intakes (tenant_id) values (%L)
+$q$, (select tenant_a from ids)));
+
+-- A superficie publica continua correta com client_id nulo: open_client_intake
+-- faz JOIN com clients, entao o link responde a mesma recusa indistinguivel de
+-- token inexistente. Sem este caso, "briefing orfao entra" poderia ter aberto um
+-- caminho de leitura sem cliente.
+select pg_temp.val('10.10', 'o link de um briefing sem cliente devolve not_found', 'not_found', format($q$
+  select outcome::text from public.open_client_intake(
+    (select token from public.client_intakes where tenant_id = %L and legacy_id = 'b44-intake-sem-cliente')
+  )
+$q$, (select tenant_a from ids)));
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;

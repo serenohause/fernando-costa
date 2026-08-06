@@ -1,0 +1,61 @@
+-- project_phase ganha 'under_construction' (Em Obra).
+--
+-- POR QUE, E POR QUE AGORA
+--   Decisao do usuario, tomada na etapa de importacao do dado real do base44.
+--
+--   14 tarefas do escritorio estao na fase "Em Obra". Nenhum dos treze valores
+--   do enum significa isso: 'building_permit' e o ALVARA (a licenca para
+--   comecar), nao a obra; 'finished' e o fim do projeto; e 'post_approval', que
+--   seria o equivalente semantico, nasceu na 0048 para o checklist de orcamento
+--   e e barrado em tasks pelo tasks_phase_no_post_approval_check (0049).
+--
+--   As saidas eram tres: recusar as 14 tarefas (e, em cascata, os 290 itens de
+--   checklist dentro delas), traduzir "Em Obra" para uma fase existente, ou
+--   acrescentar o valor. Traduzir seria adivinhar: docs/ENUM-MAP.md registra que
+--   nenhuma das treze e equivalente, e gravar 'building_permit' onde o
+--   escritorio escreveu "Em Obra" grava como FATO uma fase que a equipe nao
+--   escolheu. Recusar perderia trabalho real de 14 projetos.
+--
+--   Acrescentar valor a enum e ADITIVO: nenhuma linha existente muda, nenhum
+--   check existente passa a recusar o que aceitava, e os dois recortes de
+--   tasks.phase (nao aceita 'finished', nao aceita 'post_approval') continuam
+--   valendo palavra por palavra.
+--
+-- POSICAO NO TIPO, E POR QUE ELA IMPORTA
+--   AFTER 'building_permit'. A ordem de declaracao de project_phase e a ordem
+--   das colunas do kanban (0031), e obra vem depois do alvara e antes de
+--   'awaiting_client'/'finished'. E tambem a ordem que o frontend le de
+--   Constants.public.Enums.project_phase para montar TASK_PHASE_VALUES.
+--
+-- ESTA MIGRATION NAO USA O VALOR NOVO, DE PROPOSITO
+--   Valor acrescentado a um enum nao pode ser usado na mesma transacao que o
+--   acrescentou. Mesmo motivo pelo qual a 0048 criou 'post_approval' sozinha e a
+--   0049 so o referenciou como TEXTO. Aqui nao ha nada a referenciar: os checks
+--   de tasks e de projects sao por exclusao, entao o valor novo passa a ser
+--   aceito nas duas colunas sem uma linha de DDL a mais.
+--
+-- O QUE ISSO ABRE, E QUE FICA REGISTRADO
+--   projects.current_phase tambem passa a aceitar 'under_construction' (o check
+--   da 0049 so barra 'post_approval'). Nenhuma tela grava esse valor em projeto
+--   hoje, e a importacao so o usa em tarefa. Se o escritorio decidir que projeto
+--   nao pode estar "Em Obra", o lugar do recorte e um check em projects, como o
+--   projects_current_phase_domain_check ja faz com post_approval.
+--
+--   A view project_progress (0035) mapeia fase para percentual em um CASE sem
+--   ELSE: 'under_construction' cai em NULL e e IGNORADA no max(), exatamente
+--   como 'awaiting_client'. E o comportamento correto e deliberado - inventar um
+--   percentual para uma fase que o original nunca teve mudaria o numero exibido
+--   de 14 projetos com base em palpite. A view nao e alterada aqui.
+--
+--   A TELA PRECISA DE DUAS COISAS que este banco nao pode dar: o rotulo em
+--   PROJECT_PHASE (src/lib/enums.ts) e a coluna no kanban de tarefas
+--   (COLUMNS em TaskKanban.tsx, hoje uma lista fixa de doze). Sem a coluna, as
+--   14 tarefas nao aparecem em coluna nenhuma do Fluxo do Projeto - e o
+--   desaparecimento silencioso que o COMMENT do tasks_phase_not_finished_check
+--   (0032) descreve. Esta pendencia esta no relatorio desta etapa.
+
+alter type public.project_phase
+  add value if not exists 'under_construction' after 'building_permit';
+
+comment on type public.project_phase is
+  'Fase do projeto. De/para: not_started=Nao iniciado, briefing=Briefing, layout=Layout, renderings=Perspectivas, revision=Revisao, legal_permit=Projeto Legal, hoa_approval=Aprovacao Condominio, construction_docs=Projeto Executivo, engineering_docs=Projetos Complementares, building_permit=Alvara de Construcao, under_construction=Em Obra, awaiting_client=Aguardando Cliente, finished=Finalizado, post_approval=Pos-aprovacao. COMPARTILHADO por tres colunas, cada uma com o seu recorte, e cada recorte e um check na propria tabela: tasks.phase nao aceita finished (0032) nem post_approval (0049); projects.current_phase nao aceita post_approval (0049); budget_checklists.project_phase aceita SO renderings, construction_docs, engineering_docs e post_approval (0049). post_approval entrou na 0048 e existe apenas para o checklist de orcamento. under_construction entrou na 0061, para as 14 tarefas que o escritorio marcou como "Em Obra" no base44: e fase de tarefa e de projeto, nao tem percentual proprio na view project_progress (e ignorada no max, como awaiting_client) e exige coluna nova no kanban do frontend.';

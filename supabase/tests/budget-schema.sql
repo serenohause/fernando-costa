@@ -1139,6 +1139,88 @@ select pg_temp.val('9.30', 'os anexos cairam com o item, que caiu com o checklis
   select count(*)::text from public.budget_item_approval_files where item_id = %L
 $q$, (select item_f1 from ids)));
 
+-- 10. A excecao da importacao: legacy_id distingue o que veio do base44 --------
+--
+-- Migrations 0063 e 0066.
+--
+--   a) suppliers.category: 1 fornecedor do base44 e "Revestimento de Fachada",
+--      um dos quatro valores que so valem em item de orcamento. A tipologia e
+--      real; virar 'other' apagaria um fato (e derrubaria 2 marcas por cascata).
+--
+--   b) budget_item_quotes: 10 cotacoes do export sao do MESMO fornecedor no
+--      MESMO item, com valores diferentes. A tabela nasceu SEM legacy_id (a
+--      cotacao nao tem id proprio no base44) e ganhou um na 0066, guardando o
+--      ENDERECO do elemento na origem: item + fornecedor + posicao no array.
+--
+-- Como em clients (0065), a unicidade parcial sozinha deixaria uma cotacao NOVA
+-- conviver com uma IMPORTADA do mesmo fornecedor - e o drawer marcaria as duas
+-- como "Escolhido". O caso 10.7 e o que cai se o trigger sumir.
+--
+-- Cenario proprio (chk_x/item_x), pelo mesmo motivo do chk_scratch e do
+-- chk_files: as secoes 3 e 6 conferem totais e contagens do chk_a.
+
+insert into public.budget_checklists (id, tenant_id, client_id) values
+  ('b1400000-0000-4000-8000-000000000006', (select tenant_a from ids), (select cli_a from ids));
+
+insert into public.budget_checklist_items (id, tenant_id, checklist_id, name) values
+  ('b1500000-0000-4000-8000-000000000010', (select tenant_a from ids),
+   'b1400000-0000-4000-8000-000000000006', 'Revestimento de Fachada');
+
+select pg_temp.chk('10.1', 'fornecedor IMPORTADO com tipologia de item entra', 'OK:1', format($q$
+  insert into public.suppliers (tenant_id, legacy_id, name, category, contact_whatsapp)
+  values (%L, 'b44-sup-fachada', 'Arkos Brasil', 'facade_cladding', '(85) 3222-9002')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('10.2', 'CONTROLE: o MESMO fornecedor sem legacy_id e recusado', 'ERR:23514', format($q$
+  insert into public.suppliers (tenant_id, name, category, contact_whatsapp)
+  values (%L, 'Arkos Brasil', 'facade_cladding', '(85) 3222-9002')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('10.3', 'cotacao IMPORTADA entra', 'OK:1', format($q$
+  insert into public.budget_item_quotes (tenant_id, legacy_id, item_id, supplier_id, value)
+  values (%L, 'b44-item-1:b44-forn-1:0', 'b1500000-0000-4000-8000-000000000010', %L, 12000)
+$q$, (select tenant_a from ids), (select sup_a1 from ids)));
+
+select pg_temp.chk('10.4', 'SEGUNDA cotacao IMPORTADA do MESMO fornecedor no MESMO item entra', 'OK:1', format($q$
+  insert into public.budget_item_quotes (tenant_id, legacy_id, item_id, supplier_id, value)
+  values (%L, 'b44-item-1:b44-forn-1:1', 'b1500000-0000-4000-8000-000000000010', %L, 13500)
+$q$, (select tenant_a from ids), (select sup_a1 from ids)));
+
+select pg_temp.val('10.5', 'as duas cotacoes do par ficaram no banco', '2', format($q$
+  select count(*)::text from public.budget_item_quotes
+   where item_id = 'b1500000-0000-4000-8000-000000000010' and supplier_id = %L
+$q$, (select sup_a1 from ids)));
+
+-- O legacy_id e a identidade que a reimportacao usa para atualizar em vez de
+-- duplicar. Sem o unique, reexecutar o passo 27 criaria copias a cada rodada.
+select pg_temp.chk('10.6', 'duas cotacoes com o MESMO legacy_id no mesmo escritorio e recusado', 'ERR:23505', format($q$
+  insert into public.budget_item_quotes (tenant_id, legacy_id, item_id, supplier_id, value)
+  values (%L, 'b44-item-1:b44-forn-1:0', 'b1500000-0000-4000-8000-000000000010', %L, 1)
+$q$, (select tenant_a from ids), (select sup_a2 from ids)));
+
+-- O caso que o indice parcial sozinho deixaria passar.
+select pg_temp.chk('10.7', 'cotacao NOVA no par de uma IMPORTADA e recusada', 'ERR:23505', format($q$
+  insert into public.budget_item_quotes (tenant_id, item_id, supplier_id, value)
+  values (%L, 'b1500000-0000-4000-8000-000000000010', %L, 9000)
+$q$, (select tenant_a from ids), (select sup_a1 from ids)));
+
+-- CONTROLE do trigger: ele nao pode recusar quem nao colide com ninguem.
+select pg_temp.chk('10.8', 'CONTROLE: cotacao NOVA de outro fornecedor no mesmo item entra', 'OK:1', format($q$
+  insert into public.budget_item_quotes (tenant_id, item_id, supplier_id, value)
+  values (%L, 'b1500000-0000-4000-8000-000000000010', %L, 9000)
+$q$, (select tenant_a from ids), (select sup_a2 from ids)));
+
+select pg_temp.chk('10.9', 'CONTROLE: repetir esse fornecedor SEM legacy_id continua recusado', 'ERR:23505', format($q$
+  insert into public.budget_item_quotes (tenant_id, item_id, supplier_id, value)
+  values (%L, 'b1500000-0000-4000-8000-000000000010', %L, 9500)
+$q$, (select tenant_a from ids), (select sup_a2 from ids)));
+
+-- A condicao do indice e o que separa dado importado de dado nascido aqui.
+select pg_temp.val('10.10', 'a unicidade de cotacao e PARCIAL, e nao total',
+  'CREATE UNIQUE INDEX budget_item_quotes_item_id_supplier_id_key ON public.budget_item_quotes USING btree (item_id, supplier_id) WHERE (legacy_id IS NULL)',
+  $q$select indexdef from pg_indexes
+     where schemaname = 'public' and indexname = 'budget_item_quotes_item_id_supplier_id_key'$q$);
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;

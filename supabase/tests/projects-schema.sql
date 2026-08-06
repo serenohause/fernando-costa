@@ -399,6 +399,79 @@ select pg_temp.val_as('8.4', 'CONTROLE: colaborador de A ve o proprio projeto pe
   select count(*)::text from public.project_progress where project_id = %L
 $q$, (select project_full_a from ids)));
 
+-- 9. A fase "Em Obra" e a excecao da importacao --------------------------------
+--
+-- DUAS MUDANCAS DIFERENTES, e a diferenca entre elas e o assunto desta secao.
+--
+--   a) A migration 0061 acrescentou 'under_construction' a project_phase. Isso
+--      NAO e excecao de importacao: e fase nova, e vale para qualquer tarefa,
+--      importada ou nao. 14 tarefas do base44 estao la, mas quem criar uma
+--      tarefa "Em Obra" pela tela amanha usa o mesmo valor.
+--
+--   b) A migration 0062 abriu excecao no completion_date x status para linha
+--      com legacy_id preenchido. Essa sim so vale para o que veio do base44.
+--
+-- Os casos 9.3 e 9.4 sao o que impede (a) de virar afrouxamento: acrescentar
+-- valor a um enum compartilhado nao pode abrir os recortes que cada tabela ja
+-- fazia, e os dois valores que tasks nunca aceitou continuam recusados INCLUSIVE
+-- em linha importada.
+
+select pg_temp.chk('9.1', 'tarefa em fase Em Obra entra (sem legacy_id nenhum)', 'OK:1', format($q$
+  insert into public.tasks (tenant_id, title, phase)
+  values (%L, 'Acompanhamento de obra', 'under_construction')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('9.2', 'CONTROLE: o PROJETO tambem aceita Em Obra', 'OK:1', format($q$
+  insert into public.projects (tenant_id, name, project_type, current_phase)
+  values (%L, 'Residencia em obra', 'architecture', 'under_construction')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('9.3', 'tarefa IMPORTADA em fase finished continua recusada', 'ERR:23514', format($q$
+  insert into public.tasks (tenant_id, legacy_id, title, phase)
+  values (%L, 'b44-task-finished', 'Entrega final', 'finished')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('9.4', 'tarefa IMPORTADA em fase post_approval continua recusada', 'ERR:23514', format($q$
+  insert into public.tasks (tenant_id, legacy_id, title, phase)
+  values (%L, 'b44-task-pos', 'Compra de acabamento', 'post_approval')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('9.5', 'tarefa IMPORTADA concluida SEM data entra', 'OK:1', format($q$
+  insert into public.tasks (tenant_id, legacy_id, title, status)
+  values (%L, 'b44-task-sem-data', '0652 - Thiago e Alyssandra', 'completed')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('9.6', 'CONTROLE: a MESMA tarefa sem legacy_id e recusada', 'ERR:23514', format($q$
+  insert into public.tasks (tenant_id, title, status)
+  values (%L, '0652 - Thiago e Alyssandra', 'completed')
+$q$, (select tenant_a from ids)));
+
+-- A fase nova NAO tem percentual proprio na view project_progress: o CASE da
+-- 0035 nao a lista, ela vira NULL e e ignorada no max(), como 'awaiting_client'.
+-- Inventar um percentual mudaria o numero exibido de 14 projetos por palpite.
+-- Usa o projeto sem tarefa da secao 8, que ja terminou de ser afirmada.
+select pg_temp.chk('9.7', 'monta uma tarefa Em Obra no projeto vazio', 'OK:1', format($q$
+  insert into public.tasks (tenant_id, title, project_id, phase)
+  values (%L, 'Visita de obra', %L, 'under_construction')
+$q$, (select tenant_a from ids), (select project_empty_a from ids)));
+
+select pg_temp.val('9.8', 'Em Obra nao pontua fase: phase_percent continua 0', '0|0', format($q$
+  select progress_percent || '|' || phase_percent
+    from public.project_progress where project_id = %L
+$q$, (select project_empty_a from ids)));
+
+-- CONTROLE: sem ele, "0" nao distingue "a fase nova e ignorada" de "a view parou
+-- de pontuar qualquer fase".
+select pg_temp.chk('9.9', 'acrescenta uma tarefa de Briefing no mesmo projeto', 'OK:1', format($q$
+  insert into public.tasks (tenant_id, title, project_id, phase)
+  values (%L, 'Reuniao de briefing', %L, 'briefing')
+$q$, (select tenant_a from ids), (select project_empty_a from ids)));
+
+select pg_temp.val('9.10', 'CONTROLE: a fase que TEM percentual continua pontuando', '0|12', format($q$
+  select progress_percent || '|' || phase_percent
+    from public.project_progress where project_id = %L
+$q$, (select project_empty_a from ids)));
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;

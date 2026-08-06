@@ -348,6 +348,7 @@ fica registrado no relatório de importação.
 | Projeto Executivo | `construction_docs` | Projeto Executivo |
 | Projetos Complementares | `engineering_docs` | Projetos Complementares |
 | Alvará de Construção | `building_permit` | Alvará de Construção |
+| **Em Obra** (migration 0061) | `under_construction` | Em Obra |
 | Aguardando Cliente | `awaiting_client` | Aguardando Cliente |
 | Finalizado | `finished` | Finalizado |
 | **Estudo preliminar** (2ª passada) | `layout` | Layout |
@@ -373,13 +374,21 @@ contra o título das tarefas que carregam cada valor:
   Executivo. A tarefa é "Compatibilização estrutural", que só existe no
   executivo.
 
-**`Em Obra` (14 tarefas) NÃO entrou neste de/para.** É fase de obra, depois da
-aprovação, e nenhum dos 13 valores do enum significa isso: `Alvará de
-Construção` é o alvará, não a obra, e `Pós-aprovação` — que seria o
-equivalente — é barrado em `tasks` pelo check `tasks_phase_not_post_approval`.
-Entrar exige **migration** (valor novo no enum, ou soltar o check), e migration
-com dado real dentro é decisão do usuário. As 14 tarefas continuam em
-pendências, com esse motivo escrito.
+**`Em Obra` (14 tarefas) virou valor novo, na migration 0061.** É fase de obra,
+depois da aprovação, e nenhum dos 13 valores anteriores significava isso:
+`Alvará de Construção` é o alvará, não a obra, e `Pós-aprovação` — que seria o
+equivalente — é barrado em `tasks` pelo check `tasks_phase_no_post_approval`.
+Traduzir seria adivinhar; acrescentar é aditivo e não muda nenhuma linha
+existente. `under_construction` entrou **depois de `building_permit`**, que é a
+posição dela no kanban, e vale para tarefa e para projeto. Ela **não tem
+percentual próprio** na view `project_progress`: cai no `NULL` do `CASE` e é
+ignorada no `max()`, exatamente como `awaiting_client` — inventar um percentual
+mudaria o número exibido de 14 projetos com base em palpite.
+
+O frontend ainda precisa de duas coisas para ela aparecer: o rótulo em
+`PROJECT_PHASE` (`src/lib/enums.ts`) e a coluna no kanban de tarefas
+(`COLUMNS` em `TaskKanban.tsx`, hoje uma lista fixa de doze). Sem a coluna, a
+tarefa não aparece em coluna nenhuma do Fluxo do Projeto.
 
 `Finalizado` só existe em `Project.fase_projeto_atual`; `Task.phase` não tem
 esse valor. O enum é único e `tasks` simplesmente nunca recebe `finished` —
@@ -730,18 +739,22 @@ digitado (`ProjectForm.jsx:270` e `:289`). Viraram tabela-filha de texto livre
 
 ---
 
-## O que a 2ª passada NÃO acrescentou, e por quê
+## O que a 2ª passada NÃO acrescentou, e o que as migrations 0061–0066 resolveram
 
-Quatro casos ficaram de fora do de/para de propósito. Em todos, entrar exige
-**migration** — e migration com dado real dentro é decisão do usuário, não do
-script de importação.
+Quatro casos ficaram de fora do de/para de propósito, porque entrar exigia
+**migration**. As migrations existem desde 2026-08-06 e os quatro estão
+resolvidos **no banco** — falta o script de importação parar de recusá-los pelos
+guardas dele, que espelham os checks antigos.
 
-| Caso | Linhas | O que falta |
+| Caso | Linhas | Como ficou |
 |---|---|---|
-| `Task.phase` = `Em Obra` | 14 | Valor de fase de obra no enum `project_phase`, ou soltar `tasks_phase_not_post_approval_check` para aceitar `post_approval`. Nenhum dos 13 valores atuais significa "em obra". |
-| `Fornecedor.tipologia` = `Revestimento de Fachada` | 1 (+ 2 marcas) | Soltar `suppliers_category_domain_check`. A tipologia é **real e conhecida**; trocá-la por `other` apagaria um fato que o escritório registrou, então ela não vira `other`. |
-| Status "concluído/pago" **sem data** | 15 recebíveis, 2 pagáveis, 9 atividades, 1 tarefa | Afrouxar os checks `*_matches_status` para o mesmo lado que a migration `0060` já afrouxou em `task_checklist_items`: concluído sem data entra, e o nulo significa "o quando não foi registrado". Hoje o check é equivalência nos dois sentidos. |
-| Atividade excluída sem autor da exclusão | 1 | Afrouxar `activities_deleted_pair_check`. Nulificar só um dos dois lados "desapagaria" a atividade. |
+| `Task.phase` = `Em Obra` | 14 | **Migration 0061**: `under_construction` entrou em `project_phase`, depois de `building_permit`. Aditivo — os recortes de `tasks` (`finished`, `post_approval`) continuam valendo. |
+| `Fornecedor.tipologia` = `Revestimento de Fachada` | 1 (+ 2 marcas) | **Migration 0063**: `suppliers_category_domain_check` passou a aceitar os quatro valores de item **só em linha com `legacy_id`**. A tipologia é real e conhecida; trocá-la por `other` apagaria um fato. |
+| Status "concluído/pago" **sem data** | 15 recebíveis, 2 pagáveis, 9 atividades (+1 reaberta), 1 tarefa | **Migration 0062**: os quatro checks `*_matches_status` passaram a ser `check (X or legacy_id is not null)`. Nulo significa "aconteceu, e o quando não foi registrado", como na `0060`. Para linha nascida na tela, a regra é a de sempre. |
+| Atividade excluída sem autor da exclusão | 1 | **Migration 0063**: mesma forma. Inventar o autor atribuiria a alguém um ato que ele pode não ter praticado. |
+
+O de/para em si não muda por nada disso, com uma exceção: `Em Obra`, que agora
+tem valor (ver `project_phase`, acima).
 
 `Fornecedor.tipologia` **vazia** (1 linha) é caso diferente e entrou: `category`
 é NOT NULL, `other`/"Outros" é o valor que a própria lista do base44 oferece

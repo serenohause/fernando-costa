@@ -284,6 +284,48 @@ Consequências que precisam ser respeitadas:
   lado da policy, e de um teste que prove com a chave publicável que a tabela
   não responde.
 
+## A restrição distingue dado importado de dado nascido aqui
+
+Decisão do usuário na etapa de importação, implementada pelas migrations
+**0061–0066**. O discriminador é `legacy_id`: toda tabela migrada tem
+`legacy_id text` com o id da linha no base44, preenchido **só** pela importação.
+Linha com `legacy_id` veio de lá; linha com `legacy_id` nulo nasceu nesta
+aplicação.
+
+Onde havia `check (X)`, passou a haver `check (X or legacy_id is not null)`.
+Onde havia `NOT NULL` que a origem não tinha como preencher, o `NOT NULL` saiu e
+a obrigatoriedade virou `check (<coluna> is not null or legacy_id is not null)`.
+Onde havia unicidade que o base44 nunca teve, o índice único virou **parcial**
+(`where legacy_id is null`) e um **trigger** fechou o caso que o índice parcial
+não expressa (linha nova colidindo com linha importada).
+
+Três propriedades, e é por elas que a forma é essa:
+
+- **nada se perde na importação** — o base44 não guardava aquilo, e recusar a
+  linha perderia também o fato que ele guardava;
+- **o sistema não afrouxa** — tudo que a tela criar continua obrigado
+  exatamente como antes, porque a tela nunca preenche `legacy_id`;
+- **é auditável** — toda linha que usou a exceção sai numa consulta, e cada
+  `COMMENT` de constraint diz qual é a exceção e que ela some quando `legacy_id`
+  é nulo.
+
+Isso é **diferente** de derrubar o check, que foi o que a `0060` fez em
+`task_checklist_items`: lá a tela também não tinha como preencher a data, então
+não havia regra a preservar. Aqui a tela tem.
+
+**Limite conhecido, e ele é o preço:** a exceção acompanha a **linha**, não o
+momento da importação. Uma parcela importada continua podendo ser editada pela
+tela para "paga sem data", para sempre. Fechar isso pediria congelar o estado do
+dia da importação em outra coluna — mais schema e mais caminho de erro do que a
+regra vale. Onde a exceção larga demais seria perigosa, ela foi **estreitada**
+em vez de generalizada: `accounts_receivable.value` aceita zero em linha
+importada e continua recusando negativo em qualquer linha.
+
+Toda suíte de schema afetada ganhou o par de casos que sustenta a regra: a linha
+**com** `legacy_id` entra, e a mesma linha **sem** `legacy_id` continua sendo
+recusada pelo mesmo check. É o segundo caso que impede a mudança de virar
+afrouxamento geral.
+
 ## Desvios do padrão do CLAUDE.md
 
 - **Sem etapa de protótipo HTML.** `projeto-original/` cumpre o papel de

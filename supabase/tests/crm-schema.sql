@@ -379,10 +379,29 @@ select pg_temp.val('6.1c', 'extensoes que a busca por pedaco exige estao ativas'
   $q$select string_agg(extname, ',' order by extname) from pg_extension
      where extname in ('pg_trgm', 'btree_gin')$q$);
 
+-- MUDOU NA MIGRATION 0065: entraram dois indices NAO-unicos, sobre as mesmas
+-- colunas dos dois unicos. Nao sao redundancia - os unicos passaram a ser
+-- PARCIAIS (so as linhas que nasceram aqui), e a busca de duplicata da tela e o
+-- trigger de colisao precisam enxergar tambem o cliente IMPORTADO, que saiu do
+-- indice unico. Ver a secao 7 e o cabecalho da 0065.
 select pg_temp.val('6.3', 'indices da tabela',
-  'clients_id_tenant_id_key,clients_pkey,clients_tenant_id_client_key_key,clients_tenant_id_created_at_idx,clients_tenant_id_legacy_id_key,clients_tenant_id_name_idx,clients_tenant_id_search_text_idx,clients_tenant_id_tax_id_digits_key',
+  'clients_id_tenant_id_key,clients_pkey,clients_tenant_id_client_key_idx,clients_tenant_id_client_key_key,clients_tenant_id_created_at_idx,clients_tenant_id_legacy_id_key,clients_tenant_id_name_idx,clients_tenant_id_search_text_idx,clients_tenant_id_tax_id_digits_idx,clients_tenant_id_tax_id_digits_key',
   $q$select string_agg(indexname, ',' order by indexname) from pg_indexes
      where schemaname = 'public' and tablename = 'clients'$q$);
+
+-- A CONDICAO do indice unico e o que separa dado importado de dado nascido aqui.
+-- Sem esta afirmacao, alguem poderia recriar o indice sobre todas as linhas
+-- (voltando a derrubar as duplicatas do base44) ou sem `tax_id_digits is not
+-- null` (indexando cliente sem documento) e os dois casos passariam calados.
+select pg_temp.val('6.6', 'o unico de documento e PARCIAL: so linha com documento e sem legacy_id',
+  'CREATE UNIQUE INDEX clients_tenant_id_tax_id_digits_key ON public.clients USING btree (tenant_id, tax_id_digits) WHERE ((tax_id_digits IS NOT NULL) AND (legacy_id IS NULL))',
+  $q$select indexdef from pg_indexes
+     where schemaname = 'public' and indexname = 'clients_tenant_id_tax_id_digits_key'$q$);
+
+select pg_temp.val('6.7', 'o unico de chave de cliente tem a mesma condicao',
+  'CREATE UNIQUE INDEX clients_tenant_id_client_key_key ON public.clients USING btree (tenant_id, client_key) WHERE ((client_key IS NOT NULL) AND (legacy_id IS NULL))',
+  $q$select indexdef from pg_indexes
+     where schemaname = 'public' and indexname = 'clients_tenant_id_client_key_key'$q$);
 
 select pg_temp.val('6.4', 'colunas geradas declaradas', 'client_key,email_normalized,search_text,tax_id_digits',
   $q$select string_agg(column_name, ',' order by column_name) from information_schema.columns
@@ -396,6 +415,85 @@ select pg_temp.val('6.5', 'busca livre encontra por pedaco do nome, do e-mail e 
     (select count(*) from public.clients where tenant_id = %1$L and search_text ilike '%%outlook%%') +
     (select count(*) from public.clients where tenant_id = %1$L and search_text ilike '%%99812%%')
   )::text
+$q$, (select tenant_a from ids)));
+
+-- 7. A excecao da importacao: legacy_id distingue o que veio do base44 --------
+--
+-- Migrations 0064 e 0065. Duas mudancas nesta tabela:
+--
+--   a) address_city e address_state deixaram de ser NOT NULL e viraram check
+--      condicional - 1 cliente do base44 nao tem endereco nenhum preenchido.
+--   b) os dois unicos de deduplicacao viraram PARCIAIS (`where legacy_id is
+--      null`) - 3 clientes estao cadastrados duas vezes no base44, e qual das
+--      duas linhas fica e decisao do escritorio, com as duas a vista.
+--
+-- A REGRA COMPLETA DE (b) NAO CABE EM UM INDICE, e e por isso que existe o
+-- trigger clients_reject_key_collision: "linha que nasce aqui nao pode colidir
+-- com NADA; linha importada convive com linha importada". So o indice parcial
+-- deixaria um cadastro novo repetir o documento de um cliente IMPORTADO - e
+-- 118 dos 133 clientes deste banco vieram da importacao, entao seria a
+-- deduplicacao desligada para a base inteira do escritorio. Os casos 7.4 e 7.5
+-- sao os que caem se o trigger sumir.
+
+select pg_temp.chk('7.1', 'cliente IMPORTADO entra com um documento novo', 'OK:1', format($q$
+  insert into public.clients (tenant_id, legacy_id, name, phone, tax_id, address_city, address_state)
+  values (%L, 'b44-cli-1', 'Altayr Neto', '(62) 90000-0001', '999.888.777-66', 'Fortaleza', 'CE')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('7.2', 'SEGUNDO cliente IMPORTADO com o MESMO documento entra', 'OK:1', format($q$
+  insert into public.clients (tenant_id, legacy_id, name, phone, tax_id, address_city, address_state)
+  values (%L, 'b44-cli-2', 'Altayr Neto', '(62) 90000-0001', '99988877766', 'Fortaleza', 'CE')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.val('7.3', 'as duas linhas do par ficaram no banco', '2', format($q$
+  select count(*)::text from public.clients
+   where tenant_id = %L and tax_id_digits = '99988877766'
+$q$, (select tenant_a from ids)));
+
+-- O caso que o indice parcial sozinho deixaria passar.
+select pg_temp.chk('7.4', 'cliente NOVO com o documento de um IMPORTADO e recusado', 'ERR:23505', format($q$
+  insert into public.clients (tenant_id, name, phone, tax_id, address_city, address_state)
+  values (%L, 'Altayr N. (digitado de novo)', '(62) 90000-0002', '999.888.777-66', 'Fortaleza', 'CE')
+$q$, (select tenant_a from ids)));
+
+-- O mesmo pelo outro lado da chave: cliente sem documento colide por e-mail.
+select pg_temp.chk('7.5', 'cliente IMPORTADO so com e-mail entra', 'OK:1', format($q$
+  insert into public.clients (tenant_id, legacy_id, name, phone, email, address_city, address_state)
+  values (%L, 'b44-cli-3', 'Stelio Braga', '(62) 90000-0003', 'stelio@exemplo.test', 'Fortaleza', 'CE')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('7.6', 'cliente NOVO com o e-mail de um IMPORTADO e recusado', 'ERR:23505', format($q$
+  insert into public.clients (tenant_id, name, phone, email, address_city, address_state)
+  values (%L, 'Stelio B. (digitado de novo)', '(62) 90000-0004', 'STELIO@exemplo.test', 'Fortaleza', 'CE')
+$q$, (select tenant_a from ids)));
+
+-- CONTROLE do trigger: ele nao pode recusar quem nao colide com ninguem.
+select pg_temp.chk('7.7', 'CONTROLE: cliente novo com documento inedito entra', 'OK:1', format($q$
+  insert into public.clients (tenant_id, name, phone, tax_id, address_city, address_state)
+  values (%L, 'Cliente Inedito', '(62) 90000-0005', '111.222.333-99', 'Goiania', 'GO')
+$q$, (select tenant_a from ids)));
+
+-- Regularizar uma linha importada e assumir a regra de agora: com o par ainda
+-- de pe, tirar o legacy_id de uma das duas passa a colidir com a outra.
+select pg_temp.chk('7.8', 'apagar o legacy_id de um dos duplicados e recusado', 'ERR:23505', format($q$
+  update public.clients set legacy_id = null where tenant_id = %L and legacy_id = 'b44-cli-2'
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('7.9', 'cliente IMPORTADO SEM cidade e UF entra', 'OK:1', format($q$
+  insert into public.clients (tenant_id, legacy_id, name, phone)
+  values (%L, 'b44-cli-4', 'Rhavelly Boucinhas', '(62) 90000-0006')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('7.10', 'CONTROLE: cliente sem cidade e sem legacy_id e recusado', 'ERR:23514', format($q$
+  insert into public.clients (tenant_id, name, phone, address_state)
+  values (%L, 'Rhavelly Boucinhas', '(62) 90000-0007', 'CE')
+$q$, (select tenant_a from ids)));
+
+-- Nulo e "nao existe"; string vazia e o formulario mandando "" - e essa continua
+-- recusada para todo mundo, porque o check de nao-vazio nao foi tocado.
+select pg_temp.chk('7.11', 'cidade em BRANCO continua recusada mesmo em linha importada', 'ERR:23514', format($q$
+  insert into public.clients (tenant_id, legacy_id, name, phone, address_city, address_state)
+  values (%L, 'b44-cli-5', 'Cidade vazia', '(62) 90000-0008', '', 'CE')
 $q$, (select tenant_a from ids)));
 
 -- Resultado ------------------------------------------------------------------

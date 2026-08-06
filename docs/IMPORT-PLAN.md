@@ -869,12 +869,28 @@ nullable já expressa isso — mas alguém digitou 0 em vez de deixar vazio.
 > é feita e registrada*. Sobraram **94 linhas**, todas com motivo escrito.
 >
 > Resolvidos por essa passada: itens 1 (parcialmente — `Em Obra` não), 2, 8,
-> 10 (parcialmente — `Revestimento de Fachada` não). Continuam abertos, e
-> **todos exigem migration**: `Task.phase = Em Obra` (14 linhas),
-> `Fornecedor.tipologia = Revestimento de Fachada` (1), o item 13 inteiro
-> (concluído/pago sem data: 15 recebíveis, 2 pagáveis, 9 atividades, 1 tarefa)
-> e o item 14 (4 recebíveis com valor zero). Detalhe do critério de cada
-> tradução em `docs/ENUM-MAP.md`, seção "O que a 2ª passada NÃO acrescentou".
+> 10 (parcialmente — `Revestimento de Fachada` não). Detalhe do critério de cada
+> tradução em `docs/ENUM-MAP.md`.
+>
+> **Estado depois das migrations 0061–0066** (2026-08-06). A restrição passou a
+> distinguir dado importado de dado nascido aqui, pelo `legacy_id` — ver
+> `docs/ARCHITECTURE.md`, seção "A restrição distingue dado importado de dado
+> nascido aqui". No banco, **as 94 linhas de entidade principal que sobraram
+> deixaram de ser recusadas**, e com elas as 351 linhas-filhas que caíam por
+> cascata (290 itens de checklist, 49 serviços de negociação, 10 cotações, 2
+> marcas): 445 das 539 linhas do relatório de pendências.
+>
+> Continua aberto **um** caso, e ele não é de restrição: as **94
+> `collaborator_permissions` de 7 pessoas sem cadastro de colaborador**. A FK não
+> tem onde pendurar, e criar a pessoa exigiria inventar e-mail (NOT NULL, único
+> por escritório) e função (NOT NULL, e é ela que define o que a pessoa pode
+> fazer). Duas das sete são conta de teste declarada no próprio dado. É decisão
+> do escritório, uma a uma, com o relatório na mão: recadastrada a pessoa, a
+> reimportação religa as linhas dela sozinha pelo `legacy_id`.
+>
+> **As migrations são necessárias e não são suficientes.** Os guardas do
+> `scripts/import-base44.mjs` espelham os checks antigos e continuam recusando as
+> mesmas linhas até serem afrouxados junto — a lista está no relatório da etapa.
 
 Em ordem de quanto travam:
 

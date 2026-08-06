@@ -550,6 +550,90 @@ select pg_temp.chk('10.3', 'CONTROLE: mesmo nome no OUTRO tipo entra', 'OK:1', f
   values (%L, 'Comissao', 'revenue')
 $q$, (select tenant_a from ids)));
 
+-- 11. A excecao da importacao: legacy_id distingue o que veio do base44 --------
+--
+-- Migrations 0062 e 0063. Tres checks desta tabela passaram a aceitar, SO em
+-- linha com legacy_id preenchido, um estado que o base44 guardava e o nosso
+-- schema recusava: pago sem data, valor zero e recorrencia sem plano.
+--
+-- CADA AFIRMACAO VEM EM PAR, e o par e o que impede a mudanca de virar
+-- afrouxamento geral: a linha COM legacy_id entra, a linha SEM legacy_id
+-- continua sendo recusada pelo mesmo check, no mesmo caso. Os casos 3.1, 3.4,
+-- 4.1, 4.3, 5.6 e 5.7 acima ja sao a metade negativa (nenhum deles preenche
+-- legacy_id); os controles daqui repetem a negacao ao lado da excecao para que
+-- ninguem precise procurar.
+
+select pg_temp.chk('11.1', 'recebivel IMPORTADO pago SEM data entra', 'OK:1', format($q$
+  insert into public.accounts_receivable (tenant_id, legacy_id, description, value, due_date, status)
+  values (%L, 'b44-ar-pago-sem-data', 'Parcela 1/1 - 0704', 12500, '2026-05-10', 'paid')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('11.2', 'CONTROLE: o MESMO recebivel sem legacy_id e recusado', 'ERR:23514', format($q$
+  insert into public.accounts_receivable (tenant_id, description, value, due_date, status)
+  values (%L, 'Parcela 1/1 - 0704', 12500, '2026-05-10', 'paid')
+$q$, (select tenant_a from ids)));
+
+-- O outro sentido da equivalencia. Existe no dado real (1 atividade reaberta), e
+-- a excecao vale para os dois lados de proposito - ver o cabecalho da 0062.
+select pg_temp.chk('11.3', 'recebivel IMPORTADO com data e status previsto entra', 'OK:1', format($q$
+  insert into public.accounts_receivable (tenant_id, legacy_id, description, value, due_date,
+                                          status, payment_date)
+  values (%L, 'b44-ar-data-sem-pago', 'Parcela 2/2 - 0704', 12500, '2026-06-10',
+          'forecast', '2026-06-09')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('11.4', 'recebivel IMPORTADO com valor ZERO entra', 'OK:1', format($q$
+  insert into public.accounts_receivable (tenant_id, legacy_id, description, value, due_date)
+  values (%L, 'b44-ar-zero', 'Parcela 1/1 - 0637', 0, '2026-05-10')
+$q$, (select tenant_a from ids)));
+
+-- A EXCECAO E ESTREITA, e este e o caso que prova. A forma generica
+-- (`value > 0 or legacy_id is not null`) aceitaria -100 numa linha importada, e
+-- a linha importada continua editavel pela tela para sempre.
+select pg_temp.chk('11.5', 'recebivel IMPORTADO com valor NEGATIVO continua recusado', 'ERR:23514', format($q$
+  insert into public.accounts_receivable (tenant_id, legacy_id, description, value, due_date)
+  values (%L, 'b44-ar-negativo', 'Estorno', -100, '2026-05-10')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('11.6', 'CONTROLE: valor zero sem legacy_id continua recusado', 'ERR:23514', format($q$
+  insert into public.accounts_receivable (tenant_id, description, value, due_date)
+  values (%L, 'Parcela vazia', 0, '2026-05-10')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('11.7', 'despesa IMPORTADA paga SEM data entra', 'OK:1', format($q$
+  insert into public.accounts_payable (tenant_id, legacy_id, supplier_name, description,
+                                       category, value, due_date, status)
+  values (%L, 'b44-ap-pago-sem-data', 'Imposto', 'Imposto nota Fiscal', 'taxes', 900, '2026-05-10', 'paid')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('11.8', 'despesa IMPORTADA recorrente SEM frequencia entra', 'OK:1', format($q$
+  insert into public.accounts_payable (tenant_id, legacy_id, supplier_name, description,
+                                       category, value, due_date,
+                                       is_recurring, recurrence_start_date)
+  values (%L, 'b44-ap-recorrente-sem-plano', 'Stamina Digital', 'Marketing', 'marketing',
+          1500, '2026-05-10', true, '2026-01-05')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('11.9', 'CONTROLE: recorrencia sem frequencia e sem legacy_id continua recusada', 'ERR:23514', format($q$
+  insert into public.accounts_payable (tenant_id, supplier_name, description, category, value, due_date,
+                                       is_recurring, recurrence_start_date)
+  values (%L, 'Stamina Digital', 'Marketing', 'marketing', 1500, '2026-05-10', true, '2026-01-05')
+$q$, (select tenant_a from ids)));
+
+-- accounts_payable.value NAO foi afrouxado: nao ha despesa com valor zero no
+-- export. Sem este caso, afrouxar as duas tabelas "por simetria" passaria.
+select pg_temp.chk('11.10', 'despesa IMPORTADA com valor zero continua recusada', 'ERR:23514', format($q$
+  insert into public.accounts_payable (tenant_id, legacy_id, supplier_name, description,
+                                       category, value, due_date)
+  values (%L, 'b44-ap-zero', 'Fornecedor', 'Despesa vazia', 'other', 0, '2026-05-10')
+$q$, (select tenant_a from ids)));
+
+-- O discriminador e a LINHA, e nao o momento em que ela entrou: tirar o
+-- legacy_id de uma linha incoerente e pedir que ela obedeca a regra de agora.
+select pg_temp.chk('11.11', 'apagar o legacy_id de uma linha incoerente e recusado', 'ERR:23514', format($q$
+  update public.accounts_receivable set legacy_id = null where tenant_id = %L and legacy_id = 'b44-ar-zero'
+$q$, (select tenant_a from ids)));
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;

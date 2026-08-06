@@ -517,6 +517,82 @@ select pg_temp.chk_as('9.9', 'CONTROLE: quem tem can_edit edita a MESMA atividad
   update public.activities set notes = 'ajustado por quem edita' where id = %L
 $q$, (select act_arch from ids)));
 
+-- 10. A excecao da importacao: legacy_id distingue o que veio do base44 -------
+--
+-- Migrations 0062, 0063 e 0064. Tres regras desta tabela passaram a abrir
+-- excecao para linha com legacy_id preenchido: conclusao amarrada ao status, o
+-- par deleted_at/deleted_by, e o NOT NULL de collaborator_id.
+--
+-- CADA AFIRMACAO VEM EM PAR. Os casos 3.1, 3.2, 4.1 e 4.2 acima ja sao a metade
+-- negativa (nenhum deles preenche legacy_id); os controles daqui repetem a
+-- negacao ao lado da excecao para que ninguem precise procurar.
+
+select pg_temp.chk('10.1', 'atividade IMPORTADA concluida SEM data entra', 'OK:1', format($q$
+  insert into public.activities (tenant_id, legacy_id, description, collaborator_id,
+                                 start_date, end_date, status)
+  values (%L, 'b44-act-sem-data', 'MARVIO E SABRINA', %L, '2026-08-03', '2026-08-05', 'completed')
+$q$, (select tenant_a from ids), (select c_arch from ids)));
+
+select pg_temp.chk('10.2', 'CONTROLE: a MESMA atividade sem legacy_id e recusada', 'ERR:23514', format($q$
+  insert into public.activities (tenant_id, description, collaborator_id,
+                                 start_date, end_date, status)
+  values (%L, 'MARVIO E SABRINA', %L, '2026-08-03', '2026-08-05', 'completed')
+$q$, (select tenant_a from ids), (select c_arch from ids)));
+
+-- O outro sentido, e ele existe no dado real: uma atividade concluida que
+-- alguem reabriu, com a data de conclusao ainda gravada.
+select pg_temp.chk('10.3', 'atividade IMPORTADA reaberta (data com status nao iniciada) entra', 'OK:1', format($q$
+  insert into public.activities (tenant_id, legacy_id, description, collaborator_id,
+                                 start_date, end_date, status, started_at, completed_at)
+  values (%L, 'b44-act-reaberta', 'JUNIOR SINTONIA', %L, '2026-08-03', '2026-08-05',
+          'not_started', '2026-08-04 09:00:00-03', '2026-08-04 12:00:00-03')
+$q$, (select tenant_a from ids), (select c_arch from ids)));
+
+-- O check de coerencia de tempo NAO foi afrouxado: conclusao antes do inicio da
+-- total_minutes negativo, que aparece como hora descontada no relatorio.
+select pg_temp.chk('10.4', 'atividade IMPORTADA com inicio depois da conclusao continua recusada', 'ERR:23514', format($q$
+  insert into public.activities (tenant_id, legacy_id, description, collaborator_id,
+                                 start_date, end_date, status, started_at, completed_at)
+  values (%L, 'b44-act-invertida', 'Revisar cobertura', %L, '2026-08-03', '2026-08-05',
+          'completed', '2026-08-04 15:00:00-03', '2026-08-04 09:00:00-03')
+$q$, (select tenant_a from ids), (select c_arch from ids)));
+
+select pg_temp.chk('10.5', 'atividade IMPORTADA excluida SEM autor entra', 'OK:1', format($q$
+  insert into public.activities (tenant_id, legacy_id, description, collaborator_id,
+                                 start_date, end_date, deleted_at)
+  values (%L, 'b44-act-exclusao-sem-autor', 'Nova opcao de planta', %L,
+          '2026-08-03', '2026-08-05', now())
+$q$, (select tenant_a from ids), (select c_arch from ids)));
+
+select pg_temp.chk('10.6', 'CONTROLE: exclusao sem autor e sem legacy_id continua recusada', 'ERR:23514', format($q$
+  insert into public.activities (tenant_id, description, collaborator_id,
+                                 start_date, end_date, deleted_at)
+  values (%L, 'Nova opcao de planta', %L, '2026-08-03', '2026-08-05', now())
+$q$, (select tenant_a from ids), (select c_arch from ids)));
+
+select pg_temp.chk('10.7', 'atividade IMPORTADA SEM responsavel entra', 'OK:1', format($q$
+  insert into public.activities (tenant_id, legacy_id, description, start_date, end_date)
+  values (%L, 'b44-act-sem-responsavel', 'Correcao Projeto Legal', '2026-08-03', '2026-08-05')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('10.8', 'CONTROLE: atividade sem responsavel e sem legacy_id e recusada', 'ERR:23514', format($q$
+  insert into public.activities (tenant_id, description, start_date, end_date)
+  values (%L, 'Correcao Projeto Legal', '2026-08-03', '2026-08-05')
+$q$, (select tenant_a from ids)));
+
+-- A atividade sem dono NAO fica mais visivel, fica menos: o ramo pessoal das
+-- policies da 0038/0059 compara collaborator_id com auth_collaborator_id(), e
+-- nulo nunca e igual a ninguem. Quem nao tem permissao de menu nao a alcanca.
+select pg_temp.chk_as('10.9', 'arquiteto sem menu NAO le a atividade importada sem dono', 'OK:0',
+  (select u_arch from ids), (select tenant_a from ids), format($q$
+  select 1 from public.activities where tenant_id = %L and legacy_id = 'b44-act-sem-responsavel'
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk_as('10.10', 'CONTROLE: quem tem can_edit no menu le a mesma atividade', 'OK:1',
+  (select u_editor from ids), (select tenant_a from ids), format($q$
+  select 1 from public.activities where tenant_id = %L and legacy_id = 'b44-act-sem-responsavel'
+$q$, (select tenant_a from ids)));
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;
