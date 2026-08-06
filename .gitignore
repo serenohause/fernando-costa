@@ -26,3 +26,11 @@ projeto-original
 
 # Vercel CLI
 .vercel
+
+# Exportacao do base44 com DADO REAL DE CLIENTE (CPF/CNPJ, endereco, telefone,
+# valor de contrato). Nunca entra no repositorio: ele vive no GitHub, e dado
+# pessoal de cliente do escritorio nao tem por que sair da maquina de quem
+# importa. A pasta ja esteve desprotegida — um `git add -A` teria publicado 122
+# clientes reais. Se precisar versionar algo dessa importacao, versione o
+# SCRIPT, nunca o CSV.
+/db/
