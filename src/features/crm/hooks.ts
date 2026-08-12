@@ -21,6 +21,35 @@ const CLIENTS_LIST_LIMIT = 500
 
 const CRM_ERROR_MESSAGES: DatabaseErrorMessages = {
   /*
+    A chave de deduplicação do CRM, na forma `cpf:<digitos>` ou
+    `email:<normalizado>`. É índice único PARCIAL (0065), e por isso ficou fora
+    do primeiro inventário de mensagens — foi o teste supabase/tests/
+    error-messages.mjs que a encontrou depois de passar a enxergar índice.
+  */
+  clients_tenant_id_client_key_key:
+    'Já existe um cliente com este CPF/CNPJ ou e-mail neste escritório. Abra o cadastro que já existe em vez de criar um segundo — se forem pessoas diferentes, confira o documento digitado.',
+  /*
+    APAGAR UM CLIENTE esbarra em oito vínculos, e nenhum deles tem cascade — de
+    propósito: sumir com o cadastro não pode sumir com contrato, dinheiro ou
+    histórico. Cada frase nomeia o que trava e a tela onde se resolve, porque
+    "violates foreign key constraint" não diz nada a quem está tentando limpar
+    uma duplicata.
+  */
+  contracts_client_id_fkey:
+    'Este cliente tem contrato. Exclua ou transfira o contrato em Contratos & Propostas antes de excluir o cadastro.',
+  projects_client_id_fkey:
+    'Este cliente tem projeto. Exclua ou transfira o projeto em Projetos antes de excluir o cadastro.',
+  negotiations_client_id_fkey:
+    'Este cliente tem negociação no Pipeline. Exclua ou transfira a negociação antes de excluir o cadastro.',
+  accounts_receivable_client_id_fkey:
+    'Este cliente tem parcelas em Contas a Receber. Dinheiro a receber não é excluído junto — resolva as parcelas antes.',
+  activities_client_id_fkey:
+    'Este cliente tem atividades vinculadas. Exclua ou desvincule as atividades antes de excluir o cadastro.',
+  budget_checklists_client_id_fkey:
+    'Este cliente tem checklist em Orçamento por Cliente. Exclua o checklist antes de excluir o cadastro.',
+  client_intakes_client_id_fkey:
+    'Este cliente tem briefing recebido. O briefing é histórico do escritório e não é excluído junto.',
+  /*
     Só chega aqui quando a consulta de quem já ocupa o valor não devolveu nada
     (linha de outro escritório é invisível para a RLS, ou corrida entre duas
     gravações). Com o cliente em mão, quem fala é DuplicateClientError.

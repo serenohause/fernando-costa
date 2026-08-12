@@ -31,6 +31,25 @@ const LIST_LIMIT = 500
 
 const PROJECTS_ERROR_MESSAGES: DatabaseErrorMessages = {
   /*
+    APAGAR UM PROJETO esbarra no que aponta para ele sem cascade. Dinheiro e
+    histórico não somem junto com o projeto — é a mesma regra que vale para
+    cliente e colaborador.
+  */
+  accounts_receivable_project_id_fkey:
+    'Este projeto tem parcelas em Contas a Receber. Dinheiro a receber não é excluído junto — resolva as parcelas antes.',
+  accounts_payable_project_id_fkey:
+    'Este projeto tem lançamentos em Contas a Pagar. Resolva os lançamentos antes de excluir o projeto.',
+  activities_project_id_fkey:
+    'Este projeto tem atividades vinculadas. Exclua ou desvincule as atividades antes.',
+  budget_checklists_project_id_fkey:
+    'Este projeto tem checklist em Orçamento por Cliente. Exclua o checklist antes.',
+  project_checklist_items_project_id_title_key:
+    'Este projeto já tem um item de checklist com este título. Renomeie um dos dois para eles não se confundirem na conferência.',
+  project_land_types_project_id_land_type_key:
+    'Este tipo de terreno já está marcado neste projeto.',
+  project_purposes_project_id_purpose_key:
+    'Esta finalidade já está marcada neste projeto.',
+  /*
     POR NOME DE CONSTRAINT, e não por código: `23503` aqui são duas situações
     opostas. A frase do código descreve o projeto apontando para algo que sumiu;
     esta descreve algo que aponta para o projeto e continua de pé.
@@ -57,6 +76,8 @@ const PROJECTS_ERROR_MESSAGES: DatabaseErrorMessages = {
 }
 
 const TASKS_ERROR_MESSAGES: DatabaseErrorMessages = {
+  task_checklist_items_task_id_title_key:
+    'Esta tarefa já tem um item de checklist com este título. Renomeie um dos dois para eles não se confundirem na conferência.',
   ...PROJECTS_ERROR_MESSAGES,
   '23502': 'Falta um campo obrigatório: título da tarefa.',
   /*

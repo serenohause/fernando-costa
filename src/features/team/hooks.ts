@@ -29,6 +29,50 @@ export const teamKeys = {
   daqui.
 */
 const TEAM_ERROR_MESSAGES: DatabaseErrorMessages = {
+  access_requests_tenant_id_email_pending_key:
+    'Já existe um pedido de acesso pendente para este e-mail. Aprove ou recuse o que está na fila antes de abrir outro.',
+  collaborators_tenant_id_user_id_key:
+    'Esta conta de login já está ligada a outro colaborador deste escritório. Uma pessoa tem um cadastro só — abra o que já existe em vez de criar um segundo.',
+  /*
+    APAGAR UM COLABORADOR esbarra em tudo que registra QUEM fez o quê. Nenhum
+    tem cascade, e é isso que preserva o histórico: quem foi responsável por um
+    projeto continua tendo sido, mesmo depois de sair do escritório. Por isso a
+    saída certa quase nunca é excluir — é marcar como Afastado, que já tira o
+    acesso e mantém o registro.
+  */
+  projects_operational_responsible_id_fkey:
+    'Esta pessoa é responsável operacional de projeto. Passe o projeto para outra pessoa, ou marque este colaborador como Afastado em vez de excluir — Afastado perde o acesso e preserva o histórico.',
+  projects_commercial_responsible_id_fkey:
+    'Esta pessoa é responsável comercial de projeto. Passe o projeto para outra pessoa, ou marque o colaborador como Afastado em vez de excluir.',
+  negotiations_commercial_owner_id_fkey:
+    'Esta pessoa é responsável por negociação no Pipeline. Passe a negociação para outra pessoa, ou marque o colaborador como Afastado em vez de excluir.',
+  tasks_responsible_id_fkey:
+    'Esta pessoa é responsável por tarefa no Fluxo do Projeto. Passe a tarefa para outra pessoa, ou marque o colaborador como Afastado.',
+  activities_collaborator_id_fkey:
+    'Esta pessoa tem atividades registradas. O histórico de produtividade não é excluído junto — marque o colaborador como Afastado em vez de excluir.',
+  activities_coordinator_id_fkey:
+    'Esta pessoa coordena atividades de outras. Troque o coordenador dessas atividades, ou marque o colaborador como Afastado.',
+  collaborators_coordinator_id_fkey:
+    'Esta pessoa é coordenadora de outros colaboradores. Troque o coordenador deles antes de excluir.',
+  budget_checklists_responsible_id_fkey:
+    'Esta pessoa é responsável por checklist de orçamento. Troque o responsável antes de excluir.',
+  budget_checklist_items_responsible_id_fkey:
+    'Esta pessoa é responsável por item de orçamento. Troque o responsável antes de excluir.',
+  /*
+    Estes quatro guardam AUTORIA de um ato passado — quem iniciou, quem
+    concluiu, quem excluiu, quem aprovou. Não há "trocar o responsável": o ato
+    aconteceu. A saída é Afastado.
+  */
+  activities_started_by_fkey:
+    'Esta pessoa iniciou atividades, e isso é registro do que aconteceu — não dá para transferir. Marque o colaborador como Afastado em vez de excluir.',
+  activities_completed_by_fkey:
+    'Esta pessoa concluiu atividades, e isso é registro do que aconteceu. Marque o colaborador como Afastado em vez de excluir.',
+  activities_deleted_by_fkey:
+    'Esta pessoa excluiu atividades, e isso é registro do que aconteceu. Marque o colaborador como Afastado em vez de excluir.',
+  access_requests_decided_by_fkey:
+    'Esta pessoa aprovou ou recusou pedidos de acesso, e isso é registro do que aconteceu. Marque o colaborador como Afastado em vez de excluir.',
+  collaborators_tenant_id_email_key:
+    'Já existe um colaborador com este e-mail no escritório. Se a pessoa mudou de função ou voltou, edite o cadastro que já existe em vez de criar um segundo.',
   '23505': 'Já existe um colaborador com esse e-mail no escritório.',
   '23514': 'Algum campo está fora do formato aceito. Confira e-mail e carga horária.',
 }

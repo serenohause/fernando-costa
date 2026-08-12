@@ -52,6 +52,8 @@ export const financialKeys = {
 const LIST_LIMIT = 500
 
 const ACCOUNT_ERROR_MESSAGES: DatabaseErrorMessages = {
+  accounts_receivable_contract_installment_key:
+    'Esta parcela já existe para este contrato. Se está gerando as parcelas de novo, apague as anteriores antes — o sistema não duplica parcela.',
   /*
     `accounts_receivable_contract_installment_key`. A parcela 3 de um contrato só
     existe uma vez. É a proteção que a migration 0041 escolheu no lugar da
@@ -72,6 +74,8 @@ const ACCOUNT_ERROR_MESSAGES: DatabaseErrorMessages = {
 }
 
 const CATEGORY_ERROR_MESSAGES: DatabaseErrorMessages = {
+  financial_categories_tenant_id_type_name_key:
+    'Já existe uma categoria com este nome para este tipo (receita ou despesa). Use a que existe, ou escolha outro nome.',
   /* `financial_categories_tenant_id_type_name_key`. */
   '23505': 'Já existe uma categoria com esse nome para esse tipo.',
   '23502': 'Falta um campo obrigatório: nome e tipo.',

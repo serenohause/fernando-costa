@@ -19,6 +19,8 @@ export const contractKeys = {
 const CONTRACTS_LIST_LIMIT = 500
 
 const CONTRACTS_ERROR_MESSAGES: DatabaseErrorMessages = {
+  contracts_tenant_id_contract_number_key:
+    'Já existe um contrato com este número neste escritório. O número identifica o contrato na busca e no título das tarefas geradas — escolha outro.',
   /*
     AS DUAS PRIMEIRAS SÃO POR NOME DE CONSTRAINT, e não por código, porque `23503`
     aqui é duas situações opostas.

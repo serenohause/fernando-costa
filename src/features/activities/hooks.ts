@@ -23,6 +23,8 @@ export const activityKeys = {
 const LIST_LIMIT = 500
 
 const ACTIVITIES_ERROR_MESSAGES: DatabaseErrorMessages = {
+  activities_tenant_id_collaborator_id_execution_order_key:
+    'Duas atividades desta pessoa ficaram na mesma posição da fila. Recarregue a tela e reordene de novo — provavelmente alguém reordenou ao mesmo tempo.',
   /*
     `activities_tenant_id_collaborator_id_execution_order_key`. A fila é POR
     PESSOA (migration 0037, item 4), e duas atividades do mesmo responsável não

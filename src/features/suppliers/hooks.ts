@@ -27,6 +27,8 @@ export const supplierKeys = {
 const LIST_LIMIT = 500
 
 const SUPPLIER_ERROR_MESSAGES: DatabaseErrorMessages = {
+  supplier_brands_supplier_id_name_key:
+    'Esta marca já está na lista deste fornecedor.',
   /*
     O NOME DA CONSTRAINT ANTES DO CÓDIGO, porque `23503` quer dizer coisas
     OPOSTAS aqui.

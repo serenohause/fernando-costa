@@ -38,6 +38,10 @@ export const pipelineKeys = {
 const NEGOTIATIONS_LIST_LIMIT = 500
 
 const PIPELINE_ERROR_MESSAGES: DatabaseErrorMessages = {
+  negotiation_services_negotiation_id_service_type_key:
+    'Este serviço já está marcado nesta negociação.',
+  negotiation_owner_history_negotiation_id_changed_at_key:
+    'Já há uma troca de responsável registrada neste exato instante para esta negociação. Aguarde um segundo e tente de novo.',
   /*
     POR NOME DE CONSTRAINT, e estas duas existem por causa de um beco sem saída
     que chegou ao cliente.
