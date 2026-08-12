@@ -38,6 +38,28 @@ export const pipelineKeys = {
 const NEGOTIATIONS_LIST_LIMIT = 500
 
 const PIPELINE_ERROR_MESSAGES: DatabaseErrorMessages = {
+  /*
+    POR NOME DE CONSTRAINT, e estas duas existem por causa de um beco sem saída
+    que chegou ao cliente.
+
+    Aplicar o CPF de um briefing ao cadastro bate na deduplicação do CRM quando
+    OUTRO cliente do escritório já tem aquele documento — normalmente porque a
+    mesma pessoa foi cadastrada duas vezes, uma na importação e outra pela tela.
+    A recusa está CERTA: é a dedup do módulo 2 fazendo o trabalho dela.
+
+    O que estava errado era a tela. O pipeline não mapeava `23505`, então a
+    mensagem caía no texto genérico ("Não foi possível concluir a operação"),
+    que não diz o que aconteceu nem o que fazer. E o banco já tinha devolvido a
+    explicação boa em `details`/`hint` — escrita para gente pelo trigger da
+    dedup —, que `describeDatabaseError` descarta de propósito, para não vazar
+    estrutura interna do Postgres em erro não mapeado. O preço de descartar é
+    este: mapear na mão o que é para ser lido.
+  */
+  clients_tenant_id_tax_id_digits_key:
+    'Outro cliente deste escritório já tem este CPF/CNPJ. Provavelmente é a mesma pessoa cadastrada duas vezes — abra o cadastro que já tem o documento e una os dois antes de aplicar.',
+  clients_tenant_id_email_normalized_key:
+    'Outro cliente deste escritório já tem este e-mail. Confira se não é a mesma pessoa cadastrada duas vezes antes de aplicar.',
+
   '23503': 'O cliente ou o responsável informado não existe mais neste escritório.',
   '23502': 'Falta um campo obrigatório: nome da negociação e responsável comercial.',
   /*
