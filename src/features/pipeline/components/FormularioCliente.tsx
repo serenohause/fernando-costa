@@ -173,6 +173,29 @@ export default function FormularioCliente() {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
+    /*
+      SÓ O ÚLTIMO PASSO ENVIA — e esta guarda não é zelo, é o conserto de um
+      defeito que chegou às mãos do cliente.
+
+      "Próximo" e "Salvar e Enviar" são o mesmo elemento na mesma posição do
+      JSX, trocados por um ternário. Ao sair do passo 2, o React NÃO troca o
+      botão: ele reaproveita o mesmo nó do DOM e só troca o atributo `type` de
+      `button` para `submit`. O clique já aconteceu, mas o navegador só resolve
+      a ação padrão dele DEPOIS que o React terminou de aplicar a mudança — e
+      então lê `type="submit"` e envia o formulário. Por isso o passo 1 para o 2
+      funcionava e só o 2 para o 3 quebrava.
+
+      O sintoma: o briefing era gravado sem NADA do passo 3, e a pessoa caía na
+      tela de sucesso sem ter preenchido o endereço da obra. Aconteceu duas
+      vezes em produção — os dois envios têm todos os campos `site_*` nulos.
+
+      As chaves distintas nos dois botões (mais abaixo) fazem o React desmontar
+      um e montar o outro, então o nó clicado deixa de existir e a ação padrão
+      não encontra formulário para enviar. Esta guarda é a segunda barreira, e
+      é ela que também cobre o Enter dentro de um campo dos passos 1 e 2.
+    */
+    if (currentStep < 3) return
+
     submitMutation.mutate(toBriefing(formData), {
       onSuccess: () => {
         toast.success('Dados enviados com sucesso!')
@@ -599,6 +622,7 @@ export default function FormularioCliente() {
                 )}
                 {currentStep < 3 ? (
                   <Button
+                    key="proximo"
                     type="button"
                     onClick={() => setCurrentStep(currentStep + 1)}
                     className="ml-auto bg-primary text-primary-foreground hover:bg-primary/90"
@@ -607,6 +631,7 @@ export default function FormularioCliente() {
                   </Button>
                 ) : (
                   <Button
+                    key="enviar"
                     type="submit"
                     disabled={submitMutation.isPending}
                     className="ml-auto bg-emerald-600 text-white hover:bg-emerald-700"
