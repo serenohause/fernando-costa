@@ -154,6 +154,13 @@ export type BriefingDiff = {
   /* O que a tela mostra dos dois lados (enum vira rótulo, data vira dd/MM/yyyy). */
   briefingText: string
   currentText: string
+  /*
+    A OUTRA resposta para a MESMA coluna, quando o formulário perguntou duas
+    vezes e recebeu valores diferentes — hoje só cidade e estado, perguntados no
+    passo 1 e de novo no passo 2. Vem preenchido com o valor descartado, para a
+    tela poder dizer que houve divergência em vez de escondê-la.
+  */
+  supersededText?: string
 }
 
 /* Só as colunas de `clients` que o briefing sabe preencher. Nome, documento e

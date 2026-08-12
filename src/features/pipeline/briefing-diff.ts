@@ -21,12 +21,23 @@ import type { ApplicableClientColumn, BriefingDiff, ClientIntake, IntakeBriefing
   colunas: quem confere está lendo a resposta de alguém, na sequência em que ela
   foi respondida.
 
-  DOIS CAMPOS APONTAM PARA A MESMA COLUNA, e isso é fidelidade, não descuido:
-  `city`/`state` (passo 1) e `address_city`/`address_state` (passo 2) gravam em
-  `address_city`/`address_state`. O original pergunta a cidade duas vezes e
-  escreve as duas no mesmo campo, a segunda por cima da primeira (linhas 124 e
-  138). Aqui as duas aparecem como linhas separadas, rotuladas pelo passo, e quem
-  confere escolhe qual vale.
+  DOIS CAMPOS APONTAM PARA A MESMA COLUNA: `city`/`state` (passo 1) e
+  `address_city`/`address_state` (passo 2) gravam em `address_city`/
+  `address_state`. O original pergunta a cidade duas vezes e escreve as duas no
+  mesmo campo, num único UPDATE, a segunda por cima da primeira (linhas 124 e
+  138) — ou seja, LÁ O PASSO 2 VENCE, e ninguém vê o empate.
+
+  ISTO JÁ FOI DUAS LINHAS SEPARADAS, E ERA UM BUG. A ideia era "quem confere
+  escolhe qual vale", mas não existia como escolher: aplicar uma fazia a outra
+  divergir, e a lista pedia para aplicar de novo, para sempre. Chegou ao cliente
+  — um briefing respondeu Fortaleza no passo 1 e Belo Horizonte no passo 2, e o
+  cadastro ficava alternando entre os dois a cada clique.
+
+  Agora é UMA linha por coluna, com o desempate do original (o último a
+  escrever vence, isto é, o passo 2). O valor descartado não some da tela: vai
+  em `supersededText`, para quem confere saber que a pessoa respondeu duas
+  coisas diferentes — que é justamente o que esta tela existe para mostrar, e o
+  que o original escondia.
 */
 
 type FieldMap = {
@@ -67,7 +78,18 @@ const FIELDS: FieldMap[] = [
 ]
 
 export function buildBriefingDiff(intake: ClientIntake, client: Client): BriefingDiff[] {
-  const diffs: BriefingDiff[] = []
+  /*
+    PRIMEIRO as respostas, DEPOIS a comparação — e a ordem entre as duas etapas
+    é o conserto.
+
+    Duas perguntas podem apontar para a mesma coluna (cidade e estado, no passo
+    1 e de novo no passo 2). Juntar tudo antes de comparar deixa duas coisas
+    certas de uma vez: quem vence é a última resposta, como no UPDATE único do
+    original; e a resposta vencida continua conhecida, mesmo quando por acaso
+    ela é igual ao que está no cadastro hoje — que é exatamente o caso que
+    apareceu em produção e que uma versão anterior deste código escondia.
+  */
+  const answers = new Map<ApplicableClientColumn, { map: FieldMap; value: string }[]>()
 
   for (const map of FIELDS) {
     const raw = intake[map.field as keyof ClientIntake]
@@ -75,17 +97,37 @@ export function buildBriefingDiff(intake: ClientIntake, client: Client): Briefin
     /* Campo que a pessoa não respondeu não é divergência: é ausência. */
     if (value === '') continue
 
-    const current = client[map.column]
+    const list = answers.get(map.column) ?? []
+    list.push({ map, value })
+    answers.set(map.column, list)
+  }
+
+  const diffs: BriefingDiff[] = []
+
+  for (const [column, list] of answers) {
+    const winner = list[list.length - 1]
+
+    const current = client[column]
     const currentValue = typeof current === 'string' ? current.trim() : ''
-    if (currentValue === value) continue
+    /* O cadastro já é o que vale: não há o que aplicar, nem sobre a resposta
+       vencida — aplicá-la seria voltar atrás. */
+    if (currentValue === winner.value) continue
+
+    /* A resposta anterior só vira nota quando DIFERE da que venceu: responder a
+       mesma cidade duas vezes não é conflito. */
+    const previous = [...list]
+      .slice(0, -1)
+      .reverse()
+      .find((entry) => entry.value !== winner.value)
 
     diffs.push({
-      field: map.field,
-      label: map.label,
-      column: map.column,
-      value,
-      briefingText: displayValue(map.column, value),
-      currentText: currentValue === '' ? '—' : displayValue(map.column, currentValue),
+      field: winner.map.field,
+      label: winner.map.label,
+      column,
+      value: winner.value,
+      briefingText: displayValue(column, winner.value),
+      currentText: currentValue === '' ? '—' : displayValue(column, currentValue),
+      ...(previous ? { supersededText: displayValue(column, previous.value) } : {}),
     })
   }
 

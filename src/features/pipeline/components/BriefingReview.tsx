@@ -220,6 +220,19 @@ function BriefingComparison({ intake }: { intake: ClientIntake }) {
                     {diff.briefingText}
                   </span>
                 </div>
+                {/*
+                  O formulário perguntou cidade e estado duas vezes (passo 1 e
+                  passo 2) e recebeu respostas diferentes. O original resolvia
+                  isso escrevendo as duas no mesmo campo, a última por cima, e
+                  ninguém via. Aqui vale a mesma precedência — mas a resposta
+                  descartada aparece, porque é justamente a divergência que esta
+                  tela existe para mostrar.
+                */}
+                {diff.supersededText && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                    No passo anterior respondeu {diff.supersededText}.
+                  </p>
+                )}
               </div>
               <Button
                 size="sm"
