@@ -37,7 +37,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useMenuPermissions } from '@/features/auth/hooks'
-import { useClients } from '@/features/crm/hooks'
+import { useClients, useClientsByIds } from '@/features/crm/hooks'
+import { buildBriefingDiff } from '../briefing-diff'
 import { useCollaborators } from '@/features/team/hooks'
 import { FUNNEL_STAGE, LEAD_ORIGIN, LOSS_REASON, SERVICE_TYPE, labelOf } from '@/lib/enums'
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
@@ -236,6 +237,41 @@ export default function Negociacoes() {
   )
 
   const submittedIntakes = intakes.filter((intake) => intake.status === 'submitted')
+
+  /*
+    O AVISO CONTA O QUE FALTA APLICAR, e não quantos briefings chegaram.
+
+    Antes ele aparecia enquanto existisse briefing com status `submitted` — o
+    que nunca deixa de ser verdade, porque aplicar campo não muda o status do
+    briefing. Depois de aplicar tudo, a faixa continuava na tela dizendo "Nada
+    foi gravado no cadastro", que a essa altura já era falso, e mandando
+    conferir uma lista sem nada para conferir.
+
+    Agora o aviso pergunta a mesma coisa que a tela de conferência responde:
+    `buildBriefingDiff` sobre o cadastro ATUAL. Zerou, some.
+
+    Os cadastros vêm de `useClientsByIds` e não de `clientsQuery`: aquele é um
+    `Pick` de oito colunas para a listagem, e comparar contra ele acusaria
+    divergência em CPF, nascimento e endereço só porque não foram carregados.
+  */
+  const intakeClientIds = submittedIntakes
+    .map((intake) => intake.client_id)
+    .filter((id): id is string => Boolean(id))
+  const intakeClientsQuery = useClientsByIds(intakeClientIds)
+
+  const pendingIntakes = useMemo(() => {
+    const porId = new Map((intakeClientsQuery.data ?? []).map((c) => [c.id, c]))
+    return submittedIntakes.filter((intake) => {
+      const cliente = intake.client_id ? porId.get(intake.client_id) : undefined
+      /*
+        Sem cadastro do outro lado não há o que aplicar — é o caso dos briefings
+        cujo cliente saiu do CRM (migration 0064), que a tela de conferência já
+        trata com estado próprio.
+      */
+      if (!cliente) return false
+      return buildBriefingDiff(intake, cliente).length > 0
+    })
+  }, [submittedIntakes, intakeClientsQuery.data])
 
   const isPrevisaoVencida = (row: NegotiationRow) =>
     Boolean(row.expected_close_date && new Date(row.expected_close_date) < new Date())
@@ -563,18 +599,25 @@ export default function Negociacoes() {
         BriefingReview.tsx. O aviso reusa a forma do aviso âmbar acima, que é a
         linguagem que a página já tem para "isto pede sua atenção".
       */}
-      {submittedIntakes.length > 0 && (
+      {pendingIntakes.length > 0 && (
         <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl flex items-start gap-3">
           <ClipboardCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="font-medium text-blue-900 dark:text-blue-300">
-              {submittedIntakes.length}{' '}
-              {submittedIntakes.length === 1
-                ? 'briefing recebido do cliente'
-                : 'briefings recebidos de clientes'}
+              {pendingIntakes.length}{' '}
+              {pendingIntakes.length === 1
+                ? 'briefing com dados a conferir'
+                : 'briefings com dados a conferir'}
             </p>
+            {/*
+              A frase deixou de afirmar que "nada foi gravado": depois de a
+              equipe aplicar alguns campos isso vira mentira. O que continua
+              verdade — e é o que a pessoa precisa saber — é que o briefing não
+              altera o cadastro sozinho.
+            */}
             <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
-              Nada foi gravado no cadastro. Confira o que difere e aplique o que estiver certo.
+              O briefing não altera o cadastro sozinho. Confira o que difere e aplique o que
+              estiver certo.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => setBriefingsOpen(true)}>

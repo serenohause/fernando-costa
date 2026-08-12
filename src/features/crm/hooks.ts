@@ -14,6 +14,7 @@ export const crmKeys = {
   all: ['crm'] as const,
   clients: (search: string) => [...crmKeys.all, 'clients', search] as const,
   client: (id: string | null | undefined) => [...crmKeys.all, 'client', id] as const,
+  clientsByIds: (ids: string[]) => [...crmKeys.all, 'clients-by-ids', [...ids].sort()] as const,
 }
 
 /* `Client.list('name', 500)` é como o original carrega a tela. */
@@ -248,6 +249,32 @@ export function useClient(id: string | null | undefined) {
       const { data, error } = await supabase.from('clients').select('*').eq('id', id!).maybeSingle()
       if (error) throw error
       return data
+    },
+  })
+}
+
+/*
+  Os cadastros COMPLETOS de uma lista curta de ids.
+
+  Existe porque `useClients` devolve `ClientListRow`, que é um `Pick` de oito
+  colunas — o que a listagem desenha. Comparar um briefing contra ele apontaria
+  divergência em CPF, nascimento e endereço só porque essas colunas não foram
+  carregadas: o aviso do Pipeline diria "há o que aplicar" sobre campo nenhum.
+
+  O recorte é por id e não por busca: quem chama tem em mãos os poucos clientes
+  que mandaram briefing, e trazer a carteira inteira em `select *` para conferir
+  três linhas seria pagar caro pela mesma resposta.
+*/
+export function useClientsByIds(ids: string[]) {
+  const unicos = [...new Set(ids)].filter(Boolean)
+
+  return useQuery({
+    queryKey: crmKeys.clientsByIds(unicos),
+    enabled: unicos.length > 0,
+    queryFn: async (): Promise<Client[]> => {
+      const { data, error } = await supabase.from('clients').select('*').in('id', unicos)
+      if (error) throw error
+      return data ?? []
     },
   })
 }
