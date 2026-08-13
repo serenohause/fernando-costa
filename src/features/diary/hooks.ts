@@ -6,8 +6,19 @@ import {
   WriteError,
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
+import type { TablesInsert } from '@/lib/database.types'
 import { useCurrentCollaborator } from '@/features/auth/hooks'
-import { diaryEntryInputSchema } from './schemas'
+import {
+  PROJECT_ISSUE_CATEGORY,
+  SITE_VISIT_STATUS,
+  SITE_VISIT_TYPE,
+  type DiaryFileKind,
+} from '@/lib/enums'
+import {
+  diaryEntryInputSchema,
+  projectIssueInputSchema,
+  siteVisitInputSchema,
+} from './schemas'
 import {
   describeRejectedFile,
   diaryFilePath,
@@ -15,11 +26,21 @@ import {
   SIGNED_URL_TTL_SECONDS,
   type DiaryFileParent,
 } from './files'
-import type { DiaryEntryInput, DiaryEntryRow } from './types'
+import { nowClockTime, todayISODate } from './obra'
+import type {
+  DiaryEntryInput,
+  DiaryEntryRow,
+  ProjectIssueInput,
+  ProjectIssueRow,
+  SiteVisitInput,
+  SiteVisitRow,
+} from './types'
 
 export const diaryKeys = {
   all: ['diary'] as const,
   entries: (projectId: string) => [...diaryKeys.all, 'entries', projectId] as const,
+  visits: (projectId: string) => [...diaryKeys.all, 'visits', projectId] as const,
+  issues: (projectId: string) => [...diaryKeys.all, 'issues', projectId] as const,
   /*
     FORA de `all` de propósito, como no módulo 8: a URL assinada não é dado do
     diário, é uma credencial temporária para um objeto do Storage. Invalidar o
@@ -62,6 +83,62 @@ const DIARY_ERROR_MESSAGES: DatabaseErrorMessages = {
   */
   '23514':
     'O registro está num estado que o sistema não aceita. Confira o tipo, o título e a data.',
+
+  /*
+    ═══ OS CHECKS DA VISITA E DA PENDÊNCIA, um a um ═══
+
+    O `23514` acima é rede de segurança; estas frases são o que a pessoa lê. O
+    nome da constraint tem prioridade sobre o código (src/lib/db-errors.ts), e é
+    por isso que as duas coisas convivem: a frase certa quando o banco diz qual
+    regra foi violada, e a genérica quando ele não diz.
+
+    NENHUMA DELAS DEVERIA APARECER com o formulário funcionando — `siteVisitInput
+    Schema` e `projectIssueInputSchema` barram antes, com a mesma informação e
+    apontando para o campo. Elas existem porque "não deveria" não é "não pode":
+    requisição montada fora da tela, aba aberta enquanto outra pessoa muda a
+    linha, e o dia em que alguém acrescentar um caminho de escrita novo.
+  */
+  project_site_visits_summary_not_blank_check:
+    'A visita precisa de um resumo. Escreva o que foi verificado na obra.',
+
+  project_issues_description_not_blank_check:
+    'A pendência precisa de uma descrição. Escreva o que precisa ser corrigido.',
+
+  project_issues_due_date_not_before_identified_check:
+    'O prazo não pode ser anterior à data de identificação da pendência.',
+
+  /*
+    Os dois lados da resolução. Quem escolhe o status é a tela; quem preenche
+    `resolved_at` e `resolved_by_id` é o hook, num lugar só (ver
+    `resolutionFieldsFor`). Chegar aqui significa que os dois se separaram — e a
+    frase fala do estado, não das colunas, porque quem lê não escolheu coluna
+    nenhuma.
+  */
+  project_issues_resolved_at_matches_status_check:
+    'A pendência ficou num estado incoerente: resolvida sem data de resolução, ou com data sem estar resolvida. Recarregue a página e tente de novo.',
+
+  project_issues_resolved_by_requires_resolved_check:
+    'Só pendência resolvida guarda quem a resolveu. Marque a pendência como resolvida antes de registrar o responsável pela solução.',
+
+  /*
+    O número da pendência é alocado pelo trigger `project_issues_assign_number`
+    e nenhuma tela oferece o campo (defeito 8 do plano). Um número zero ou
+    negativo só chega aqui por gravação vinda de fora da tela.
+  */
+  project_issues_issue_number_positive_check:
+    'O número da pendência é gerado pelo sistema e precisa ser maior que zero. Recarregue a página e tente de novo.',
+
+  /*
+    Os dois de `project_issue_events`. O histórico é escrito por TRIGGER
+    (migration 0069), que nunca produz nenhum dos dois estados — a frase é para
+    a policy de INSERT que existe ao lado dele, para o caso de uma anotação com
+    texto próprio.
+  */
+  project_issue_events_description_not_blank_check:
+    'A anotação do histórico não pode ficar em branco.',
+
+  project_issue_events_status_change_has_statuses_check:
+    'O evento de criação da pendência não pode declarar um status anterior — ela não tinha nenhum antes de existir.',
 }
 
 export function describeDiaryError(error: unknown): string {
@@ -315,7 +392,7 @@ export function useDeleteDiaryEntry() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const paths = await collectEntryFilePaths(id)
+      const paths = await collectDiaryFilePaths('entries', id)
 
       const { data, error } = await supabase
         .from('project_diary_entries')
@@ -331,6 +408,770 @@ export function useDeleteDiaryEntry() {
 
       await removeStorageObjects(paths)
       return id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
+    },
+  })
+}
+
+/* ── O evento automático das abas de obra ──────────────────────────────── */
+
+/*
+  GRAVAR NA LINHA DO TEMPO O QUE ACONTECEU NA OBRA.
+
+  Três dos oito valores de `diary_system_event` nascem aqui: `site_visit`,
+  `issue_created` e `issue_resolved` (ObraTab.jsx:66/119 e PendenciasTab.jsx:96).
+
+  POR QUE UMA FUNÇÃO DO BANCO, E NÃO UM INSERT: a policy de INSERT de
+  `project_diary_entries` RECUSA `is_automatic` para todo mundo, inclusive
+  Diretor (migration 0070) — evento de sistema é justamente o que ninguém
+  confere, porque se supõe que a máquina escreveu. O único caminho é
+  `record_project_diary_event`, que é SECURITY DEFINER e confere por dentro a
+  permissão do FLUXO.
+
+  A CHAVE É DERIVADA DO FATO, e nunca do relógio. No original ela leva
+  `Date.now()` (defeito 5 do plano): o campo se chama "idempotência" e a consulta
+  prévia que deveria deduplicar nunca encontra nada, porque a chave é diferente a
+  cada chamada. Aqui quem decide é a unicidade `(tenant_id, event_key)`, e o
+  ON CONFLICT DO NOTHING de dentro da função devolve `already_recorded` sem
+  gravar nada — dois cliques, duas abas ou um salvamento repetido produzem UM
+  registro.
+
+  FALHAR AQUI NÃO DESFAZ A VISITA NEM A PENDÊNCIA, e não tem como: as duas já
+  foram gravadas, em transações que já fecharam. Mas também não é engolido em
+  silêncio, que é o que o original faz (diaryAutoEvents.js:32-35 dá console.error
+  e segue, e o resultado é um diário com buracos que ninguém percebe). O
+  resultado volta como valor, e a tela avisa que o registro ficou de fora.
+*/
+type DiaryEventOutcome = 'recorded' | 'already_recorded' | 'failed'
+
+type RecordedDiaryEvent = {
+  outcome: DiaryEventOutcome
+  entryId: string | null
+}
+
+async function recordDiaryEvent(params: {
+  projectId: string
+  systemEvent: 'site_visit' | 'issue_created' | 'issue_resolved'
+  title: string
+  description: string | null
+  eventKey: string
+  responsibleId: string | null
+}): Promise<RecordedDiaryEvent> {
+  const { data, error } = await supabase.rpc('record_project_diary_event', {
+    p_project_id: params.projectId,
+    p_system_event: params.systemEvent,
+    p_title: params.title,
+    p_description: params.description ?? undefined,
+    p_event_key: params.eventKey,
+    p_responsible_id: params.responsibleId ?? undefined,
+    /*
+      O CARIMBO É O DE AGORA, no relógio de QUEM ESTÁ USANDO — e não a data da
+      visita nem a de identificação da pendência. É o que o original faz
+      (diaryAutoEvents.js:28-29): o evento conta quando o registro foi feito, e é
+      por essa data que a linha do tempo o agrupa. Passar o relógio do navegador
+      em vez de deixar o banco resolver é deliberado; ver `nowClockTime`.
+    */
+    p_occurrence_date: todayISODate(),
+    p_occurrence_time: nowClockTime(),
+  })
+
+  if (error) {
+    console.error('[diary] evento automático não registrado:', error)
+    return { outcome: 'failed', entryId: null }
+  }
+
+  const result = data as { outcome?: string; entryId?: string } | null
+  return {
+    outcome: result?.outcome === 'already_recorded' ? 'already_recorded' : 'recorded',
+    entryId: result?.entryId ?? null,
+  }
+}
+
+/* ── Aba Obra: as visitas ──────────────────────────────────────────────── */
+
+/*
+  `responsavel_name` e `criado_por_name` não viraram coluna (migration 0069):
+  voltam como embed, pelo nome da CONSTRAINT, porque as FK são compostas. Só o
+  primeiro entra — o segundo não é lido por tela nenhuma do original.
+
+  Os arquivos vêm juntos, e são UMA lista onde o base44 tem duas (`fotos` e
+  `arquivos`): quem as separa é `file_kind`. Sem o embed, a fita de miniaturas
+  pediria uma consulta por cartão.
+*/
+const VISITS_SELECT = `
+  *,
+  responsible:collaborators!project_site_visits_responsible_id_fkey(id, name),
+  files:project_diary_files!project_diary_files_visit_id_fkey(*)
+`
+
+/*
+  As visitas de UM projeto, da mais recente para a mais antiga — o recorte de
+  ObraTab.jsx:47 e do índice
+  `project_site_visits_tenant_id_project_id_visit_date_idx`.
+
+  A SEGUNDA ORDEM (`created_at desc`) não existe no original e não muda o que a
+  tela mostra: `visit_date` é DATE, duas visitas do mesmo dia empatam, e empate
+  sem critério deixa o banco livre para devolver o dia em ordem diferente a cada
+  consulta — a lista se reembaralharia sozinha entre um refetch e outro. Mesma
+  decisão de `useProjectDiaryEntries`.
+*/
+export function useProjectSiteVisits(projectId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: diaryKeys.visits(projectId ?? ''),
+    enabled: Boolean(projectId) && enabled,
+    queryFn: async (): Promise<SiteVisitRow[]> => {
+      const { data, error } = await supabase
+        .from('project_site_visits')
+        .select(VISITS_SELECT)
+        .eq('project_id', projectId as string)
+        .order('visit_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        /* Fotos e anexos na ordem em que foram enviados, que é a ordem em que o
+           original os desenha (os arrays crescem por concatenação). */
+        .order('created_at', { referencedTable: 'files' })
+        .limit(LIST_LIMIT)
+
+      if (error) throw error
+      return (data ?? []) as unknown as SiteVisitRow[]
+    },
+  })
+}
+
+/*
+  O TEXTO DA ENTRADA DE DIÁRIO QUE A VISITA GERA (ObraTab.jsx:64-65), com os
+  rótulos em português vindos de `src/lib/enums.ts` — no base44 a coluna já
+  guarda o rótulo, aqui ela guarda o valor do enum.
+
+  O que o original monta e aqui continua igual: o título com o tipo da visita, e
+  a descrição com resumo, observações, o status quando ele não é "Sem
+  pendências", e a contagem de fotos e de arquivos.
+*/
+function visitEventText(
+  input: SiteVisitInput,
+  counts: { photos: number; attachments: number },
+): { title: string; description: string } {
+  const parts = [input.summary]
+  if (input.notes) parts.push(`\n\n${input.notes}`)
+  if (input.status !== 'no_issues') parts.push(`\n\nStatus: ${SITE_VISIT_STATUS[input.status]}`)
+  if (counts.photos > 0) parts.push(`\n📷 ${counts.photos} foto(s)`)
+  if (counts.attachments > 0) parts.push(`\n📎 ${counts.attachments} arquivo(s)`)
+
+  return {
+    title: `🏗️ Visita à obra — ${SITE_VISIT_TYPE[input.visit_type]}`,
+    description: parts.join(''),
+  }
+}
+
+/* A chave do evento da visita, derivada do fato. Mesmo formato do original
+   (`visita:<projeto>:<visita>`) e SEM o relógio — ver `recordDiaryEvent`. */
+const visitEventKey = (projectId: string, visitId: string) => `visita:${projectId}:${visitId}`
+
+/*
+  REGISTRAR UMA VISITA À OBRA (ObraTab.jsx:57-82).
+
+  A ORDEM DOS PASSOS: grava a visita, sobe as fotos e os arquivos, registra o
+  evento na linha do tempo e GUARDA O VÍNCULO entre os dois.
+
+  O VÍNCULO É O DEFEITO 7 DO PLANO. `ProjectSiteVisit` declara
+  `timeline_entry_id` e ObraTab.jsx:58-68 cria a visita, cria a entrada e não
+  grava o vínculo em lugar nenhum — o campo nasce e morre vazio, e por isso
+  editar a visita nunca teve como corrigir a entrada que ela gerou (defeito 13).
+  Aqui `diary_entry_id` é FK de verdade e é escrita aqui, no mesmo gesto.
+
+  SE O UPLOAD FALHAR, A VISITA JÁ ESTÁ GRAVADA e o erro sobe — o mesmo desenho de
+  `useCreateDiaryEntry`, e pelo mesmo motivo: o caminho do objeto contém o id da
+  mãe, então não há como subir arquivo antes de a mãe existir. O que a pessoa
+  escreveu não se perde por causa de uma foto.
+*/
+export function useCreateSiteVisit() {
+  const queryClient = useQueryClient()
+  const tenantId = useTenantId()
+  const { data: collaborator } = useCurrentCollaborator()
+
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      input,
+      photos,
+      attachments,
+    }: {
+      projectId: string
+      input: SiteVisitInput
+      photos: File[]
+      attachments: File[]
+    }) => {
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+      const parsed = siteVisitInputSchema.parse(input)
+
+      const { data, error } = await supabase
+        .from('project_site_visits')
+        .insert({
+          ...parsed,
+          project_id: projectId,
+          tenant_id: tenantId,
+          created_by_id: collaborator?.id ?? null,
+        })
+        .select('id')
+        .single()
+
+      if (error) throw error
+
+      await uploadDiaryFiles({
+        tenantId,
+        parent: 'visits',
+        parentId: data.id,
+        kind: 'photo',
+        uploadedById: collaborator?.id ?? null,
+        files: photos,
+      })
+
+      await uploadDiaryFiles({
+        tenantId,
+        parent: 'visits',
+        parentId: data.id,
+        kind: 'attachment',
+        uploadedById: collaborator?.id ?? null,
+        files: attachments,
+      })
+
+      const event = await linkVisitDiaryEntry({
+        projectId,
+        visitId: data.id,
+        input: parsed,
+        counts: { photos: photos.length, attachments: attachments.length },
+      })
+
+      /* O status volta para a tela porque é ele que decide o passo seguinte:
+         "Com pendências" abre o formulário de pendência já vinculado a esta
+         visita (ObraTab.jsx:77). */
+      return { id: data.id, status: parsed.status, event }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
+    },
+  })
+}
+
+/*
+  EDITAR UMA VISITA (ObraTab.jsx:84-92).
+
+  DEFEITO 13 DO PLANO, e é preciso dizer exatamente até onde ele foi corrigido.
+
+  O que o original faz: editar a visita não toca na entrada de diário que ela
+  gerou — e nem teria como, porque o vínculo nunca foi gravado (defeito 7). Se
+  alguém salvar de novo por um caminho que registre o evento outra vez, nasce uma
+  SEGUNDA entrada para a mesma visita, porque a chave lá carrega `Date.now()`.
+
+  O que fica garantido aqui: NUNCA nasce uma segunda entrada. A chave é derivada
+  da visita (`visita:<projeto>:<visita>`) e a unicidade é do banco; salvar dez
+  vezes devolve `already_recorded` dez vezes.
+
+  O QUE NÃO É FEITO, E POR QUÊ: o TEXTO da entrada já gravada não é reescrito. A
+  entrada é `is_automatic`, e o WITH CHECK da policy de UPDATE (migration 0070)
+  recusa qualquer gravação que a deixe automática — ou seja, nem Diretor edita
+  evento de sistema pela API, por decisão explícita daquela migration. Reescrever
+  exigiria uma função SECURITY DEFINER companheira, que é migration, e esta fatia
+  não tem migration. Fica registrado no relatório da fatia.
+
+  O que é feito: se a visita ainda não tem entrada (o evento falhou quando ela
+  foi criada), salvar a visita CRIA a entrada que faltava, com o texto atual.
+*/
+export function useUpdateSiteVisit() {
+  const queryClient = useQueryClient()
+  const { data: collaborator } = useCurrentCollaborator()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      projectId,
+      input,
+      newPhotos,
+      newAttachments,
+      removedFileIds,
+    }: {
+      id: string
+      projectId: string
+      input: SiteVisitInput
+      newPhotos: File[]
+      newAttachments: File[]
+      removedFileIds: string[]
+    }) => {
+      const parsed = siteVisitInputSchema.parse(input)
+
+      const { data, error } = await supabase
+        .from('project_site_visits')
+        .update(parsed)
+        .eq('id', id)
+        .select('id, tenant_id, diary_entry_id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A visita não foi alterada. Só Diretor e Coordenador escrevem no Diário do Projeto.',
+      )
+
+      /* Remover antes de enviar, como no formulário da linha do tempo: se o
+         envio falhar, o que a pessoa pediu para tirar já saiu, e o formulário
+         reaberto mostra o estado real. */
+      await removeDiaryFiles(removedFileIds)
+
+      await uploadDiaryFiles({
+        tenantId: data[0].tenant_id,
+        parent: 'visits',
+        parentId: id,
+        kind: 'photo',
+        uploadedById: collaborator?.id ?? null,
+        files: newPhotos,
+      })
+
+      await uploadDiaryFiles({
+        tenantId: data[0].tenant_id,
+        parent: 'visits',
+        parentId: id,
+        kind: 'attachment',
+        uploadedById: collaborator?.id ?? null,
+        files: newAttachments,
+      })
+
+      let event: RecordedDiaryEvent = { outcome: 'already_recorded', entryId: data[0].diary_entry_id }
+
+      if (!data[0].diary_entry_id) {
+        event = await linkVisitDiaryEntry({
+          projectId,
+          visitId: id,
+          input: parsed,
+          counts: await countVisitFiles(id),
+        })
+      }
+
+      return { id, status: parsed.status, event }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
+    },
+  })
+}
+
+/*
+  Quantas fotos e quantos arquivos a visita tem AGORA. Só é consultado no caminho
+  em que a entrada de diário precisa ser criada depois do fato (ver
+  `useUpdateSiteVisit`) — no caminho normal os números são o que acabou de subir,
+  e uma consulta a mais por salvamento não se justificaria.
+*/
+async function countVisitFiles(visitId: string): Promise<{
+  photos: number
+  attachments: number
+}> {
+  const { data, error } = await supabase
+    .from('project_diary_files')
+    .select('file_kind')
+    .eq('visit_id', visitId)
+
+  if (error) throw error
+
+  const rows = data ?? []
+  return {
+    photos: rows.filter((row) => row.file_kind === 'photo').length,
+    attachments: rows.filter((row) => row.file_kind === 'attachment').length,
+  }
+}
+
+/*
+  O evento da visita e o vínculo, num gesto só — porque um sem o outro é
+  exatamente o defeito 7.
+
+  O UPDATE do vínculo é condicionado a `diary_entry_id is null`: se a linha já
+  aponta para uma entrada, ela não é trocada. E ele NÃO usa `assertRowAffected`:
+  zero linha aqui significa "o vínculo já estava lá", que é o resultado desejado,
+  e não escrita negada.
+*/
+async function linkVisitDiaryEntry({
+  projectId,
+  visitId,
+  input,
+  counts,
+}: {
+  projectId: string
+  visitId: string
+  input: SiteVisitInput
+  counts: { photos: number; attachments: number }
+}): Promise<RecordedDiaryEvent> {
+  const { title, description } = visitEventText(input, counts)
+
+  const event = await recordDiaryEvent({
+    projectId,
+    systemEvent: 'site_visit',
+    title,
+    description,
+    eventKey: visitEventKey(projectId, visitId),
+    responsibleId: input.responsible_id,
+  })
+
+  if (event.entryId) {
+    const { error } = await supabase
+      .from('project_site_visits')
+      .update({ diary_entry_id: event.entryId })
+      .eq('id', visitId)
+      .is('diary_entry_id', null)
+
+    if (error) console.error('[diary] vínculo visita ↔ entrada não gravado:', error)
+  }
+
+  return event
+}
+
+/*
+  EXCLUIR UMA VISITA (ObraTab.jsx:94-100).
+
+  DEFEITO 14 DO PLANO: os caminhos das fotos e dos arquivos são colhidos ANTES do
+  DELETE, porque o cascade leva as linhas de `project_diary_files` e NÃO leva os
+  objetos do bucket — Storage não tem FK (migration 0071).
+
+  O QUE NÃO VAI JUNTO, e é decisão de schema: as pendências que a visita revelou
+  (FK com ON DELETE SET NULL — pendência de obra continua existindo depois que o
+  registro da visita some) e a entrada de diário que ela gerou (o diário é a
+  memória do escritório, não um espelho da tabela).
+*/
+export function useDeleteSiteVisit() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const paths = await collectDiaryFilePaths('visits', id)
+
+      const { data, error } = await supabase
+        .from('project_site_visits')
+        .delete()
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A visita não foi excluída. Só Diretor e Coordenador escrevem no Diário do Projeto.',
+      )
+
+      await removeStorageObjects(paths)
+      return id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
+    },
+  })
+}
+
+/* ── Aba Pendências ────────────────────────────────────────────────────── */
+
+/*
+  A pendência com tudo que os dois lugares que a mostram precisam: a aba
+  Pendências (cartão, resolução e histórico) e o bloco "N pendência(s) desta
+  visita" da aba Obra.
+
+  `events` É O HISTÓRICO, e ele vem por embed porque no base44 ele É um campo
+  dentro da pendência — quem lê a pendência já lê o histórico, e a policy de
+  SELECT da tabela filha tem exatamente o mesmo recorte (migration 0070). A
+  diferença é que aqui ninguém REGRAVA: cada linha é escrita por trigger
+  (defeito 12 do plano).
+*/
+const ISSUES_SELECT = `
+  *,
+  responsible:collaborators!project_issues_responsible_id_fkey(id, name),
+  resolved_by:collaborators!project_issues_resolved_by_id_fkey(id, name),
+  files:project_diary_files!project_diary_files_issue_id_fkey(*),
+  events:project_issue_events!project_issue_events_issue_id_fkey(
+    *,
+    author:collaborators!project_issue_events_author_id_fkey(id, name)
+  )
+`
+
+/*
+  As pendências de UM projeto, da mais recente para a mais antiga
+  (PendenciasTab.jsx:33 ordena por `-data_identificacao`).
+
+  UMA CONSULTA SÓ PARA AS DUAS ABAS: a aba Obra também as usa, para os
+  indicadores e para o bloco de pendências de cada visita — no original são duas
+  chamadas iguais em dois componentes (ObraTab.jsx:51 e PendenciasTab.jsx:31),
+  com a mesma chave de cache. Aqui a chave é a mesma e o hook é um.
+
+  O histórico vem em ordem cronológica, que é a ordem em que o array do base44
+  cresce e a que o índice `project_issue_events_tenant_id_issue_id_occurred_at_idx`
+  já entrega.
+*/
+export function useProjectIssues(projectId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: diaryKeys.issues(projectId ?? ''),
+    enabled: Boolean(projectId) && enabled,
+    queryFn: async (): Promise<ProjectIssueRow[]> => {
+      const { data, error } = await supabase
+        .from('project_issues')
+        .select(ISSUES_SELECT)
+        .eq('project_id', projectId as string)
+        .order('identified_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('created_at', { referencedTable: 'files' })
+        .order('occurred_at', { referencedTable: 'events' })
+        .limit(LIST_LIMIT)
+
+      if (error) throw error
+      return (data ?? []) as unknown as ProjectIssueRow[]
+    },
+  })
+}
+
+/*
+  AS DUAS COLUNAS DA RESOLUÇÃO, resolvidas num lugar só.
+
+  O check `(status = 'resolved') = (resolved_at is not null)` amarra os dois
+  sentidos (migration 0069, mesma forma de `completion_date` em `tasks`):
+  pendência resolvida sem data não entra em contagem por período, e data em
+  pendência aberta a faz aparecer como resolvida em qualquer relatório que conte
+  por data. Por isso a tela escolhe o STATUS e nunca as colunas.
+
+  A DATA JÁ GRAVADA É PRESERVADA: salvar de novo uma pendência que já estava
+  resolvida não move a data da resolução para hoje nem troca quem a resolveu — o
+  fato aconteceu quando aconteceu.
+*/
+function resolutionFieldsFor(
+  status: ProjectIssueInput['status'],
+  current: { resolved_at: string | null; resolved_by_id: string | null } | null,
+  collaboratorId: string | null,
+): { resolved_at: string | null; resolved_by_id: string | null } {
+  if (status !== 'resolved') return { resolved_at: null, resolved_by_id: null }
+  if (current?.resolved_at) {
+    return { resolved_at: current.resolved_at, resolved_by_id: current.resolved_by_id }
+  }
+  return { resolved_at: new Date().toISOString(), resolved_by_id: collaboratorId }
+}
+
+/*
+  ABRIR UMA PENDÊNCIA (ObraTab.jsx:102-130 e PendenciasTab.jsx:37-65).
+
+  O NÚMERO NÃO É CALCULADO AQUI, e este é o defeito 8 do plano. No original ele é
+  `issues.length + 1` sobre a lista que o navegador tem em memória: duas abas
+  abertas produzem duas pendências #3 sem nenhuma concorrência real, e a lista
+  filtrada por status produziria número repetido sozinha. Aqui a coluna vai FORA
+  do INSERT, o trigger `project_issues_assign_number` a preenche sob advisory
+  lock por projeto, e a unicidade `(project_id, issue_number)` é quem decide no
+  fim. O número volta no `select` — é dele que sai o título do evento.
+
+  O HISTÓRICO TAMBÉM NÃO É MONTADO AQUI (defeito 12): o trigger
+  `project_issues_log_event` escreve a linha `created` sozinho.
+
+  `visit_id` VEM DA VISITA QUE ABRIU O FORMULÁRIO, e não de um campo: é o fluxo
+  que a visita "Com pendências" dispara.
+*/
+export function useCreateProjectIssue() {
+  const queryClient = useQueryClient()
+  const tenantId = useTenantId()
+  const { data: collaborator } = useCurrentCollaborator()
+
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      visitId,
+      input,
+      photos,
+      attachments,
+    }: {
+      projectId: string
+      visitId: string | null
+      input: ProjectIssueInput
+      photos: File[]
+      attachments: File[]
+    }) => {
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+      const parsed = projectIssueInputSchema.parse(input)
+
+      /*
+        `issue_number` FICA FORA DO PAYLOAD, e o tipo gerado não sabe disso: o
+        gerador lê a coluna como NOT NULL sem default e a exige no Insert, porque
+        nenhum tipo enxerga um trigger BEFORE INSERT. O `Omit` é onde essa
+        diferença fica escrita — e mandar o número daqui seria voltar ao
+        `length + 1` do original.
+      */
+      const payload: Omit<TablesInsert<'project_issues'>, 'issue_number'> = {
+        ...parsed,
+        ...resolutionFieldsFor(parsed.status, null, collaborator?.id ?? null),
+        project_id: projectId,
+        visit_id: visitId,
+        tenant_id: tenantId,
+      }
+
+      const { data, error } = await supabase
+        .from('project_issues')
+        .insert(payload as TablesInsert<'project_issues'>)
+        .select('id, issue_number')
+        .single()
+
+      if (error) throw error
+
+      await uploadDiaryFiles({
+        tenantId,
+        parent: 'issues',
+        parentId: data.id,
+        kind: 'photo',
+        uploadedById: collaborator?.id ?? null,
+        files: photos,
+      })
+
+      await uploadDiaryFiles({
+        tenantId,
+        parent: 'issues',
+        parentId: data.id,
+        kind: 'attachment',
+        uploadedById: collaborator?.id ?? null,
+        files: attachments,
+      })
+
+      const event = await recordDiaryEvent({
+        projectId,
+        systemEvent: 'issue_created',
+        title: `🔴 Pendência #${data.issue_number} criada — ${PROJECT_ISSUE_CATEGORY[parsed.category]}`,
+        description: parsed.description,
+        eventKey: `issue-created:${projectId}:${data.id}`,
+        responsibleId: parsed.responsible_id,
+      })
+
+      return { id: data.id, event }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
+    },
+  })
+}
+
+/*
+  EDITAR UMA PENDÊNCIA (PendenciasTab.jsx:101-105).
+
+  NÃO EXIGE PROJETO EM OBRA, e isso é metade do defeito 11 do plano: só o botão
+  de CRIAR passou a exigir. Pendência aberta enquanto a obra corria precisa poder
+  ser editada e resolvida depois que o projeto sai da fase de obra — senão ela
+  fica presa para sempre.
+
+  NÃO GRAVA EVENTO NA LINHA DO TEMPO, nem mesmo quando o status vira "Resolvida":
+  é o comportamento do original, onde só o botão de um clique registra
+  (PendenciasTab.jsx:91-97 contra :101-105). E nada se perde por isso — a
+  transição de status vira linha em `project_issue_events` pelo trigger, com
+  carimbo e autor, aconteça ela por qual caminho for.
+*/
+export function useUpdateProjectIssue() {
+  const queryClient = useQueryClient()
+  const { data: collaborator } = useCurrentCollaborator()
+
+  return useMutation({
+    mutationFn: async ({
+      issue,
+      input,
+      newPhotos,
+      newAttachments,
+      removedFileIds,
+    }: {
+      issue: ProjectIssueRow
+      input: ProjectIssueInput
+      newPhotos: File[]
+      newAttachments: File[]
+      removedFileIds: string[]
+    }) => {
+      const parsed = projectIssueInputSchema.parse(input)
+
+      const { data, error } = await supabase
+        .from('project_issues')
+        .update({
+          ...parsed,
+          ...resolutionFieldsFor(parsed.status, issue, collaborator?.id ?? null),
+        })
+        .eq('id', issue.id)
+        .select('id, tenant_id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A pendência não foi alterada. Só Diretor e Coordenador escrevem no Diário do Projeto.',
+      )
+
+      await removeDiaryFiles(removedFileIds)
+
+      await uploadDiaryFiles({
+        tenantId: data[0].tenant_id,
+        parent: 'issues',
+        parentId: issue.id,
+        kind: 'photo',
+        uploadedById: collaborator?.id ?? null,
+        files: newPhotos,
+      })
+
+      await uploadDiaryFiles({
+        tenantId: data[0].tenant_id,
+        parent: 'issues',
+        parentId: issue.id,
+        kind: 'attachment',
+        uploadedById: collaborator?.id ?? null,
+        files: newAttachments,
+      })
+
+      return issue.id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
+    },
+  })
+}
+
+/*
+  RESOLVER EM UM CLIQUE (PendenciasTab.jsx:83-99).
+
+  Três coisas num gesto: o status, a data e quem resolveu. As duas últimas saem
+  de `resolutionFieldsFor`, e não de campos da tela.
+
+  O HISTÓRICO NÃO É EMPURRADO AQUI. No original, resolver lê o array `historico`
+  do CACHE DO NAVEGADOR, empurra um item e regrava o campo inteiro
+  (PendenciasTab.jsx:69-72): duas pessoas mexendo na mesma pendência perdem o
+  registro uma da outra, e quem chegou depois vence sem que nada acuse (defeito
+  12). Aqui o trigger escreve a linha `resolved`, com a transição de status e o
+  autor resolvidos dentro do banco.
+
+  CONTINUA LIBERADO COM O PROJETO FORA DE OBRA — ver `useUpdateProjectIssue`.
+*/
+export function useResolveProjectIssue() {
+  const queryClient = useQueryClient()
+  const { data: collaborator } = useCurrentCollaborator()
+
+  return useMutation({
+    mutationFn: async ({ issue, projectId }: { issue: ProjectIssueRow; projectId: string }) => {
+      const { data, error } = await supabase
+        .from('project_issues')
+        .update({
+          status: 'resolved',
+          ...resolutionFieldsFor('resolved', null, collaborator?.id ?? null),
+        })
+        .eq('id', issue.id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A pendência não foi resolvida. Só Diretor e Coordenador escrevem no Diário do Projeto.',
+      )
+
+      /*
+        A CHAVE NÃO LEVA O RELÓGIO, ao contrário do original
+        (`issue-resolved:...:${Date.now()}`, PendenciasTab.jsx:96). O fato é "a
+        pendência #N foi resolvida"; resolver, reabrir e resolver de novo grava
+        UM registro na linha do tempo — e as três transições continuam inteiras
+        no histórico da pendência, que é o lugar que existe para contá-las.
+      */
+      const event = await recordDiaryEvent({
+        projectId,
+        systemEvent: 'issue_resolved',
+        title: `✅ Pendência #${issue.issue_number} resolvida`,
+        description: issue.description,
+        eventKey: `issue-resolved:${projectId}:${issue.id}`,
+        responsibleId: issue.responsible_id,
+      })
+
+      return { id: issue.id, event }
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
@@ -379,10 +1220,11 @@ export function useDiaryFileUrl(path: string | null | undefined) {
   ENVIAR ARQUIVOS E PENDURÁ-LOS NUMA DAS TRÊS MÃES.
 
   Parametrizado por mãe porque a tabela é UMA com arco exclusivo (migration
-  0069): a visita e a pendência da fatia 2 anexam pelo mesmo caminho, mudando só
-  `parent` e `file_kind`. Enquanto só a entrada de diário existe, `file_kind` é
-  sempre `attachment` — é o de/para do array `anexos` do base44, e `photo` é o do
-  array `fotos`, que é da aba Obra.
+  0069): a visita e a pendência anexam pelo mesmo caminho, mudando só `parent` e
+  `kind`. `attachment` é o de/para dos arrays `anexos` e `arquivos` do base44, e
+  `photo` é o do array `fotos` — o que separava as duas listas lá era o NOME do
+  array, e aqui é a coluna `file_kind` (migration 0068). A entrada de diário só
+  usa `attachment`; a visita e a pendência usam os dois, num campo cada.
 
   A ORDEM DOS PASSOS É O QUE IMPEDE ARQUIVO ÓRFÃO, e ela é a mesma do módulo 8:
   sobe o objeto, grava a linha, e se a gravação falhar APAGA o objeto que acabou
@@ -401,12 +1243,14 @@ async function uploadDiaryFiles({
   tenantId,
   parent,
   parentId,
+  kind = 'attachment',
   uploadedById,
   files,
 }: {
   tenantId: string
   parent: DiaryFileParent
   parentId: string
+  kind?: DiaryFileKind
   uploadedById: string | null
   files: File[]
 }): Promise<void> {
@@ -427,7 +1271,7 @@ async function uploadDiaryFiles({
       entry_id: parent === 'entries' ? parentId : null,
       visit_id: parent === 'visits' ? parentId : null,
       issue_id: parent === 'issues' ? parentId : null,
-      file_kind: 'attachment',
+      file_kind: kind,
       file_path: path,
       file_name: file.name,
       mime_type: file.type,
@@ -475,12 +1319,27 @@ async function removeDiaryFiles(ids: string[]): Promise<void> {
   await removeStorageObjects((existing ?? []).map((row) => row.file_path))
 }
 
-/* Todos os anexos de uma entrada, colhidos antes de ela ser apagada. */
-async function collectEntryFilePaths(entryId: string): Promise<string[]> {
+/*
+  Todos os arquivos de uma mãe, colhidos ANTES de ela ser apagada — é a única
+  hora em que ainda dá para saber quais eram (defeito 14 do plano).
+
+  Parametrizado pela mesma chave de `uploadDiaryFiles`: a coluna de arco
+  exclusivo muda, o gesto não.
+*/
+const PARENT_COLUMN: Record<DiaryFileParent, 'entry_id' | 'visit_id' | 'issue_id'> = {
+  entries: 'entry_id',
+  visits: 'visit_id',
+  issues: 'issue_id',
+}
+
+async function collectDiaryFilePaths(
+  parent: DiaryFileParent,
+  parentId: string,
+): Promise<string[]> {
   const { data, error } = await supabase
     .from('project_diary_files')
     .select('file_path')
-    .eq('entry_id', entryId)
+    .eq(PARENT_COLUMN[parent], parentId)
 
   if (error) throw error
   /* `file_path` é NOT NULL: a linha só existe porque há arquivo. */

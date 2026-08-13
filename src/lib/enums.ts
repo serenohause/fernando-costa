@@ -796,6 +796,119 @@ export const DIARY_VISIBILITY = {
 export type DiaryVisibility = keyof typeof DIARY_VISIBILITY
 
 /*
+  `diary_file_kind` ENTRA SEM MAPA DE RÓTULO, pelo mesmo motivo de
+  `geocode_status`: tela nenhuma exibe o valor. Ele é o discriminador que separa
+  a foto do anexo — o que no base44 era o NOME do array (`fotos` vs
+  `anexos`/`arquivos`) e que virou coluna quando as três listas viraram uma
+  tabela só (migration 0068).
+
+  Quem o lê são a fita de miniaturas, a galeria e o clipe de papel, e o que eles
+  fazem com ele é escolher ONDE desenhar o arquivo, não escrever um rótulo.
+  Inventar "Foto / Anexo" aqui seria criar texto de tela que o de/para não pediu.
+*/
+export type DiaryFileKind = Enums<'diary_file_kind'>
+
+/*
+  A VISITA À OBRA (migration 0068), na ordem em que SiteVisitForm.jsx:13 e :14 as
+  oferece — que é a ordem do enum, e é também a ordem dos dois filtros do topo da
+  aba Obra (ObraTab.jsx:211 e :220).
+*/
+export const SITE_VISIT_TYPE = {
+  follow_up: 'Acompanhamento',
+  verification: 'Conferência',
+  inspection: 'Fiscalização',
+  meeting: 'Reunião',
+  measurement: 'Medição',
+  correction: 'Correção',
+  delivery: 'Entrega',
+  survey: 'Vistoria',
+  other: 'Outro',
+} as const satisfies LabelMap<string>
+
+export type SiteVisitType = keyof typeof SITE_VISIT_TYPE
+
+/*
+  O RESULTADO DA VISITA. `with_issues` é o valor que abre o formulário de
+  pendência vinculada assim que a visita é salva (ObraTab.jsx:77) — o fluxo que
+  esta fatia precisa preservar, e que o COMMENT do enum na 0068 registra.
+*/
+export const SITE_VISIT_STATUS = {
+  no_issues: 'Sem pendências',
+  with_issues: 'Com pendências',
+  awaiting_execution: 'Aguardando execução',
+  resolved: 'Resolvido',
+} as const satisfies LabelMap<string>
+
+export type SiteVisitStatus = keyof typeof SITE_VISIT_STATUS
+
+/*
+  A CATEGORIA DA PENDÊNCIA (IssueForm.jsx:13), que é também a lista do filtro da
+  aba Pendências (PendenciasTab.jsx:157).
+
+  NÃO É `SUPPLIER_CATEGORY`, apesar de "Marcenaria", "Esquadrias" e "Iluminação"
+  aparecerem nas duas: lá a lista descreve o que um FORNECEDOR vende, aqui a
+  disciplina de uma pendência de obra. Enum separado por decisão da migration
+  0068 — as listas só se parecem em parte.
+*/
+export const PROJECT_ISSUE_CATEGORY = {
+  architecture: 'Arquitetura',
+  interiors: 'Interiores',
+  joinery: 'Marcenaria',
+  frames: 'Esquadrias',
+  electrical: 'Elétrica',
+  plumbing: 'Hidráulica',
+  lighting: 'Iluminação',
+  structural: 'Estrutura',
+  landscaping: 'Paisagismo',
+  finishing: 'Acabamento',
+  other: 'Outro',
+} as const satisfies LabelMap<string>
+
+export type ProjectIssueCategory = keyof typeof PROJECT_ISSUE_CATEGORY
+
+/*
+  A SITUAÇÃO DA PENDÊNCIA (IssueForm.jsx:14), na ordem dos chips de filtro
+  rápido da aba (PendenciasTab.jsx:139).
+
+  `resolved` é o único valor que exige `resolved_at`, e a igualdade vale nos dois
+  sentidos (check de `project_issues`, migration 0069) — por isso quem grava o
+  status resolve as duas colunas junto, dentro do hook.
+*/
+export const PROJECT_ISSUE_STATUS = {
+  open: 'Aberta',
+  in_progress: 'Em andamento',
+  resolved: 'Resolvida',
+  cancelled: 'Cancelada',
+} as const satisfies LabelMap<string>
+
+export type ProjectIssueStatus = keyof typeof PROJECT_ISSUE_STATUS
+
+/*
+  A FRASE DE CADA LINHA DO HISTÓRICO DA PENDÊNCIA.
+
+  No base44 este texto é gravado DENTRO do array `historico`
+  (PendenciasTab.jsx:45/85/103), e é por isso que ele está aqui: copy de tela
+  dentro do banco envelhece no primeiro ajuste de texto e leva junto o histórico
+  já gravado (COMMENT de `project_issue_events.event_type`, migration 0069). O
+  banco guarda o TIPO do evento; a frase é desta tabela.
+
+  As três primeiras são as do original, palavra por palavra. `status_changed`,
+  `reopened` e `cancelled` não existem lá — o histórico daqui é escrito por
+  trigger e enxerga toda mudança de status, inclusive a que reabre uma pendência
+  já resolvida.
+*/
+export const PROJECT_ISSUE_EVENT_TYPE = {
+  created: 'Pendência criada.',
+  updated: 'Pendência atualizada.',
+  status_changed: 'Status alterado.',
+  resolved: 'Pendência resolvida.',
+  reopened: 'Pendência reaberta.',
+  cancelled: 'Pendência cancelada.',
+} as const satisfies LabelMap<string>
+
+export type ProjectIssueEventType = keyof typeof PROJECT_ISSUE_EVENT_TYPE
+
+/*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
   original, que redireciona Arquiteto e Estagiário para MinhasAtividades e
   bloqueia dashboards e financeiro para eles.

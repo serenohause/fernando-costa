@@ -74,8 +74,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
   O arco exclusivo (`num_nonnulls(entry_id, visit_id, issue_id) = 1`) é o único
   cuja violação seria bug nosso, e não gesto de quem usa — a frase não teria a
   quem falar.
+
+  2026-08-13 — DESCE PARA 125. A fatia 2 do módulo 11 trouxe as telas de visita e
+  de pendência, e com elas as OITO frases que a linha acima cobrava: o resumo em
+  branco da visita, a descrição em branco da pendência, o prazo anterior à
+  identificação, os dois lados da resolução (`resolved_at` × status e
+  `resolved_by` sem resolução), o número da pendência positivo e os dois de
+  `project_issue_events`. Estão em `src/features/diary/hooks.ts`, e a maioria
+  delas o schema Zod barra antes — a frase existe para o que não passa pelo
+  formulário.
 */
-const TETO_CHECKS_SEM_FRASE = 133
+const TETO_CHECKS_SEM_FRASE = 125
 
 /*
   Restrições que o usuário não alcança, uma a uma e com o motivo. Padrão que

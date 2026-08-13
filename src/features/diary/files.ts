@@ -42,6 +42,18 @@ const ACCEPTED_MIME_TYPES: Record<string, string> = {
 /** O `accept` do seletor de arquivo. Conveniência, como o resto deste arquivo. */
 export const ACCEPT_ATTRIBUTE = Object.keys(ACCEPTED_MIME_TYPES).join(',')
 
+/*
+  O `accept` do seletor de FOTO, que é um recorte do de cima.
+
+  Os campos de foto do original mandam `accept="image/*"` (SiteVisitForm.jsx:215),
+  o que oferece HEIC, TIFF, GIF e SVG — três que o bucket recusa e um que é
+  superfície de script. A lista aqui é a interseção do que o bucket aceita com o
+  que é imagem: os três formatos que um celular ou um navegador produzem.
+*/
+export const ACCEPT_IMAGE_ATTRIBUTE = Object.keys(ACCEPTED_MIME_TYPES)
+  .filter((type) => type.startsWith('image/'))
+  .join(',')
+
 /** `null` quando o arquivo serve; a frase da recusa quando não. */
 export function describeRejectedFile(file: File): string | null {
   if (!ACCEPTED_MIME_TYPES[file.type]) {
@@ -51,6 +63,20 @@ export function describeRejectedFile(file: File): string | null {
     return `Arquivo muito grande. Máximo: ${MAX_FILE_SIZE_MB}MB`
   }
   return null
+}
+
+/*
+  A mesma conferência, no campo que só aceita FOTO.
+
+  Por que uma frase própria em vez da de cima: quem escolheu um PDF no campo de
+  fotos não precisa saber que o sistema aceita PDF — precisa saber que ali vai
+  imagem. A recusa por tamanho é a mesma e é reaproveitada.
+*/
+export function describeRejectedPhoto(file: File): string | null {
+  if (!file.type.startsWith('image/')) {
+    return 'Este campo aceita só foto. Use "Adicionar arquivo" para PDF e texto.'
+  }
+  return describeRejectedFile(file)
 }
 
 /** As três mães possíveis de um anexo (arco exclusivo, migration 0069). */

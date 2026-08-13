@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
+  AlertCircle,
   BookOpen,
   Calendar,
   ChevronDown,
   ChevronUp,
   HardHat,
+  Image,
   Paperclip,
   Pencil,
   Plus,
@@ -53,13 +55,26 @@ import {
   useCreateDiaryEntry,
   useDeleteDiaryEntry,
   useProjectDiaryEntries,
+  useProjectIssues,
+  useProjectSiteVisits,
   useUpdateDiaryEntry,
 } from '../hooks'
 import { filterDiaryEntries, groupDiaryEntriesByDay } from '../timeline'
 import DiaryAttachmentLink from './DiaryAttachmentLink'
 import DiaryEntryForm, { type DiaryEntrySubmit } from './DiaryEntryForm'
+import FotosTab from './FotosTab'
+import ObraTab from './ObraTab'
+import PendenciasTab from './PendenciasTab'
+import PhotoLightbox from './PhotoLightbox'
 import { ENTRY_RAIL, ENTRY_STATUS_BADGE, ENTRY_TYPE_STYLE } from './diary-styles'
-import type { DiaryEntryRow, DiaryFilters, DiaryProject } from '../types'
+import type {
+  DiaryEntryRow,
+  DiaryFile,
+  DiaryFilters,
+  DiaryProject,
+  PhotoCaption,
+  PhotoLightboxState,
+} from '../types'
 
 /*
   Porta de nova-versao/src/components/diary/ProjectDiaryDrawer.jsx — o cabeçalho
@@ -76,11 +91,23 @@ import type { DiaryEntryRow, DiaryFilters, DiaryProject } from '../types'
   ═══ O QUE ESTA FATIA NÃO TRAZ, E ONDE ISSO APARECE ═══
 
   A gaveta da versão nova tem CINCO abas — Resumo, Timeline, Obra, Pendências e
-  Fotos — e abre em Resumo. Esta é a fatia 1 do módulo 11, que entrega a camada
-  de dados e a linha do tempo; Obra, Pendências e Fotos são a fatia 2, e Resumo
-  e Relatório são a fatia 4 (plano do módulo). Então a faixa de abas existe com
-  UMA aba, e as outras quatro entram nela conforme cada fatia chega. É recorte de
-  entrega combinado, não simplificação de layout.
+  Fotos — e abre em Resumo. A fatia 1 entregou a camada de dados e a linha do
+  tempo; a fatia 2 acrescenta Obra, Pendências e Fotos, e Resumo (com o
+  relatório) é a fatia 4 do plano. Então a faixa de abas tem QUATRO das cinco, na
+  mesma ordem relativa, e a primeira entra quando a fatia 4 chegar — junto com a
+  aba que abre por padrão, que lá é Resumo. É recorte de entrega combinado, não
+  simplificação de layout.
+
+  ═══ AS TRÊS CONSULTAS FICAM AQUI, E NÃO DENTRO DE CADA ABA ═══
+
+  Na versão nova cada aba faz a sua: ObraTab pede visitas e pendências,
+  PendenciasTab pede pendências de novo, FotosTab pede as duas outra vez — seis
+  chamadas para três conjuntos, salvas pela chave de cache compartilhada. Aqui a
+  gaveta pede uma vez e passa para baixo, o que também é o que faz o botão de
+  "tentar de novo" de cada aba funcionar sem que a aba conheça a consulta.
+
+  As três só são feitas com a gaveta ABERTA (`enabled`), como a da linha do tempo:
+  o menu de contexto do cartão monta a gaveta fechada.
 
   ═══ O QUE MUDA EM RELAÇÃO À VERSÃO NOVA, E POR QUÊ ═══
 
@@ -114,8 +141,13 @@ import type { DiaryEntryRow, DiaryFilters, DiaryProject } from '../types'
   como lá.
 */
 
-/* As abas da gaveta. A versão nova tem cinco; ver o cabeçalho. */
-const TABS = [{ id: 'timeline' as const, label: 'Timeline', icon: BookOpen }]
+/* As abas da gaveta, na ordem da versão nova menos a primeira; ver o cabeçalho. */
+const TABS = [
+  { id: 'timeline' as const, label: 'Timeline', icon: BookOpen },
+  { id: 'obra' as const, label: 'Obra', icon: HardHat },
+  { id: 'pendencias' as const, label: 'Pendências', icon: AlertCircle },
+  { id: 'fotos' as const, label: 'Fotos', icon: Image },
+]
 
 type TabId = (typeof TABS)[number]['id']
 
@@ -144,10 +176,17 @@ export default function ProjectDiaryDrawer({
   })
   const [filters, setFilters] = useState<DiaryFilters>({ search: '', type: 'all' })
   const [expandedEntries, setExpandedEntries] = useState<Record<string, boolean>>({})
+  const [lightbox, setLightbox] = useState<PhotoLightboxState>({
+    photos: [],
+    index: null,
+    caption: null,
+  })
 
   const canEdit = useCanWriteProjectDiary()
 
   const entriesQuery = useProjectDiaryEntries(project?.id, open)
+  const visitsQuery = useProjectSiteVisits(project?.id, open)
+  const issuesQuery = useProjectIssues(project?.id, open)
   const collaboratorsQuery = useCollaborators()
 
   const createMutation = useCreateDiaryEntry()
@@ -211,7 +250,18 @@ export default function ProjectDiaryDrawer({
   const toggleExpand = (id: string) =>
     setExpandedEntries((current) => ({ ...current, [id]: !current[id] }))
 
+  /* O lightbox é da GAVETA, e não de cada aba: as três abas de obra abrem o
+     mesmo, e ele precisa ficar por cima da gaveta inteira. Mesmo desenho da
+     versão nova (ProjectDiaryDrawer.jsx:158-160). */
+  const handlePhotoClick = (photos: DiaryFile[], index: number, caption: PhotoCaption) =>
+    setLightbox({ photos, index, caption })
+
+  const closeLightbox = () => setLightbox({ photos: [], index: null, caption: null })
+
   if (!project) return null
+
+  const visits = visitsQuery.data ?? []
+  const issues = issuesQuery.data ?? []
 
   /* A obra é do projeto ou da tarefa que abriu a gaveta — ver `underConstruction`. */
   const isEmObra = project.current_phase === 'under_construction' || underConstruction
@@ -556,6 +606,52 @@ export default function ProjectDiaryDrawer({
                 )}
               </>
             )}
+
+            {activeTab === 'obra' && (
+              <ObraTab
+                project={project}
+                visits={visits}
+                issues={issues}
+                isLoading={visitsQuery.isLoading || issuesQuery.isLoading}
+                error={visitsQuery.error ?? issuesQuery.error}
+                onRetry={() => {
+                  void visitsQuery.refetch()
+                  void issuesQuery.refetch()
+                }}
+                collaborators={collaboratorsQuery.data ?? []}
+                canEdit={canEdit}
+                isEmObra={isEmObra}
+                onPhotoClick={handlePhotoClick}
+              />
+            )}
+
+            {activeTab === 'pendencias' && (
+              <PendenciasTab
+                project={project}
+                issues={issues}
+                isLoading={issuesQuery.isLoading}
+                error={issuesQuery.error}
+                onRetry={() => void issuesQuery.refetch()}
+                collaborators={collaboratorsQuery.data ?? []}
+                canEdit={canEdit}
+                isEmObra={isEmObra}
+                onPhotoClick={handlePhotoClick}
+              />
+            )}
+
+            {activeTab === 'fotos' && (
+              <FotosTab
+                visits={visits}
+                issues={issues}
+                isLoading={visitsQuery.isLoading || issuesQuery.isLoading}
+                error={visitsQuery.error ?? issuesQuery.error}
+                onRetry={() => {
+                  void visitsQuery.refetch()
+                  void issuesQuery.refetch()
+                }}
+                onPhotoClick={handlePhotoClick}
+              />
+            )}
           </div>
         </SheetContent>
       </Sheet>
@@ -594,6 +690,17 @@ export default function ProjectDiaryDrawer({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Lightbox */}
+      {lightbox.index !== null && (
+        <PhotoLightbox
+          photos={lightbox.photos}
+          currentIndex={lightbox.index}
+          caption={lightbox.caption}
+          onClose={closeLightbox}
+          onNavigate={(index) => setLightbox((current) => ({ ...current, index }))}
+        />
+      )}
     </>
   )
 }

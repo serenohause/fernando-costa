@@ -3,11 +3,18 @@ import type {
   DiaryEntryStatus,
   DiaryManualEntryType,
   DiaryVisibility,
+  ProjectIssueCategory,
+  ProjectIssueStatus,
   ProjectPhase,
+  SiteVisitStatus,
+  SiteVisitType,
 } from '@/lib/enums'
 
 export type DiaryEntry = Tables<'project_diary_entries'>
 export type DiaryFile = Tables<'project_diary_files'>
+export type SiteVisit = Tables<'project_site_visits'>
+export type ProjectIssue = Tables<'project_issues'>
+export type ProjectIssueEvent = Tables<'project_issue_events'>
 
 /* Um colaborador como as telas deste módulo o exibem: só o nome. Mesmo tipo dos
    módulos 5, 7 e 8. */
@@ -119,4 +126,147 @@ export type DiaryProject = {
 export type DiaryFileRef = {
   path: string
   name: string
+}
+
+/* ── Aba Obra: a visita ────────────────────────────────────────────────── */
+
+/*
+  A VISITA COMO A ABA OBRA A LÊ.
+
+  `responsavel_name` do base44 não virou coluna (migration 0069) e volta como
+  embed, pelo nome da CONSTRAINT — as FK são compostas `(coluna, tenant_id)`.
+  `criado_por_name` não é lido por tela nenhuma do original e fica fora do
+  select, como já ficou em `DiaryEntryRow`.
+
+  `files` É UMA LISTA SÓ, e no base44 são DUAS (`fotos` e `arquivos`). O que as
+  separava era o nome do array; aqui é `file_kind` (migration 0068), e quem
+  recorta é a tela: a fita de miniaturas mostra `photo`, a contagem de clipes
+  mostra `attachment`.
+*/
+export type SiteVisitRow = SiteVisit & {
+  responsible: NamedRef | null
+  files: DiaryFile[]
+}
+
+/*
+  O que o formulário de visita edita (SiteVisitForm.jsx).
+
+  FORA DAQUI: `project_id` (vem do cartão que abriu a gaveta), `created_by_id`
+  (sai da sessão, dentro do hook), `diary_entry_id` (é o vínculo com a entrada
+  automática que a visita gera, escrito pelo hook — defeito 7 do plano) e
+  `tenant_id`/`legacy_id`.
+*/
+export type SiteVisitInput = {
+  visit_date: string
+  visit_time: string | null
+  visit_type: SiteVisitType
+  responsible_id: string | null
+  summary: string
+  notes: string | null
+  status: SiteVisitStatus
+}
+
+/*
+  Os três controles do topo da aba Obra (ObraTab.jsx:202-225): a busca livre e os
+  dois selects. `'all'` é o "Todos os tipos" / "Todos os status" deles.
+*/
+export type SiteVisitFilters = {
+  search: string
+  type: SiteVisitType | 'all'
+  status: SiteVisitStatus | 'all'
+}
+
+/* ── Aba Pendências ────────────────────────────────────────────────────── */
+
+/*
+  UMA LINHA DO HISTÓRICO da pendência, com quem a provocou.
+
+  No base44 isto é um item do array `historico` dentro da própria pendência, e a
+  atualização o regrava inteiro a partir do cache do navegador (defeito 12 do
+  plano). Aqui cada linha é uma linha de `project_issue_events`, escrita por
+  trigger — a tela só LÊ.
+*/
+export type ProjectIssueEventRow = ProjectIssueEvent & {
+  author: NamedRef | null
+}
+
+/*
+  A PENDÊNCIA COMO A ABA A LÊ.
+
+  `resolvida_por_name` também não virou coluna e volta como embed. `events` é o
+  array `historico`, e `files` são os arrays `fotos` e `arquivos` — ver
+  `SiteVisitRow`.
+*/
+export type ProjectIssueRow = ProjectIssue & {
+  responsible: NamedRef | null
+  resolved_by: NamedRef | null
+  files: DiaryFile[]
+  events: ProjectIssueEventRow[]
+}
+
+/*
+  O que o formulário de pendência edita (IssueForm.jsx).
+
+  `issue_number` NÃO ENTRA, e é o defeito 8 do plano fechado: no original o
+  número é `issues.length + 1` calculado sobre a lista que o navegador tem em
+  memória. Aqui quem o aloca é o trigger `project_issues_assign_number`, sob
+  advisory lock por projeto (migration 0069).
+
+  `resolved_at` e `resolved_by_id` também não: eles são consequência do status, e
+  o check `(status = 'resolved') = (resolved_at is not null)` amarra os dois. Quem
+  os resolve é o hook, num lugar só.
+
+  `visit_id` fica fora do formulário e entra pelo hook: ele vem da visita que
+  abriu o formulário, e não de um campo — é o `visitId` que IssueForm.jsx:113
+  costura no envio.
+*/
+export type ProjectIssueInput = {
+  description: string
+  category: ProjectIssueCategory
+  responsible_id: string | null
+  identified_date: string
+  due_date: string | null
+  status: ProjectIssueStatus
+  notes: string | null
+}
+
+/*
+  Os três controles da aba Pendências: os chips de status
+  (PendenciasTab.jsx:139), o select de categoria e a busca livre.
+*/
+export type ProjectIssueFilters = {
+  search: string
+  status: ProjectIssueStatus | 'all'
+  category: ProjectIssueCategory | 'all'
+}
+
+/* ── Fotos ─────────────────────────────────────────────────────────────── */
+
+/*
+  UM GRUPO DA GALERIA (FotosTab.jsx:27-54): as fotos de UM registro — uma visita
+  ou uma pendência — com a faixa de data, o rótulo e o responsável que a aba
+  desenha acima delas.
+
+  `caption` é o `visitInfo` que o lightbox recebe: a linha de cima do cabeçalho
+  (o resumo da visita, ou "Pendência #3") e a de baixo (o tipo da visita).
+*/
+export type DiaryPhotoGroup = {
+  id: string
+  label: string
+  date: string
+  responsible: string | null
+  photos: DiaryFile[]
+  caption: PhotoCaption
+}
+
+export type PhotoCaption = {
+  title: string | null
+  subtitle: string | null
+}
+
+/* O que o lightbox precisa saber: as fotos, onde ele está e de onde elas vêm. */
+export type PhotoLightboxState = {
+  photos: DiaryFile[]
+  index: number | null
+  caption: PhotoCaption | null
 }

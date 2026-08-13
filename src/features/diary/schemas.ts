@@ -72,3 +72,81 @@ export const diaryEntryInputSchema = z.object({
 })
 
 export type DiaryEntryInputParsed = z.infer<typeof diaryEntryInputSchema>
+
+/*
+  A VISITA À OBRA (SiteVisitForm.jsx).
+
+  AS TRÊS FRASES OBRIGATÓRIAS SÃO AS DO ORIGINAL, palavra por palavra
+  (SiteVisitForm.jsx:110-112): "Selecione o tipo de visita.", "Informe a data da
+  visita.", "Informe o resumo da visita."
+
+  O RESUMO É EXIGIDO AQUI E É NULLABLE NO BANCO, e isso é deliberado: a entidade
+  do base44 só exige projeto, data e tipo, mas o formulário exige o resumo — o
+  COMMENT da coluna (migration 0069) registra que recusar no banco inviabilizaria
+  importação futura de visita sem resumo. A tela é mais estrita que o dado, e
+  continua sendo.
+*/
+export const siteVisitInputSchema = z.object({
+  visit_date: z.iso.date('Informe a data da visita.'),
+  visit_time: occurrenceTime,
+
+  visit_type: z.enum(Constants.public.Enums.site_visit_type, {
+    error: 'Selecione o tipo de visita.',
+  }),
+
+  responsible_id: nullIfBlank(z.uuid('Responsável inválido.').nullable()),
+
+  /* `min(1)` sobre o valor já aparado: o `required` do navegador deixa passar um
+     resumo só com espaço, e `project_site_visits_summary_not_blank_check`
+     recusaria. */
+  summary: z.string().trim().min(1, 'Informe o resumo da visita.').max(2000),
+
+  notes: nullIfBlank(z.string().max(5000).nullable()),
+
+  status: z.enum(Constants.public.Enums.site_visit_status),
+})
+
+export type SiteVisitInputParsed = z.infer<typeof siteVisitInputSchema>
+
+/*
+  A PENDÊNCIA DE OBRA (IssueForm.jsx).
+
+  AS TRÊS FRASES OBRIGATÓRIAS SÃO AS DO ORIGINAL (IssueForm.jsx:110-112):
+  "Informe a descrição da pendência.", "Selecione a categoria.", "Informe a data
+  de identificação."
+
+  A QUARTA REGRA NÃO EXISTE NO ORIGINAL, e ela é do banco: prazo anterior à
+  identificação (`project_issues_due_date_not_before_identified_check`). Lá o
+  formulário aceita, a pendência nasce vencida no dia em que é digitada e a lista
+  a pinta de vermelho na hora (PendenciasTab.jsx:126). Aqui a recusa vem antes,
+  com a frase em português — `superRefine` porque a regra compara DOIS campos, e
+  o caminho aponta para o campo que a pessoa precisa corrigir.
+*/
+export const projectIssueInputSchema = z
+  .object({
+    description: z.string().trim().min(1, 'Informe a descrição da pendência.').max(5000),
+
+    category: z.enum(Constants.public.Enums.project_issue_category, {
+      error: 'Selecione a categoria.',
+    }),
+
+    responsible_id: nullIfBlank(z.uuid('Responsável inválido.').nullable()),
+
+    identified_date: z.iso.date('Informe a data de identificação.'),
+    due_date: nullIfBlank(z.iso.date('Prazo inválido.').nullable()),
+
+    status: z.enum(Constants.public.Enums.project_issue_status),
+
+    notes: nullIfBlank(z.string().max(5000).nullable()),
+  })
+  .superRefine((value, ctx) => {
+    if (value.due_date != null && value.due_date < value.identified_date) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['due_date'],
+        message: 'O prazo não pode ser anterior à data de identificação.',
+      })
+    }
+  })
+
+export type ProjectIssueInputParsed = z.infer<typeof projectIssueInputSchema>
