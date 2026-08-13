@@ -16,6 +16,11 @@
 --   inicio, item obrigatorio concluido com data, e a view project_progress -
 --   inclusive o caso 8.3, que afirma que ela respeita a RLS de quem consulta.
 --
+--   A secao 10 acrescenta o status operacional da tarefa (migration 0074), e ela
+--   afirma sobretudo o que o banco ACEITA: a decisao da fatia 3 foi nao escrever
+--   o check de "so nestas fases", e ausencia de restricao precisa de teste para
+--   nao ser "consertada" depois. Ver o cabecalho da secao.
+--
 -- COMO RODAR
 --   npm run test:schema:projects
 --
@@ -131,7 +136,11 @@ create temp table ids on commit drop as select
   -- Tarefa SEM projeto, exclusiva da secao 7. Sem projeto, nenhuma linha de
   -- project_progress a soma — que e a unica forma de a secao 7 escrever a
   -- vontade sem mexer nos numeros que a secao 8 afirma.
-  'd1600000-0000-4000-8000-000000000004'::uuid as task_checklist_a;
+  'd1600000-0000-4000-8000-000000000004'::uuid as task_checklist_a,
+  -- As duas tarefas COM tag operacional da secao 10, uma em cada escritorio.
+  -- Tambem sem projeto, pela mesma razao da de cima.
+  'd1600000-0000-4000-8000-000000000005'::uuid as task_tag_a,
+  'd2600000-0000-4000-8000-000000000001'::uuid as task_tag_b;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 values ((select user_a from ids), '00000000-0000-0000-0000-000000000000'::uuid,
@@ -471,6 +480,108 @@ select pg_temp.val('9.10', 'CONTROLE: a fase que TEM percentual continua pontuan
   select progress_percent || '|' || phase_percent
     from public.project_progress where project_id = %L
 $q$, (select project_empty_a from ids)));
+
+-- 10. O status operacional da tarefa (migration 0074) ---------------------------
+--
+-- A coluna nova: tasks.operational_tag, enum operational_tag (0068), ANULAVEL e
+-- sem check de fase. As 13 tarefas reais que a importacao recusou por falta
+-- dela sao 7 "Em Revisao" e 6 "Aguardando Cliente" (docs/IMPORT-PLAN.md 8.1).
+--
+-- O QUE ESTA SECAO EXISTE PARA AFIRMAR, e nao e o de sempre: aqui a maior parte
+-- dos casos afirma que o banco ACEITA. A decisao da fatia 3 foi NAO escrever o
+-- check de "so nestas fases" - o recorte fase<->tag do menu ('Layout' e
+-- 'Perspectivas' com as duas, 'Projeto Legal' e 'Projeto Executivo' so
+-- "Em Revisao", TaskKanban.jsx:42-44 da nova-versao) e oferta de tela, nao regra
+-- de dominio. Um check ali faria um arraste legitimo virar erro de banco no dia
+-- em que tela e check discordassem, e nao pegaria nada hoje porque as 13 tags
+-- reais caem todas dentro do recorte.
+--
+-- Ausencia de restricao nao se prova sozinha: sem os casos 10.1 e 10.2, alguem
+-- que acrescentasse o check "por seguranca" nao derrubaria teste nenhum, e a
+-- quebra so apareceria no dia do arraste. Sao eles que tornam a decisao
+-- executavel, e nao so escrita no comentario da migration.
+--
+-- O que continua fechado e o DOMINIO: valor fora do enum e recusado, inclusive o
+-- rotulo em portugues que o CSV do base44 traz - rotulo vive na UI
+-- (src/lib/enums.ts), nunca no banco.
+
+select pg_temp.chk('10.1', 'tag entra em fase FORA do recorte do menu (Briefing)', 'OK:1', format($q$
+  insert into public.tasks (tenant_id, title, phase, operational_tag)
+  values (%L, 'Levantamento com o cliente', 'briefing', 'in_review')
+$q$, (select tenant_a from ids)));
+
+-- O caso mais direto contra o check que NAO foi escrito: em Projeto Legal o menu
+-- so oferece "Em Revisao", e o banco aceita "Aguardando Cliente" do mesmo jeito.
+select pg_temp.chk('10.2', 'tag que o menu NAO oferece naquela coluna entra assim mesmo', 'OK:1', format($q$
+  insert into public.tasks (tenant_id, title, phase, operational_tag)
+  values (%L, 'Aguardar documento do cliente', 'legal_permit', 'awaiting_client')
+$q$, (select tenant_a from ids)));
+
+-- Nulo e o caso NORMAL: 13 tags em 130 tarefas do export. Sem este caso, uma
+-- coluna marcada not null por engano so apareceria na primeira tarefa criada
+-- pela tela.
+select pg_temp.chk('10.3', 'CONTROLE: tarefa SEM tag entra (nulo e o caso normal)', 'OK:1', format($q$
+  insert into public.tasks (tenant_id, title, phase)
+  values (%L, 'Tarefa sem status operacional', 'briefing')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('10.4', 'valor inventado fora do enum e recusado', 'ERR:22P02', format($q$
+  insert into public.tasks (tenant_id, title, operational_tag)
+  values (%L, 'Tarefa pausada', 'pausada')
+$q$, (select tenant_a from ids)));
+
+-- O rotulo EXATO que o CSV do base44 traz em tag_operacional. Ele nao entra: o
+-- de/para acontece na importacao e na UI, e o banco guarda so a chave.
+select pg_temp.chk('10.5', 'o rotulo em portugues do base44 e recusado', 'ERR:22P02', format($q$
+  insert into public.tasks (tenant_id, title, operational_tag)
+  values (%L, 'Revisao do layout', 'Em Revisão')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.chk('10.6', 'CONTROLE: a chave do enum entra', 'OK:1', format($q$
+  insert into public.tasks (id, tenant_id, title, phase, operational_tag)
+  values (%L, %L, 'Revisao do layout', 'layout', 'in_review')
+$q$, (select task_tag_a from ids), (select tenant_a from ids)));
+
+-- A limpeza da tag ao mudar de coluna e UM SO UPDATE, e nao dois. No original
+-- sao duas escritas (TaskKanban.jsx:218-219 zera a tag antes de mover) e a
+-- primeira acontece mesmo quando a segunda e barrada - a tarefa fica sem tag na
+-- coluna de onde nunca saiu.
+select pg_temp.chk('10.7', 'muda de fase e limpa a tag no MESMO update', 'OK:1', format($q$
+  update public.tasks set phase = 'renderings', operational_tag = null where id = %L
+$q$, (select task_tag_a from ids)));
+
+select pg_temp.chk('10.8', 'CONTROLE: devolve a tag para os casos de isolamento', 'OK:1', format($q$
+  update public.tasks set operational_tag = 'in_review' where id = %L
+$q$, (select task_tag_a from ids)));
+
+-- Isolamento, com a coluna nova no meio. A RLS de tasks nao mudou, mas a
+-- consulta que a tela do status operacional faz e nova ("o que esta parado
+-- esperando alguem"), e e ela que precisa continuar presa ao escritorio.
+select pg_temp.chk('10.9', 'tarefa com tag no escritorio B', 'OK:1', format($q$
+  insert into public.tasks (id, tenant_id, title, phase, operational_tag)
+  values (%L, %L, 'Aguardando retorno do cliente B', 'layout', 'awaiting_client')
+$q$, (select task_tag_b from ids), (select tenant_b from ids)));
+
+select pg_temp.val_as('10.10', 'colaborador de A nao ve a tarefa com tag de B',
+  '0', (select user_a from ids), (select tenant_a from ids), format($q$
+  select count(*)::text from public.tasks where id = %L
+$q$, (select task_tag_b from ids)));
+
+select pg_temp.val_as('10.11', 'CONTROLE: colaborador de A ve a propria tarefa com tag',
+  '1', (select user_a from ids), (select tenant_a from ids), format($q$
+  select count(*)::text from public.tasks where id = %L
+$q$, (select task_tag_a from ids)));
+
+-- A consulta REAL da tela, e a que o indice parcial
+-- tasks_tenant_id_operational_tag_idx serve: filtra por tag e nao por id.
+-- Recortada nas duas linhas da secao para nao depender do dado permanente do
+-- escritorio de seed. Se o filtro por tag escapasse do tenant, viriam as duas.
+select pg_temp.val_as('10.12', 'a consulta POR TAG so devolve a do proprio escritorio',
+  'in_review', (select user_a from ids), (select tenant_a from ids), format($q$
+  select string_agg(operational_tag::text, ',' order by operational_tag::text)
+    from public.tasks
+   where operational_tag is not null and id in (%L, %L)
+$q$, (select task_tag_a from ids), (select task_tag_b from ids)));
 
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
