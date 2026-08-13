@@ -3585,16 +3585,96 @@ async function verify(tenantId, credentials) {
     'budget_item_quotes', 'map_properties', 'map_property_land_types',
     'map_property_purposes', 'project_diary_entries', 'project_diary_files',
   ]
+  /*
+    A CONTAGEM E DAS LINHAS IMPORTADAS, e nao do total da tabela.
+
+    Ela nasceu comparando com o total, e estava certa enquanto a tabela so
+    tivesse saida de importacao. Deixou de estar: o escritorio comecou a USAR o
+    sistema, e criou 29 linhas legitimas pela tela (3 clientes, 2 contratos, 4
+    negociacoes, 8 briefings, 12 recebiveis, mais filhas). A conferencia lia
+    isso como falha e o script inteiro saia com codigo 1 — acusando um problema
+    que nao existia e escondendo os que existirem.
+
+    O que ela quer garantir e "toda linha do CSV foi contabilizada", e linha
+    nascida na tela nao e linha do CSV. O discriminador e `legacy_id`, o mesmo
+    que ja separa dado importado de dado nascido aqui em todo o resto do
+    projeto (migrations 0061 a 0066).
+
+    Isto NAO afrouxa a conferencia: ela passa a medir exatamente o que a
+    importacao controla. Linha importada que sumir, duplicar ou entrar a mais
+    continua derrubando.
+  */
+  /*
+    NEM TODA TABELA TEM `legacy_id`. As filhas de array (servicos da negociacao,
+    tags de projeto, itens de checklist, marcas de fornecedor, tags do mapa,
+    historico de responsavel) nao tem, porque o elemento nao tem id na origem —
+    esta escrito nas migrations que as criaram. Filtrar por uma coluna que nao
+    existe devolve erro do PostgREST, e a conferencia vira "nao consegui contar"
+    em oito tabelas de uma vez.
+  */
+  /*
+    NEM TODA TABELA TEM `legacy_id`. As filhas de array (servicos da negociacao,
+    tags de projeto, itens de checklist, marcas de fornecedor, tags do mapa,
+    historico de responsavel) nao tem, porque o elemento nao tem id na origem —
+    esta escrito nas migrations que as criaram.
+
+    Para elas, "linha importada" e "linha cuja MAE veio da importacao": o filtro
+    vira um embed `!inner` na mae com `legacy_id not null`. Sem isso, o item de
+    checklist criado pela equipe numa tarefa nova entraria na conta e a
+    conferencia acusaria diferenca a cada tarefa aberta.
+  */
+  const MAE = {
+    negotiation_services: 'negotiations',
+    negotiation_owner_history: 'negotiations',
+    project_land_types: 'projects',
+    project_purposes: 'projects',
+    project_checklist_items: 'projects',
+    task_checklist_items: 'tasks',
+    supplier_brands: 'suppliers',
+    map_property_land_types: 'map_properties',
+    map_property_purposes: 'map_properties',
+  }
+
   for (const table of TABLES) {
-    const { count, error } = await db
-      .from(table)
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
+    /*
+      `task_checklist_items` NAO E CONFERIVEL POR CONTAGEM, e o motivo e do
+      dominio: a tabela nao tem `legacy_id` (item de array sem id na origem) e a
+      mae nao serve de discriminador, porque o SISTEMA cria item de checklist
+      sozinho quando uma tarefa IMPORTADA entra numa fase com template
+      (`CHECKLIST_BY_PHASE`). Item novo em tarefa velha e uso normal, nao desvio.
+
+      Entao esta conferencia sai da lista que derruba o script, e o numero e
+      impresso como informacao. Fechar isso de verdade exige dar `legacy_id`
+      sintetico a tabela, como a 0066 fez com budget_item_quotes — migration, e
+      fora do escopo desta entrega. Fica escrito para nao virar buraco calado.
+    */
+    if (table === 'task_checklist_items') {
+      const { count: total } = await db
+        .from(table)
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+      log(
+        `   info ${table.padEnd(28)} no banco=${String(total).padStart(5)}` +
+          ` importadas=${String(stat(table).written).padStart(5)}` +
+          ` (nao conferivel: sem legacy_id, e o sistema gera item por template)`,
+      )
+      continue
+    }
+
+    const mae = MAE[table]
+    let query = mae
+      ? db
+          .from(table)
+          .select(`*, mae:${mae}!inner(legacy_id)`, { count: 'exact', head: true })
+          .not('mae.legacy_id', 'is', null)
+      : db.from(table).select('*', { count: 'exact', head: true }).not('legacy_id', 'is', null)
+    query = query.eq('tenant_id', tenantId)
+    const { count, error } = await query
     if (error) { problems.push(`${table}: nao consegui contar (${error.message})`); continue }
     const expected = stat(table).written
     const ok = count === expected
-    log(`   ${ok ? 'ok  ' : 'FALHA'} ${table.padEnd(28)} banco=${String(count).padStart(5)} esperado=${String(expected).padStart(5)}`)
-    if (!ok) problems.push(`${table}: banco tem ${count}, esperado ${expected}`)
+    log(`   ${ok ? 'ok  ' : 'FALHA'} ${table.padEnd(28)} importadas=${String(count).padStart(5)} esperado=${String(expected).padStart(5)}`)
+    if (!ok) problems.push(`${table}: banco tem ${count} importadas, esperado ${expected}`)
   }
 
   // 3. nenhuma linha do escritorio real caiu em outro tenant ------------------
@@ -3656,7 +3736,17 @@ async function verify(tenantId, credentials) {
   let sourceTotal = 0
   let dbTotal = 0
   for (const [table, column, sourceRows, sourceColumn, entity] of money) {
-    const { rows, error } = await selectAll(table, `legacy_id, ${column}`, (q) => q.eq('tenant_id', tenantId))
+    /*
+      SO AS LINHAS IMPORTADAS, pelo mesmo motivo da conferencia 2: o escritorio
+      esta usando o sistema e cadastrou contrato e recebivel pela tela. Somar a
+      tabela inteira faria a conferencia acusar diferenca a cada venda nova —
+      e a pergunta aqui e "o dinheiro do CSV chegou inteiro", nao "quanto o
+      escritorio tem". Sem o recorte, este bloco derrubaria o script para sempre
+      a partir do primeiro contrato fechado depois da migracao.
+    */
+    const { rows, error } = await selectAll(table, `legacy_id, ${column}`, (q) =>
+      q.eq('tenant_id', tenantId).not('legacy_id', 'is', null),
+    )
     if (error) { problems.push(`${table}: nao consegui somar (${error.message})`); continue }
     const inDb = new Map(rows.map((r) => [r.legacy_id, r[column]]))
     let expected = 0
@@ -3708,10 +3798,18 @@ async function verify(tenantId, credentials) {
     let missing = 0
     for (const [label, entity, table] of CARTEIRA) {
       const source = csv[entity].length
+      /*
+        SO AS IMPORTADAS, pelo mesmo motivo das conferencias 2 e 4: a pergunta e
+        "toda linha do CSV chegou", e cliente cadastrado pela equipe depois da
+        migracao nao e linha do CSV. Sem o recorte, esta conferencia passa a
+        acusar diferenca NEGATIVA a cada cadastro novo — e foi o que aconteceu
+        assim que o escritorio comecou a usar o sistema.
+      */
       const { count, error } = await db
         .from(table)
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
+        .not('legacy_id', 'is', null)
       if (error) { problems.push(`${table}: nao consegui contar (${error.message})`); continue }
       const gap = source - count
       missing += gap

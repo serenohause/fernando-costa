@@ -542,10 +542,12 @@ select pg_temp.val_as('3.6', 'a SEGUNDA chamada com a mesma chave nao grava', 'a
     'tag-on:t9:in_review', null, null, 'in_review') ->> 'outcome'
 $q$, (select proj_a from ids)));
 
-select pg_temp.val('3.6b', 'e uma linha so ficou no banco', '1', $q$
+-- Escopado pelo mesmo motivo do 3.9: `event_key` e unico POR ESCRITORIO, entao
+-- outro escritorio pode ter a mesma chave sem nada de errado.
+select pg_temp.val('3.6b', 'e uma linha so ficou no banco', '1', format($q$
   select count(*)::text from public.project_diary_entries
-   where event_key = 'tag-on:t9:in_review'
-$q$);
+   where event_key = 'tag-on:t9:in_review' and tenant_id = %L
+$q$, (select tenant_a from ids)));
 
 -- O outro lado: onde a idempotencia NAO existe, a chave vai nula e duas chamadas
 -- gravam duas linhas. Fingir chave (o Date.now() do original) da o mesmo
@@ -562,10 +564,16 @@ select pg_temp.val_as('3.8', 'CONTROLE: a segunda geracao de relatorio tambem gr
          ->> 'outcome'
 $q$, (select proj_a from ids)));
 
-select pg_temp.val('3.9', 'CONTROLE: as duas geracoes estao no banco', '2', $q$
+-- CONTA DENTRO DO ESCRITORIO DA FIXTURE, e o recorte nao e zelo: sem ele este
+-- caso passava so enquanto a tabela estivesse vazia fora daqui. A importacao
+-- dos 36 registros historicos trouxe DOIS relatorios gerados do escritorio
+-- real, a conta virou 4 e o caso caiu — acusando um defeito que nao existe.
+-- Contagem sem tenant, num sistema multitenant, e asserção que depende de o
+-- banco estar vazio.
+select pg_temp.val('3.9', 'CONTROLE: as duas geracoes estao no banco', '2', format($q$
   select count(*)::text from public.project_diary_entries
-   where system_event = 'report_generated'
-$q$);
+   where system_event = 'report_generated' and tenant_id = %L
+$q$, (select tenant_a from ids)));
 
 -- 4. As colunas estruturadas (defeito 10) ----------------------------------------
 --
