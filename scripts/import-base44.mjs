@@ -4,7 +4,8 @@
 // O QUE ESTE SCRIPT FAZ
 //   Le os 17 CSV de db/ (dado real de cliente: CPF/CNPJ, endereco, telefone,
 //   valor de contrato, coordenada de residencia), cria o tenant do escritorio
-//   real e grava as 30 tabelas na ordem de docs/IMPORT-PLAN.md, secao 5.
+//   real e grava as 32 tabelas na ordem de docs/IMPORT-PLAN.md, secao 5 (as
+//   duas ultimas sao as do Diario do Projeto, modulo 11).
 //   Depois cria as contas de login do time e confere o que gravou.
 //
 //   node scripts/import-base44.mjs            grava
@@ -88,11 +89,23 @@
 //      em docs/SCHEMA-PLAN.md e docs/ENUM-MAP.md) foi corrigida nas duas docs
 //      junto com este script.
 //
+// A QUARTA PASSADA — ProjectTimelineEntry GANHOU DESTINO
+//   As 36 linhas de ProjectTimelineEntry eram a unica entidade do export que
+//   ficava de fora INTEIRA, e por um motivo que era verdadeiro na epoca: a
+//   entidade nao aparece em nenhum arquivo de projeto-original/ e nao se
+//   inventa tabela para dado sem destino (docs/IMPORT-PLAN.md, secao 7.1).
+//
+//   O modulo 11 descobriu de onde ela vem: nova-versao/, a exportacao mais
+//   recente do MESMO base44, tem o Diario do Projeto — funcionalidade que o
+//   escritorio criou depois do ponto em que esta migracao comecou e que a
+//   versao migrada nao tinha. As migrations 0068-0071 criaram as cinco tabelas
+//   e o bucket. O passo 31 traz as 36 linhas, e 5 delas sao anotacao manual
+//   que nao existe em nenhum outro lugar.
+//
 // O QUE NAO E IMPORTADO, DE PROPOSITO
-//   - ProjectTimelineEntry (36 linhas): entidade sem destino. Nao aparece em
-//     nenhum arquivo de projeto-original/. Nao se inventa tabela para ela.
 //   - Task.tag_operacional (13 linhas): campo que existe no dado e em lugar
-//     nenhum mais. Nosso schema nao tem coluna.
+//     nenhum mais. Nosso schema nao tem coluna. (A fatia 3 do modulo 11 cria
+//     tasks.operational_tag; ate la o campo continua fora.)
 //   - Collaborator.senha_temporaria: FORA DE ESCOPO por decisao registrada em
 //     docs/ARCHITECTURE.md — o original guarda senha em texto puro. A coluna
 //     vem 100% vazia neste export, e mesmo assim o script a ignora
@@ -108,7 +121,7 @@
 //   - Criar o escritorio real TRAVA os dez seeds de supabase/seed/. Isso e o
 //     comportamento correto e esta explicado em supabase/seed/tenants.mjs.
 
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -148,8 +161,10 @@ const TEST_TENANT_SLUGS = ['fernando-costa-teste', 'atelie-mirante-teste']
 //   escritorio, e impediria qualquer outro tenant de reivindicar o dominio.
 //   Cadastrar creativearq.com.br daria entrada a terceiros identificaveis.
 //   Por isso o caminho aqui e o outro: a conta e criada com senha definida na
-//   criacao e vinculada ao colaborador por legacy_id (etapa 31), e o
+//   criacao e vinculada ao colaborador por legacy_id (etapa 33), e o
 //   auto-cadastro por dominio simplesmente nao e usado por este escritorio.
+//   (A etapa mudou de numero quando o modulo 11 acrescentou dois passos de
+//   dado antes dela; o que ela faz e o mesmo.)
 const REGISTER_EMAIL_DOMAINS = false
 
 // Campos que existem no CSV e que o script ignora de proposito. Nao e lista de
@@ -169,7 +184,13 @@ const IGNORED_ON_PURPOSE = [
   ['Project.progresso_percentual e contadores de tarefa', 'derivados, vivem na view project_progress'],
   ['ChecklistOrcamento.valor_total_*', 'derivados, vivem nas views da migration 0051'],
   ['Fornecedor.total_comissao_recebida', 'derivado'],
-  ['ProjectTimelineEntry (entidade inteira, 36 linhas)', 'sem destino em nenhuma tabela'],
+  ['ProjectTimelineEntry.project_name / responsavel_name', 'desnormalizacao do base44 — viram join'],
+  ['ProjectTimelineEntry.criado_por_id / _name', 'identidade da plataforma base44, nao Collaborator'],
+  ['ProjectTimelineEntry.atualizado_por_id / _name', 'idem — e nao ha e-mail para resolver o autor'],
+  // `created_by` e o E-MAIL de quem gravou, e nas demais entidades ele nao
+  // acrescenta nada ao que as colunas de responsavel ja dizem. A UNICA excecao
+  // e ProjectTimelineEntry, onde ele e o unico caminho ate o autor do registro
+  // (os ids de la sao da plataforma) — ver o passo 31.
   ['created_by / created_by_id / is_sample', 'identidade e metadado da plataforma base44'],
 ]
 
@@ -494,6 +515,35 @@ const ENUMS = {
     // que e enum vizinho e diferente — o significado, nao.
     'Em andamento': 'in_development',
   },
+  // Diario do Projeto (modulo 11). Os tres de/para saem das declaracoes de
+  // nova-versao/base44/entities/ProjectTimelineEntry.jsonc, e nao do que as 36
+  // linhas por acaso trazem: o dado real usa 4 dos 10 tipos e 2 dos 3 status, e
+  // um de/para escrito so pelo dado real recusaria em silencio a primeira linha
+  // que usasse um dos outros.
+  diary_entry_type: {
+    'Solicitação do Cliente': 'client_request', 'Alteração de Projeto': 'project_change',
+    'Decisão': 'decision', 'Reunião': 'meeting', 'Aprovação': 'approval',
+    'Correção': 'correction', Entrega: 'delivery', 'Observação': 'note',
+    Outro: 'other', Sistema: 'system',
+  },
+  diary_entry_status: {
+    'Em andamento': 'in_progress', 'Concluído': 'completed', Cancelado: 'cancelled',
+  },
+  // A CHAVE AQUI E O PREFIXO DE `evento_chave`, e nao um valor de lista.
+  //
+  // No base44 a natureza do evento automatico nao existe como campo: ela vive
+  // como prefixo de texto dentro de evento_chave ('fase:6a20...:1785955294713')
+  // e como palavra dentro do titulo. E dai que vem o defeito 10 do plano — o
+  // relatorio calcula "Historico de Revisoes" com titulo.includes('revisao').
+  //
+  // O prefixo E deterministico (31 de 31 linhas) e nao e heuristica: ele foi
+  // ESCRITO pelo codigo que gravou o evento, um por gesto. O que e heuristica,
+  // e por isso NAO e feito aqui, e ler a FASE de dentro do titulo em portugues.
+  // Ver o cabecalho do passo 31.
+  diary_system_event: {
+    fase: 'phase_change', responsavel: 'responsible_change',
+    'tag-on': 'tag_on', 'tag-off': 'tag_off', relatorio: 'report_generated',
+  },
   // Texto livre de PermissoesUsuario.menu -> menus.key. 27 rotulos, 16 menus.
   // As duas grafias corrompidas entram pelo codepoint, nao pela aparencia:
   // "Negoциaцões" tem cirilico e "Aprova​ções" tem zero-width space.
@@ -577,6 +627,122 @@ const jsonArray = (v) => {
 }
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+
+// Coluna `time`: o base44 grava "15:42" (HH:MM). Formato conferido antes de
+// mandar: string que o Postgres nao entende derruba a linha inteira com 22007,
+// e o motivo apareceria como "erro do banco" em vez de "hora fora do formato".
+const clock = (v) => {
+  const t = (v ?? '').trim()
+  if (t === '') return null
+  return /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(t) ? t : undefined
+}
+
+// ---------------------------------------------------------------------------
+// Anexos do base44 — download e conferencia de tipo
+// ---------------------------------------------------------------------------
+//
+// POR QUE BAIXAR: os anexos do diario vivem em URL PUBLICA de base44.app. Elas
+// funcionam para qualquer pessoa que as tenha e morrem no dia em que o app for
+// desligado. Gravar essa URL na coluna seria gravar um endereco que ja se sabe
+// que vai morrer, e o que esta atras dele e documento de projeto de cliente.
+//
+// O TIPO E CONFERIDO TRES VEZES, e as tres precisam concordar: o que o CSV
+// declara, o que o servidor responde e o que os PRIMEIROS BYTES dizem. O
+// terceiro e o unico que nao depende de ninguem ser honesto — e e ele que
+// impede subir para um bucket de foto de obra um arquivo que so se diz imagem.
+// A lista de tipos e o limite de tamanho NAO sao repetidos aqui: sao lidos do
+// proprio bucket (migration 0071), para que afrouxar um controle continue sendo
+// coisa de migration e nao de script.
+
+const DIARY_BUCKET = 'project-diary-files'
+
+const MIME_EXTENSION = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'application/pdf': 'pdf',
+  'text/plain': 'txt',
+}
+
+// Tipo pelos primeiros bytes. `null` = nao reconhecido (nao e o mesmo que
+// "invalido": text/plain nao tem assinatura nenhuma).
+function sniffMime(buf) {
+  if (buf.length >= 8 && buf.subarray(0, 8).toString('hex') === '89504e470d0a1a0a') return 'image/png'
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg'
+  if (buf.length >= 5 && buf.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf'
+  if (
+    buf.length >= 12 &&
+    buf.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    buf.subarray(8, 12).toString('latin1') === 'WEBP'
+  ) return 'image/webp'
+  return null
+}
+
+// { ok: true, buffer, mime } | { ok: false, reason }
+// A razao devolvida NUNCA carrega a URL nem o nome do arquivo: ela vai para o
+// resumo por motivo, que e stdout. O endereco de origem fica no rotulo da
+// pendencia, que so existe no relatorio *.local.
+async function fetchAttachment(url, declaredMime, limits) {
+  let res
+  try {
+    res = await fetch(url, { redirect: 'follow' })
+  } catch (error) {
+    return { ok: false, reason: `download falhou: ${error.message}` }
+  }
+  if (!res.ok) return { ok: false, reason: `download devolveu HTTP ${res.status}` }
+
+  // Tamanho declarado: recusa ANTES de puxar o corpo. Nao e confianca no
+  // servidor — o corpo tambem e cortado no limite logo abaixo —, e sim nao
+  // baixar centenas de MB para descobrir no fim que o bucket nao aceita.
+  const declaredLength = Number(res.headers.get('content-length') ?? NaN)
+  if (Number.isFinite(declaredLength) && declaredLength > limits.maxBytes) {
+    try { await res.body?.cancel() } catch { /* nada a fazer */ }
+    return {
+      ok: false,
+      reason:
+        `anexo de ${(declaredLength / 1048576).toFixed(1)} MB acima do limite de ` +
+        `${(limits.maxBytes / 1048576).toFixed(0)} MB do bucket ${limits.bucket}`,
+    }
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer())
+  if (buffer.length === 0) return { ok: false, reason: 'download veio vazio (0 bytes)' }
+  if (buffer.length > limits.maxBytes) {
+    return {
+      ok: false,
+      reason:
+        `anexo de ${(buffer.length / 1048576).toFixed(1)} MB acima do limite de ` +
+        `${(limits.maxBytes / 1048576).toFixed(0)} MB do bucket ${limits.bucket}`,
+    }
+  }
+
+  const served = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+  const declared = (declaredMime ?? '').split(';')[0].trim().toLowerCase()
+  const sniffed = sniffMime(buffer)
+
+  // O que os bytes dizem vence, e discordancia com o que foi declarado nao e
+  // arredondada: quem sobe um arquivo cujo conteudo contradiz o rotulo esta
+  // dizendo duas coisas, e nenhuma das duas pode ser gravada como verdade.
+  if (sniffed && declared && sniffed !== declared) {
+    return { ok: false, reason: `tipo declarado (${declared}) e conteudo (${sniffed}) nao batem` }
+  }
+  if (sniffed && served && sniffed !== served) {
+    return { ok: false, reason: `tipo servido (${served}) e conteudo (${sniffed}) nao batem` }
+  }
+
+  const mime = sniffed ?? served ?? declared
+  if (!mime) return { ok: false, reason: 'nao foi possivel determinar o tipo do arquivo' }
+  if (!limits.allowedMime.includes(mime)) {
+    return { ok: false, reason: `tipo ${mime} fora do allowed_mime_types do bucket ${limits.bucket}` }
+  }
+  // Sem assinatura para conferir (text/plain): pelo menos garante que nao e
+  // binario disfarcado de texto.
+  if (!sniffed && mime === 'text/plain' && buffer.subarray(0, 1024).includes(0)) {
+    return { ok: false, reason: 'declarado text/plain e o conteudo tem byte nulo' }
+  }
+
+  return { ok: true, buffer, mime }
+}
 
 // ---------------------------------------------------------------------------
 // Pendencias
@@ -879,7 +1045,7 @@ async function main() {
     log(`  nao cadastrado de proposito: ${domains.size} dominios entre os 15 colaboradores,`)
     log('  a maioria e-mail pessoal. A unicidade de tenant_email_domains.domain e')
     log('  GLOBAL: cadastrar gmail.com rotearia qualquer usuario de Gmail do mundo')
-    log('  para este escritorio. O acesso e por conta criada no passo 31.')
+    log('  para este escritorio. O acesso e por conta criada no passo 33.')
   }
 
   // -------------------------------------------------------------------------
@@ -922,7 +1088,7 @@ async function main() {
     const row = {
       tenant_id: T(),
       legacy_id: r.id,
-      // user_id fica nulo aqui: o vinculo com o login e feito no passo 31,
+      // user_id fica nulo aqui: o vinculo com o login e feito no passo 33,
       // depois que a conta de Auth existe. senha_temporaria e user_auth_email
       // do CSV sao ignorados de proposito (ver IGNORED_ON_PURPOSE).
       user_id: null,
@@ -2716,10 +2882,411 @@ async function main() {
   }
 
   // -------------------------------------------------------------------------
-  // Passo 31 — contas de acesso
+  // Passo 31 — project_diary_entries  <- ProjectTimelineEntry
+  // -------------------------------------------------------------------------
+  //
+  // A ENTIDADE QUE NAO TINHA DESTINO, E AGORA TEM. Ver "A QUARTA PASSADA" no
+  // cabecalho deste arquivo. Sao 36 linhas em 18 projetos, entre 28/07 e 05/08:
+  // 31 eventos automaticos (mudanca de fase, troca de responsavel, tag ligada e
+  // desligada, relatorio gerado) e 5 ANOTACOES MANUAIS que nao existem em
+  // nenhum outro lugar do export.
+  //
+  // AS QUATRO COLUNAS QUE FICAM FORA DO PAYLOAD, e cada uma por um motivo
+  //
+  //   from_phase / to_phase — 11 linhas sao mudanca de fase, e o titulo delas
+  //     diz "Projeto movido de Perspectivas -> Layout". Daria para extrair por
+  //     regex. NAO E FEITO: ler rotulo em portugues de dentro de texto livre e
+  //     exatamente a heuristica que o modulo 11 existe para eliminar (defeito
+  //     10 do plano — ResumoTab.jsx calcula grafico com titulo.includes()).
+  //     Fazer isso aqui plantaria o defeito no dado historico, e um titulo
+  //     renomeado passaria a mudar um grafico. O check
+  //     project_diary_entries_phase_change_needs_to_phase_check abre excecao
+  //     para linha com legacy_id justamente para permitir esta ausencia.
+  //
+  //   operational_tag — mesma coisa nas 16 linhas de tag: a tag so aparece
+  //     dentro do titulo ("Marcado como Em Revisao").
+  //
+  //   visibility — fica no default `internal`. A origem NAO TEM o campo (e o
+  //     defeito 6: o formulario coleta e a entidade nao declara), entao nao ha
+  //     o que portar. `client` seria afirmar que o escritorio autorizou mostrar
+  //     aquilo ao cliente, e ninguem autorizou.
+  //
+  //   As colunas sao OMITIDAS do payload, e nao mandadas como null. O upsert e
+  //   por (tenant_id, legacy_id) e coluna ausente nao entra no SET do UPDATE:
+  //   assim uma reexecucao nao apaga o que alguem tiver preenchido a mao, que e
+  //   o unico jeito de essas colunas ganharem valor nestas 36 linhas.
+  //
+  // AS DUAS IDENTIDADES DA ORIGEM, E POR QUE SO UMA VIRA AUTOR
+  //   `created_by` e o E-MAIL de quem gravou e resolve colaborador por e-mail
+  //   exato em 31 das 36 linhas. Ja `criado_por_id`/`criado_por_name` e
+  //   `atualizado_por_id`/`atualizado_por_name` sao identidade da PLATAFORMA
+  //   base44: NENHUM dos ids e Collaborator.id, e nenhum dos nomes bate com
+  //   nome de colaborador. E a mesma coisa que access_requests.aprovado_por_id
+  //   ja tinha encontrado no passo 6. Autor sai do e-mail; o resto nao vira
+  //   coluna, e updated_by_id fica fora do payload.
+  //
+  //   As 5 linhas cujo e-mail nao e de colaborador entram COM AUTOR NULO e vao
+  //   para os AJUSTES. O e-mail delas parece o mesmo Fernando de outro
+  //   endereco, e "parece" nao vira vinculo: identidade adivinhada num registro
+  //   de autoria e pior do que autoria em branco.
+  //
+  // O RESPONSAVEL SAI DO ID, E NAO DO NOME
+  //   O de/para levantado dizia "por nome exato". Conferido contra o CSV:
+  //   `responsavel_id` E Collaborator.id nas 5 linhas em que existe (5 de 5), e
+  //   o nome bate com o mesmo colaborador nas 5. Entao o ponteiro entra pelo
+  //   caminho normal do script (softFk por legacy_id, como os outros 30 passos)
+  //   e o nome serve de CONFERENCIA: se um dia os dois discordarem, a
+  //   divergencia sai nos AJUSTES em vez de o script escolher sozinho. Nome
+  //   nunca e chave de vinculo neste projeto — homonimo e acento decidem
+  //   ligacao errada em silencio.
+  step(31, 'project_diary_entries  <- ProjectTimelineEntry')
+  const diaryEntryIdByLegacy = new Map()
+  stat('project_diary_entries').source = csv.ProjectTimelineEntry.length
+  {
+    // Colaborador por e-mail. O e-mail e unico por escritorio no nosso schema e
+    // vem de Collaborator.email, a mesma coluna que o passo 4 gravou.
+    const collaboratorByEmail = new Map()
+    for (const c of csv.Collaborator) {
+      const id = ix.collaborator.byLegacy.get(c.id)
+      const email = (c.email ?? '').trim().toLowerCase()
+      if (id && email) collaboratorByEmail.set(email, { id, name: (c.name ?? '').trim() })
+    }
+    const collaboratorNameById = new Map(
+      csv.Collaborator
+        .filter((c) => ix.collaborator.byLegacy.has(c.id))
+        .map((c) => [ix.collaborator.byLegacy.get(c.id), (c.name ?? '').trim()]),
+    )
+
+    // Colisao de event_key DENTRO do CSV. O unique (tenant_id, event_key) da
+    // 0069 e a deduplicacao de verdade (defeito 5), e sem este teste a segunda
+    // linha de um par colidido morreria como "erro do banco 23505" — motivo que
+    // nao diz a quem le o relatorio que ha duas linhas disputando a mesma
+    // chave. No dado real sao 31 chaves para 31 linhas automaticas.
+    const eventKeySeen = new Map()
+
+    const byEvent = new Map()
+    for (const r of csv.ProjectTimelineEntry) {
+      const g = new RowGuard('project_diary_entries', r.id, r.titulo)
+
+      const entryType = g.enum('diary_entry_type', r.entry_type, 'entry_type')
+      const status = g.enum('diary_entry_status', r.status_registro, 'status_registro')
+      const isAutomatic = bool(r.is_automatico) ?? false
+      const eventKey = txt(r.evento_chave)
+
+      // project_id e NOT NULL: orfao e cascata derrubam a linha, e nao ha
+      // softFk aqui. As 36 apontam para projeto que existe no export.
+      const projectId = g.fk(ix.project, r.project_id, 'projeto', 'project_id')
+      g.require(projectId !== null, 'project_id vazio (NOT NULL)')
+
+      const responsibleId = g.softFk(ix.collaborator, r.responsavel_id, 'colaborador', 'responsavel_id')
+      const responsibleName = txt(r.responsavel_name)
+      if (responsibleId && responsibleName && collaboratorNameById.get(responsibleId) !== responsibleName) {
+        g.note(
+          'responsavel_id e responsavel_name apontam para pessoas diferentes: valeu o ID ' +
+            '(nome nao e chave de vinculo neste projeto)',
+        )
+      }
+
+      // O autor pelo e-mail. Ausente do cadastro -> nulo, e a linha entra.
+      let createdById = null
+      const authorEmail = (r.created_by ?? '').trim().toLowerCase()
+      if (authorEmail !== '') {
+        const author = collaboratorByEmail.get(authorEmail)
+        if (author) createdById = author.id
+        // O e-mail vai DEPOIS dos dois-pontos de proposito: o resumo do
+        // terminal corta a frase ali (summary()), e terminal vira log. O
+        // endereco inteiro fica no relatorio *.local.
+        else g.note(`autor gravado NULO — o created_by nao e e-mail de colaborador do escritorio: ${authorEmail}`)
+      }
+      if (txt(r.atualizado_por_id) !== null) {
+        g.note(
+          'atualizado_por_id descartado: e identidade da plataforma base44 (nao e Collaborator.id) ' +
+            'e a entidade nao guarda e-mail de quem atualizou — updated_by_id fica nulo',
+        )
+      }
+
+      // system_event vem do PREFIXO de evento_chave, que foi escrito pelo
+      // codigo que gravou o evento — um prefixo por gesto, 31 de 31. Valor fora
+      // do de/para nao vira nada calado, como em qualquer outro passo.
+      let systemEvent = null
+      if (isAutomatic) {
+        const prefix = (eventKey ?? '').split(':')[0]
+        if (prefix === '') {
+          g.reasons.push('registro automatico sem evento_chave: nao ha como dizer que evento ele registra')
+        } else {
+          systemEvent = g.enum('diary_system_event', prefix, 'evento_chave (prefixo)')
+        }
+      } else if (eventKey !== null) {
+        // O check event_key_requires_automatic recusaria; e apagar a chave de
+        // um registro manual seria decidir sozinho qual das duas metades esta
+        // errada. Zero linhas assim no dado real.
+        g.reasons.push('registro manual com evento_chave preenchido (o banco so aceita chave em registro automatico)')
+      }
+
+      // Os dois pares que o banco amarra por check. Conferidos aqui para que a
+      // recusa saia como frase e nao como 23514.
+      if (entryType !== null) {
+        g.require(
+          (entryType === 'system') === isAutomatic,
+          `entry_type "${r.entry_type}" e is_automatico ${r.is_automatico} discordam ` +
+            '(o tipo Sistema e reservado ao registro automatico, e vice-versa)',
+        )
+      }
+
+      if (eventKey !== null) {
+        if (eventKeySeen.has(eventKey)) {
+          g.reasons.push(`evento_chave repetido no CSV (ja usado pela linha ${eventKeySeen.get(eventKey)})`)
+        } else {
+          eventKeySeen.set(eventKey, r.id)
+        }
+      }
+
+      const occurrenceDate = date(r.data_ocorrencia)
+      g.require(occurrenceDate !== null, 'data_ocorrencia vazia (NOT NULL)')
+      const occurrenceTime = clock(r.hora_ocorrencia)
+      if (occurrenceTime === undefined) {
+        g.reasons.push(`hora_ocorrencia "${(r.hora_ocorrencia ?? '').trim()}" fora do formato HH:MM`)
+      }
+      g.require(txt(r.titulo) !== null, 'titulo vazio (NOT NULL)')
+
+      if (g.rejected) continue
+
+      const row = {
+        tenant_id: T(),
+        legacy_id: r.id,
+        project_id: projectId,
+        entry_type: entryType,
+        title: r.titulo.trim(),
+        description: txt(r.descricao),
+        occurrence_date: occurrenceDate,
+        occurrence_time: occurrenceTime,
+        responsible_id: responsibleId,
+        status: status ?? 'in_progress',
+        is_automatic: isAutomatic,
+        // Preservado como veio, inclusive o Date.now() que a origem embutiu
+        // nele. NAO e reescrito para uma chave derivada do fato: a chave do
+        // base44 e o registro de como aquele evento foi gravado la, e
+        // "consertar" o passado inventaria uma idempotencia que nunca existiu.
+        // Quem nasce nesta aplicacao usa chave derivada do fato (0070).
+        event_key: eventKey,
+        system_event: systemEvent,
+        created_by_id: createdById,
+        created_at: ts(r.created_date),
+        updated_at: ts(r.updated_date),
+      }
+
+      const res = await insertOne('project_diary_entries', row, 'tenant_id,legacy_id')
+      if (res.error) {
+        // A policy de INSERT da 0070 recusa is_automatic verdadeiro — de
+        // proposito, para que ninguem forje evento de sistema pela API. Este
+        // script escreve com a service role key, que nao passa por policy
+        // nenhuma, entao as 31 automaticas entram por aqui. Se um dia isso
+        // mudar, o erro sai com nome e a importacao para em vez de gravar 5 de
+        // 36 e chamar de sucesso.
+        if (/row-level security|42501/i.test(res.error.message)) {
+          abort(
+            'a RLS de project_diary_entries recusou a escrita da importacao.\n' +
+              `    ${res.error.message}\n` +
+              '    O caminho automatico e public.record_project_diary_event (0070), que confere\n' +
+              '    can_edit_menu(project_flow) do JWT — e este script nao tem sessao de usuario.\n' +
+              '    NAO contorne aqui: decida no banco.',
+          )
+        }
+        pend('project_diary_entries', r.id, `erro do banco: ${res.error.message}`, r.titulo)
+        continue
+      }
+      diaryEntryIdByLegacy.set(r.id, res.id)
+      byEvent.set(systemEvent ?? 'manual', (byEvent.get(systemEvent ?? 'manual') ?? 0) + 1)
+      stat('project_diary_entries').consumed += 1
+      stat('project_diary_entries').written += 1
+    }
+    log(`  ${stat('project_diary_entries').written} de ${csv.ProjectTimelineEntry.length}`)
+    for (const [event, n] of [...byEvent.entries()].sort((a, b) => b[1] - a[1])) {
+      log(`    ${String(n).padStart(3)}  ${event}`)
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Passo 32 — project_diary_files  <- ProjectTimelineEntry.anexos[]
+  // -------------------------------------------------------------------------
+  //
+  // Sao 5 arquivos em 4 entradas, todas manuais. No base44 cada um e um objeto
+  // { nome, url, tipo } dentro do array `anexos`, e a `url` e PUBLICA e de
+  // base44.app: funciona para quem quer que a tenha e morre no dia em que o app
+  // for desligado. Por isso os arquivos sao BAIXADOS e REGRAVADOS no bucket
+  // privado project-diary-files (0071), e a coluna guarda CAMINHO, nunca URL.
+  //
+  // SE O DOWNLOAD OU A CONFERENCIA DE TIPO FALHAR, a entrada continua no banco
+  // e o ANEXO vai para pendencias com o endereco de origem no rotulo (rotulo so
+  // existe no relatorio *.local; stdout nunca ve URL nem nome de arquivo).
+  // Gravar a URL de origem "por enquanto" seria gravar um link que ja se sabe
+  // que vai morrer, e atras dele ha documento de projeto de cliente.
+  //
+  // IDEMPOTENCIA, e ela e diferente da dos outros passos: o nome do objeto no
+  // bucket e um uuid novo a cada chamada, entao regravar o arquivo a cada
+  // execucao criaria um objeto novo e deixaria o anterior orfao e pago no
+  // bucket (Storage nao tem cascade — ver o COMMENT de project_diary_files). O
+  // passo entao PERGUNTA ANTES: se ja existe linha com este legacy_id e o
+  // objeto dela ainda esta no bucket, nao baixa e nao sobe nada.
+  step(32, 'project_diary_files  <- ProjectTimelineEntry.anexos[]')
+  {
+    const attachments = []
+    for (const r of csv.ProjectTimelineEntry) {
+      jsonArray(r.anexos).forEach((a, position) => {
+        attachments.push({ entryLegacy: r.id, position, meta: a ?? {}, title: r.titulo })
+      })
+    }
+    stat('project_diary_files').source = attachments.length
+
+    // Limites lidos DO BUCKET, e nao repetidos aqui: se a 0071 mudar a lista de
+    // tipos ou o teto de tamanho, este passo muda junto. Script que repete o
+    // limite do bucket e um segundo lugar para o controle divergir.
+    let limits = { bucket: DIARY_BUCKET, maxBytes: 20971520, allowedMime: Object.keys(MIME_EXTENSION) }
+    if (!DRY_RUN) {
+      const { data: bucket, error } = await db.storage.getBucket(DIARY_BUCKET)
+      if (error || !bucket) {
+        abort(`bucket ${DIARY_BUCKET} nao existe (migration 0071 aplicada?): ${error?.message ?? 'nao encontrado'}`)
+      }
+      limits = {
+        bucket: DIARY_BUCKET,
+        maxBytes: bucket.file_size_limit ?? 20971520,
+        allowedMime: bucket.allowed_mime_types ?? Object.keys(MIME_EXTENSION),
+      }
+      log(`  bucket ${DIARY_BUCKET}: ${(limits.maxBytes / 1048576).toFixed(0)} MB, ${limits.allowedMime.length} tipos`)
+    }
+
+    // O que ja esta no banco desta importacao, para nao baixar de novo.
+    const alreadyByLegacy = new Map()
+    if (!DRY_RUN) {
+      const { rows, error } = await selectAll('project_diary_files', 'legacy_id, file_path', (q) =>
+        q.eq('tenant_id', T()).not('legacy_id', 'is', null))
+      if (error) abort(`ler project_diary_files: ${error.message}`)
+      for (const row of rows) alreadyByLegacy.set(row.legacy_id, row.file_path)
+    }
+
+    let reused = 0
+    let uploaded = 0
+    for (const att of attachments) {
+      // Formato documentado na 0069: <legacy_id da mae>:<array>:<indice>. O
+      // item do array nao tem id proprio no base44, e a posicao e o que o
+      // identifica la — mesmo desenho de budget_item_quotes (0066).
+      const legacy = `${att.entryLegacy}:anexos:${att.position}`
+      const fileName = txt(att.meta.nome) ?? txt(att.meta.name)
+      const url = txt(att.meta.url)
+      // O rotulo carrega o que identifica o arquivo (nome e endereco de
+      // origem). Ele so aparece no relatorio *.local, nunca no stdout.
+      const label = `${fileName ?? '(sem nome)'} — ${url ?? '(sem url)'}`
+
+      const entryId = diaryEntryIdByLegacy.get(att.entryLegacy)
+      if (!entryId) {
+        pend('project_diary_files', legacy, `cascata: entrada de diario ${att.entryLegacy} nao foi importada`, label)
+        continue
+      }
+      if (!fileName) { pend('project_diary_files', legacy, 'anexo sem nome (file_name e NOT NULL)', label); continue }
+      if (!url) { pend('project_diary_files', legacy, 'anexo sem url de origem: nao ha o que baixar', label); continue }
+
+      if (DRY_RUN) {
+        stat('project_diary_files').consumed += 1
+        stat('project_diary_files').written += 1
+        continue
+      }
+
+      // Ja importado numa execucao anterior? So conta como reaproveitado se o
+      // OBJETO ainda estiver la: linha apontando para caminho vazio e pior do
+      // que linha nenhuma, porque a tela mostra o clipe e o download falha.
+      const existingPath = alreadyByLegacy.get(legacy)
+      if (existingPath) {
+        const slash = existingPath.lastIndexOf('/')
+        const { data: found, error: listError } = await db.storage
+          .from(DIARY_BUCKET)
+          .list(existingPath.slice(0, slash), { search: existingPath.slice(slash + 1), limit: 1 })
+        if (listError) abort(`listar objeto do bucket: ${listError.message}`)
+        if ((found ?? []).length > 0) {
+          reused += 1
+          stat('project_diary_files').consumed += 1
+          stat('project_diary_files').written += 1
+          continue
+        }
+      }
+
+      const got = await fetchAttachment(url, txt(att.meta.tipo) ?? txt(att.meta.type), limits)
+      if (!got.ok) {
+        // A ENTRADA JA ESTA NO BANCO — so o anexo fica de fora. E o que o plano
+        // manda: nunca gravar link que se sabe que vai morrer, e nunca segurar
+        // a anotacao por causa do arquivo dela.
+        pend('project_diary_files', legacy, got.reason, label)
+        adjust(
+          'project_diary_entries', att.entryLegacy,
+          `entrada gravada SEM o anexo — ${got.reason}; nome e endereco de origem: ${label}`,
+          label,
+        )
+        continue
+      }
+
+      // <tenant_id>/<mae>/<id da mae>/<uuid>.<ext>, o formato que a 0071
+      // documenta. O PRIMEIRO segmento e o que as policies de storage.objects
+      // comparam com o claim do JWT — e o equivalente, no Storage, do
+      // tenant_id = auth_tenant_id() das tabelas. A extensao sai do tipo
+      // CONFERIDO nos bytes, e nao do nome enviado; o nome de exibicao vive em
+      // project_diary_files.file_name.
+      const path = `${T()}/entries/${entryId}/${randomUUID()}.${MIME_EXTENSION[got.mime] ?? 'bin'}`
+      const { error: uploadError } = await db.storage
+        .from(DIARY_BUCKET)
+        .upload(path, got.buffer, { contentType: got.mime, upsert: false })
+      if (uploadError) {
+        pend('project_diary_files', legacy, `upload para o bucket falhou: ${uploadError.message}`, label)
+        adjust(
+          'project_diary_entries', att.entryLegacy,
+          `entrada gravada SEM o anexo — upload recusado pelo bucket; nome e endereco de origem: ${label}`,
+          label,
+        )
+        continue
+      }
+
+      const row = {
+        tenant_id: T(),
+        legacy_id: legacy,
+        entry_id: entryId,
+        visit_id: null,
+        issue_id: null,
+        // `anexos` e a lista de ANEXO; `fotos` (que so existe em visita e
+        // pendencia) e que vira photo. A distincao nao e decorativa: a aba
+        // Fotos e o lightbox agregam so photo.
+        file_kind: 'attachment',
+        file_path: path,
+        file_name: fileName,
+        mime_type: got.mime,
+        byte_size: got.buffer.length,
+        display_order: att.position,
+        // Quem anexou nao existe na origem: o objeto do array tem nome, url e
+        // tipo, e nada mais. Nulo e a resposta honesta.
+        uploaded_by_id: null,
+      }
+      const res = await insertOne('project_diary_files', row, 'tenant_id,legacy_id')
+      if (res.error) {
+        // O objeto ja subiu e a linha nao entrou: sem a linha, o objeto e lixo
+        // pago no bucket e alcancavel por caminho. Some com ele.
+        await db.storage.from(DIARY_BUCKET).remove([path])
+        pend('project_diary_files', legacy, `erro do banco: ${res.error.message}`, label)
+        continue
+      }
+      uploaded += 1
+      stat('project_diary_files').consumed += 1
+      stat('project_diary_files').written += 1
+    }
+    log(
+      `  ${stat('project_diary_files').written} de ${attachments.length}  ` +
+        (DRY_RUN
+          ? '(dry-run: nada foi baixado nem gravado)'
+          : `(${uploaded} regravados no bucket, ${reused} ja estavam la)`),
+    )
+  }
+
+  // -------------------------------------------------------------------------
+  // Passo 33 — contas de acesso
   // -------------------------------------------------------------------------
   const credentials = []
-  step(31, 'contas de acesso (auth.users + tenant_users + collaborators.user_id)')
+  step(33, 'contas de acesso (auth.users + tenant_users + collaborators.user_id)')
   if (SKIP_ACCOUNTS) {
     log('  pulado por --skip-accounts')
   } else if (DRY_RUN) {
@@ -3016,7 +3583,7 @@ async function verify(tenantId, credentials) {
     'financial_categories', 'accounts_receivable', 'accounts_payable', 'suppliers',
     'supplier_brands', 'budget_checklists', 'budget_checklist_items',
     'budget_item_quotes', 'map_properties', 'map_property_land_types',
-    'map_property_purposes',
+    'map_property_purposes', 'project_diary_entries', 'project_diary_files',
   ]
   for (const table of TABLES) {
     const { count, error } = await db
@@ -3044,7 +3611,10 @@ async function verify(tenantId, credentials) {
     }
     const legacyTables = TABLES.filter((t) => !['negotiation_services', 'negotiation_owner_history',
       'project_land_types', 'project_purposes', 'project_checklist_items', 'task_checklist_items',
-      'supplier_brands', 'budget_item_quotes', 'map_property_land_types', 'map_property_purposes'].includes(t))
+      'supplier_brands', 'budget_item_quotes', 'map_property_land_types', 'map_property_purposes',
+      // legacy_id sintetico (<id da mae>:anexos:<indice>), como budget_item_quotes:
+      // nao e ObjectId do base44 e nao entra no teste de intruso abaixo.
+      'project_diary_files'].includes(t))
     let intruders = 0
     for (const table of legacyTables) {
       // A pergunta e feita AO BANCO ("existe linha com legacy_id fora deste
@@ -3132,6 +3702,7 @@ async function verify(tenantId, credentials) {
       ['Clientes', 'Client', 'clients'],
       ['Colaboradores', 'Collaborator', 'collaborators'],
       ['Fornecedores', 'Fornecedor', 'suppliers'],
+      ['Diario', 'ProjectTimelineEntry', 'project_diary_entries'],
     ]
     log(`   ${'entidade'.padEnd(16)}${'CSV'.padStart(6)}${'banco'.padStart(7)}${'falta'.padStart(7)}`)
     let missing = 0
@@ -3156,6 +3727,138 @@ async function verify(tenantId, credentials) {
       }
     }
     log(`   ${'TOTAL'.padEnd(16)}${''.padStart(6)}${''.padStart(7)}${String(missing).padStart(7)}`)
+  }
+
+  // 4c. o diario do projeto, relido do banco ---------------------------------
+  //
+  // As contagens 1, 2 e 4b ja cobrem "36 = gravadas + pendencias" e "o banco
+  // tem o que o script acha que gravou". O que elas NAO cobrem e o que este
+  // modulo tem de especial: o registro manual e a unica coisa deste export que
+  // nao existe em nenhum outro lugar, e ele nao pode entrar mutilado. Titulo e
+  // descricao sao conferidos CARACTERE A CARACTERE contra o CSV.
+  log('\n4c. diario do projeto (modulo 11)')
+  {
+    const { rows, error } = await selectAll(
+      'project_diary_entries',
+      'legacy_id, project_id, title, description, is_automatic, entry_type, system_event, event_key, visibility, from_phase, to_phase',
+      (q) => q.eq('tenant_id', tenantId),
+    )
+    if (error) {
+      problems.push(`project_diary_entries: nao consegui reler (${error.message})`)
+    } else {
+      const byLegacy = new Map(rows.map((r) => [r.legacy_id, r]))
+      const source = csv.ProjectTimelineEntry
+      const written = source.filter((r) => byLegacy.has(r.id)).length
+      const pended = (pendByEntity.get('project_diary_entries') ?? []).length
+
+      const check = (ok, label, detail) => {
+        log(`   ${ok ? 'ok  ' : 'FALHA'} ${label}`)
+        if (!ok) problems.push(detail)
+      }
+
+      check(
+        written + pended === source.length,
+        `${source.length} lidas = ${written} gravadas + ${pended} pendencias`,
+        `project_diary_entries: ${written} + ${pended} != ${source.length}`,
+      )
+
+      // Nenhuma das 36 pode estar fora do escritorio real. A pergunta e feita
+      // ao banco inteiro, e nao so a este tenant.
+      const { rows: elsewhere, error: elsewhereError } = await selectAll(
+        'project_diary_entries', 'legacy_id, tenant_id', (q) => q.neq('tenant_id', tenantId))
+      if (elsewhereError) problems.push(`project_diary_entries: nao consegui varrer outros escritorios (${elsewhereError.message})`)
+      else {
+        const csvIds = new Set(source.map((r) => r.id))
+        const intruders = elsewhere.filter((r) => csvIds.has(r.legacy_id))
+        check(
+          intruders.length === 0,
+          `nenhum legacy_id do CSV em outro escritorio (${elsewhere.length} linha(s) de diario em outros tenants)`,
+          `project_diary_entries: ${intruders.length} legacy_id do export do escritorio real fora dele`,
+        )
+      }
+
+      const projectsExpected = new Set(source.filter((r) => byLegacy.has(r.id)).map((r) => r.project_id)).size
+      const projectsInDb = new Set(rows.map((r) => r.project_id)).size
+      check(
+        projectsExpected === projectsInDb,
+        `${projectsInDb} projetos distintos com diario (CSV: ${projectsExpected})`,
+        `project_diary_entries: ${projectsInDb} projetos distintos no banco, ${projectsExpected} no CSV`,
+      )
+
+      // As 5 manuais, inteiras. Titulo com btrim (o payload grava trim); a
+      // descricao entra por txt(), que tambem apara as pontas.
+      const manuals = source.filter((r) => r.is_automatico !== 'true')
+      let broken = 0
+      for (const r of manuals) {
+        const got = byLegacy.get(r.id)
+        if (!got) { broken += 1; continue }
+        if (got.title !== r.titulo.trim()) { broken += 1; continue }
+        if ((got.description ?? '') !== (txt(r.descricao) ?? '')) { broken += 1; continue }
+        if (got.is_automatic !== false) broken += 1
+      }
+      check(
+        broken === 0 && manuals.length === 5,
+        `${manuals.length} anotacoes manuais integras (titulo e descricao identicos ao CSV)`,
+        `project_diary_entries: ${broken} de ${manuals.length} anotacoes manuais divergem do CSV`,
+      )
+
+      // As decisoes do plano, conferidas no dado e nao so no codigo.
+      const autos = rows.filter((r) => r.is_automatic)
+      check(
+        autos.every((r) => r.system_event !== null && r.entry_type === 'system'),
+        `${autos.length} automaticas com system_event preenchido pelo prefixo de evento_chave`,
+        'project_diary_entries: automatica sem system_event ou com entry_type fora de system',
+      )
+      check(
+        rows.every((r) => r.from_phase === null && r.to_phase === null),
+        'from_phase/to_phase nulos nas 36 (a fase NAO foi extraida do texto do titulo)',
+        'project_diary_entries: alguma linha importada ganhou fase — ver defeito 10 do plano',
+      )
+      check(
+        rows.every((r) => r.visibility === 'internal'),
+        'visibility no default internal (a origem nao tem o campo)',
+        'project_diary_entries: linha importada marcada como visivel ao cliente',
+      )
+
+      const keys = rows.map((r) => r.event_key).filter((k) => k !== null)
+      check(
+        new Set(keys).size === keys.length,
+        `${keys.length} event_key, todos distintos`,
+        'project_diary_entries: event_key repetido',
+      )
+
+      // Os anexos: cada linha precisa ter objeto vivo no bucket. Linha
+      // apontando para caminho vazio e a tela mostrando um clipe que nao abre.
+      const { rows: files, error: filesError } = await selectAll(
+        'project_diary_files', 'legacy_id, file_path, mime_type, byte_size, entry_id', (q) => q.eq('tenant_id', tenantId))
+      if (filesError) problems.push(`project_diary_files: nao consegui reler (${filesError.message})`)
+      else {
+        const sourceFiles = csv.ProjectTimelineEntry.reduce((n, r) => n + jsonArray(r.anexos).length, 0)
+        const filesPended = (pendByEntity.get('project_diary_files') ?? []).length
+        check(
+          files.length + filesPended === sourceFiles,
+          `${sourceFiles} anexos = ${files.length} no bucket + ${filesPended} pendencia(s)`,
+          `project_diary_files: ${files.length} + ${filesPended} != ${sourceFiles}`,
+        )
+        let missing = 0
+        for (const f of files) {
+          if (!f.file_path.startsWith(`${tenantId}/`)) {
+            problems.push('project_diary_files: caminho de objeto que nao comeca pelo tenant_id')
+            continue
+          }
+          const slash = f.file_path.lastIndexOf('/')
+          const { data: found, error: listError } = await db.storage
+            .from(DIARY_BUCKET)
+            .list(f.file_path.slice(0, slash), { search: f.file_path.slice(slash + 1), limit: 1 })
+          if (listError || (found ?? []).length === 0) missing += 1
+        }
+        check(
+          missing === 0,
+          `${files.length} objeto(s) conferido(s) no bucket ${DIARY_BUCKET}`,
+          `project_diary_files: ${missing} linha(s) apontam para objeto que nao esta no bucket`,
+        )
+      }
+    }
   }
 
   // 5. contas de acesso ------------------------------------------------------

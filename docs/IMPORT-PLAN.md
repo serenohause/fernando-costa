@@ -50,7 +50,9 @@ propriedades no mapa, 497 contas a pagar, 279 recebíveis, 37 fornecedores,
 colaboradores.
 
 **Não entra por decisão já registrada:** `Collaborator.senha_temporaria`
-(fora de escopo) e `ProjectTimelineEntry` (36 linhas, nenhuma tabela).
+(fora de escopo). `ProjectTimelineEntry` (36 linhas) também estava aqui, por
+não haver tabela; o módulo 11 criou o destino e as 36 entraram — ver a
+atualização no fim da seção 7.1.
 
 **A descoberta que muda o entendimento do de/para:** `docs/ENUM-MAP.md` está
 correto. Ele foi escrito a partir das declarações `enum` das 16 entidades do
@@ -369,9 +371,10 @@ o segundo é a bandeira que o `ENUM-MAP` já registra como não portada.
 
 4 projetos têm mais de um pino apontando para eles. O schema permite.
 
-### 1.17 `ProjectTimelineEntry` (36) → **nenhuma tabela**
+### 1.17 `ProjectTimelineEntry` (36) → `project_diary_entries` (módulo 11)
 
-Ver seção 7.1.
+Era "nenhuma tabela" até o módulo 11 criar o destino (migrations `0068`–`0071`).
+Ver seção 7.1, inclusive a atualização no fim dela.
 
 ---
 
@@ -642,7 +645,7 @@ exatamente como o `ENUM-MAP` prevê.
 
 ## 7. Os três pontos que precisavam de confirmação
 
-### 7.1 `ProjectTimelineEntry` — confirmado: dado sem destino
+### 7.1 `ProjectTimelineEntry` — sem destino em `projeto-original/` (resolvido no módulo 11)
 
 Confirmado por três buscas independentes em `projeto-original/`:
 
@@ -675,6 +678,46 @@ texto que ninguém mais escreve e que não existe em nenhum outro lugar.
 
 Se o escritório quiser preservar isso, é feature nova (um diário de bordo por
 projeto), não etapa de importação. A decisão fica com o usuário.
+
+#### Atualização — módulo 11: as 36 entraram
+
+O usuário decidiu pela feature. `nova-versao/` (exportação mais recente do
+mesmo base44) mostrou de onde a entidade vem: o **Diário do Projeto**, criado
+pelo escritório depois do ponto em que esta migração começou. As migrations
+`0068`–`0071` criaram o destino e o **passo 31** de `scripts/import-base44.mjs`
+traz as 36 linhas; o **passo 32** traz os anexos.
+
+O que entrou, conferido contra o banco na seção 4c da conferência:
+
+| | |
+|---|---|
+| entradas | **36 de 36**, em 18 projetos, zero pendências |
+| tipo do evento | `system_event` sai do **prefixo** de `evento_chave` (12 `tag_on`, 11 `phase_change`, 4 `tag_off`, 2 `responsible_change`, 2 `report_generated`) |
+| as 5 manuais | íntegras — título e descrição conferidos caractere a caractere contra o CSV |
+| anexos | **4 dos 5** baixados do `base44.app` e regravados no bucket privado `project-diary-files` |
+
+Três decisões que valem registro, e nenhuma delas é sobre formato:
+
+- **`from_phase`/`to_phase` ficam nulos.** Os títulos dizem "Projeto movido de
+  Perspectivas → Layout" e daria para extrair por regex. Ler rótulo em
+  português de dentro de texto livre é a heurística que o módulo 11 existe
+  para eliminar (defeito 10 do plano); fazê-lo aqui plantaria o defeito no
+  dado histórico. O check `phase_change_needs_to_phase` abre exceção para
+  linha com `legacy_id` justamente por isso.
+- **`visibility` fica no default `internal`.** A origem não tem o campo
+  (defeito 6). `client` afirmaria uma autorização de divulgação que ninguém
+  deu.
+- **5 linhas ficam sem autor.** O `created_by` delas é um e-mail que não é de
+  colaborador do escritório. Parece o mesmo Fernando de outro endereço, e
+  "parece" não vira vínculo.
+
+**O anexo que não entrou** é um PDF de **266,6 MB**, e o bucket aceita 20 MB
+(`file_size_limit` da 0071, o mesmo teto do módulo 8). A entrada de diário
+dele **está no banco**, sem o anexo, e a linha está no relatório de pendências
+com o endereço de origem. Não se grava na coluna uma URL do `base44.app` que
+já se sabe que vai morrer. Decidir o que fazer com esse arquivo — subir o
+teto por migration, guardar fora do bucket, ou aceitar a perda — é decisão do
+escritório e continua aberta.
 
 ### 7.2 `Collaborator.senha_temporaria` — confirmado: existe e não é importada
 
@@ -940,7 +983,9 @@ Em ordem de quanto travam:
     `Fornecedor.tipologia` vazia (1) e `Fornecedor.tipologia` =
     `Revestimento de Fachada` (1), que o check de `suppliers` barra.
 11. **`Task.tag_operacional`** (13 linhas): descartar ou criar coluna?
-12. **`ProjectTimelineEntry`** (36 linhas): aceitar a perda ou virar feature?
+12. ~~**`ProjectTimelineEntry`** (36 linhas): aceitar a perda ou virar feature?~~
+    **Decidido: virou feature.** Módulo 11, migrations `0068`–`0071`, passos 31
+    e 32 da importação. As 36 estão no banco — ver o fim da seção 7.1.
 13. **Incoerências de data x status**: 15 recebíveis, 10 atividades, 2
     pagáveis, 1 tarefa. O status está certo e a data errada, ou o contrário?
 14. **4 recebíveis com valor zero.** Excluir ou corrigir?
@@ -960,8 +1005,10 @@ Registrado para não passar por completo:
   de linha dentro do valor. Não foi feita conferência de normalização Unicode
   (NFC vs NFD) nos nomes com acento — pode gerar falso negativo em comparação
   de nome, embora as comparações que importam sejam todas por id.
-- **Anexos e arquivos**: nenhum arquivo do base44 foi baixado. `receipt_url`
-  e `Contract.file_url` estão 100% vazios; os 5 anexos de
-  `ProjectTimelineEntry` e os arquivos de item de orçamento (zero neste
-  export) apontam para `base44.app` e não sobrevivem ao desligamento da
-  plataforma.
+- **Anexos e arquivos**: nenhum arquivo do base44 foi baixado *neste
+  levantamento*. `receipt_url` e `Contract.file_url` estão 100% vazios; os
+  arquivos de item de orçamento são zero neste export. Os 5 anexos de
+  `ProjectTimelineEntry` apontavam para `base44.app` e não sobreviveriam ao
+  desligamento da plataforma: o passo 32 da importação baixou e regravou 4
+  deles no bucket privado `project-diary-files` (o quinto tem 266,6 MB e não
+  cabe no bucket — ver o fim da seção 7.1).

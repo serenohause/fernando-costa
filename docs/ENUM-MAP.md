@@ -739,6 +739,88 @@ digitado (`ProjectForm.jsx:270` e `:289`). Viraram tabela-filha de texto livre
 
 ---
 
+## Diário do Projeto (módulo 11)
+
+Origem: `nova-versao/base44/entities/ProjectTimelineEntry.jsonc`. É a
+exportação mais recente do **mesmo** base44, e a entidade não existe em
+`projeto-original/` — o escritório criou o Diário do Projeto depois do ponto
+em que esta migração começou. As três listas abaixo saem das declarações
+`enum` da entidade, e **não** do que as 36 linhas reais por acaso trazem: o
+dado usa 4 dos 10 tipos e 2 dos 3 status, e um de/para escrito só pelo dado
+real recusaria em silêncio a primeira linha que usasse um dos outros.
+
+### `diary_entry_type`
+
+| base44 | Postgres | Rótulo UI |
+|---|---|---|
+| Solicitação do Cliente | `client_request` | Solicitação do Cliente |
+| Alteração de Projeto | `project_change` | Alteração de Projeto |
+| Decisão | `decision` | Decisão |
+| Reunião | `meeting` | Reunião |
+| Aprovação | `approval` | Aprovação |
+| Correção | `correction` | Correção |
+| Entrega | `delivery` | Entrega |
+| Observação | `note` | Observação |
+| Outro | `other` | Outro |
+| Sistema | `system` | Sistema |
+
+`Sistema` é reservado ao registro **automático**: no dado real os dois andam
+sempre juntos (31 de 31 linhas), e a migration 0069 transformou isso em check
+(`(entry_type = 'system') = is_automatic`).
+
+### `diary_entry_status`
+
+| base44 | Postgres | Rótulo UI |
+|---|---|---|
+| Em andamento | `in_progress` | Em andamento |
+| Concluído | `completed` | Concluído |
+| Cancelado | `cancelled` | Cancelado |
+
+Não reusa `work_status` (0031): aquele não tem `cancelled` e tem
+`not_started`, que não existe aqui. Dois domínios parecidos e diferentes.
+
+### `diary_system_event` — a chave é o **prefixo** de `evento_chave`
+
+Este é o único de/para deste documento cuja chave não é um valor de lista. No
+base44 a natureza do evento automático não existe como campo: ela vive como
+prefixo de texto dentro de `evento_chave`
+(`fase:<project_id>:<Date.now()>`) e como palavra dentro do título.
+
+| prefixo em `evento_chave` | Postgres | Linhas reais |
+|---|---|---|
+| `fase:` | `phase_change` | 11 |
+| `responsavel:` | `responsible_change` | 2 |
+| `tag-on:` | `tag_on` | 12 |
+| `tag-off:` | `tag_off` | 4 |
+| `relatorio:` | `report_generated` | 2 |
+
+Determinístico, 31 de 31. O prefixo **foi escrito** pelo código que gravou o
+evento, um por gesto — não é adivinhação sobre texto livre. O enum tem ainda
+`site_visit`, `issue_created` e `issue_resolved`, que nascem nas abas de obra
+e não têm linha no export.
+
+**O que NÃO é lido do texto, e é a diferença que importa:** a fase. Onze
+títulos dizem "Projeto movido de Perspectivas → Layout" e `from_phase`/
+`to_phase` mesmo assim ficam **nulos** nas 36 linhas importadas. Ler rótulo em
+português de dentro de texto livre é exatamente a heurística que o módulo 11
+existe para eliminar (defeito 10 do plano); fazê-lo na importação plantaria o
+defeito no dado histórico.
+
+### `operational_tag`
+
+| base44 | Postgres | Rótulo UI |
+|---|---|---|
+| Em Revisão | `in_review` | Em Revisão |
+| Aguardando Cliente | `awaiting_client` | Aguardando Cliente |
+
+Criado na migration 0068 e compartilhado por `project_diary_entries` e
+`tasks.operational_tag` (fatia 3). **Não é usado pela importação das 36**: no
+base44 a tag só aparece dentro do título ("Marcado como Em Revisão"), e vale
+aqui a mesma regra da fase. As 13 tags reais vivem em `Task.tag_operacional`
+e entram com a fatia 3.
+
+---
+
 ## O que a 2ª passada NÃO acrescentou, e o que as migrations 0061–0066 resolveram
 
 Quatro casos ficaram de fora do de/para de propósito, porque entrar exigia
