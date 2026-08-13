@@ -46,10 +46,26 @@ const sheetVariants = cva(
 )
 
 type SheetContentProps = React.ComponentProps<typeof SheetPrimitive.Content> &
-  VariantProps<typeof sheetVariants>
+  VariantProps<typeof sheetVariants> & {
+    /*
+      Esconde o X padrão do canto, para a gaveta que já desenha o seu.
+
+      Existe por causa do Diário do Projeto (módulo 11): o cabeçalho dele tem um
+      botão de fechar dentro da própria linha do título, na posição em que a
+      versão nova o desenha (ProjectDiaryDrawer.jsx:192-194). Sem isto, seriam
+      dois X sobrepostos no mesmo canto. O padrão continua sendo mostrar.
+    */
+    hideClose?: boolean
+  }
 
 /* v4: `outline-hidden` == `outline-none` do v3. */
-function SheetContent({ side = 'right', className, children, ...props }: SheetContentProps) {
+function SheetContent({
+  side = 'right',
+  className,
+  children,
+  hideClose = false,
+  ...props
+}: SheetContentProps) {
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -58,10 +74,12 @@ function SheetContent({ side = 'right', className, children, ...props }: SheetCo
         style={{ zIndex: 40001 }}
         {...props}
       >
-        <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </SheetPrimitive.Close>
+        {!hideClose && (
+          <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </SheetPrimitive.Close>
+        )}
         {children}
       </SheetPrimitive.Content>
     </SheetPortal>

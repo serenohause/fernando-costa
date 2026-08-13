@@ -315,6 +315,7 @@ export default function Tasks() {
       ) : (
         <TaskKanban
           tasks={filteredTasks}
+          projects={projects}
           progressByProject={progressQuery.data ?? new Map()}
           collaborators={collaborators}
           canEdit={canEdit}

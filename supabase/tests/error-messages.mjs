@@ -52,8 +52,30 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
   TETO DOS CHECKS SEM FRASE. Medido em 2026-08-11, depois de escrever as frases
   das unicidades e das exclusões bloqueadas: 113 de 119 checks seguem sem frase
   própria. Só se mexe para BAIXO, ou para cima com o motivo escrito aqui do lado.
+
+  2026-08-13 — SOBE PARA 133. As migrations 0068-0069 (módulo 11, Diário do
+  Projeto) acrescentam VINTE checks nas cinco tabelas novas, e nenhum deles é
+  alcançável pelo formulário da linha do tempo:
+
+  - oito em `project_diary_entries`, e SETE deles falam de colunas que tela
+    nenhuma escreve — `is_automatic`, `event_key`, `system_event`, `from_phase`,
+    `to_phase`, `operational_tag`. Quem as grava é `record_project_diary_event`,
+    função SECURITY DEFINER que monta a linha por dentro; a policy de INSERT
+    recusa `is_automatic` para todo mundo (migration 0070). O oitavo é o título
+    em branco, que `diaryEntryInputSchema` barra com "Informe o título.";
+  - onze em `project_site_visits`, `project_issues` e `project_issue_events`,
+    que são as tabelas da FATIA 2 — nenhuma tela as escreve ainda. Quem
+    escrever os formulários de visita e de pendência responde por eles: o teto
+    volta a subir ou as frases aparecem, e este teste acusa a diferença;
+  - um em `project_diary_files` (`byte_size > 0`), evitado no hook, que manda
+    nulo quando o arquivo tem zero byte; e os de texto em branco, que não têm
+    caminho de escrita (nome e caminho vêm do arquivo escolhido e de um uuid).
+
+  O arco exclusivo (`num_nonnulls(entry_id, visit_id, issue_id) = 1`) é o único
+  cuja violação seria bug nosso, e não gesto de quem usa — a frase não teria a
+  quem falar.
 */
-const TETO_CHECKS_SEM_FRASE = 113
+const TETO_CHECKS_SEM_FRASE = 133
 
 /*
   Restrições que o usuário não alcança, uma a uma e com o motivo. Padrão que
@@ -86,6 +108,14 @@ const NAO_ALCANCAVEL = {
   contracts_negotiation_id_fkey:
     'negociação não é excluída depois de virar contrato; o gesto não existe na tela',
   activities_client_id_fkey: 'coberta pela frase de mesmo nome em CRM_ERROR_MESSAGES',
+  project_diary_entries_tenant_id_event_key_key:
+    'a chave de idempotência do evento automático só é escrita por record_project_diary_event, que trata a colisão com ON CONFLICT DO NOTHING e devolve already_recorded — o conflito é o comportamento desejado, não erro; registro manual vai com a chave nula, e nulo não colide',
+  project_diary_files_tenant_id_file_path_key:
+    'o caminho do objeto é montado com uuid pelo hook de upload, nunca digitado — mesma razão de budget_item_approval_files',
+  project_issues_project_id_issue_number_key:
+    'o número da pendência é alocado pelo trigger project_issues_assign_number sob advisory lock por projeto, e nenhuma tela oferece o campo; a unicidade existe para barrar número passado a mão pela API, caminho que não existe no frontend',
+  project_site_visits_tenant_id_diary_entry_id_key:
+    'o vínculo visita↔entrada de diário é gravado pelo hook que cria as duas juntas, nunca escolhido na tela; duas visitas reivindicarem a mesma entrada seria bug nosso, não gesto de quem usa',
 }
 
 function falhar(mensagem) {

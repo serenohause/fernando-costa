@@ -724,6 +724,77 @@ export type MapVisualStatus = keyof typeof MAP_VISUAL_STATUS
 */
 export type GeocodeStatus = Enums<'geocode_status'>
 
+// ── Diário do Projeto ───────────────────────────────────────────────────
+
+/*
+  Os rótulos de `diary_entry_type` (migration 0068), na ordem em que a versão
+  nova os oferece no formulário (DiaryEntryForm.jsx:24-34) — que é a mesma ordem
+  do enum.
+
+  `system` ENTRA NO MAPA e NÃO entra na lista do formulário: ele é reservado ao
+  registro automático, e a policy de INSERT da 0070 recusa `is_automatic`, ou
+  seja, ninguém escolhe esse tipo. Ele precisa de rótulo mesmo assim porque a
+  linha do tempo desenha o crachá de todo registro, e a única coisa que os
+  distingue é o tipo.
+*/
+export const DIARY_ENTRY_TYPE = {
+  client_request: 'Solicitação do Cliente',
+  project_change: 'Alteração de Projeto',
+  decision: 'Decisão',
+  meeting: 'Reunião',
+  approval: 'Aprovação',
+  correction: 'Correção',
+  delivery: 'Entrega',
+  note: 'Observação',
+  other: 'Outro',
+  system: 'Sistema',
+} as const satisfies LabelMap<string>
+
+export type DiaryEntryType = keyof typeof DIARY_ENTRY_TYPE
+
+/*
+  O tipo de um registro DIGITADO. Recorte derivado do mapa acima, e não segunda
+  lista escrita à mão: duas listas de tipo são duas chances de o formulário
+  oferecer um valor que a linha do tempo não sabe desenhar.
+
+  É também o recorte do FILTRO da aba Timeline: `ALL_TYPES`
+  (ProjectDiaryDrawer.jsx:60) tem os nove manuais e não tem "Sistema" — filtrar
+  por tipo nunca seleciona evento automático, e "Todos" continua mostrando tudo.
+*/
+export type DiaryManualEntryType = Exclude<DiaryEntryType, 'system'>
+
+export const MANUAL_DIARY_ENTRY_TYPES = (
+  Object.keys(DIARY_ENTRY_TYPE) as DiaryEntryType[]
+).filter((type): type is DiaryManualEntryType => type !== 'system')
+
+export const DIARY_ENTRY_STATUS = {
+  in_progress: 'Em andamento',
+  completed: 'Concluído',
+  cancelled: 'Cancelado',
+} as const satisfies LabelMap<string>
+
+export type DiaryEntryStatus = keyof typeof DIARY_ENTRY_STATUS
+
+/*
+  A VISIBILIDADE, com o rótulo LONGO do original.
+
+  DiaryEntryForm.jsx:224-225 escreve a explicação dentro da própria opção do
+  select ("🔒 Interno (não aparece no relatório para cliente)"), e é o único
+  lugar do sistema em que o campo aparece — nenhuma tela mostra a visibilidade
+  do registro depois de gravado. Então o rótulo daqui é o texto da opção, tal e
+  qual; um mapa curto "Interno/Cliente" seria rótulo que tela nenhuma usa.
+
+  Quem lê isto ao escrever o relatório da fatia 4: o filtro fiel do relatório
+  externo é `visibility = client OR is_automatic` (RelatorioPDFModal.jsx:45), e
+  não `visibility = client` — está no COMMENT do enum na migration 0068.
+*/
+export const DIARY_VISIBILITY = {
+  internal: '🔒 Interno (não aparece no relatório para cliente)',
+  client: '🤝 Cliente (pode aparecer no relatório externo)',
+} as const satisfies LabelMap<string>
+
+export type DiaryVisibility = keyof typeof DIARY_VISIBILITY
+
 /*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
   original, que redireciona Arquiteto e Estagiário para MinhasAtividades e

@@ -1870,6 +1870,392 @@ export type Database = {
           },
         ]
       }
+      project_diary_entries: {
+        Row: {
+          created_at: string
+          created_by_id: string | null
+          description: string | null
+          entry_type: Database["public"]["Enums"]["diary_entry_type"]
+          event_key: string | null
+          from_phase: Database["public"]["Enums"]["project_phase"] | null
+          id: string
+          is_automatic: boolean
+          legacy_id: string | null
+          occurrence_date: string
+          occurrence_time: string | null
+          operational_tag: Database["public"]["Enums"]["operational_tag"] | null
+          project_id: string
+          responsible_id: string | null
+          status: Database["public"]["Enums"]["diary_entry_status"]
+          system_event: Database["public"]["Enums"]["diary_system_event"] | null
+          tenant_id: string
+          title: string
+          to_phase: Database["public"]["Enums"]["project_phase"] | null
+          updated_at: string
+          updated_by_id: string | null
+          visibility: Database["public"]["Enums"]["diary_visibility"]
+        }
+        Insert: {
+          created_at?: string
+          created_by_id?: string | null
+          description?: string | null
+          entry_type: Database["public"]["Enums"]["diary_entry_type"]
+          event_key?: string | null
+          from_phase?: Database["public"]["Enums"]["project_phase"] | null
+          id?: string
+          is_automatic?: boolean
+          legacy_id?: string | null
+          occurrence_date: string
+          occurrence_time?: string | null
+          operational_tag?:
+            | Database["public"]["Enums"]["operational_tag"]
+            | null
+          project_id: string
+          responsible_id?: string | null
+          status?: Database["public"]["Enums"]["diary_entry_status"]
+          system_event?:
+            | Database["public"]["Enums"]["diary_system_event"]
+            | null
+          tenant_id: string
+          title: string
+          to_phase?: Database["public"]["Enums"]["project_phase"] | null
+          updated_at?: string
+          updated_by_id?: string | null
+          visibility?: Database["public"]["Enums"]["diary_visibility"]
+        }
+        Update: {
+          created_at?: string
+          created_by_id?: string | null
+          description?: string | null
+          entry_type?: Database["public"]["Enums"]["diary_entry_type"]
+          event_key?: string | null
+          from_phase?: Database["public"]["Enums"]["project_phase"] | null
+          id?: string
+          is_automatic?: boolean
+          legacy_id?: string | null
+          occurrence_date?: string
+          occurrence_time?: string | null
+          operational_tag?:
+            | Database["public"]["Enums"]["operational_tag"]
+            | null
+          project_id?: string
+          responsible_id?: string | null
+          status?: Database["public"]["Enums"]["diary_entry_status"]
+          system_event?:
+            | Database["public"]["Enums"]["diary_system_event"]
+            | null
+          tenant_id?: string
+          title?: string
+          to_phase?: Database["public"]["Enums"]["project_phase"] | null
+          updated_at?: string
+          updated_by_id?: string | null
+          visibility?: Database["public"]["Enums"]["diary_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_diary_entries_created_by_id_fkey"
+            columns: ["created_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_diary_entries_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_diary_entries_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_diary_entries_responsible_id_fkey"
+            columns: ["responsible_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_diary_entries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_diary_entries_updated_by_id_fkey"
+            columns: ["updated_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+        ]
+      }
+      project_diary_files: {
+        Row: {
+          byte_size: number | null
+          created_at: string
+          display_order: number | null
+          entry_id: string | null
+          file_kind: Database["public"]["Enums"]["diary_file_kind"]
+          file_name: string
+          file_path: string
+          id: string
+          issue_id: string | null
+          legacy_id: string | null
+          mime_type: string | null
+          tenant_id: string
+          updated_at: string
+          uploaded_by_id: string | null
+          visit_id: string | null
+        }
+        Insert: {
+          byte_size?: number | null
+          created_at?: string
+          display_order?: number | null
+          entry_id?: string | null
+          file_kind: Database["public"]["Enums"]["diary_file_kind"]
+          file_name: string
+          file_path: string
+          id?: string
+          issue_id?: string | null
+          legacy_id?: string | null
+          mime_type?: string | null
+          tenant_id: string
+          updated_at?: string
+          uploaded_by_id?: string | null
+          visit_id?: string | null
+        }
+        Update: {
+          byte_size?: number | null
+          created_at?: string
+          display_order?: number | null
+          entry_id?: string | null
+          file_kind?: Database["public"]["Enums"]["diary_file_kind"]
+          file_name?: string
+          file_path?: string
+          id?: string
+          issue_id?: string | null
+          legacy_id?: string | null
+          mime_type?: string | null
+          tenant_id?: string
+          updated_at?: string
+          uploaded_by_id?: string | null
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_diary_files_entry_id_fkey"
+            columns: ["entry_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_diary_entries"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_diary_files_issue_id_fkey"
+            columns: ["issue_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_issues"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_diary_files_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_diary_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_diary_files_visit_id_fkey"
+            columns: ["visit_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_site_visits"
+            referencedColumns: ["id", "tenant_id"]
+          },
+        ]
+      }
+      project_issue_events: {
+        Row: {
+          author_id: string | null
+          created_at: string
+          description: string | null
+          event_type: Database["public"]["Enums"]["project_issue_event_type"]
+          from_status:
+            | Database["public"]["Enums"]["project_issue_status"]
+            | null
+          id: string
+          issue_id: string
+          occurred_at: string
+          tenant_id: string
+          to_status: Database["public"]["Enums"]["project_issue_status"] | null
+        }
+        Insert: {
+          author_id?: string | null
+          created_at?: string
+          description?: string | null
+          event_type: Database["public"]["Enums"]["project_issue_event_type"]
+          from_status?:
+            | Database["public"]["Enums"]["project_issue_status"]
+            | null
+          id?: string
+          issue_id: string
+          occurred_at?: string
+          tenant_id: string
+          to_status?: Database["public"]["Enums"]["project_issue_status"] | null
+        }
+        Update: {
+          author_id?: string | null
+          created_at?: string
+          description?: string | null
+          event_type?: Database["public"]["Enums"]["project_issue_event_type"]
+          from_status?:
+            | Database["public"]["Enums"]["project_issue_status"]
+            | null
+          id?: string
+          issue_id?: string
+          occurred_at?: string
+          tenant_id?: string
+          to_status?: Database["public"]["Enums"]["project_issue_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_issue_events_author_id_fkey"
+            columns: ["author_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_issue_events_issue_id_fkey"
+            columns: ["issue_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_issues"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_issue_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_issues: {
+        Row: {
+          category: Database["public"]["Enums"]["project_issue_category"]
+          created_at: string
+          description: string
+          due_date: string | null
+          id: string
+          identified_date: string
+          issue_number: number
+          legacy_id: string | null
+          notes: string | null
+          project_id: string
+          resolved_at: string | null
+          resolved_by_id: string | null
+          responsible_id: string | null
+          status: Database["public"]["Enums"]["project_issue_status"]
+          tenant_id: string
+          updated_at: string
+          visit_id: string | null
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["project_issue_category"]
+          created_at?: string
+          description: string
+          due_date?: string | null
+          id?: string
+          identified_date: string
+          issue_number: number
+          legacy_id?: string | null
+          notes?: string | null
+          project_id: string
+          resolved_at?: string | null
+          resolved_by_id?: string | null
+          responsible_id?: string | null
+          status?: Database["public"]["Enums"]["project_issue_status"]
+          tenant_id: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["project_issue_category"]
+          created_at?: string
+          description?: string
+          due_date?: string | null
+          id?: string
+          identified_date?: string
+          issue_number?: number
+          legacy_id?: string | null
+          notes?: string | null
+          project_id?: string
+          resolved_at?: string | null
+          resolved_by_id?: string | null
+          responsible_id?: string | null
+          status?: Database["public"]["Enums"]["project_issue_status"]
+          tenant_id?: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_issues_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_issues_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_issues_resolved_by_id_fkey"
+            columns: ["resolved_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_issues_responsible_id_fkey"
+            columns: ["responsible_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_issues_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_issues_visit_id_fkey"
+            columns: ["visit_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_site_visits"
+            referencedColumns: ["id", "tenant_id"]
+          },
+        ]
+      }
       project_land_types: {
         Row: {
           created_at: string
@@ -1955,6 +2341,103 @@ export type Database = {
           },
           {
             foreignKeyName: "project_purposes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_site_visits: {
+        Row: {
+          created_at: string
+          created_by_id: string | null
+          diary_entry_id: string | null
+          id: string
+          legacy_id: string | null
+          notes: string | null
+          project_id: string
+          responsible_id: string | null
+          status: Database["public"]["Enums"]["site_visit_status"]
+          summary: string | null
+          tenant_id: string
+          updated_at: string
+          visit_date: string
+          visit_time: string | null
+          visit_type: Database["public"]["Enums"]["site_visit_type"]
+        }
+        Insert: {
+          created_at?: string
+          created_by_id?: string | null
+          diary_entry_id?: string | null
+          id?: string
+          legacy_id?: string | null
+          notes?: string | null
+          project_id: string
+          responsible_id?: string | null
+          status?: Database["public"]["Enums"]["site_visit_status"]
+          summary?: string | null
+          tenant_id: string
+          updated_at?: string
+          visit_date: string
+          visit_time?: string | null
+          visit_type: Database["public"]["Enums"]["site_visit_type"]
+        }
+        Update: {
+          created_at?: string
+          created_by_id?: string | null
+          diary_entry_id?: string | null
+          id?: string
+          legacy_id?: string | null
+          notes?: string | null
+          project_id?: string
+          responsible_id?: string | null
+          status?: Database["public"]["Enums"]["site_visit_status"]
+          summary?: string | null
+          tenant_id?: string
+          updated_at?: string
+          visit_date?: string
+          visit_time?: string | null
+          visit_type?: Database["public"]["Enums"]["site_visit_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_site_visits_created_by_id_fkey"
+            columns: ["created_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_site_visits_diary_entry_id_fkey"
+            columns: ["diary_entry_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_diary_entries"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_site_visits_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_progress"
+            referencedColumns: ["project_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_site_visits_project_id_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_site_visits_responsible_id_fkey"
+            columns: ["responsible_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_site_visits_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2923,7 +3406,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_project_diary_writer: { Args: never; Returns: boolean }
       is_tenant_director: { Args: never; Returns: boolean }
+      mark_negotiation_won: {
+        Args: { p_negotiation_id: string }
+        Returns: Json
+      }
       open_client_intake: {
         Args: { p_token: string }
         Returns: {
@@ -2931,6 +3419,22 @@ export type Database = {
           expires_at: string
           outcome: Database["public"]["Enums"]["client_intake_outcome"]
         }[]
+      }
+      record_project_diary_event: {
+        Args: {
+          p_description?: string
+          p_event_key?: string
+          p_from_phase?: Database["public"]["Enums"]["project_phase"]
+          p_occurrence_date?: string
+          p_occurrence_time?: string
+          p_operational_tag?: Database["public"]["Enums"]["operational_tag"]
+          p_project_id: string
+          p_responsible_id?: string
+          p_system_event: Database["public"]["Enums"]["diary_system_event"]
+          p_title: string
+          p_to_phase?: Database["public"]["Enums"]["project_phase"]
+        }
+        Returns: Json
       }
       submit_client_intake: {
         Args: { p_payload: Json; p_token: string }
@@ -3008,6 +3512,29 @@ export type Database = {
         | "construction"
         | "mentoring"
         | "administrative"
+      diary_entry_status: "in_progress" | "completed" | "cancelled"
+      diary_entry_type:
+        | "client_request"
+        | "project_change"
+        | "decision"
+        | "meeting"
+        | "approval"
+        | "correction"
+        | "delivery"
+        | "note"
+        | "other"
+        | "system"
+      diary_file_kind: "photo" | "attachment"
+      diary_system_event:
+        | "phase_change"
+        | "responsible_change"
+        | "tag_on"
+        | "tag_off"
+        | "site_visit"
+        | "issue_created"
+        | "issue_resolved"
+        | "report_generated"
+      diary_visibility: "internal" | "client"
       expense_category:
         | "payroll"
         | "taxes"
@@ -3044,6 +3571,7 @@ export type Database = {
         | "paused"
         | "completed"
       negotiation_status: "active" | "won" | "lost"
+      operational_tag: "in_review" | "awaiting_client"
       partnership_model:
         | "sales_commission"
         | "price_discount"
@@ -3063,6 +3591,26 @@ export type Database = {
         | "cash"
         | "direct_debit"
       priority_level: "low" | "medium" | "high" | "urgent"
+      project_issue_category:
+        | "architecture"
+        | "interiors"
+        | "joinery"
+        | "frames"
+        | "electrical"
+        | "plumbing"
+        | "lighting"
+        | "structural"
+        | "landscaping"
+        | "finishing"
+        | "other"
+      project_issue_event_type:
+        | "created"
+        | "updated"
+        | "status_changed"
+        | "resolved"
+        | "reopened"
+        | "cancelled"
+      project_issue_status: "open" | "in_progress" | "resolved" | "cancelled"
       project_phase:
         | "not_started"
         | "briefing"
@@ -3099,6 +3647,21 @@ export type Database = {
         | "plumbing"
         | "electrical"
         | "consulting"
+      site_visit_status:
+        | "no_issues"
+        | "with_issues"
+        | "awaiting_execution"
+        | "resolved"
+      site_visit_type:
+        | "follow_up"
+        | "verification"
+        | "inspection"
+        | "meeting"
+        | "measurement"
+        | "correction"
+        | "delivery"
+        | "survey"
+        | "other"
       supplier_category:
         | "ceramics_porcelain"
         | "fixtures_sanitaryware"
@@ -3339,6 +3902,31 @@ export const Constants = {
         "mentoring",
         "administrative",
       ],
+      diary_entry_status: ["in_progress", "completed", "cancelled"],
+      diary_entry_type: [
+        "client_request",
+        "project_change",
+        "decision",
+        "meeting",
+        "approval",
+        "correction",
+        "delivery",
+        "note",
+        "other",
+        "system",
+      ],
+      diary_file_kind: ["photo", "attachment"],
+      diary_system_event: [
+        "phase_change",
+        "responsible_change",
+        "tag_on",
+        "tag_off",
+        "site_visit",
+        "issue_created",
+        "issue_resolved",
+        "report_generated",
+      ],
+      diary_visibility: ["internal", "client"],
       expense_category: [
         "payroll",
         "taxes",
@@ -3379,6 +3967,7 @@ export const Constants = {
         "completed",
       ],
       negotiation_status: ["active", "won", "lost"],
+      operational_tag: ["in_review", "awaiting_client"],
       partnership_model: [
         "sales_commission",
         "price_discount",
@@ -3394,6 +3983,28 @@ export const Constants = {
       ],
       payment_method: ["pix", "boleto", "card", "ted", "cash", "direct_debit"],
       priority_level: ["low", "medium", "high", "urgent"],
+      project_issue_category: [
+        "architecture",
+        "interiors",
+        "joinery",
+        "frames",
+        "electrical",
+        "plumbing",
+        "lighting",
+        "structural",
+        "landscaping",
+        "finishing",
+        "other",
+      ],
+      project_issue_event_type: [
+        "created",
+        "updated",
+        "status_changed",
+        "resolved",
+        "reopened",
+        "cancelled",
+      ],
+      project_issue_status: ["open", "in_progress", "resolved", "cancelled"],
       project_phase: [
         "not_started",
         "briefing",
@@ -3433,6 +4044,23 @@ export const Constants = {
         "plumbing",
         "electrical",
         "consulting",
+      ],
+      site_visit_status: [
+        "no_issues",
+        "with_issues",
+        "awaiting_execution",
+        "resolved",
+      ],
+      site_visit_type: [
+        "follow_up",
+        "verification",
+        "inspection",
+        "meeting",
+        "measurement",
+        "correction",
+        "delivery",
+        "survey",
+        "other",
       ],
       supplier_category: [
         "ceramics_porcelain",

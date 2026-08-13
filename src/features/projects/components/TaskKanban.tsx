@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
 import {
   AlertCircle,
+  BookOpen,
   Calendar,
   CheckSquare,
   ChevronDown,
@@ -29,6 +30,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { Collaborator } from '@/features/team/types'
+import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
+import type { DiaryProject } from '@/features/diary/types'
 import {
   COLLABORATOR_ROLE,
   PROJECT_PHASE,
@@ -40,7 +43,13 @@ import {
 import { moveTaskToPhase, tasksInColumn, type MoveOutcome } from '../flow'
 import { isTaskOverdue } from '../list'
 import { operationalCandidates } from './TaskForm'
-import type { ProjectProgress, TaskChecklistItem, TaskPhaseMove, TaskRow } from '../types'
+import type {
+  ProjectProgress,
+  ProjectRow,
+  TaskChecklistItem,
+  TaskPhaseMove,
+  TaskRow,
+} from '../types'
 
 /*
   Porta de projeto-original/src/components/tasks/TaskKanban.jsx.
@@ -176,8 +185,44 @@ const SCROLLBAR_STYLES = `
 
 type BlockAlert = { fromPhase: ProjectPhase; toPhase: ProjectPhase; pending: string[] }
 
+/*
+  O QUE A GAVETA DO DIÁRIO PRECISA SABER DO PROJETO, montado a partir do que a
+  tela já tem em mãos.
+
+  `useProjects()` só traz projeto `visible_in_list`, e uma tarefa pode apontar
+  para um que ficou de fora — o mesmo caso que a versão nova trata caindo para
+  `{ id, name }` (TaskKanban.jsx:513-516). Quando o projeto está na lista, o
+  cabeçalho mostra cliente, responsável operacional, etapa e início; quando não
+  está, mostra o nome que veio com a tarefa e nada mais.
+*/
+function diaryProjectOf(task: TaskRow, projects: ProjectRow[]): DiaryProject | null {
+  if (!task.project_id) return null
+
+  const project = projects.find((candidate) => candidate.id === task.project_id)
+  if (!project) {
+    return {
+      id: task.project_id,
+      name: task.project?.name ?? '',
+      client: null,
+      responsible: null,
+      current_phase: null,
+      start_date: null,
+    }
+  }
+
+  return {
+    id: project.id,
+    name: project.name,
+    client: project.client,
+    responsible: project.operational_responsible,
+    current_phase: project.current_phase,
+    start_date: project.start_date,
+  }
+}
+
 export default function TaskKanban({
   tasks,
+  projects,
   progressByProject,
   collaborators,
   canEdit,
@@ -189,6 +234,8 @@ export default function TaskKanban({
   onChangeResponsible,
 }: {
   tasks: TaskRow[]
+  /* Só para o cabeçalho da gaveta do Diário do Projeto — ver `diaryProjectOf`. */
+  projects: ProjectRow[]
   progressByProject: Map<string, ProjectProgress>
   collaborators: Collaborator[]
   /*
@@ -207,6 +254,16 @@ export default function TaskKanban({
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [blockAlert, setBlockAlert] = useState<BlockAlert | null>(null)
+  /*
+    A gaveta do Diário do Projeto, aberta pelo menu do cartão. Guarda o projeto
+    montado e se a TAREFA que abriu está em Em Obra — a obra pode estar
+    acontecendo numa tarefa antes de a fase do projeto acompanhar, e é isso que
+    o `_isEmObra` da versão nova carrega (TaskKanban.jsx:513).
+  */
+  const [diary, setDiary] = useState<{
+    project: DiaryProject
+    underConstruction: boolean
+  } | null>(null)
 
   const responsibles = operationalCandidates(collaborators)
 
@@ -361,7 +418,25 @@ export default function TaskKanban({
                                             {progressOf(task.project_id)}%
                                           </div>
                                         )}
-                                        {(canEdit || canDelete) && (
+                                        {/*
+                                          O MENU APARECE TAMBÉM PARA QUEM SÓ LÊ, e isso
+                                          mudou com o módulo 11.
+
+                                          Antes a condição era `canEdit || canDelete`, ou
+                                          seja, quem não edita o Fluxo do Projeto não via o
+                                          botão. O Diário do Projeto é para LER também —
+                                          qualquer colaborador ativo lê o histórico inteiro
+                                          (migration 0070) — e ele se alcança por aqui. Sem
+                                          esta terceira condição, o Arquiteto que não edita
+                                          o fluxo não teria caminho nenhum até o diário.
+
+                                          Ninguém ganha ação de escrita com isso: cada item
+                                          continua atrás da sua própria permissão, e o único
+                                          que entra sem `canEdit` é o do diário, que abre uma
+                                          gaveta cujos botões de escrever obedecem a outra
+                                          regra ainda (Diretor ou Coordenador).
+                                        */}
+                                        {(canEdit || canDelete || task.project_id) && (
                                           <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                               <Button
@@ -377,6 +452,28 @@ export default function TaskKanban({
                                                 <DropdownMenuItem onClick={() => onEdit(task)}>
                                                   <Pencil className="w-4 h-4 mr-2" />
                                                   Editar
+                                                </DropdownMenuItem>
+                                              )}
+                                              {/* Sem separador antes, como na versão nova
+                                                  (TaskKanban.jsx:510-521): o diário fica
+                                                  colado em "Editar". */}
+                                              {task.project_id && (
+                                                <DropdownMenuItem
+                                                  onClick={() => {
+                                                    const diaryProject = diaryProjectOf(
+                                                      task,
+                                                      projects,
+                                                    )
+                                                    if (!diaryProject) return
+                                                    setDiary({
+                                                      project: diaryProject,
+                                                      underConstruction:
+                                                        task.phase === 'under_construction',
+                                                    })
+                                                  }}
+                                                >
+                                                  <BookOpen className="w-4 h-4 mr-2" />
+                                                  Diário do Projeto
                                                 </DropdownMenuItem>
                                               )}
                                               {canEdit && (
@@ -560,6 +657,14 @@ export default function TaskKanban({
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-border to-transparent pointer-events-none md:hidden" />
         </div>
       </DragDropContext>
+
+      {/* A gaveta do Diário do Projeto, como na versão nova (TaskKanban.jsx:758). */}
+      <ProjectDiaryDrawer
+        open={diary !== null}
+        onClose={() => setDiary(null)}
+        project={diary?.project ?? null}
+        underConstruction={diary?.underConstruction ?? false}
+      />
     </>
   )
 }

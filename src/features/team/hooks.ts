@@ -59,6 +59,31 @@ const TEAM_ERROR_MESSAGES: DatabaseErrorMessages = {
   budget_checklist_items_responsible_id_fkey:
     'Esta pessoa é responsável por item de orçamento. Troque o responsável antes de excluir.',
   /*
+    O DIÁRIO DO PROJETO (módulo 11) acrescenta cinco tabelas que apontam para
+    colaborador, e nenhuma cascateia — pelo mesmo motivo de sempre: o diário é a
+    memória do escritório, e quem registrou uma visita continua tendo registrado.
+    Os três primeiros são responsabilidade transferível; os quatro últimos são
+    AUTORIA de um ato passado, e para esses não existe "trocar o responsável".
+  */
+  project_diary_entries_responsible_id_fkey:
+    'Esta pessoa é responsável por registro no Diário do Projeto. Troque o responsável do registro, ou marque o colaborador como Afastado em vez de excluir.',
+  project_site_visits_responsible_id_fkey:
+    'Esta pessoa é responsável por visita à obra no Diário do Projeto. Troque o responsável da visita antes de excluir.',
+  project_issues_responsible_id_fkey:
+    'Esta pessoa é responsável por pendência de obra no Diário do Projeto. Troque o responsável da pendência antes de excluir.',
+  project_diary_entries_created_by_id_fkey:
+    'Esta pessoa criou registros no Diário do Projeto, e isso é registro do que aconteceu. Marque o colaborador como Afastado em vez de excluir.',
+  project_diary_entries_updated_by_id_fkey:
+    'Esta pessoa alterou registros do Diário do Projeto, e isso é registro do que aconteceu. Marque o colaborador como Afastado em vez de excluir.',
+  project_site_visits_created_by_id_fkey:
+    'Esta pessoa registrou visitas à obra, e isso é registro do que aconteceu. Marque o colaborador como Afastado em vez de excluir.',
+  project_issues_resolved_by_id_fkey:
+    'Esta pessoa resolveu pendências de obra, e isso é registro do que aconteceu. Marque o colaborador como Afastado em vez de excluir.',
+  project_issue_events_author_id_fkey:
+    'Esta pessoa aparece no histórico de pendências de obra, e isso é registro do que aconteceu. Marque o colaborador como Afastado em vez de excluir.',
+  project_diary_files_uploaded_by_id_fkey:
+    'Esta pessoa anexou arquivos ao Diário do Projeto, e isso é registro do que aconteceu. Marque o colaborador como Afastado em vez de excluir.',
+  /*
     Estes quatro guardam AUTORIA de um ato passado — quem iniciou, quem
     concluiu, quem excluiu, quem aprovou. Não há "trocar o responsável": o ato
     aconteceu. A saída é Afastado.
