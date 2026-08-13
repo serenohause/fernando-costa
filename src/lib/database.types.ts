@@ -2860,6 +2860,7 @@ export type Database = {
           estimated_hours: number | null
           id: string
           legacy_id: string | null
+          operational_tag: Database["public"]["Enums"]["operational_tag"] | null
           phase: Database["public"]["Enums"]["project_phase"]
           priority: Database["public"]["Enums"]["priority_level"]
           project_id: string | null
@@ -2880,6 +2881,9 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           legacy_id?: string | null
+          operational_tag?:
+            | Database["public"]["Enums"]["operational_tag"]
+            | null
           phase?: Database["public"]["Enums"]["project_phase"]
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null
@@ -2900,6 +2904,9 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           legacy_id?: string | null
+          operational_tag?:
+            | Database["public"]["Enums"]["operational_tag"]
+            | null
           phase?: Database["public"]["Enums"]["project_phase"]
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null

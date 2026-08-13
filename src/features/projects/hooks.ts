@@ -7,9 +7,24 @@ import {
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
 import { useCurrentCollaborator } from '@/features/auth/hooks'
+import {
+  diaryKeys,
+  recordDiaryEvent,
+  type RecordedDiaryEvent,
+} from '@/features/diary/hooks'
+import type { OperationalTag } from '@/lib/enums'
+import {
+  phaseChangeText,
+  phaseEventKey,
+  responsibleChangeText,
+  responsibleEventKey,
+  tagEventKey,
+  tagEventText,
+} from './flow'
 import { projectInputSchema, taskInputSchema } from './schemas'
 import { allTasksCompleted, calculateProjectPhase, type TaskPhaseSource } from './project-phase'
 import type {
+  PersonRef,
   ProjectInput,
   ProjectProgress,
   ProjectRow,
@@ -500,12 +515,57 @@ export function useDeleteTask() {
   })
 }
 
+/* ── Os eventos automáticos do diário ──────────────────────────────────── */
+
+/*
+  QUATRO GESTOS DO FLUXO DO PROJETO SE ESCREVEM NO DIÁRIO SOZINHOS: mover o
+  cartão, trocar o responsável, ligar e desligar a tag operacional. Quem grava é
+  `recordDiaryEvent` (src/features/diary/hooks.ts), que chama a função
+  `record_project_diary_event` do banco.
+
+  POR QUE AQUI, E NUNCA NO COMPONENTE: na versão nova as quatro chamadas estão
+  dentro do JSX do cartão (TaskKanban.jsx:216-232, :385-393, :534-570), e é de lá
+  que vêm dois dos defeitos do plano — o evento do arraste é gravado ANTES da
+  validação de checklist que pode barrar o movimento (defeito 4: o diário
+  registra o que não aconteceu), e cada chamada monta a sua própria chave, todas
+  com `Date.now()` (defeito 5). Aqui o evento é passo do MESMO hook que grava, e
+  vem sempre DEPOIS do `assertRowAffected`: só é registrado o que o banco
+  confirmou ter mudado.
+
+  A PERMISSÃO É A DO FLUXO, e a tela não acrescenta trava nenhuma. A função do
+  banco confere `can_edit_menu('project_flow')` por dentro — a mesma permissão de
+  quem move o cartão — e não a do diário: uma Arquiteta ativa com permissão de
+  Fluxo grava o evento automático sem poder escrever no diário à mão, que é
+  exatamente o desenho da migration 0070 e o modo de falha silenciosa que ela
+  existe para evitar.
+
+  TAREFA SEM PROJETO NÃO GERA EVENTO: o diário é do projeto, e a função recusaria
+  com `project_not_found`. O evento volta `null`, e `null` não é falha — a tela só
+  avisa quando `outcome` é `failed`.
+*/
+type TaskDiaryEvent = RecordedDiaryEvent | null
+
 /*
   A mudança de coluna do kanban — o gesto central da tela.
 
-  Grava a etapa, o andamento, a data de conclusão e os itens de checklist que a
-  nova etapa acrescenta. O QUE decidir vive em `moveTaskToPhase` (flow.ts), que é
-  função pura; o que está aqui é só a gravação.
+  Grava a etapa, o andamento, a data de conclusão, a limpeza da tag operacional e
+  os itens de checklist que a nova etapa acrescenta. O QUE decidir vive em
+  `moveTaskToPhase` (flow.ts), que é função pura; o que está aqui é só a gravação
+  e o registro no diário.
+
+  A TAG SAI NO MESMO UPDATE, e isso conserta um estado que a versão nova produz:
+  lá são duas escritas (TaskKanban.jsx:217-219 limpa a tag, e só depois vem a
+  validação de checklist que pode barrar o movimento), então a tarefa PERDE A TAG
+  SEM TER SAÍDO DO LUGAR — o cartão continua na coluna, sem o crachá que dizia
+  por que ele estava parado. Numa escrita só, ou as duas coisas acontecem ou
+  nenhuma.
+
+  A LIMPEZA É INCONDICIONAL, como lá: a tag diz "parada esperando alguém" e o
+  cartão acabou de se mover. Escrever nulo sobre nulo não muda nada.
+
+  MUDAR DE COLUNA NÃO GERA `tag_off`, também como lá (a limpeza do arraste não
+  chama `registrarTagDesativada`): o evento da coluna já conta o que aconteceu, e
+  dois registros para um gesto só encheriam a linha do tempo.
 
   DUAS DIFERENÇAS EM RELAÇÃO AO ORIGINAL:
 
@@ -539,6 +599,7 @@ export function useMoveTaskPhase() {
           phase: move.phase,
           status: move.status,
           completion_date: move.completion_date,
+          operational_tag: null,
         })
         .eq('id', move.id)
         .select('id')
@@ -548,6 +609,29 @@ export function useMoveTaskPhase() {
         data,
         'A tarefa não foi movida. É preciso permissão de edição no Fluxo do Projeto.',
       )
+
+      /*
+        DEPOIS DO `assertRowAffected`, e é o defeito 4 do plano. Na versão nova o
+        evento é gravado no começo do `handleDragEnd`, antes da conferência do
+        checklist obrigatório — e quando ela barra o movimento o cartão fica onde
+        estava com o diário dizendo que ele andou. Aqui só chega a esta linha o
+        que o banco já confirmou: a validação roda antes (em `moveTaskToPhase`) e
+        a gravação já respondeu.
+      */
+      let event: TaskDiaryEvent = null
+      if (projectId) {
+        event = await recordDiaryEvent({
+          projectId,
+          systemEvent: 'phase_change',
+          fromPhase: move.fromPhase,
+          toPhase: move.toPhase,
+          ...phaseChangeText(move),
+          eventKey: phaseEventKey(projectId, move),
+          /* O original não registra responsável no evento de etapa: quem moveu o
+             cartão não é necessariamente quem responde pela tarefa. */
+          responsibleId: null,
+        })
+      }
 
       if (move.newChecklistItems.length > 0 && tenantId) {
         const { error: checklistError } = await supabase.from('task_checklist_items').insert(
@@ -563,10 +647,13 @@ export function useMoveTaskPhase() {
       }
 
       if (projectId) await syncProjectFromTasks(projectId)
-      return move.id
+      return { id: move.id, event }
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all })
+      /* A gaveta do diário pode estar aberta sobre o mesmo projeto — o evento
+         que acabou de nascer é uma linha nova na Timeline dela. */
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
     },
   })
 }
@@ -656,16 +743,24 @@ export function useSeedTaskChecklist() {
   "Alterar Responsável" do menu do cartão (TaskKanban.jsx:446-465). Um UPDATE de
   uma coluna: `responsible_name` era a segunda metade desse gesto no original e
   não existe mais — o nome vem do join.
+
+  O NOME AINDA IMPORTA, mas só para o TEXTO do evento: o do responsável que sai
+  vem do embed da própria tarefa (`task.responsible`), o do que entra vem da
+  lista de colaboradores da tela. Nenhum dos dois é gravado como coluna; o que a
+  entrada do diário guarda é o `responsible_id`, e o nome dela também vem de
+  join.
 */
 export function useChangeTaskResponsible() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, responsibleId }: { id: string; responsibleId: string }) => {
+    mutationFn: async ({ task, responsible }: { task: TaskRow; responsible: PersonRef }) => {
+      const previousName = task.responsible?.name ?? null
+
       const { data, error } = await supabase
         .from('tasks')
-        .update({ responsible_id: responsibleId })
-        .eq('id', id)
+        .update({ responsible_id: responsible.id })
+        .eq('id', task.id)
         .select('id')
 
       if (error) throw error
@@ -673,10 +768,89 @@ export function useChangeTaskResponsible() {
         data,
         'O responsável não foi alterado. É preciso permissão de edição no Fluxo do Projeto.',
       )
-      return id
+
+      let event: TaskDiaryEvent = null
+      if (task.project_id) {
+        event = await recordDiaryEvent({
+          projectId: task.project_id,
+          systemEvent: 'responsible_change',
+          ...responsibleChangeText(previousName, responsible.name),
+          eventKey: responsibleEventKey(task.project_id, task.id, responsible.id),
+          /* Aqui o responsável do evento É o fato: a entrada aponta para quem
+             passou a responder pela tarefa. */
+          responsibleId: responsible.id,
+        })
+      }
+
+      return { id: task.id, event }
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
+    },
+  })
+}
+
+/*
+  O STATUS OPERACIONAL DA TAREFA — o submenu do cartão (TaskKanban.jsx:522-576 da
+  versão nova).
+
+  UM UPDATE DE UMA COLUNA, e ele aceita qualquer tag em qualquer fase, como o
+  banco (migration 0074). O recorte "Layout e Perspectivas têm as duas, Projeto
+  Legal e Projeto Executivo só Em Revisão" é oferta de MENU e vive em
+  `operationalTagOptions` (flow.ts) — repeti-lo aqui como validação faria a tela
+  recusar o que o banco aceita, e transformaria em erro o dia em que as duas
+  listas discordassem.
+
+  QUAL EVENTO NASCE DE QUAL GESTO, como no original:
+  - escolher uma tag grava `tag_on` com a tag escolhida;
+  - escolher "Sem status" com tag ativa grava `tag_off` com a tag que SAIU — é a
+    informação que se perderia depois da escrita, e por isso ela é lida da
+    tarefa antes;
+  - escolher "Sem status" sem tag ativa não gera evento nenhum. O UPDATE
+    acontece do mesmo jeito, como lá, e não muda nada.
+
+  Escolher a tag que já está ativa também grava — e a chave devolve
+  `already_recorded`, sem segunda linha na Timeline.
+*/
+export function useSetTaskOperationalTag() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ task, tag }: { task: TaskRow; tag: OperationalTag | null }) => {
+      const previous = task.operational_tag
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({ operational_tag: tag })
+        .eq('id', task.id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O status operacional não foi alterado. É preciso permissão de edição no Fluxo do Projeto.',
+      )
+
+      let event: TaskDiaryEvent = null
+      if (task.project_id && (tag ?? previous)) {
+        const changed = tag ?? (previous as OperationalTag)
+
+        event = await recordDiaryEvent({
+          projectId: task.project_id,
+          systemEvent: tag ? 'tag_on' : 'tag_off',
+          operationalTag: changed,
+          ...tagEventText(task.title, changed, tag !== null),
+          eventKey: tagEventKey(task.project_id, task.id, changed, tag !== null),
+          responsibleId: null,
+        })
+      }
+
+      return { id: task.id, event }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
     },
   })
 }

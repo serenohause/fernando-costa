@@ -1,5 +1,12 @@
 import { format } from 'date-fns'
-import type { ProjectPhase, TaskPhase } from '@/lib/enums'
+import {
+  OPERATIONAL_TAG,
+  PROJECT_PHASE,
+  labelOf,
+  type OperationalTag,
+  type ProjectPhase,
+  type TaskPhase,
+} from '@/lib/enums'
 import { missingChecklistItems } from './checklist-templates'
 import { phaseIndex } from './project-phase'
 import type { TaskChecklistItem, TaskPhaseMove, TaskRow } from './types'
@@ -30,6 +37,36 @@ export type MoveOutcome =
 export function tasksInColumn(tasks: TaskRow[], column: ProjectPhase): TaskRow[] {
   if (column === 'finished') return tasks.filter((task) => task.status === 'completed')
   return tasks.filter((task) => task.phase === column && task.status !== 'completed')
+}
+
+/*
+  QUAL TAG CADA COLUNA OFERECE — e é OFERTA DE TELA, não regra de domínio.
+
+  Porta de `COLUNAS_COM_TAGS` e `COLUNAS_SO_REVISAO` (TaskKanban.jsx:42-44 da
+  versão nova): "Layout" e "Perspectivas" oferecem as duas tags, "Projeto Legal"
+  e "Projeto Executivo" oferecem só "Em Revisão", e o submenu não aparece nas
+  demais colunas.
+
+  O BANCO NÃO REPETE ESTE RECORTE, DE PROPÓSITO — a migration 0074 explica por
+  quê e a decisão está no COMMENT da coluna: `tasks.operational_tag` aceita
+  qualquer tag em qualquer fase. Virar check faria um arraste legítimo virar erro
+  de banco no dia em que esta lista e o check discordassem, e quem arrasta um
+  cartão COM tag para fora do recorte está fazendo exatamente o gesto que esta
+  fatia desenha (a tag é limpa no mesmo UPDATE da mudança de fase). Ou seja: isto
+  aqui é o que o menu MOSTRA, e nada além disso — não é validação e não deve
+  virar uma.
+
+  Fica em `flow.ts` e não no JSX pelo mesmo motivo de `moveTaskToPhase`: a
+  decisão de quadro se lê num arquivo só, e o componente desenha o que ela
+  devolve.
+*/
+const COLUMNS_WITH_BOTH_TAGS: readonly ProjectPhase[] = ['layout', 'renderings']
+const COLUMNS_REVIEW_ONLY: readonly ProjectPhase[] = ['legal_permit', 'construction_docs']
+
+export function operationalTagOptions(column: ProjectPhase): OperationalTag[] {
+  if (COLUMNS_WITH_BOTH_TAGS.includes(column)) return ['in_review', 'awaiting_client']
+  if (COLUMNS_REVIEW_ONLY.includes(column)) return ['in_review']
+  return []
 }
 
 /* Itens obrigatórios da etapa de origem que ainda não foram concluídos. */
@@ -72,6 +109,9 @@ export function moveTaskToPhase(
         status: 'completed',
         completion_date: today,
         newChecklistItems: [],
+        title: task.title,
+        fromPhase,
+        toPhase,
       },
     }
   }
@@ -100,6 +140,9 @@ export function moveTaskToPhase(
         aqui entram só as linhas que faltam.
       */
       newChecklistItems: missingChecklistItems(toPhase as TaskPhase, task.checklist),
+      title: task.title,
+      fromPhase,
+      toPhase,
     },
   }
 }
@@ -124,4 +167,95 @@ function nextStatus(current: TaskRow['status']): TaskRow['status'] {
   if (current === 'not_started') return 'in_progress'
   if (current === 'completed') return 'in_progress'
   return current
+}
+
+/* ── Os eventos automáticos do diário: a chave e o texto ───────────────── */
+
+/*
+  AS CHAVES, DERIVADAS DO FATO — id da tarefa e o que mudou nela. Nenhuma leva
+  relógio, e é isso que faz a deduplicação existir (defeito 5 do plano): na
+  versão nova as quatro carregam `Date.now()`, então a unicidade
+  `(tenant_id, event_key)` nunca dispara e a consulta prévia que deveria
+  deduplicar nunca acha nada.
+
+  O ID DA TAREFA NÃO ESTÁ NA CHAVE DO ORIGINAL e entra aqui: lá a chave da
+  mudança de etapa é `fase:<projeto>:<de>-><para>`, e duas tarefas do mesmo
+  projeto percorrendo o mesmo caminho seriam o mesmo evento. O prefixo de cada
+  uma é o do original, porque é o de/para registrado no COMMENT de
+  `diary_system_event` (migration 0068).
+
+  O QUE ISSO CUSTA, e é decisão consciente: a mesma tarefa refazendo o MESMO
+  caminho (ir para Perspectivas, voltar para Layout e ir de novo) grava UM
+  registro na linha do tempo, e a segunda ida devolve `already_recorded`. É o
+  mesmo acordo que `useResolveProjectIssue` já fez na fatia 2 ("resolver, reabrir
+  e resolver de novo grava UM registro"), e é o que idempotência significa quando
+  a chave é o fato. NENHUM CARIMBO DE TEMPO entra na chave para contornar isso:
+  seria a chave de idempotência do original de novo — a que existe por nome e não
+  por efeito.
+
+  FICAM AQUI, e não dentro do hook, porque são função pura do gesto: é o que
+  permite conferir a chave sem subir a aplicação, e é o que garante que a chave
+  escrita e a chave procurada sejam a mesma expressão.
+*/
+export const phaseEventKey = (projectId: string, move: TaskPhaseMove) =>
+  `fase:${projectId}:${move.id}:${move.fromPhase}->${move.toPhase}`
+
+export const responsibleEventKey = (projectId: string, taskId: string, responsibleId: string) =>
+  `responsavel:${projectId}:${taskId}:${responsibleId}`
+
+export const tagEventKey = (
+  projectId: string,
+  taskId: string,
+  tag: OperationalTag,
+  on: boolean,
+) => `${on ? 'tag-on' : 'tag-off'}:${projectId}:${taskId}:${tag}`
+
+/*
+  O TEXTO DOS QUATRO EVENTOS, palavra por palavra de diaryAutoEvents.js:38-79 —
+  com os rótulos em português vindos de `src/lib/enums.ts`, porque lá a coluna já
+  guarda o rótulo e aqui ela guarda o valor do enum.
+
+  As frases do original têm um `taskTitle ? ... : ...` porque nada garante que o
+  gesto venha de uma tarefa. Aqui vem sempre, e `tasks.title` é NOT NULL — só o
+  ramo com o título existe.
+
+  O QUE A FRASE NÃO PRECISA MAIS CARREGAR: a etapa de origem, a de destino e a
+  tag vão TAMBÉM em coluna (`from_phase`, `to_phase`, `operational_tag`, migration
+  0069). O texto continua idêntico ao do original porque é o que a linha do tempo
+  desenha; a diferença é que "Histórico de Revisões" e "Tempo por Etapa" deixam de
+  precisar reler esse texto para saber o que aconteceu — o defeito 10 do plano.
+*/
+export function phaseChangeText(move: TaskPhaseMove): { title: string; description: string } {
+  const from = labelOf(PROJECT_PHASE, move.fromPhase)
+  const to = labelOf(PROJECT_PHASE, move.toPhase)
+
+  return {
+    title: `Projeto movido de ${from} → ${to}`,
+    description: `Tarefa "${move.title}" movida. Etapa anterior: ${from}. Nova etapa: ${to}.`,
+  }
+}
+
+export function responsibleChangeText(
+  previousName: string | null,
+  newName: string,
+): { title: string; description: string } {
+  return {
+    title: `Responsável alterado: ${previousName ?? '—'} → ${newName}`,
+    description: `O responsável da tarefa foi alterado de "${previousName ?? 'não definido'}" para "${newName}".`,
+  }
+}
+
+export function tagEventText(
+  taskTitle: string,
+  tag: OperationalTag,
+  on: boolean,
+): { title: string; description: string } {
+  const label = OPERATIONAL_TAG[tag]
+
+  return {
+    title: on ? `Marcado como ${label}` : `Retirado de ${label}`,
+    description: on
+      ? `Tarefa "${taskTitle}" marcada com a tag "${label}".`
+      : `Tarefa "${taskTitle}" retirada da tag "${label}".`,
+  }
 }

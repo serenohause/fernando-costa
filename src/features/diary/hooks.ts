@@ -13,6 +13,8 @@ import {
   SITE_VISIT_STATUS,
   SITE_VISIT_TYPE,
   type DiaryFileKind,
+  type OperationalTag,
+  type ProjectPhase,
 } from '@/lib/enums'
 import {
   diaryEntryInputSchema,
@@ -415,13 +417,23 @@ export function useDeleteDiaryEntry() {
   })
 }
 
-/* ── O evento automático das abas de obra ──────────────────────────────── */
+/* ── O evento automático ───────────────────────────────────────────────── */
 
 /*
-  GRAVAR NA LINHA DO TEMPO O QUE ACONTECEU NA OBRA.
+  GRAVAR NA LINHA DO TEMPO O QUE O SISTEMA FEZ.
 
-  Três dos oito valores de `diary_system_event` nascem aqui: `site_visit`,
-  `issue_created` e `issue_resolved` (ObraTab.jsx:66/119 e PendenciasTab.jsx:96).
+  Sete dos oito valores de `diary_system_event` passam por aqui. Três nascem nas
+  abas de obra deste arquivo — `site_visit`, `issue_created` e `issue_resolved`
+  (ObraTab.jsx:66/119 e PendenciasTab.jsx:96) — e quatro nascem no FLUXO DO
+  PROJETO: `phase_change`, `responsible_change`, `tag_on` e `tag_off`, dentro de
+  `useMoveTaskPhase`, `useChangeTaskResponsible` e `useSetTaskOperationalTag`
+  (src/features/projects/hooks.ts). Por isso esta função é exportada: o gesto que
+  gera o evento é de outro módulo, mas quem sabe conversar com
+  `record_project_diary_event` é o diário — duas cópias desta chamada seriam duas
+  chances de montar o `event_key` de jeitos diferentes.
+
+  O oitavo, `report_generated`, é da fatia 4 e é o único cuja chave vai NULA: não
+  há fato repetível em gerar relatório duas vezes.
 
   POR QUE UMA FUNÇÃO DO BANCO, E NÃO UM INSERT: a policy de INSERT de
   `project_diary_entries` RECUSA `is_automatic` para todo mundo, inclusive
@@ -438,34 +450,82 @@ export function useDeleteDiaryEntry() {
   gravar nada — dois cliques, duas abas ou um salvamento repetido produzem UM
   registro.
 
-  FALHAR AQUI NÃO DESFAZ A VISITA NEM A PENDÊNCIA, e não tem como: as duas já
-  foram gravadas, em transações que já fecharam. Mas também não é engolido em
-  silêncio, que é o que o original faz (diaryAutoEvents.js:32-35 dá console.error
-  e segue, e o resultado é um diário com buracos que ninguém percebe). O
-  resultado volta como valor, e a tela avisa que o registro ficou de fora.
+  FALHAR AQUI NÃO DESFAZ O QUE JÁ ACONTECEU, e não tem como: a visita, a
+  pendência, o arraste do cartão e a troca de responsável já foram gravados, em
+  transações que já fecharam. Mas também não é engolido em silêncio, que é o que
+  o original faz (diaryAutoEvents.js:32-35 dá console.error e segue, e o
+  resultado é um diário com buracos que ninguém percebe). O resultado volta como
+  valor, e a tela avisa que o registro ficou de fora.
 */
-type DiaryEventOutcome = 'recorded' | 'already_recorded' | 'failed'
+export type DiaryEventOutcome = 'recorded' | 'already_recorded' | 'failed'
 
-type RecordedDiaryEvent = {
+export type RecordedDiaryEvent = {
   outcome: DiaryEventOutcome
   entryId: string | null
 }
 
-async function recordDiaryEvent(params: {
-  projectId: string
-  systemEvent: 'site_visit' | 'issue_created' | 'issue_resolved'
-  title: string
-  description: string | null
-  eventKey: string
-  responsibleId: string | null
-}): Promise<RecordedDiaryEvent> {
+/*
+  O FATO, EM COLUNA — e o tipo é o que impede montar uma chamada incoerente.
+
+  `project_diary_entries` tem quatro checks que amarram as colunas estruturadas
+  ao evento que as gera (migration 0069): fase só em `phase_change`, tag só em
+  `tag_on`/`tag_off`, `phase_change` EXIGE `to_phase` e evento de tag EXIGE a
+  tag. Violar qualquer um deles não produz mensagem própria: a função é
+  `security definer` e o check estoura por baixo dela, então o que volta é o
+  `23514` cru, com nome de constraint — descoberto na auditoria desta fatia.
+
+  Por isso a união discriminada: `phase_change` sem `to_phase` ou `tag_on` sem
+  tag não compilam, e o erro deixa de ser um caso de execução. É a mesma ideia
+  do `Omit<..., 'issue_number'>` de `useCreateProjectIssue` — escrever no tipo o
+  que o banco cobra e o gerador não sabe.
+
+  `from_phase` é anulável de propósito, e só nele: sair de lugar nenhum é
+  possível (as 31 linhas importadas do base44 não têm a etapa de origem), chegar
+  a lugar nenhum não é.
+*/
+export type DiaryEventFact =
+  | {
+      systemEvent:
+        | 'site_visit'
+        | 'issue_created'
+        | 'issue_resolved'
+        | 'responsible_change'
+        | 'report_generated'
+    }
+  | { systemEvent: 'phase_change'; fromPhase: ProjectPhase | null; toPhase: ProjectPhase }
+  | { systemEvent: 'tag_on' | 'tag_off'; operationalTag: OperationalTag }
+
+export async function recordDiaryEvent(
+  params: {
+    projectId: string
+    title: string
+    description: string | null
+    /*
+      A CHAVE VAI NULA NUM CASO SÓ, e é o `report_generated`: gerar o relatório
+      duas vezes são dois fatos, e não uma repetição a deduplicar. Nulo não
+      colide com nulo em índice único, então os dois registros entram — é a
+      decisão escrita no cabeçalho da migration 0070, e o contrário do
+      `relatorio:<projeto>:${Date.now()}` do original, que finge uma chave de
+      idempotência que nunca deduplica nada (defeito 5 do plano).
+    */
+    eventKey: string | null
+    responsibleId: string | null
+  } & DiaryEventFact,
+): Promise<RecordedDiaryEvent> {
   const { data, error } = await supabase.rpc('record_project_diary_event', {
     p_project_id: params.projectId,
     p_system_event: params.systemEvent,
     p_title: params.title,
     p_description: params.description ?? undefined,
-    p_event_key: params.eventKey,
+    p_event_key: params.eventKey ?? undefined,
     p_responsible_id: params.responsibleId ?? undefined,
+    p_from_phase:
+      params.systemEvent === 'phase_change' ? (params.fromPhase ?? undefined) : undefined,
+    p_to_phase: params.systemEvent === 'phase_change' ? params.toPhase : undefined,
+    p_operational_tag:
+      params.systemEvent === 'tag_on' || params.systemEvent === 'tag_off'
+        ? params.operationalTag
+        : undefined,
     /*
       O CARIMBO É O DE AGORA, no relógio de QUEM ESTÁ USANDO — e não a data da
       visita nem a de identificação da pendência. É o que o original faz

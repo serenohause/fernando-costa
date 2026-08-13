@@ -36,10 +36,13 @@ import {
   useProjectProgress,
   useProjects,
   useSeedTaskChecklist,
+  useSetTaskOperationalTag,
   useTasks,
   useToggleChecklistItem,
   useUpdateTask,
 } from '../hooks'
+import type { RecordedDiaryEvent } from '@/features/diary/hooks'
+import type { OperationalTag } from '@/lib/enums'
 import TaskKanban from './TaskKanban'
 import TaskForm, { toFormValues, type TaskFormValues } from './TaskForm'
 import type { TaskChecklistItem, TaskInput, TaskPhase, TaskRow } from '../types'
@@ -74,6 +77,27 @@ import type { TaskChecklistItem, TaskInput, TaskPhase, TaskRow } from '../types'
     Coordenador). Aqui quem decide é a permissão de menu, que é a mesma regra do
     banco — do contrário a tela prometeria um botão que a RLS recusa.
 */
+/*
+  O EVENTO AUTOMÁTICO QUE NÃO ENTROU, DITO EM VOZ ALTA.
+
+  Gêmeo do `warnFailedEvent` das abas de obra (ObraTab.tsx), e existe pelo mesmo
+  motivo: na versão nova a gravação do evento falha em silêncio
+  (`console.error` e segue, diaryAutoEvents.js:32-35), e o resultado é um diário
+  com buracos que ninguém percebe — justamente o que este módulo existe para não
+  ter.
+
+  A TAREFA JÁ MUDOU quando isto acontece: o evento é o passo seguinte ao UPDATE
+  que o banco confirmou, e não dá para desfazer o que já foi gravado. Falhar aqui
+  não pode derrubar o gesto de quem arrastou o cartão; o que resta é dizer o que
+  ficou de fora.
+
+  `null` NÃO É FALHA: é tarefa sem projeto, que não tem diário para escrever.
+*/
+function warnFailedEvent(event: RecordedDiaryEvent | null) {
+  if (event?.outcome !== 'failed') return
+  toast.warning('A tarefa foi salva, mas o evento não entrou na Timeline do projeto.')
+}
+
 export default function Tasks() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<TaskRow | null>(null)
@@ -106,6 +130,7 @@ export default function Tasks() {
   const moveMutation = useMoveTaskPhase()
   const toggleMutation = useToggleChecklistItem()
   const responsibleMutation = useChangeTaskResponsible()
+  const operationalTagMutation = useSetTaskOperationalTag()
   const seedMutation = useSeedTaskChecklist()
 
   /*
@@ -207,6 +232,46 @@ export default function Tasks() {
           toast.success('Tarefa excluída com sucesso!')
         },
         onError: (error) => toast.error('Erro ao excluir: ' + describeTaskError(error)),
+      },
+    )
+  }
+
+  /*
+    O NOME DO NOVO RESPONSÁVEL SAI DAQUI, e não do hook: o menu do cartão manda o
+    id, e quem tem a lista de colaboradores é esta tela. O hook precisa do nome
+    para o TEXTO do evento de diário ("Responsável alterado: X → Y"); a coluna
+    gravada continua sendo só `responsible_id`.
+  */
+  const handleChangeResponsible = (task: TaskRow, collaboratorId: string) => {
+    const collaborator = collaborators.find((candidate) => candidate.id === collaboratorId)
+    if (!collaborator) return
+
+    responsibleMutation.mutate(
+      { task, responsible: { id: collaborator.id, name: collaborator.name } },
+      {
+        onSuccess: (result) => {
+          toast.success('Responsável alterado!')
+          warnFailedEvent(result.event)
+        },
+        onError: (error) =>
+          toast.error('Erro ao alterar responsável: ' + describeTaskError(error)),
+      },
+    )
+  }
+
+  /*
+    "Status operacional" do menu do cartão. A tela NÃO confere em que fase a
+    tarefa está: quem oferece a tag é o menu (`operationalTagOptions`, flow.ts) e
+    quem autoriza a escrita é a RLS do Fluxo do Projeto. Repetir o recorte aqui
+    seria uma terceira cópia da mesma lista.
+  */
+  const handleSetOperationalTag = (task: TaskRow, tag: OperationalTag | null) => {
+    operationalTagMutation.mutate(
+      { task, tag },
+      {
+        onSuccess: (result) => warnFailedEvent(result.event),
+        onError: (error) =>
+          toast.error('Erro ao alterar o status operacional: ' + describeTaskError(error)),
       },
     )
   }
@@ -329,21 +394,14 @@ export default function Tasks() {
             moveMutation.mutate(
               { move, projectId },
               {
+                onSuccess: (result) => warnFailedEvent(result.event),
                 onError: (error) => toast.error('Erro ao mover: ' + describeTaskError(error)),
               },
             )
           }
           onToggleChecklistItem={handleToggleChecklistItem}
-          onChangeResponsible={(task, collaboratorId) =>
-            responsibleMutation.mutate(
-              { id: task.id, responsibleId: collaboratorId },
-              {
-                onSuccess: () => toast.success('Responsável alterado!'),
-                onError: (error) =>
-                  toast.error('Erro ao alterar responsável: ' + describeTaskError(error)),
-              },
-            )
-          }
+          onChangeResponsible={handleChangeResponsible}
+          onSetOperationalTag={handleSetOperationalTag}
         />
       )}
 

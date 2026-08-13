@@ -8,11 +8,14 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Hourglass,
   MoreVertical,
   Pencil,
+  RotateCcw,
   Trash2,
   User,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
@@ -34,13 +37,20 @@ import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
 import type { DiaryProject } from '@/features/diary/types'
 import {
   COLLABORATOR_ROLE,
+  OPERATIONAL_TAG,
   PROJECT_PHASE,
   TASK_PRIORITY,
   labelOf,
+  type OperationalTag,
   type ProjectPhase,
   type TaskPriority,
 } from '@/lib/enums'
-import { moveTaskToPhase, tasksInColumn, type MoveOutcome } from '../flow'
+import {
+  moveTaskToPhase,
+  operationalTagOptions,
+  tasksInColumn,
+  type MoveOutcome,
+} from '../flow'
 import { isTaskOverdue } from '../list'
 import { operationalCandidates } from './TaskForm'
 import type {
@@ -76,6 +86,20 @@ import type {
      original é array dentro da tarefa e o item é marcado por ÍNDICE, com o
      índice reencontrado por `findIndex` sobre título+etapa a cada clique
      (linha 551) — o que erra o alvo quando dois itens têm o mesmo título.
+
+  O QUE VEIO DA VERSÃO NOVA, e não do original: o submenu "Status operacional", o
+  crachá âmbar/ciano no cartão e a supressão do prazo quando há tag
+  (nova-versao/src/components/tasks/TaskKanban.jsx:468-474, :522-576 e :634-645).
+  O original não tem nenhum dos três — a coluna `tasks.operational_tag` nasceu na
+  migration 0074 para receber 13 tarefas reais que a importação recusou.
+
+  O QUE DELA NÃO VEIO, e é limite de escopo e não esquecimento: o crachá "Em
+  Obra" com o capacete (:641-645) e a supressão de prazo e de checklist na coluna
+  Em Obra (:470-472). Os dois pertencem à REESTRUTURAÇÃO DE COLUNAS do quadro,
+  que o plano do módulo 11 põe explicitamente fora de escopo — a versão nova
+  remove três colunas e acrescenta "Em Obra", e aqui o quadro fica como está.
+  Trazer só o crachá daria à coluna um tratamento que nenhuma outra tem, sem a
+  mudança de quadro que o justifica.
 
   O QUE NÃO FOI PORTADO: a criação do checklist DENTRO do render
   (`getTasksByPhase` chamando `onUpdateTask` enquanto monta a coluna, linhas
@@ -124,6 +148,39 @@ const COLUMNS: Column[] = [
   { id: 'awaiting_client', color: 'bg-rose-100 dark:bg-rose-950/40' },
   { id: 'finished', color: 'bg-emerald-100 dark:bg-emerald-950/40' },
 ]
+
+/*
+  O STATUS OPERACIONAL NO CARTÃO: o crachá (TaskKanban.jsx:634-645 da versão
+  nova), o ponto colorido do item do submenu (:545 e :566) e o realce do item
+  ativo (:544 e :565). Âmbar para "Em Revisão", ciano para "Aguardando Cliente" —
+  as duas cores, os dois ícones e as duas bordas são os de lá.
+
+  A VARIANTE ESCURA É ACRESCENTADA, como em `PRIORITY_STYLES` e em `COLUMNS`
+  logo acima, e pelo mesmo motivo: a versão nova é só clara, e um fundo de tom 50
+  vira faixa branca sob texto claro no tema escuro deste projeto.
+
+  O ponto do menu NÃO ganha variante: `bg-amber-400` e `bg-cyan-400` são cor
+  cheia, não fundo de contraste, e se leem igual nos dois temas.
+*/
+const OPERATIONAL_TAG_STYLES: Record<
+  OperationalTag,
+  { badge: string; dot: string; menuActive: string; icon: LucideIcon }
+> = {
+  in_review: {
+    badge:
+      'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-900 text-xs font-medium',
+    dot: 'bg-amber-400',
+    menuActive: 'bg-amber-50 dark:bg-amber-950/40 font-medium',
+    icon: RotateCcw,
+  },
+  awaiting_client: {
+    badge:
+      'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400 border-cyan-300 dark:border-cyan-900 text-xs font-medium',
+    dot: 'bg-cyan-400',
+    menuActive: 'bg-cyan-50 dark:bg-cyan-950/40 font-medium',
+    icon: Hourglass,
+  },
+}
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
   high: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900',
@@ -232,6 +289,7 @@ export default function TaskKanban({
   onMove,
   onToggleChecklistItem,
   onChangeResponsible,
+  onSetOperationalTag,
 }: {
   tasks: TaskRow[]
   /* Só para o cabeçalho da gaveta do Diário do Projeto — ver `diaryProjectOf`. */
@@ -251,6 +309,9 @@ export default function TaskKanban({
   onMove: (move: TaskPhaseMove, projectId: string | null) => void
   onToggleChecklistItem: (item: TaskChecklistItem) => void
   onChangeResponsible: (task: TaskRow, collaboratorId: string) => void
+  /* `null` é "Sem status" — a ausência de tag é o caso normal (migration 0074),
+     e não um terceiro valor. */
+  onSetOperationalTag: (task: TaskRow, tag: OperationalTag | null) => void
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [blockAlert, setBlockAlert] = useState<BlockAlert | null>(null)
@@ -390,6 +451,35 @@ export default function TaskKanban({
                               const checklist = currentChecklist(task)
                               const done = checklist.filter((item) => item.is_completed).length
 
+                              /*
+                                A TAG PAUSA O PRAZO — o comportamento da versão
+                                nova (TaskKanban.jsx:468-474: `hasPrazoOculto`
+                                sai de `tag_operacional`, e `showDueDate` e
+                                `showOverdueBorder` saem dele).
+
+                                Tarefa "Em Revisão" ou "Aguardando Cliente" está
+                                parada esperando ALGUÉM, e o relógio dela não
+                                corre: some a data de vencimento e some a borda
+                                vermelha de atraso. O prazo continua gravado e
+                                volta a aparecer quando a tag sai — nada é
+                                apagado, só deixa de ser cobrado na tela.
+
+                                O QUE ISSO NÃO ALCANÇA, e vale saber: o cartão
+                                "projetos em risco" do Painel Executivo conta por
+                                `isTaskOverdue` (src/features/projects/list.ts) e
+                                não conhece a tag, então uma tarefa pausada
+                                continua entrando naquela conta. A versão nova
+                                tem a mesma separação — lá a supressão também é
+                                só do cartão.
+                              */
+                              const activeTag = task.operational_tag
+                              const tagStyle = activeTag
+                                ? OPERATIONAL_TAG_STYLES[activeTag]
+                                : null
+                              const showDueDate = !activeTag
+                              const showOverdueBorder = !activeTag && isOverdue(task)
+                              const tagOptions = operationalTagOptions(column.id)
+
                               return (
                                 <Draggable
                                   key={task.id}
@@ -405,7 +495,7 @@ export default function TaskKanban({
                                       className={`p-4 bg-card border-0 shadow-xs hover:shadow-md transition-all ${
                                         canEdit ? 'cursor-grab' : ''
                                       } ${dragSnapshot.isDragging ? 'shadow-lg rotate-2' : ''} ${
-                                        isOverdue(task) ? 'border-l-4 border-l-rose-500' : ''
+                                        showOverdueBorder ? 'border-l-4 border-l-rose-500' : ''
                                       }`}
                                     >
                                       <div className="flex items-start justify-between gap-2 mb-3">
@@ -475,6 +565,68 @@ export default function TaskKanban({
                                                   <BookOpen className="w-4 h-4 mr-2" />
                                                   Diário do Projeto
                                                 </DropdownMenuItem>
+                                              )}
+                                              {/*
+                                                O SUBMENU SÓ APARECE NAS COLUNAS
+                                                QUE A VERSÃO NOVA OFERECE, e o
+                                                que decide é
+                                                `operationalTagOptions`
+                                                (flow.ts): Layout e Perspectivas
+                                                oferecem as duas tags, Projeto
+                                                Legal e Projeto Executivo só "Em
+                                                Revisão", e nas demais colunas o
+                                                item não existe.
+
+                                                É OFERTA DE TELA e nada mais. O
+                                                banco aceita qualquer tag em
+                                                qualquer fase de propósito
+                                                (migration 0074) — inclusive
+                                                porque arrastar um cartão com tag
+                                                para fora deste recorte é gesto
+                                                legítimo, e é a própria mudança
+                                                de coluna que limpa a tag.
+                                              */}
+                                              {canEdit && tagOptions.length > 0 && (
+                                                <>
+                                                  <DropdownMenuSeparator />
+                                                  <DropdownMenuSub>
+                                                    <DropdownMenuSubTrigger>
+                                                      <RotateCcw className="w-4 h-4 mr-2" />
+                                                      Status operacional
+                                                    </DropdownMenuSubTrigger>
+                                                    <DropdownMenuSubContent>
+                                                      <DropdownMenuItem
+                                                        onClick={() =>
+                                                          onSetOperationalTag(task, null)
+                                                        }
+                                                        className={
+                                                          !activeTag ? 'bg-elevated font-medium' : ''
+                                                        }
+                                                      >
+                                                        Sem status
+                                                      </DropdownMenuItem>
+                                                      {tagOptions.map((tag) => (
+                                                        <DropdownMenuItem
+                                                          key={tag}
+                                                          onClick={() =>
+                                                            onSetOperationalTag(task, tag)
+                                                          }
+                                                          className={
+                                                            activeTag === tag
+                                                              ? OPERATIONAL_TAG_STYLES[tag]
+                                                                  .menuActive
+                                                              : ''
+                                                          }
+                                                        >
+                                                          <span
+                                                            className={`w-2 h-2 rounded-full mr-2 inline-block ${OPERATIONAL_TAG_STYLES[tag].dot}`}
+                                                          />
+                                                          {labelOf(OPERATIONAL_TAG, tag)}
+                                                        </DropdownMenuItem>
+                                                      ))}
+                                                    </DropdownMenuSubContent>
+                                                  </DropdownMenuSub>
+                                                </>
                                               )}
                                               {canEdit && (
                                                 <>
@@ -549,6 +701,14 @@ export default function TaskKanban({
                                         >
                                           {labelOf(PROJECT_PHASE, task.phase)}
                                         </Badge>
+                                        {/* O crachá do status operacional, depois
+                                            da etapa, como na versão nova. */}
+                                        {activeTag && tagStyle && (
+                                          <Badge variant="outline" className={tagStyle.badge}>
+                                            <tagStyle.icon className="w-3 h-3 mr-1" />
+                                            {labelOf(OPERATIONAL_TAG, activeTag)}
+                                          </Badge>
+                                        )}
                                       </div>
 
                                       <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -560,7 +720,7 @@ export default function TaskKanban({
                                             </span>
                                           </div>
                                         )}
-                                        {task.due_date && (
+                                        {showDueDate && task.due_date && (
                                           <div
                                             className={`flex items-center gap-1 ${
                                               isOverdue(task)

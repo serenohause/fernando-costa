@@ -150,6 +150,21 @@ export type TaskPhaseMove = {
   completion_date: string | null
   /* Itens do template da nova etapa que a tarefa ainda não tem. */
   newChecklistItems: { title: string; phase: TaskPhase; is_required: boolean; display_order: number }[]
+  /*
+    O GESTO, e não a gravação — quem precisa destes três é o evento automático do
+    diário (`phase_change`), que registra de ONDE para ONDE em coluna própria
+    (`from_phase`/`to_phase`, migration 0069) em vez de deixar a etapa dentro do
+    texto do título, que é o defeito 10 do plano.
+
+    `toPhase` NÃO É `phase`, e a diferença aparece numa coluna só: soltar em
+    "Finalizado" conclui a tarefa sem mexer na etapa dela (ver `moveTaskToPhase`),
+    então ali `phase` continua sendo a etapa em que a tarefa parou e `toPhase` é
+    `finished` — a coluna para onde o cartão foi, que é o que a versão nova
+    registra no diário (TaskKanban.jsx:220-227).
+  */
+  title: string
+  fromPhase: ProjectPhase
+  toPhase: ProjectPhase
 }
 
 export type { ProjectPhase, TaskPhase }

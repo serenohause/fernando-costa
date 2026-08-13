@@ -909,6 +909,32 @@ export const PROJECT_ISSUE_EVENT_TYPE = {
 export type ProjectIssueEventType = keyof typeof PROJECT_ISSUE_EVENT_TYPE
 
 /*
+  O STATUS OPERACIONAL DA TAREFA (migrations 0068 e 0074), com os rótulos que a
+  versão nova escreve à mão em três lugares — o item do submenu, o crachá do
+  cartão e o texto do evento automático (TaskKanban.jsx:545/566 e
+  diaryAutoEvents.js:65/76). Lá o valor gravado JÁ É o rótulo; aqui a coluna
+  guarda `in_review` e o texto vem daqui.
+
+  NÃO É STATUS NEM FASE, e é por isso que ele não reusa `work_status`: é a
+  terceira coisa — "parada esperando alguém" —, e "Em Revisão" dentro de
+  `work_status` significaria coisa diferente em `tasks`, em `activities` e em
+  `project_checklist_items`, que compartilham aquele enum.
+
+  O MAPA NÃO TEM VALOR PARA "SEM TAG": a ausência é nula na coluna e é o caso
+  normal (13 tags em 130 tarefas), o crachá não desenha nada, e o item "Sem
+  status" do submenu é copy do menu, não rótulo de valor.
+
+  SEM RECORTE DE FASE AQUI: quais colunas oferecem qual tag é oferta de tela e
+  vive em `src/features/projects/flow.ts`, junto do resto da decisão do quadro.
+*/
+export const OPERATIONAL_TAG = {
+  in_review: 'Em Revisão',
+  awaiting_client: 'Aguardando Cliente',
+} as const satisfies LabelMap<Enums<'operational_tag'>>
+
+export type OperationalTag = keyof typeof OPERATIONAL_TAG
+
+/*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
   original, que redireciona Arquiteto e Estagiário para MinhasAtividades e
   bloqueia dashboards e financeiro para eles.
