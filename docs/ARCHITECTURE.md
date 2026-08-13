@@ -640,6 +640,38 @@ está na lista de redirecionamento de papel individual.
 Se o escritório quiser apertar, o lugar é a policy de SELECT da migration 0058,
 por `auth_collaborator_role()`.
 
+**O diário do projeto é legível por qualquer colaborador ativo.** Quarta vez que
+esta decisão aparece — mesma classe já aceita no financeiro (módulo 7), no
+orçamento (módulo 8) e no mapa (módulo 9), e coerente com o original, que não
+checa permissão de leitura em tela nenhuma: a gaveta do diário carrega a linha do
+tempo inteira para quem abre o cartão, e o que some para quem não é Diretor ou
+Coordenador são só os botões de escrever.
+
+O que muda de grau aqui é o dado, e ele é novo neste banco: **anotação marcada
+como interna** (`visibility = 'internal'`, que recorta o relatório para o cliente
+e não o acesso de quem trabalha aqui) e **foto de obra da residência do cliente**,
+no bucket `project-diary-files`. Isso pesa sobre o item aberto mais grave desta
+doc — produção e desenvolvimento no mesmo projeto Supabase.
+
+Se o escritório quiser apertar, o recorte é em dois lugares que precisam
+concordar: as policies de SELECT das cinco tabelas (migration 0070) **e** a
+policy de SELECT do bucket (0071). Mexer só numa das duas cria uma tela que lista
+o anexo e não abre, ou o contrário.
+
+**Escrita do diário não passa por `can_edit_menu`, e é a única do sistema.**
+Decisão do usuário ("mantém o fluxo como veio"): na versão nova do base44 as
+telas do diário perguntam a **função** — Diretor ou Coordenador — e não consultam
+`PermissoesUsuario` em lugar nenhum. A RLS reproduz isso com
+`is_project_diary_writer()` (migration 0070).
+
+A consequência técnica é obrigatória e está na mesma migration: os eventos
+automáticos nascem dentro do arraste de cartão de um **Arquiteto**, e os sete
+Arquitetos do escritório real têm `can_edit_menu('project_flow')`. Por isso a
+gravação automática é `public.record_project_diary_event`, `security definer`,
+que confere **a permissão do fluxo** por dentro — mesmo desenho de
+`generate_contract_installments` (0044) e `mark_negotiation_won` (0067). Sem ela,
+o diário perderia em silêncio as ações mais frequentes do Fluxo do Projeto.
+
 **Painel: o rótulo diz de quem é o número.** Achado alto da auditoria do módulo
 10, corrigido antes do deploy. Duas coisas empilhadas:
 

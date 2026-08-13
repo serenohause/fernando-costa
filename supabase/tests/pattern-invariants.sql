@@ -51,6 +51,23 @@ begin;
 -- Sem isso, o caso C6 (editor de A gravando com tenant_id de B) seria recusado
 -- pela FK antes de a policy opinar, e passaria a afirmar "a FK funciona" em vez
 -- de "o WITH CHECK funciona".
+--
+-- `writer_role` existe por causa do MODULO 11, e e a unica coisa que este arquivo
+-- precisou aprender depois do modulo 2. Ate aqui, escrita era sempre
+-- can_edit_menu('<chave>'), e o editor da suite e um Arquiteto com can_edit em
+-- todo menu do registro. O diario do projeto foge disso por decisao do usuario:
+-- na versao nova do base44 as telas do diario perguntam a FUNCAO da pessoa
+-- (Diretor ou Coordenador) e nao consultam permissao de menu nenhuma - ver o
+-- cabecalho da migration 0070. Com o editor Arquiteto, o caso C1 ("quem tem
+-- can_edit no menu CRIA") seria recusado nas cinco tabelas do modulo, e o certo
+-- nao e afrouxar a policy: e a suite dizer quem escreve naquela tabela.
+--
+--   writer_role nulo          -> escreve o editor de sempre (Arquiteto com
+--                                can_edit no menu). 21 tabelas, sem mudanca.
+--   writer_role 'coordinator' -> escreve o Coordenador. Coordenador NAO tem
+--                                atalho em can_edit_menu (o atalho da 0019 e so
+--                                de Diretor), entao ele continua provando
+--                                policy, e nao privilegio de papel.
 
 create temp table pattern_tables (
   modulo int,
@@ -58,7 +75,8 @@ create temp table pattern_tables (
   menu_key text,
   insert_cols text,
   insert_vals text,
-  insert_vals_b text
+  insert_vals_b text,
+  writer_role text
 ) on commit drop;
 
 -- Os uuids literais abaixo sao os das fixtures declaradas em `pat`, logo
@@ -352,6 +370,70 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
      'Finalidade Padrao ' || (select count(*) from public.map_property_purposes f
                               where f.map_property_id = 'eb900000-0000-4000-8000-000000000001')$$);
 
+-- MODULO 11 (Diario do Projeto). As cinco tabelas escrevem por FUNCAO, e nao por
+-- menu - por isso writer_role = 'coordinator' em todas. Ver o comentario de
+-- writer_role acima e o cabecalho da migration 0070.
+--
+-- O menu_key continua sendo 'project_flow', que e o menu onde o diario mora (a
+-- gaveta abre pelo cartao do Fluxo do Projeto). Ele NAO governa a escrita destas
+-- tabelas: os casos E1-E4 aqui afirmam que o helper de menu funciona, e nao que a
+-- policy o consulta. Quem prova que a policy le a FUNCAO e nao o menu e a secao 1
+-- de supabase/tests/diary-schema.sql, com um Arquiteto que tem
+-- can_edit_menu('project_flow') e mesmo assim nao escreve no diario a mao.
+insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, insert_vals_b, writer_role) values
+  (11, 'project_diary_entries', 'project_flow',
+   'project_id, entry_type, title, occurrence_date',
+   $$'ea400000-0000-4000-8000-000000000001', 'note', 'Registro Padrao', current_date$$,
+   $$'eb400000-0000-4000-8000-000000000001', 'note', 'Registro Padrao', current_date$$,
+   'coordinator'),
+
+  (11, 'project_site_visits', 'project_flow',
+   'project_id, visit_date, visit_type',
+   $$'ea400000-0000-4000-8000-000000000001', current_date, 'follow_up'$$,
+   $$'eb400000-0000-4000-8000-000000000001', current_date, 'follow_up'$$,
+   'coordinator'),
+
+  -- issue_number NAO entra na linha minima: ele e alocado pelo trigger da 0069, e
+  -- a suite grava a mesma linha duas vezes no escritorio A (a fixture dos casos B,
+  -- e o INSERT do caso C1). Com valor fixo, C1 receberia 23505 da unicidade
+  -- (project_id, issue_number) e o caso "quem escreve CRIA" passaria a afirmar que
+  -- a unicidade existe - o mesmo motivo pelo qual contracts conta o proprio
+  -- numero aqui em cima. A alocacao automatica tem teste proprio em diary-schema.
+  (11, 'project_issues', 'project_flow',
+   'project_id, description, category, identified_date',
+   $$'ea400000-0000-4000-8000-000000000001', 'Pendencia Padrao', 'architecture', current_date$$,
+   $$'eb400000-0000-4000-8000-000000000001', 'Pendencia Padrao', 'architecture', current_date$$,
+   'coordinator'),
+
+  (11, 'project_issue_events', 'project_flow',
+   'issue_id, event_type',
+   $$'eab00000-0000-4000-8000-000000000001', 'updated'$$,
+   $$'ebb00000-0000-4000-8000-000000000001', 'updated'$$,
+   'coordinator'),
+
+  -- O caminho sai de um contador pelo mesmo motivo de budget_item_approval_files:
+  -- project_diary_files tem unique (tenant_id, file_path) e a suite grava a mesma
+  -- linha minima valida duas vezes no escritorio A. Com valor fixo, C1 receberia
+  -- 23505 e passaria a afirmar que a unicidade existe.
+  --
+  -- O caminho comeca pelo tenant_id porque e assim que o objeto vive no bucket
+  -- (0071); aqui e so texto, e nenhum objeto e criado - o que esta sob teste e a
+  -- tabela. A mae e a entrada de diario: das tres possiveis do arco exclusivo, e a
+  -- unica que existe em todo escritorio da fixture.
+  (11, 'project_diary_files', 'project_flow',
+   'entry_id, file_kind, file_path, file_name',
+   $$'eaa00000-0000-4000-8000-000000000001', 'photo',
+     'e1111111-1111-4111-8111-111111111111/entry/eaa00000-0000-4000-8000-000000000001/pat-a-'
+       || (select count(*) from public.project_diary_files f
+           where f.entry_id = 'eaa00000-0000-4000-8000-000000000001') || '.jpg',
+     'foto-da-obra.jpg'$$,
+   $$'eba00000-0000-4000-8000-000000000001', 'photo',
+     'e2222222-2222-4222-8222-222222222222/entry/eba00000-0000-4000-8000-000000000001/pat-b-'
+       || (select count(*) from public.project_diary_files f
+           where f.entry_id = 'eba00000-0000-4000-8000-000000000001') || '.jpg',
+     'foto-da-obra.jpg'$$,
+   'coordinator');
+
 -- FIXTURES --------------------------------------------------------------------
 
 create temp table pat on commit drop as select
@@ -366,6 +448,12 @@ create temp table pat on commit drop as select
   'ea100000-0000-4000-8000-000000000002'::uuid as c_viewer_a,
   'ea100000-0000-4000-8000-000000000003'::uuid as c_leave_a,
   'eb100000-0000-4000-8000-000000000001'::uuid as c_editor_b,
+  -- O escritor por FUNCAO, um por escritorio (writer_role = 'coordinator'). Ver o
+  -- comentario de writer_role no registro das tabelas.
+  'ea000000-0000-4000-8000-000000000005'::uuid as u_coord_a,
+  'eb000000-0000-4000-8000-000000000002'::uuid as u_coord_b,
+  'ea100000-0000-4000-8000-000000000004'::uuid as c_coord_a,
+  'eb100000-0000-4000-8000-000000000002'::uuid as c_coord_b,
   -- Mae das tabelas filhas do modulo 3, uma por escritorio.
   'ea200000-0000-4000-8000-000000000001'::uuid as fix_neg_a,
   'eb200000-0000-4000-8000-000000000001'::uuid as fix_neg_b,
@@ -389,7 +477,13 @@ create temp table pat on commit drop as select
   'eb800000-0000-4000-8000-000000000001'::uuid as fix_budget_item_b,
   -- Mae das duas tabelas filhas do modulo 9, uma por escritorio.
   'ea900000-0000-4000-8000-000000000001'::uuid as fix_map_property_a,
-  'eb900000-0000-4000-8000-000000000001'::uuid as fix_map_property_b;
+  'eb900000-0000-4000-8000-000000000001'::uuid as fix_map_property_b,
+  -- Mae das tabelas filhas do modulo 11, uma por escritorio: a entrada de diario
+  -- (mae de project_diary_files) e a pendencia (mae de project_issue_events).
+  'eaa00000-0000-4000-8000-000000000001'::uuid as fix_diary_entry_a,
+  'eba00000-0000-4000-8000-000000000001'::uuid as fix_diary_entry_b,
+  'eab00000-0000-4000-8000-000000000001'::uuid as fix_issue_a,
+  'ebb00000-0000-4000-8000-000000000001'::uuid as fix_issue_b;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 select u, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated', e, now(), now()
@@ -399,6 +493,8 @@ from (
   union all select (select u_leave_a from pat), 'pattern-leave-a@example.test'
   union all select (select u_orphan from pat), 'pattern-orphan@example.test'
   union all select (select u_editor_b from pat), 'pattern-editor-b@example.test'
+  union all select (select u_coord_a from pat), 'pattern-coord-a@example.test'
+  union all select (select u_coord_b from pat), 'pattern-coord-b@example.test'
 ) s;
 
 insert into public.tenants (id, name, slug) values
@@ -410,11 +506,18 @@ insert into public.tenant_users (tenant_id, user_id, role) values
   ((select tenant_a from pat), (select u_editor_a from pat), 'member'),
   ((select tenant_a from pat), (select u_viewer_a from pat), 'member'),
   ((select tenant_a from pat), (select u_leave_a from pat), 'member'),
-  ((select tenant_b from pat), (select u_editor_b from pat), 'member');
+  ((select tenant_b from pat), (select u_editor_b from pat), 'member'),
+  ((select tenant_a from pat), (select u_coord_a from pat), 'member'),
+  ((select tenant_b from pat), (select u_coord_b from pat), 'member');
 
 -- Nenhum deles e Diretor, de proposito: can_edit_menu tem atalho de Diretor
 -- (migration 0019), e Diretor passaria em tudo sem provar que a permissao de
 -- menu esta sendo lida. O atalho tem teste proprio em crm-rls.sql secao 12.
+--
+-- O Coordenador (writer_role das tabelas do modulo 11) tambem NAO e Diretor, pelo
+-- mesmo motivo: is_project_diary_writer() aceita as duas funcoes, e usar o
+-- Diretor aqui faria os casos C passarem tambem pelo atalho de can_edit_menu -
+-- duas razoes ao mesmo tempo, e o teste sem saber qual delas funciona.
 insert into public.collaborators (id, tenant_id, user_id, name, role, email, status) values
   ((select c_editor_a from pat), (select tenant_a from pat), (select u_editor_a from pat),
    'Editor A', 'architect', 'pattern-editor-a@example.test', 'active'),
@@ -423,7 +526,11 @@ insert into public.collaborators (id, tenant_id, user_id, name, role, email, sta
   ((select c_leave_a from pat), (select tenant_a from pat), (select u_leave_a from pat),
    'Afastado A', 'architect', 'pattern-leave-a@example.test', 'on_leave'),
   ((select c_editor_b from pat), (select tenant_b from pat), (select u_editor_b from pat),
-   'Editor B', 'architect', 'pattern-editor-b@example.test', 'active');
+   'Editor B', 'architect', 'pattern-editor-b@example.test', 'active'),
+  ((select c_coord_a from pat), (select tenant_a from pat), (select u_coord_a from pat),
+   'Coordenador A', 'coordinator', 'pattern-coord-a@example.test', 'active'),
+  ((select c_coord_b from pat), (select tenant_b from pat), (select u_coord_b from pat),
+   'Coordenador B', 'coordinator', 'pattern-coord-b@example.test', 'active');
 
 -- Permissao de edicao para o editor de cada escritorio, em TODO menu do
 -- registro. O afastado recebe tambem, de proposito: sem isso, "afastado nao
@@ -433,6 +540,12 @@ insert into public.collaborators (id, tenant_id, user_id, name, role, email, sta
 -- DISTINCT porque um modulo tem mais de uma tabela sob o mesmo menu (o 3 tem
 -- quatro sob 'pipeline') e a PK de collaborator_permissions e
 -- (collaborator_id, menu_key).
+--
+-- OS DOIS COORDENADORES NAO RECEBEM PERMISSAO NENHUMA, e isso e o que da dente ao
+-- caso C1 das tabelas do modulo 11: sem uma unica linha em
+-- collaborator_permissions, o unico motivo pelo qual eles escrevem no diario e a
+-- FUNCAO. Se alguem trocar is_project_diary_writer() por can_edit_menu em
+-- qualquer das cinco policies, C1 cai na hora.
 insert into public.collaborator_permissions (tenant_id, collaborator_id, menu_key, can_view, can_edit)
 select (select tenant_a from pat), (select c_editor_a from pat), m.menu_key, true, true from (select distinct menu_key from pattern_tables) m
 union all
@@ -499,6 +612,23 @@ insert into public.map_properties (id, tenant_id, lat, lng, project_label) value
    -16.686891, -49.264794, 'Propriedade Mae A'),
   ((select fix_map_property_b from pat), (select tenant_b from pat),
    -16.686891, -49.264794, 'Propriedade Mae B');
+
+-- Modulo 11. A entrada de diario e mae de project_diary_files; a pendencia e mae
+-- de project_issue_events. A pendencia nasce sem issue_number: quem o preenche e
+-- o trigger da 0069.
+insert into public.project_diary_entries
+  (id, tenant_id, project_id, entry_type, title, occurrence_date) values
+  ((select fix_diary_entry_a from pat), (select tenant_a from pat),
+   (select fix_project_a from pat), 'note', 'Registro Mae A', current_date),
+  ((select fix_diary_entry_b from pat), (select tenant_b from pat),
+   (select fix_project_b from pat), 'note', 'Registro Mae B', current_date);
+
+insert into public.project_issues
+  (id, tenant_id, project_id, description, category, identified_date) values
+  ((select fix_issue_a from pat), (select tenant_a from pat),
+   (select fix_project_a from pat), 'Pendencia Mae A', 'architecture', current_date),
+  ((select fix_issue_b from pat), (select tenant_b from pat),
+   (select fix_project_b from pat), 'Pendencia Mae B', 'architecture', current_date);
 
 -- INSTRUMENTACAO --------------------------------------------------------------
 
@@ -586,12 +716,22 @@ declare
   v_row_b uuid;
   v_pref text;
   v_vals_b text;
+  -- Quem escreve nesta tabela. Ate o modulo 10 e sempre o editor por menu; do 11
+  -- em diante pode ser o escritor por funcao. So o lado A precisa disso: os casos
+  -- do escritorio B afirmam LEITURA, e leitura e larga em todo o sistema.
+  v_writer_a uuid;
 begin
   select * into p from pat;
 
   for t in select * from pattern_tables order by modulo, tabela loop
     v_pref := t.modulo || '.' || t.tabela;
     v_vals_b := coalesce(t.insert_vals_b, t.insert_vals);
+
+    if t.writer_role = 'coordinator' then
+      v_writer_a := p.u_coord_a;
+    else
+      v_writer_a := p.u_editor_a;
+    end if;
 
     -- ---- Catalogo: os dois lados da tranca -----------------------------------
     --
@@ -678,15 +818,15 @@ begin
       pg_temp.probe('authenticated', pg_temp.claims(p.u_orphan, null),
         format('select 1 from public.%I where id = %L', t.tabela, v_row_a)));
 
-    -- ---- Escrita presa a permissao do menu -----------------------------------
+    -- ---- Escrita presa a permissao (menu, ou funcao quando writer_role) ------
 
-    perform pg_temp.rec(v_pref || '/C1', 'quem tem can_edit no menu CRIA', 'OK:1',
-      pg_temp.probe('authenticated', pg_temp.claims(p.u_editor_a, p.tenant_a),
+    perform pg_temp.rec(v_pref || '/C1', 'quem pode escrever CRIA', 'OK:1',
+      pg_temp.probe('authenticated', pg_temp.claims(v_writer_a, p.tenant_a),
         format('insert into public.%I (tenant_id, %s) values (%L, %s)',
                t.tabela, t.insert_cols, p.tenant_a, t.insert_vals)));
 
-    perform pg_temp.rec(v_pref || '/C2', 'quem tem can_edit no menu APAGA', 'OK:1',
-      pg_temp.probe('authenticated', pg_temp.claims(p.u_editor_a, p.tenant_a),
+    perform pg_temp.rec(v_pref || '/C2', 'quem pode escrever APAGA', 'OK:1',
+      pg_temp.probe('authenticated', pg_temp.claims(v_writer_a, p.tenant_a),
         format('delete from public.%I where id = %L', t.tabela, v_row_a)));
 
     perform pg_temp.rec(v_pref || '/C3', 'quem tem apenas can_view NAO cria', 'ERR:42501',
@@ -702,17 +842,17 @@ begin
       pg_temp.probe('authenticated', pg_temp.claims(p.u_viewer_a, p.tenant_a),
         format('select 1 from public.%I where id = %L', t.tabela, v_row_a)));
 
-    -- Escrita cruzada: WITH CHECK. Editor de A tem permissao de sobra no
+    -- Escrita cruzada: WITH CHECK. Quem escreve em A tem permissao de sobra no
     -- proprio escritorio - o que se afirma e que ele nao grava NO escritorio B.
     -- Os valores sao os VALIDOS em B (insert_vals_b): a linha precisa ser
     -- recusada por autorizacao, e nao por FK apontando para a mae errada.
-    perform pg_temp.rec(v_pref || '/C6', 'editor de A nao grava com tenant_id de B', 'ERR:42501',
-      pg_temp.probe('authenticated', pg_temp.claims(p.u_editor_a, p.tenant_a),
+    perform pg_temp.rec(v_pref || '/C6', 'quem escreve em A nao grava com tenant_id de B', 'ERR:42501',
+      pg_temp.probe('authenticated', pg_temp.claims(v_writer_a, p.tenant_a),
         format('insert into public.%I (tenant_id, %s) values (%L, %s)',
                t.tabela, t.insert_cols, p.tenant_b, v_vals_b)));
 
-    perform pg_temp.rec(v_pref || '/C7', 'editor de A nao move linha propria para B', 'ERR:42501',
-      pg_temp.probe('authenticated', pg_temp.claims(p.u_editor_a, p.tenant_a),
+    perform pg_temp.rec(v_pref || '/C7', 'quem escreve em A nao move linha propria para B', 'ERR:42501',
+      pg_temp.probe('authenticated', pg_temp.claims(v_writer_a, p.tenant_a),
         format('update public.%I set tenant_id = %L where id = %L', t.tabela, p.tenant_b, v_row_a)));
 
     -- ---- Chave publicavel nao alcanca nada -----------------------------------

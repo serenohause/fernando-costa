@@ -23,6 +23,7 @@ dist-ssr
 .supabase
 
 projeto-original
+nova-versao
 
 # Vercel CLI
 .vercel

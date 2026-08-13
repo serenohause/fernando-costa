@@ -35,6 +35,7 @@
     "seed:financial": "node supabase/seed/07-financial.mjs",
     "test:schema:budget": "supabase/tests/run-sql.sh supabase/tests/budget-schema.sql",
     "test:schema:map": "supabase/tests/run-sql.sh supabase/tests/map-schema.sql",
+    "test:schema:diary": "supabase/tests/run-sql.sh supabase/tests/diary-schema.sql",
     "seed:budget": "node supabase/seed/08-budget.mjs",
     "seed:map": "node supabase/seed/09-map.mjs",
     "seed:second-office": "node supabase/seed/second-office.mjs",
