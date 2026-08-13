@@ -238,7 +238,7 @@ Todas as 42 linhas são links criados e nunca abertos (`ultimo_status_validacao`
 | `start_date`, `due_date`, `completion_date` | idem | 1 linha viola `completion_date` x `status` |
 | `estimated_hours` | `estimated_hours` | 5 preenchidos |
 | `spent_hours` | `spent_hours` | **100% vazia** |
-| `tag_operacional` | — | **campo que o base44 tem e nosso schema não previu** (seção 8.1) |
+| `tag_operacional` | `operational_tag` | 13 preenchidas; coluna criada pela `0074` e importada desde então (seção 8.1) |
 | `checklist_tarefa` (array JSON) | `task_checklist_items` | 1.704 itens em 108 tarefas |
 
 Dentro de `checklist_tarefa`, as chaves são `ordem`, `titulo`, `etapa`,
@@ -808,9 +808,21 @@ O que ele revela: os dois valores são exatamente os dois estados que faltam
 em `Task.status` (`Em revisão`, `Em espera cliente` aparecem lá como valores
 fora do enum). A operação precisa de uma noção de "tarefa parada esperando
 alguém" que nem `status` nem `phase` expressam, e resolveu isso duas vezes,
-de dois jeitos, sem que nenhum dos dois esteja no schema. Nosso `tasks` não
-tem coluna para isso. **Decisão do usuário**: descartar as 13 tags, ou criar
-a coluna.
+de dois jeitos, sem que nenhum dos dois estivesse no schema.
+
+**Decidido: criou-se a coluna.** Módulo 11, fatia 3. A migration `0074` criou
+`tasks.operational_tag` (do tipo `public.operational_tag`, que já existia desde
+a `0068` e é compartilhado com o diário), e as 13 tags entram no **próprio
+passo 17** da importação, como mais uma coluna do payload — não há passo novo:
+é campo da tarefa, não entidade. O de/para está em `docs/ENUM-MAP.md`, seção
+`operational_tag`: `Em Revisão` → `in_review` (7 linhas), `Aguardando Cliente`
+→ `awaiting_client` (6), em Layout (4), Perspectivas (5), Projeto Executivo (3)
+e Projeto Legal (1). São os dois únicos valores do export.
+
+Célula vazia **omite a coluna do payload** em vez de mandar `null`, para que
+reexecutar a importação não apague tag marcada pela tela — mesma regra das
+quatro colunas que o passo 31 deixa de fora. A conferência `4d` relê as 13 do
+banco e derruba o script se o número, a tag ou o `legacy_id` não baterem.
 
 ### 8.2 `AccountPayable.generated_count` — contador de recorrência sem coluna nossa
 
@@ -982,7 +994,9 @@ Em ordem de quanto travam:
     `PropriedadeMapa.status_visual` `Em andamento` (1),
     `Fornecedor.tipologia` vazia (1) e `Fornecedor.tipologia` =
     `Revestimento de Fachada` (1), que o check de `suppliers` barra.
-11. **`Task.tag_operacional`** (13 linhas): descartar ou criar coluna?
+11. ~~**`Task.tag_operacional`** (13 linhas): descartar ou criar coluna?~~
+    **Decidido: criou-se a coluna.** Módulo 11, fatia 3, migration `0074`. As 13
+    entram pelo passo 17 — ver o fim da seção 8.1.
 12. ~~**`ProjectTimelineEntry`** (36 linhas): aceitar a perda ou virar feature?~~
     **Decidido: virou feature.** Módulo 11, migrations `0068`–`0071`, passos 31
     e 32 da importação. As 36 estão no banco — ver o fim da seção 7.1.

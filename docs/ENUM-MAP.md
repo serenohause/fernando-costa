@@ -457,11 +457,14 @@ cada um cai em um deles sem ambiguidade. `A fazer` é a fazer, ou seja, ainda
 não começou. `Em revisão` e `Em espera cliente` são trabalho **já em curso e
 ainda não concluído**: nenhum dos dois é "não iniciada" e nenhum é "concluída".
 
-O que se perde nesses dois: a noção de "parada esperando alguém". Ela existe no
-dado em `Task.tag_operacional` (13 tarefas, valores `Em Revisão` e `Aguardando
-Cliente` — exatamente os mesmos dois estados), campo que o base44 nunca
-declarou e que **não tem coluna no nosso schema**. Criar essa coluna é feature,
-não importação; o descarte das 13 tags fica registrado no relatório.
+O que se perde **nesta coluna**: a noção de "parada esperando alguém". Ela
+existe no dado em `Task.tag_operacional` (13 tarefas, valores `Em Revisão` e
+`Aguardando Cliente` — exatamente os mesmos dois estados), campo que o base44
+nunca declarou. Ela deixou de se perder no banco: a migration `0074` criou
+`tasks.operational_tag` e as 13 tags entram pelo próprio passo 17 da
+importação (ver `operational_tag`, mais abaixo). O que continua sendo tradução
+com perda é só o `status` destas duas linhas — `in_progress` não diz que a
+tarefa está parada, e quem diz isso agora é a coluna ao lado.
 
 ### `task_type`
 
@@ -813,11 +816,25 @@ defeito no dado histórico.
 | Em Revisão | `in_review` | Em Revisão |
 | Aguardando Cliente | `awaiting_client` | Aguardando Cliente |
 
-Criado na migration 0068 e compartilhado por `project_diary_entries` e
-`tasks.operational_tag` (fatia 3). **Não é usado pela importação das 36**: no
-base44 a tag só aparece dentro do título ("Marcado como Em Revisão"), e vale
-aqui a mesma regra da fase. As 13 tags reais vivem em `Task.tag_operacional`
-e entram com a fatia 3.
+Criado na migration `0068` e compartilhado por `project_diary_entries` e
+`tasks.operational_tag` (esta última criada pela `0074`, fatia 3).
+
+**Não é usado pela importação das 36 linhas do diário**: no base44 a tag só
+aparece dentro do título ("Marcado como Em Revisão"), e vale aqui a mesma regra
+da fase — rótulo lido de dentro de texto livre não vira coluna.
+
+**É usado pela importação das tarefas.** As 13 tags reais vêm de
+`Task.tag_operacional`, no passo 17: `Em Revisão` em 7 tarefas e `Aguardando
+Cliente` em 6, distribuídas em Layout (4), Perspectivas (5), Projeto Executivo
+(3) e Projeto Legal (1). São os **dois únicos** valores preenchidos no export —
+não há terceiro, e valor fora deste de/para derruba a tarefa para pendências
+como em qualquer outro enum.
+
+Célula vazia (117 das 130 tarefas) **não vira `null` no payload**: a coluna é
+omitida. O `upsert` é por `(tenant_id, legacy_id)` e chave ausente não entra no
+`SET` do `UPDATE`, então reexecutar a importação não apaga a tag que alguém
+tenha marcado pela tela. Mesma regra das quatro colunas que o passo 31 deixa de
+fora.
 
 ---
 

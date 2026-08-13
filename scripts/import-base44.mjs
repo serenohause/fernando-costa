@@ -102,10 +102,27 @@
 //   e o bucket. O passo 31 traz as 36 linhas, e 5 delas sao anotacao manual
 //   que nao existe em nenhum outro lugar.
 //
+// A QUINTA PASSADA — Task.tag_operacional GANHOU COLUNA
+//   As 13 tags operacionais eram o ultimo campo do export recusado por falta de
+//   destino: 7 "Em Revisao" e 6 "Aguardando Cliente", em Layout (4),
+//   Perspectivas (5), Projeto Executivo (3) e Projeto Legal (1). O motivo da
+//   recusa era verdadeiro (docs/IMPORT-PLAN.md, secao 8.1): o campo nao esta
+//   declarado no Task.jsonc do projeto-original e nao aparece em nenhum arquivo
+//   dele — alguem o criou direto no base44 e a aplicacao antiga nunca o leu.
+//
+//   A migration 0074 criou tasks.operational_tag, do tipo public.operational_tag
+//   (que ja existia desde a 0068, compartilhado com o diario). A tag entra no
+//   PROPRIO passo 17, como mais uma coluna do payload — nao ha passo novo: ela e
+//   um campo da tarefa, e nao uma entidade.
+//
+//   E ela e a unica coluna deste passo OMITIDA do payload quando vazia, e nao
+//   mandada como null. Mesmo motivo escrito no passo 31 (from_phase/to_phase/
+//   operational_tag/visibility do diario): o upsert e por (tenant_id, legacy_id)
+//   e chave ausente nao entra no SET do UPDATE, entao reexecutar a importacao
+//   nao apaga a tag que alguem tenha marcado pela tela depois. Celula vazia no
+//   CSV nao e "sem tag no banco": e "o CSV nao tem opiniao sobre esta tarefa".
+//
 // O QUE NAO E IMPORTADO, DE PROPOSITO
-//   - Task.tag_operacional (13 linhas): campo que existe no dado e em lugar
-//     nenhum mais. Nosso schema nao tem coluna. (A fatia 3 do modulo 11 cria
-//     tasks.operational_tag; ate la o campo continua fora.)
 //   - Collaborator.senha_temporaria: FORA DE ESCOPO por decisao registrada em
 //     docs/ARCHITECTURE.md — o original guarda senha em texto puro. A coluna
 //     vem 100% vazia neste export, e mesmo assim o script a ignora
@@ -173,7 +190,6 @@ const REGISTER_EMAIL_DOMAINS = false
 const IGNORED_ON_PURPOSE = [
   ['Collaborator.senha_temporaria', 'senha em texto puro — fora de escopo (docs/ARCHITECTURE.md)'],
   ['Collaborator.user_auth_email', '100% vazio no export'],
-  ['Task.tag_operacional', 'campo sem coluna no nosso schema'],
   ['AccountPayable.generated_count', 'contador derivavel de recurrence_parent_id'],
   ['Atividade.tempo_total_minutos', 'coluna gerada no nosso schema'],
   ['Atividade.atividade_excluida', 'bandeira redundante com data_exclusao'],
@@ -437,10 +453,20 @@ const ENUMS = {
     'A fazer': 'not_started',
     //   `Em revisão` e `Em espera cliente` sao trabalho JA em curso e ainda nao
     //   concluido. Nenhum dos dois e "nao iniciado" e nenhum e "concluida".
-    //   Os dois perdem a nuance de "parada esperando alguem", que no dado vive
-    //   em Task.tag_operacional — campo sem coluna no nosso schema (ver
-    //   IGNORED_ON_PURPOSE). A perda esta registrada nos AJUSTES.
+    //   Os dois perdem a nuance de "parada esperando alguem" AQUI, no status —
+    //   mas ela deixou de se perder no dado: desde a migration 0074 ela vive em
+    //   tasks.operational_tag, alimentada por Task.tag_operacional (ver o enum
+    //   operational_tag logo abaixo). A traducao do status continua sendo
+    //   registrada nos AJUSTES.
     'Em revisão': 'in_progress', 'Em espera cliente': 'in_progress',
+  },
+  // QUINTA PASSADA — a tag operacional da tarefa. Os dois valores sao os que
+  // Task.jsonc da nova-versao declara, e sao os unicos que aparecem nas 13
+  // linhas preenchidas do export (7 "Em Revisão", 6 "Aguardando Cliente"). O
+  // de/para nao ganha entrada por conveniencia: valor fora daqui derruba a
+  // tarefa para pendencias, como em qualquer outro enum deste script.
+  operational_tag: {
+    'Em Revisão': 'in_review', 'Aguardando Cliente': 'awaiting_client',
   },
   task_type: {
     'Técnica': 'technical', 'Reunião': 'meeting', 'Revisão': 'review',
@@ -1947,6 +1973,7 @@ async function main() {
   // -------------------------------------------------------------------------
   step(17, 'tasks  <- Task')
   stat('tasks').source = csv.Task.length
+  const tagsWritten = new Map()
   for (const r of csv.Task) {
     const g = new RowGuard('tasks', r.id, r.title)
     // As fases e os status que o base44 nunca declarou entraram no de/para na
@@ -1964,12 +1991,13 @@ async function main() {
     // caso previsto no original (Tasks.jsx confere project_id antes de usar).
     const projectId = g.softFk(ix.project, r.project_id, 'projeto', 'project_id')
     const responsibleId = g.softFk(ix.collaborator, r.responsible_id, 'colaborador', 'responsible_id')
-    // A nuance que se perde nas duas linhas de status `Em revisão` / `Em espera
-    // cliente`, e nas 13 de tag_operacional: o schema nao tem onde dizer
-    // "parada esperando alguem".
-    if (txt(r.tag_operacional) !== null) {
-      g.note(`tag_operacional "${r.tag_operacional.trim()}" descartada: sem coluna no nosso schema`)
-    }
+    // QUINTA PASSADA — a tag operacional. Valor fora do de/para nao vira nulo
+    // calado: `g.enum` empilha o motivo e a tarefa inteira vai para pendencias,
+    // como manda a regra 3 do cabecalho. Celula vazia devolve null (o de/para
+    // nao tem chave ''), e null aqui significa "o CSV nao diz nada sobre esta
+    // tarefa" — por isso a coluna e OMITIDA do payload logo abaixo, em vez de
+    // mandada como null.
+    const operationalTag = g.enum('operational_tag', r.tag_operacional, 'tag_operacional')
     g.require(txt(r.title) !== null, 'title vazio (NOT NULL)')
     if (phase !== null) {
       g.require(phase !== 'finished', 'phase = Finalizado (so existe em Project, barrado por check em tasks)')
@@ -2009,19 +2037,31 @@ async function main() {
       spent_hours: num(r.spent_hours), // 100% vazia no export
       description: txt(r.description),
       task_type: taskType,
-      // tag_operacional NAO entra: campo que existe no dado e em lugar nenhum
-      // mais (nem em Task.jsonc, nem em projeto-original/). Ver
-      // IGNORED_ON_PURPOSE e docs/IMPORT-PLAN.md, secao 8.1.
+      // A COLUNA SO APARECE QUANDO O CSV TEM TAG. Chave ausente nao entra no
+      // SET do UPDATE do upsert por (tenant_id, legacy_id): assim reexecutar a
+      // importacao nao apaga a tag que alguem tenha marcado pela tela. Mandar
+      // `operational_tag: null` nas 117 sem tag faria exatamente isso — e o
+      // motivo e o mesmo ja escrito no passo 31, para as quatro colunas que o
+      // diario deixa de fora do payload.
+      ...(operationalTag === null ? {} : { operational_tag: operationalTag }),
       created_at: ts(r.created_date),
       updated_at: ts(r.updated_date),
     }
     const res = await insertOne('tasks', row, 'tenant_id,legacy_id')
     if (res.error) { pend('tasks', r.id, `erro do banco: ${res.error.message}`, r.title); continue }
     ix.task.byLegacy.set(r.id, res.id)
+    if (operationalTag !== null) tagsWritten.set(operationalTag, (tagsWritten.get(operationalTag) ?? 0) + 1)
     stat('tasks').consumed += 1
     stat('tasks').written += 1
   }
   log(`  ${stat('tasks').written} de ${csv.Task.length}`)
+  {
+    const total = [...tagsWritten.values()].reduce((a, n) => a + n, 0)
+    log(`  ${total} com status operacional (0074)`)
+    for (const [tag, n] of [...tagsWritten.entries()].sort((a, b) => b[1] - a[1])) {
+      log(`    ${String(n).padStart(3)}  ${tag}`)
+    }
+  }
 
   // -------------------------------------------------------------------------
   // Passo 18 — task_checklist_items
@@ -3956,6 +3996,118 @@ async function verify(tenantId, credentials) {
           `project_diary_files: ${missing} linha(s) apontam para objeto que nao esta no bucket`,
         )
       }
+    }
+  }
+
+  // 4d. o status operacional das tarefas (modulo 11, fatia 3) ----------------
+  //
+  // As 13 tags sao o menor lote desta importacao e o mais facil de sumir sem
+  // ninguem notar: elas nao mudam contagem de linha nenhuma (a tarefa entra com
+  // ou sem tag), entao as conferencias 1, 2 e 4b passariam com nota cheia se a
+  // coluna inteira chegasse vazia. Aqui a conferencia e do CONTEUDO: o esperado
+  // e recalculado do CSV pelo de/para, e comparado tag a tag com o que o banco
+  // devolve.
+  log('\n4d. status operacional das tarefas (fatia 3)')
+  {
+    const check = (ok, label, detail) => {
+      log(`   ${ok ? 'ok  ' : 'FALHA'} ${label}`)
+      if (!ok) problems.push(detail)
+    }
+
+    // O esperado sai do CSV, e nao do que o passo 17 achou que escreveu: uma
+    // conferencia que releia a propria variavel do passo so confirmaria que o
+    // script concorda consigo mesmo.
+    const expected = new Map()
+    const byTag = new Map()
+    let unmapped = 0
+    for (const r of csv.Task) {
+      const raw = txt(r.tag_operacional)
+      if (raw === null) continue
+      const mapped = ENUMS.operational_tag[raw]
+      // Valor fora do de/para: o passo 17 ja derrubou a tarefa para pendencias.
+      // Contado aqui para que ele apareca como numero e nao como ausencia.
+      if (mapped === undefined) { unmapped += 1; continue }
+      expected.set(r.id, mapped)
+      byTag.set(mapped, (byTag.get(mapped) ?? 0) + 1)
+    }
+    check(
+      unmapped === 0,
+      `${expected.size} tags no CSV, todas no de/para de docs/ENUM-MAP.md`,
+      `tasks.operational_tag: ${unmapped} linha(s) do CSV com tag fora do de/para`,
+    )
+
+    // Todas as tarefas IMPORTADAS, com tag ou sem: uma tag que sumiu so aparece
+    // se a tarefa dela for lida junto. Ler so as tagueadas mostraria a ausencia
+    // como ausencia, que e o defeito que esta conferencia existe para pegar.
+    const { rows: imported, error } = await selectAll('tasks', 'legacy_id, operational_tag', (q) =>
+      q.eq('tenant_id', tenantId).not('legacy_id', 'is', null))
+    if (error) {
+      problems.push(`tasks: nao consegui reler operational_tag (${error.message})`)
+    } else {
+      const rows = imported.filter((r) => r.operational_tag !== null)
+      /*
+        A CONFERENCIA E SOBRE AS TAGS DO CSV, e nao sobre "toda tarefa com tag".
+
+        Pela MESMA razao das conferencias 2, 4 e 4b: o escritorio usa o sistema,
+        e marcar uma tarefa como Em Revisao pela tela e o gesto que a fatia 3
+        existe para permitir — inclusive numa tarefa IMPORTADA, que continua com
+        legacy_id depois de marcada. Exigir "13 no banco" derrubaria o script
+        para sempre a partir da primeira tag marcada a mao, acusando um problema
+        que nao existe e escondendo os que existirem.
+
+        O que a importacao controla, e portanto o que e exigido aqui, e o
+        caminho de ida: toda tag que o CSV declara esta no banco, na tarefa
+        certa, com o valor certo. Tag a mais e uso normal e sai como INFO.
+      */
+      const inDb = new Map(imported.map((r) => [r.legacy_id, r.operational_tag]))
+      let missing = 0
+      let wrong = 0
+      let pendedTask = 0
+      const observed = new Map()
+      for (const [legacyId, tag] of expected) {
+        // A tarefa inteira ficou de fora (recusada por outro motivo, e explicada
+        // no relatorio de pendencias). Nao e tag perdida: e linha que nao entrou,
+        // e a conferencia 1 ja cobra essa.
+        if (!inDb.has(legacyId)) { pendedTask += 1; continue }
+        if (inDb.get(legacyId) === null) { missing += 1; continue }
+        if (inDb.get(legacyId) !== tag) { wrong += 1; continue }
+        observed.set(tag, (observed.get(tag) ?? 0) + 1)
+      }
+      const arrived = expected.size - missing - wrong - pendedTask
+      check(
+        missing === 0 && wrong === 0,
+        `${arrived} das ${expected.size} tags do CSV no banco, na tarefa e no valor certos` +
+          (pendedTask > 0 ? `  (${pendedTask} em tarefa recusada, ver pendencias)` : ''),
+        `tasks.operational_tag: ${missing} tag(s) do CSV ausente(s) em tarefa importada e ${wrong} com valor diferente`,
+      )
+      for (const [tag, n] of [...byTag.entries()].sort()) {
+        const expectedNow = [...expected.entries()].filter(([id, v]) => v === tag && inDb.has(id)).length
+        check(
+          observed.get(tag) === expectedNow,
+          `${String(observed.get(tag) ?? 0).padStart(3)}  ${tag}   (CSV: ${n})`,
+          `tasks.operational_tag: ${tag} tem ${observed.get(tag) ?? 0} das ${expectedNow} esperadas no banco`,
+        )
+      }
+      // Tag que o CSV nao declara: tarefa importada marcada pela tela depois.
+      // Sai como numero para nao virar buraco calado, mas nao derruba nada — e
+      // e justamente o caso que a omissao da coluna no payload protege.
+      log(`   info ${rows.length - arrived} tarefa(s) importada(s) com tag que o CSV nao declara (marcadas pela tela)`)
+    }
+
+    // Nenhuma tarefa deste export pode estar tagueada em outro escritorio. A
+    // conferencia 3 ja varre legacy_id fora do tenant; esta pergunta a mesma
+    // coisa do lado da coluna nova, que e a que acabou de nascer.
+    const { rows: elsewhere, error: elsewhereError } = await selectAll('tasks', 'legacy_id', (q) =>
+      q.neq('tenant_id', tenantId).not('operational_tag', 'is', null))
+    if (elsewhereError) {
+      problems.push(`tasks: nao consegui varrer operational_tag de outros escritorios (${elsewhereError.message})`)
+    } else {
+      const intruders = elsewhere.filter((r) => expected.has(r.legacy_id)).length
+      check(
+        intruders === 0,
+        `nenhuma tarefa tagueada do export em outro escritorio (${elsewhere.length} tarefa(s) com tag em outros tenants)`,
+        `tasks.operational_tag: ${intruders} tarefa(s) do export tagueadas fora do escritorio real`,
+      )
     }
   }
 
