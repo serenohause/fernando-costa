@@ -1114,10 +1114,25 @@ async function main() {
     const row = {
       tenant_id: T(),
       legacy_id: r.id,
-      // user_id fica nulo aqui: o vinculo com o login e feito no passo 33,
-      // depois que a conta de Auth existe. senha_temporaria e user_auth_email
-      // do CSV sao ignorados de proposito (ver IGNORED_ON_PURPOSE).
-      user_id: null,
+      /*
+        `user_id` NAO ENTRA NO PAYLOAD, e a ausencia e o conserto de um defeito
+        que tirou o escritorio inteiro do ar.
+
+        Aqui havia `user_id: null`. Como o upsert e por (tenant_id, legacy_id),
+        cada reexecucao DESLIGAVA os 15 logins, e o passo 33 os religava no fim.
+        Enquanto o script ia ate o fim, ninguem via. Bastou uma execucao morrer
+        no meio — uma falha de rede num recebivel — para os 15 colaboradores
+        ficarem com a ficha solta: o login ainda autenticava, o token ainda
+        trazia o escritorio, mas sem colaborador a RLS nao devolve linha nenhuma
+        e todo mundo caia em "acesso pendente".
+
+        Omitir a coluna faz o upsert nao tocar nela: quem ja tem login mantem, e
+        o passo 33 continua preenchendo quem ainda nao tem. O vinculo deixa de
+        depender de o script chegar inteiro ao fim.
+
+        senha_temporaria e user_auth_email do CSV seguem ignorados de proposito
+        (ver IGNORED_ON_PURPOSE).
+      */
       name,
       role,
       area,
