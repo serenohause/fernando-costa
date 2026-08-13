@@ -93,6 +93,27 @@
   --chart-emerald: 160.1 84.1% 39.4%;
 
   /*
+    AS QUATRO CORES DOS DOIS GRÁFICOS DA ABA RESUMO do Diário do Projeto
+    (módulo 11), pelo mesmo motivo de --chart-sky: lá elas são hex fixo dentro do
+    componente (ResumoTab.jsx:191-194 e :388), e hex dentro de componente é o que
+    este arquivo existe para não ter.
+
+    São rose-500, amber-500, slate-400 e indigo-500 do Tailwind, nos mesmos
+    valores em HSL — a fatia de pizza e a barra continuam idênticas ao pixel. O
+    verde do gráfico de pendências é o #10b981 que --chart-emerald já guarda, e
+    por isso ele não ganha token novo.
+
+    Sem par escuro, como --chart-sky e --chart-emerald: é a cor da SÉRIE (o que
+    distingue "Aberta" de "Resolvida"), e o original não tem um segundo valor
+    para ela. O que muda por tema num gráfico é o texto, e disso cuida
+    --chart-axis.
+  */
+  --chart-rose: 349.7 89.2% 60.2%;
+  --chart-amber: 37.7 92.1% 50.2%;
+  --chart-slate: 215 20.2% 65.1%;
+  --chart-indigo: 238.7 83.5% 66.7%;
+
+  /*
     O TEXTO DOS EIXOS dos três gráficos do módulo 10.
 
     O recharts pinta o rótulo do eixo com `#666` fixo quando ninguém passa
@@ -232,6 +253,10 @@
   --color-chart-5: hsl(var(--chart-5));
   --color-chart-sky: hsl(var(--chart-sky));
   --color-chart-emerald: hsl(var(--chart-emerald));
+  --color-chart-rose: hsl(var(--chart-rose));
+  --color-chart-amber: hsl(var(--chart-amber));
+  --color-chart-slate: hsl(var(--chart-slate));
+  --color-chart-indigo: hsl(var(--chart-indigo));
   --color-chart-axis: hsl(var(--chart-axis));
   --color-sidebar: hsl(var(--sidebar-background));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));

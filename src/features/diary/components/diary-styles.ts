@@ -208,6 +208,35 @@ export const ISSUE_STATUS_STYLE: Record<ProjectIssueStatus, { badge: string; dot
 }
 
 /*
+  ═══ ABA RESUMO ═══
+
+  O CARTÃO DE INDICADOR (ResumoTab.jsx:33-42), que é `fundo + borda + texto` num
+  bloco só, indexado pela cor que cada indicador recebe na tela.
+
+  As oito entradas são as de lá, classe por classe, com as mesmas duas decisões
+  do resto deste arquivo: cada cor de estado ganha variante escura (o fundo 50
+  sozinho vira faixa quase branca sob texto quase branco no tema escuro), e o tom
+  neutro vira token — `bg-elevated`, `border-border` e `text-soft` são
+  exatamente slate-50, slate-200 e slate-600/700 no tema claro.
+*/
+export const RESUMO_STAT_CARD = {
+  slate: 'bg-elevated border-border text-soft',
+  amber:
+    'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400',
+  blue: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-400',
+  emerald:
+    'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-400',
+  rose: 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-400',
+  violet:
+    'bg-violet-50 dark:bg-violet-950/30 border-violet-200 dark:border-violet-900 text-violet-700 dark:text-violet-400',
+  orange:
+    'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900 text-orange-700 dark:text-orange-400',
+  sky: 'bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-900 text-sky-700 dark:text-sky-400',
+}
+
+export type ResumoStatColor = keyof typeof RESUMO_STAT_CARD
+
+/*
   A PÍLULA da pendência dentro do cartão da visita (ObraTab.jsx:323).
 
   ELA NÃO É `ISSUE_STATUS_STYLE`, e a diferença é do original: lá a expressão tem

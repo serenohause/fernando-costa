@@ -6,6 +6,7 @@ import type {
   ProjectIssueCategory,
   ProjectIssueStatus,
   ProjectPhase,
+  ProjectStatus,
   SiteVisitStatus,
   SiteVisitType,
 } from '@/lib/enums'
@@ -111,6 +112,23 @@ export type DiaryProject = {
   responsible: NamedRef | null
   current_phase: ProjectPhase | null
   start_date: string | null
+  /*
+    A SITUAÇÃO DO PROJETO, e ela é OPCIONAL por um motivo que não é de desenho.
+
+    O painel "Informações do Projeto" da aba Resumo mostra seis linhas, e a
+    última é "Status" (ResumoTab.jsx:260) — a situação comercial do projeto
+    (`projects.status`), que nenhuma outra parte da gaveta usa. Quem monta o
+    `DiaryProject` é o cartão do Fluxo do Projeto, e o dado está lá; mas o
+    arquivo que o monta está sendo mexido por outra entrega neste momento, então
+    o campo entra opcional e a linha só é desenhada quando ele chega — como as
+    outras cinco, que o original também esconde quando vazias
+    (ResumoTab.jsx:261).
+
+    PENDÊNCIA DECLARADA: enquanto `TaskKanban.diaryProjectOf` não passar
+    `status: project.status`, a linha "Status" do painel não aparece. É uma
+    linha do painel, não um recorte de dado — nada mais na tela depende dela.
+  */
+  status?: ProjectStatus | null
 }
 
 /*
@@ -269,4 +287,150 @@ export type PhotoLightboxState = {
   photos: DiaryFile[]
   index: number | null
   caption: PhotoCaption | null
+}
+
+/* ── Aba Resumo ────────────────────────────────────────────────────────── */
+
+/*
+  O FILTRO DE PERÍODO do topo da aba (ResumoTab.jsx:68-69 e :96-103): dois campos
+  de data, cada um opcional. String vazia é "sem limite deste lado", como lá — o
+  `<input type="date">` devolve `''` quando está em branco.
+*/
+export type DiaryPeriod = {
+  from: string
+  to: string
+}
+
+/*
+  UMA FATIA DO GRÁFICO DE PENDÊNCIAS (ResumoTab.jsx:190-195). A cor vem de token
+  do tema e não de hex, como no gráfico do módulo 10 — ver `--chart-rose` e
+  companhia em src/index.css.
+*/
+export type IssueStatusSlice = {
+  name: string
+  value: number
+  color: string
+}
+
+/* Uma barra do gráfico "Principais Solicitações / Alterações": o título do
+   registro e quantas vezes ele apareceu (ResumoTab.jsx:177-186). */
+export type TopRequest = {
+  name: string
+  count: number
+}
+
+/*
+  UM DEGRAU DE "TEMPO POR ETAPA" (ResumoTab.jsx:163-174): um evento de mudança de
+  etapa e quantos dias se passaram até o próximo. `days` é nulo no último degrau
+  (não há próximo) e quando as duas datas estão fora de ordem.
+
+  QUEM ESCOLHE OS DEGRAUS SÃO AS COLUNAS `system_event`/`to_phase`, e não o texto
+  do título — defeito 10 do plano; ver `buildPhaseTimeline`.
+*/
+export type PhaseTimelineStep = {
+  id: string
+  title: string
+  date: string
+  days: number | null
+}
+
+/*
+  TUDO QUE A ABA RESUMO DESENHA, calculado num lugar só.
+
+  No original são oito `useMemo` dentro do componente (ResumoTab.jsx:107-210).
+  Mesma decisão de `./timeline` e `./obra`: o resultado em tela é o mesmo, e a
+  regra deixa de morar no JSX que a desenha.
+*/
+export type DiarySummary = {
+  /* As três listas depois do filtro de período — os indicadores contam sobre
+     elas, e a faixa amarela avisa que é isso que está acontecendo. */
+  entries: DiaryEntryRow[]
+  visits: SiteVisitRow[]
+  issues: ProjectIssueRow[]
+
+  requests: DiaryEntryRow[]
+  changes: DiaryEntryRow[]
+  approvals: DiaryEntryRow[]
+  revisions: DiaryEntryRow[]
+
+  photoCount: number
+  attachmentCount: number
+
+  openIssues: number
+  inProgressIssues: number
+  resolvedIssues: number
+  cancelledIssues: number
+
+  /* Inteiro de 0 a 100, como o `Math.round` da tela; nulo quando não há
+     pendência no período — dividir por zero é uma taxa que não existe. */
+  resolutionRate: number | null
+  /* Uma casa decimal, já formatada, como no original (`toFixed(1)`); nulo
+     quando nenhuma pendência resolvida tem as duas datas. */
+  averageResolutionDays: string | null
+
+  issuePie: IssueStatusSlice[]
+  topRequests: TopRequest[]
+
+  /* Estas quatro NÃO são recortadas pelo período, como no original: elas contam
+     a história inteira do projeto (ResumoTab.jsx:155-174 e :199-202 usam
+     `entries`, e não `filteredEntries`). */
+  revisionHistory: DiaryEntryRow[]
+  phaseTimeline: PhaseTimelineStep[]
+  constructionStartDate: string | null
+
+  executiveTimeline: DiaryEntryRow[]
+}
+
+/* ── Relatório ─────────────────────────────────────────────────────────── */
+
+/*
+  PARA QUEM O RELATÓRIO É (RelatorioPDFModal.jsx:255). O de dentro mostra tudo; o
+  do cliente esconde responsável, observação interna e — agora que `visibility`
+  existe (defeito 6 do plano) — o registro marcado como interno.
+*/
+export type ReportAudience = 'internal' | 'client'
+
+/* Resumido ou completo (RelatorioPDFModal.jsx:256). Só o completo traz o
+   histórico cronológico inteiro. */
+export type ReportFormat = 'summary' | 'complete'
+
+/*
+  AS SEIS SEÇÕES, com as chaves do original (RelatorioPDFModal.jsx:257-259).
+
+  As chaves ficam em português de propósito: elas aparecem no TEXTO do registro
+  que o diário guarda de cada geração ("Seções: resumo, timeline, revisoes…",
+  linha 306), e traduzi-las mudaria essa frase.
+*/
+export type ReportSectionKey =
+  | 'resumo'
+  | 'timeline'
+  | 'revisoes'
+  | 'pendencias'
+  | 'visitas'
+  | 'fotos'
+
+export type ReportSections = Record<ReportSectionKey, boolean>
+
+/*
+  UMA FOTO CANDIDATA AO RELATÓRIO (RelatorioPDFModal.jsx:23-36): o arquivo, de
+  onde ele veio e se está marcado.
+
+  `url` só existe DEPOIS de assinada — o bucket é privado (migration 0071) e o
+  documento impresso precisa de um endereço que o navegador consiga abrir. A
+  miniatura da seleção não usa este campo: ela passa pelo `DiaryPhoto`, que pede
+  a própria assinatura e a compartilha por caminho.
+*/
+export type ReportPhoto = {
+  file: DiaryFile
+  sourceLabel: string
+  sourceDate: string
+  selected: boolean
+}
+
+export type ReportPhotoWithUrl = ReportPhoto & { url: string }
+
+export type ReportOptions = {
+  audience: ReportAudience
+  format: ReportFormat
+  sections: ReportSections
 }

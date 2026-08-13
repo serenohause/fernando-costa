@@ -3,6 +3,7 @@ import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   AlertCircle,
+  BarChart2,
   BookOpen,
   Calendar,
   ChevronDown,
@@ -66,6 +67,7 @@ import FotosTab from './FotosTab'
 import ObraTab from './ObraTab'
 import PendenciasTab from './PendenciasTab'
 import PhotoLightbox from './PhotoLightbox'
+import ResumoTab from './ResumoTab'
 import { ENTRY_RAIL, ENTRY_STATUS_BADGE, ENTRY_TYPE_STYLE } from './diary-styles'
 import type {
   DiaryEntryRow,
@@ -88,15 +90,12 @@ import type {
   responsável, situação, clipe e a lista de anexos são os da versão nova, na
   mesma ordem e com o mesmo microcopy.
 
-  ═══ O QUE ESTA FATIA NÃO TRAZ, E ONDE ISSO APARECE ═══
+  ═══ AS CINCO ABAS, COMPLETAS DESDE A FATIA 4 ═══
 
   A gaveta da versão nova tem CINCO abas — Resumo, Timeline, Obra, Pendências e
-  Fotos — e abre em Resumo. A fatia 1 entregou a camada de dados e a linha do
-  tempo; a fatia 2 acrescenta Obra, Pendências e Fotos, e Resumo (com o
-  relatório) é a fatia 4 do plano. Então a faixa de abas tem QUATRO das cinco, na
-  mesma ordem relativa, e a primeira entra quando a fatia 4 chegar — junto com a
-  aba que abre por padrão, que lá é Resumo. É recorte de entrega combinado, não
-  simplificação de layout.
+  Fotos — e abre em Resumo. A fatia 1 entregou a linha do tempo, a fatia 2 as três
+  de obra, e a fatia 4 fecha com o Resumo e o relatório: a faixa está completa, na
+  ordem de lá, e a aba que abre por padrão voltou a ser a primeira.
 
   ═══ AS TRÊS CONSULTAS FICAM AQUI, E NÃO DENTRO DE CADA ABA ═══
 
@@ -141,8 +140,9 @@ import type {
   como lá.
 */
 
-/* As abas da gaveta, na ordem da versão nova menos a primeira; ver o cabeçalho. */
+/* As abas da gaveta, na ordem da versão nova (ProjectDiaryDrawer.jsx:167-173). */
 const TABS = [
+  { id: 'resumo' as const, label: 'Resumo', icon: BarChart2 },
   { id: 'timeline' as const, label: 'Timeline', icon: BookOpen },
   { id: 'obra' as const, label: 'Obra', icon: HardHat },
   { id: 'pendencias' as const, label: 'Pendências', icon: AlertCircle },
@@ -167,7 +167,8 @@ export default function ProjectDiaryDrawer({
   */
   underConstruction?: boolean
 }) {
-  const [activeTab, setActiveTab] = useState<TabId>('timeline')
+  /* Abre em Resumo, como a versão nova (ProjectDiaryDrawer.jsx:70). */
+  const [activeTab, setActiveTab] = useState<TabId>('resumo')
   const [formOpen, setFormOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<DiaryEntryRow | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; entry: DiaryEntryRow | null }>({
@@ -376,6 +377,26 @@ export default function ProjectDiaryDrawer({
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-6 py-4">
+            {activeTab === 'resumo' && (
+              <ResumoTab
+                project={project}
+                entries={entries}
+                visits={visits}
+                issues={issues}
+                isLoading={
+                  entriesQuery.isLoading || visitsQuery.isLoading || issuesQuery.isLoading
+                }
+                error={entriesQuery.error ?? visitsQuery.error ?? issuesQuery.error}
+                onRetry={() => {
+                  void entriesQuery.refetch()
+                  void visitsQuery.refetch()
+                  void issuesQuery.refetch()
+                }}
+                canEdit={canEdit}
+                onSwitchTab={setActiveTab}
+              />
+            )}
+
             {activeTab === 'timeline' && (
               <>
                 {/* Controls */}

@@ -29,11 +29,21 @@ import {
   type DiaryFileParent,
 } from './files'
 import { nowClockTime, todayISODate } from './obra'
+import {
+  buildReportHTML,
+  printReport,
+  reportLogText,
+  REPORT_FALLBACK_AUTHOR,
+} from './report'
 import type {
   DiaryEntryInput,
   DiaryEntryRow,
+  DiaryProject,
   ProjectIssueInput,
   ProjectIssueRow,
+  ReportOptions,
+  ReportPhoto,
+  ReportPhotoWithUrl,
   SiteVisitInput,
   SiteVisitRow,
 } from './types'
@@ -1236,6 +1246,142 @@ export function useResolveProjectIssue() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
     },
+  })
+}
+
+/* ── Aba Resumo: o relatório ───────────────────────────────────────────── */
+
+/*
+  GERAR O RELATÓRIO (RelatorioPDFModal.jsx:282-322).
+
+  TRÊS PASSOS NUM GESTO: assinar as fotos escolhidas, montar o documento e
+  mandá-lo para a impressão, e registrar no diário que o relatório foi gerado.
+
+  POR QUE ISTO É UM HOOK E NÃO UM `onClick`: os dois primeiros passos tocam no
+  Supabase (Storage) e o terceiro escreve no banco. A montagem do HTML e a
+  entrega ao navegador ficam em `./report`, que não conhece o Supabase — o
+  componente só junta as escolhas da tela e chama.
+
+  AS FOTOS PRECISAM DE ENDEREÇO, e é aqui que o bucket privado cobra o preço. No
+  base44 cada foto já é uma URL pública e eterna do `base44.app`, que o documento
+  usa direto; aqui a linha guarda o CAMINHO (migration 0071) e o endereço é
+  assinado na hora, por poucos minutos. Uma assinatura só para todas as fotos
+  (`createSignedUrls`), e não uma por foto: um relatório de obra pode levar
+  dezenas.
+
+  ⚠ O QUE ISSO SIGNIFICA PARA O PAPEL: a URL vale cinco minutos. Quem imprimir ou
+  salvar como PDF na hora tem as fotos no documento; quem deixar a janela de
+  impressão aberta por meia hora e só então imprimir pode receber quadros vazios.
+  É consequência direta de a foto de obra da casa de um cliente não ser mais
+  pública, e é a troca que a migration 0071 registra.
+
+  FOTO QUE NÃO ASSINA FICA DE FORA, em vez de virar quadro quebrado — e a
+  contagem que vai para o registro do diário conta o que ENTROU no documento, não
+  o que foi marcado na tela.
+
+  O REGISTRO NO DIÁRIO É O ÚLTIMO PASSO e não derruba o relatório: o documento já
+  está na tela de impressão, e falhar aqui não o desfaz. No original o `await` do
+  log está dentro do mesmo `try` do `window.open`, então uma falha ao gravar o
+  registro mostra "Erro ao gerar relatório" para quem acabou de receber o
+  relatório. Aqui o resultado volta como valor e a tela avisa o que aconteceu de
+  verdade.
+
+  ⚠ E HÁ UM CASO EM QUE ELE FALHA POR DESENHO, e ele é conhecido: quem GERA
+  relatório é Diretor ou Coordenador (`is_project_diary_writer`), e quem grava
+  evento automático é quem tem `can_edit_menu('project_flow')`
+  (`record_project_diary_event`, migration 0070) — os dois recortes não são o
+  mesmo. Diretor passa nos dois (atalho da 0019); um Coordenador SEM permissão de
+  edição em Fluxo do Projeto gera o relatório e não consegue registrá-lo, e a
+  tela diz isso em vez de fingir que registrou. Somar uma segunda regra de
+  permissão aqui para "consertar" seria inventar autorização que nenhuma
+  migration declara.
+*/
+export function useGenerateDiaryReport() {
+  const queryClient = useQueryClient()
+  const { data: collaborator } = useCurrentCollaborator()
+
+  return useMutation({
+    mutationFn: async ({
+      project,
+      entries,
+      visits,
+      issues,
+      options,
+      photos,
+    }: {
+      project: DiaryProject
+      entries: DiaryEntryRow[]
+      visits: SiteVisitRow[]
+      issues: ProjectIssueRow[]
+      options: ReportOptions
+      photos: ReportPhoto[]
+    }) => {
+      const chosen = await signReportPhotos(photos.filter((photo) => photo.selected))
+
+      const html = buildReportHTML({
+        project,
+        entries,
+        visits,
+        issues,
+        authorName: collaborator?.name ?? REPORT_FALLBACK_AUTHOR,
+        options,
+        photos: chosen,
+      })
+
+      printReport(html)
+
+      const { title, description } = reportLogText(options, chosen.length)
+
+      const event = await recordDiaryEvent({
+        projectId: project.id,
+        systemEvent: 'report_generated',
+        title,
+        description,
+        eventKey: null,
+        responsibleId: null,
+      })
+
+      return { event, photoCount: chosen.length }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
+    },
+  })
+}
+
+/*
+  O endereço temporário de cada foto escolhida, numa chamada só.
+
+  `createSignedUrls` devolve uma linha por caminho, cada uma com o seu próprio
+  erro: a que falhar sai da lista, e o documento sai com as outras. Recusar o
+  relatório inteiro porque uma foto sumiu do bucket seria trocar um relatório
+  quase completo por nenhum.
+*/
+async function signReportPhotos(photos: ReportPhoto[]): Promise<ReportPhotoWithUrl[]> {
+  if (photos.length === 0) return []
+
+  const { data, error } = await supabase.storage
+    .from(DIARY_FILES_BUCKET)
+    .createSignedUrls(
+      photos.map((photo) => photo.file.file_path),
+      SIGNED_URL_TTL_SECONDS,
+    )
+
+  if (error) throw error
+
+  const urlByPath = new Map<string, string>()
+  for (const signed of data ?? []) {
+    if (signed.error || !signed.signedUrl || !signed.path) continue
+    urlByPath.set(signed.path, signed.signedUrl)
+  }
+
+  return photos.flatMap((photo) => {
+    const url = urlByPath.get(photo.file.file_path)
+    if (!url) {
+      console.error('[diary] foto sem endereço assinado, fora do relatório:', photo.file.file_path)
+      return []
+    }
+    return [{ ...photo, url }]
   })
 }
 
