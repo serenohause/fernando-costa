@@ -274,6 +274,9 @@ function diaryProjectOf(task: TaskRow, projects: ProjectRow[]): DiaryProject | n
     responsible: project.operational_responsible,
     current_phase: project.current_phase,
     start_date: project.start_date,
+    /* O painel "Informações do Projeto" da aba Resumo mostra o status. Sem esta
+       linha o campo existe no tipo e chega vazio na tela. */
+    status: project.status,
   }
 }
 
