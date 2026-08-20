@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type MutateOptions } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { projectKeys } from '@/features/projects/hooks'
+import { financialKeys } from '@/features/financial/hooks'
 import {
   assertRowAffected,
   describeDatabaseError as describeError,
@@ -188,64 +190,124 @@ export function useUpdateContract() {
   `projects` e `tasks` são o MÓDULO 5; o encadeamento é decisão daquele módulo,
   não deste.
 */
+export type ApproveContractResult = {
+  outcome: 'created' | 'reused'
+  statusChanged: boolean
+  projectId: string
+  projectName: string
+  taskCreated: boolean
+}
+
+/*
+  A função levanta P0001 com mensagem estável, e não com nome de constraint —
+  então a tradução é por texto. `describeDatabaseError` não alcança: para ela
+  P0001 é erro não mapeado e viraria a frase genérica.
+*/
+const CONTRACT_FUNCTION_MESSAGES: Record<string, string> = {
+  not_authorized: 'É preciso permissão de edição em Contratos para este gesto.',
+  contract_not_found: 'Este contrato não existe mais neste escritório.',
+  client_required:
+    'Vincule um cliente ao contrato antes de aprovar: o projeto nasce no nome dele.',
+}
+
+export function describeContractFunctionError(error: unknown): string {
+  const message = (error as { message?: string } | null)?.message ?? ''
+  for (const [chave, frase] of Object.entries(CONTRACT_FUNCTION_MESSAGES)) {
+    if (message.includes(chave)) return frase
+  }
+  return describeDatabaseError(error)
+}
+
+/*
+  APROVAR A PROPOSTA CRIA O PROJETO E O CARTÃO DO FLUXO.
+
+  Era dívida declarada: o comentário do topo de Contracts.tsx registrava que a
+  criação automática de projeto e tarefa (Contracts.jsx:416-599 do original)
+  ficaria para o módulo 5, e "aprovar aqui muda o status e nada mais". O módulo 5
+  subiu e ninguém voltou — aprovar não criava projeto nenhum.
+
+  QUEM FAZ O TRABALHO É O BANCO, numa transação: `approve_contract_proposal`
+  (migration 0078). Daqui seriam três gravações soltas — status, projeto, tarefa
+  — e a falha no meio deixaria contrato aprovado sem projeto, ou projeto sem
+  cartão. A função também confere a permissão por dentro, que é o que permite ao
+  time comercial (menu `contracts`, sem `projects` nem `project_flow`) executar o
+  gesto.
+*/
 export function useApproveContract() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data, error } = await supabase
-        .from('contracts')
-        .update({ status: 'approved' })
-        .eq('id', id)
-        .select('id')
+    mutationFn: async (id: string): Promise<ApproveContractResult> => {
+      const { data, error } = await supabase.rpc('approve_contract_proposal', {
+        p_contract_id: id,
+      })
 
       if (error) throw error
-      assertRowAffected(
-        data,
-        'O contrato não foi aprovado. É preciso permissão de edição em Contratos.',
-      )
-      return id
+      return data as unknown as ApproveContractResult
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: contractKeys.all })
+      /* O projeto e o cartão nasceram em outro módulo: sem isto eles só
+         aparecem no próximo carregamento de Projetos e do Fluxo. */
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all })
     },
   })
 }
 
+export type ContractDeleteBlock = {
+  kind: 'paid_receivables' | 'activities' | 'payables' | 'budgets' | 'map_pins' | 'other_receivables'
+  count: number
+  total?: number
+}
+
+export type ContractDeleteResult = {
+  outcome: 'preview' | 'blocked' | 'deleted'
+  blocks: ContractDeleteBlock[]
+  projects: number
+  receivables: number
+  tasks: number
+  diaryEntries: number
+}
+
 /*
-  Exclusão do contrato, e SÓ dele.
+  EXCLUSÃO DO CONTRATO E DO QUE NASCEU DELE.
 
-  O original apaga junto os recebíveis, o projeto e as tarefas do projeto
-  (Contracts.jsx:603-649), em quatro varreduras no cliente — uma sequência que
-  pode parar no meio e deixar metade apagada.
+  Antes, apagar contrato apagava UMA linha e o banco RECUSAVA quando havia
+  parcela ou projeto apontando para ele (FK sem cascade, de propósito). O
+  usuário pediu a cascata do original — e com dois recortes que ele mesmo
+  definiu: só os projetos DESTE contrato, e o lead nunca é tocado.
 
-  As tabelas já existem (`projects` no MÓDULO 5, `accounts_receivable` no MÓDULO
-  7) e as FK delas continuam SEM cascade (migrations 0032 e 0041): contrato com
-  parcela gerada ou projeto vinculado não é apagado, o banco recusa com `23503`
-  e a tela diz qual é o caso pelo nome da constraint — ver
-  CONTRACTS_ERROR_MESSAGES. Apagar contrato apagaria dinheiro a receber junto, e
-  isso não pode acontecer por um clique num menu de contrato.
+  `delete_contract_cascade` (migration 0078) faz tudo numa transação e recusa,
+  em vez de apagar, quando encontra parcela já paga ou registro com valor
+  próprio pendurado no projeto. `confirm: false` não apaga nada — devolve as
+  contagens que o diálogo mostra antes de a pessoa decidir.
 */
 export function useDeleteContract() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data, error } = await supabase
-        .from('contracts')
-        .delete()
-        .eq('id', id)
-        .select('id')
+    mutationFn: async ({
+      id,
+      confirm,
+    }: {
+      id: string
+      confirm: boolean
+    }): Promise<ContractDeleteResult> => {
+      const { data, error } = await supabase.rpc('delete_contract_cascade', {
+        p_contract_id: id,
+        p_confirm: confirm,
+      })
 
       if (error) throw error
-      assertRowAffected(
-        data,
-        'Nenhum contrato foi excluído. É preciso permissão de edição em Contratos.',
-      )
-      return id
+      return data as unknown as ContractDeleteResult
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      /* Conferir não muda nada; invalidar ali só provocaria recarga à toa. */
+      if (result.outcome !== 'deleted') return
+
       void queryClient.invalidateQueries({ queryKey: contractKeys.all })
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all })
+      void queryClient.invalidateQueries({ queryKey: financialKeys.all })
     },
   })
 }

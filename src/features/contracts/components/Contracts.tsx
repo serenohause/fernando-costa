@@ -60,6 +60,7 @@ import { CONTRACT_STATUS, CONTRACT_TYPE, INSTALLMENT_FREQUENCY, labelOf } from '
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
 import { filterContracts, sortContracts, type StatusFilter } from '../list'
 import {
+  describeContractFunctionError,
   describeDatabaseError,
   useApproveContract,
   useContracts,
@@ -67,6 +68,8 @@ import {
   useDeleteContract,
   useReorderContracts,
   useUpdateContract,
+  type ContractDeleteBlock,
+  type ContractDeleteResult,
 } from '../hooks'
 import ContractForm, {
   toContractInput,
@@ -111,8 +114,13 @@ import type { ContractInput, ContractRow } from '../types'
   O QUE NÃO FOI PORTADO, E O MÓDULO QUE TRAZ DE VOLTA:
 
   - A criação automática de projeto e tarefa ao aprovar (Contracts.jsx:416-599)
-    → MÓDULO 5, junto com `projects` e `tasks`. Aprovar aqui muda o status e
-    nada mais.
+    → PORTADO na migration 0078, e não mais aqui: aprovar chama
+    `approve_contract_proposal`, que muda o status, cria (ou reaproveita) o
+    projeto e cria o cartão do Fluxo na MESMA transação. Daqui seriam três
+    gravações soltas, e a falha no meio deixaria contrato aprovado sem projeto.
+    A exclusão em cascata (Contracts.jsx:682-720) veio junto, em
+    `delete_contract_cascade`, com dois recortes decididos pelo usuário: alcança
+    só os projetos DESTE contrato, e nunca o lead.
   - A geocodificação do endereço da obra (`updateProjectGeolocation`) → MÓDULO 9,
     onde `map_properties` e o PostGIS entram.
   - `updateClientCRM` (Contracts.jsx:215-367): a cada gravação o original varre
@@ -122,9 +130,41 @@ import type { ContractInput, ContractRow } from '../types'
     partir de uma tela de contratos. Fica de fora; a conferência campo a campo
     entre dado recebido e cadastro já existe no módulo 3 (BriefingReview).
 */
+function describeCount(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`
+}
+
+/* Cada motivo de recusa diz ONDE resolver: a lista sem o caminho deixa a pessoa
+   sabendo que não pode, e não sabendo o que fazer. */
+function describeBlock(block: ContractDeleteBlock): string {
+  switch (block.kind) {
+    case 'paid_receivables':
+      return `${describeCount(block.count, 'parcela já paga', 'parcelas já pagas')}${
+        block.total ? ` (${formatCurrencyBRL(block.total)})` : ''
+      } — desfaça a baixa em Financeiro antes.`
+    case 'activities':
+      return `${describeCount(block.count, 'atividade', 'atividades')} da equipe no projeto — remova ou desvincule em Atividades.`
+    case 'payables':
+      return `${describeCount(block.count, 'conta a pagar', 'contas a pagar')} no projeto — remova ou desvincule em Financeiro.`
+    case 'budgets':
+      return `${describeCount(block.count, 'orçamento', 'orçamentos')} do cliente ligado ao projeto — desvincule em Orçamento por Cliente.`
+    case 'map_pins':
+      return `${describeCount(block.count, 'propriedade', 'propriedades')} marcada no Mapa — remova ou desvincule no Mapa.`
+    case 'other_receivables':
+      return `${describeCount(block.count, 'parcela', 'parcelas')} de outro contrato apontando para o projeto — desvincule em Financeiro.`
+    default:
+      /* Motivo novo no banco sem frase aqui: diz o que é em vez de sumir da
+         lista, que faria a recusa parecer sem causa. */
+      return 'Há registros ligados ao projeto que precisam ser resolvidos antes.'
+  }
+}
+
 export default function Contracts() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<ContractRow | null>(null)
+  /* O que a exclusão levaria junto, medido pela própria função em modo de
+     conferência. Nulo enquanto a contagem não volta. */
+  const [deletePreview, setDeletePreview] = useState<ContractDeleteResult | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; contract: ContractRow | null }>({
     open: false,
     contract: null,
@@ -205,24 +245,74 @@ export default function Contracts() {
     })
   }
 
+  /*
+    Aprovar cria o projeto e o cartão do Fluxo, e o aviso precisa dizer isso: o
+    gesto agora tem efeito em duas telas que a pessoa não está olhando.
+  */
   const handleApprove = (contract: ContractRow) => {
     approveMutation.mutate(contract.id, {
-      onSuccess: () => toast.success('Contrato aprovado!'),
-      onError: (error) => toast.error('Erro ao aprovar: ' + describeDatabaseError(error)),
+      onSuccess: (result) => {
+        if (result.outcome === 'created') {
+          toast.success(
+            `Contrato aprovado. Projeto "${result.projectName}" criado em Projetos` +
+              (result.taskCreated ? ', com o cartão no Fluxo do Projeto.' : '.'),
+          )
+        } else {
+          toast.success(
+            `Contrato aprovado. O projeto "${result.projectName}" já existia e foi atualizado` +
+              (result.taskCreated ? ', e o cartão do Fluxo foi criado.' : '.'),
+          )
+        }
+      },
+      onError: (error) => toast.error('Erro ao aprovar: ' + describeContractFunctionError(error)),
     })
+  }
+
+  /*
+    O DIÁLOGO CONTA ANTES DE APAGAR.
+
+    A exclusão passou a levar junto o projeto, as tarefas, o diário e as parcelas
+    do contrato — e isso não pode ser desfeito. Abrir o diálogo chama a função em
+    modo de conferência (`confirm: false`), que não escreve nada e devolve as
+    contagens; é o que a lista abaixo mostra. Se algo impedir, o mesmo retorno já
+    diz o quê, e o botão de excluir some.
+  */
+  const openDeleteDialog = (contract: ContractRow) => {
+    setDeleteDialog({ open: true, contract })
+    setDeletePreview(null)
+    deleteMutation.mutate(
+      { id: contract.id, confirm: false },
+      {
+        onSuccess: (result) => setDeletePreview(result),
+        onError: (error) =>
+          toast.error('Não foi possível conferir: ' + describeContractFunctionError(error)),
+      },
+    )
   }
 
   const confirmDelete = () => {
     const target = deleteDialog.contract
     if (!target) return
 
-    deleteMutation.mutate(target.id, {
-      onSuccess: () => {
-        setDeleteDialog({ open: false, contract: null })
-        toast.success('Contrato excluído com sucesso!')
+    deleteMutation.mutate(
+      { id: target.id, confirm: true },
+      {
+        onSuccess: (result) => {
+          if (result.outcome === 'blocked') {
+            setDeletePreview(result)
+            return
+          }
+          setDeleteDialog({ open: false, contract: null })
+          setDeletePreview(null)
+          toast.success(
+            result.projects > 0
+              ? `Contrato excluído, junto com ${describeCount(result.projects, 'projeto', 'projetos')} e o que estava dentro dele.`
+              : 'Contrato excluído.',
+          )
+        },
+        onError: (error) => toast.error('Erro ao excluir: ' + describeContractFunctionError(error)),
       },
-      onError: (error) => toast.error('Erro ao excluir: ' + describeDatabaseError(error)),
-    })
+    )
   }
 
   /* Abrir o diálogo devolve os campos ao estado inicial, e fechar também: o
@@ -596,7 +686,7 @@ export default function Contracts() {
                                     )}
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
-                                      onClick={() => setDeleteDialog({ open: true, contract })}
+                                      onClick={() => openDeleteDialog(contract)}
                                       className="text-rose-600 focus:text-rose-600 dark:text-rose-400 dark:focus:text-rose-400"
                                     >
                                       <Trash2 className="w-4 h-4 mr-2" />
@@ -738,38 +828,74 @@ export default function Contracts() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir contrato?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir o contrato {deleteDialog.contract?.contract_number}?
-              <br />
-              <br />
-              {/*
-                A lista tem UM item porque a exclusão apaga UM registro. O
-                original promete apagar junto as parcelas, o projeto vinculado e
-                as tarefas do projeto (Contracts.jsx:603-649) — aqui as FK de
-                `accounts_receivable` e de `projects` continuam SEM cascade
-                (migrations 0041 e 0032), de propósito: apagar contrato não pode
-                apagar dinheiro a receber em silêncio. Com parcelas geradas ou
-                projeto vinculado o banco RECUSA a exclusão, e a mensagem diz qual
-                é o caso e onde resolver (CONTRACTS_ERROR_MESSAGES).
-              */}
-              <strong>Esta ação irá excluir:</strong>
-              <ul className="list-disc pl-5 mt-2 text-sm">
-                <li>O contrato</li>
-              </ul>
-              <br />
-              Esta ação não pode ser desfeita.
+            <AlertDialogDescription asChild>
+              <div>
+                <p>
+                  Contrato {deleteDialog.contract?.contract_number}.
+                </p>
+
+                {deletePreview === null ? (
+                  <p className="mt-3 text-sm">Conferindo o que está ligado a este contrato...</p>
+                ) : deletePreview.blocks.length > 0 ? (
+                  <>
+                    <p className="mt-3 text-sm font-medium text-rose-700 dark:text-rose-400">
+                      Não dá para excluir enquanto houver:
+                    </p>
+                    <ul className="list-disc pl-5 mt-2 text-sm space-y-1">
+                      {deletePreview.blocks.map((block) => (
+                        <li key={block.kind}>{describeBlock(block)}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-3 text-sm">
+                      Resolva o que está na lista e tente de novo. Nada foi apagado.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-3 text-sm font-medium">Isto será apagado, sem volta:</p>
+                    <ul className="list-disc pl-5 mt-2 text-sm space-y-1">
+                      <li>O contrato</li>
+                      {deletePreview.receivables > 0 && (
+                        <li>{describeCount(deletePreview.receivables, 'parcela', 'parcelas')} do contrato</li>
+                      )}
+                      {deletePreview.projects > 0 && (
+                        <li>{describeCount(deletePreview.projects, 'projeto', 'projetos')} deste contrato</li>
+                      )}
+                      {deletePreview.tasks > 0 && (
+                        <li>{describeCount(deletePreview.tasks, 'cartão', 'cartões')} do Fluxo do Projeto</li>
+                      )}
+                      {deletePreview.diaryEntries > 0 && (
+                        <li>
+                          {describeCount(deletePreview.diaryEntries, 'registro', 'registros')} do Diário
+                          do Projeto
+                        </li>
+                      )}
+                    </ul>
+                    {/* O cliente e a negociação ficam por decisão do usuário
+                        ("menos o lead") — dizer isso evita a dúvida de quem
+                        hesita em apagar por medo de perder o cadastro. */}
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      O cadastro do cliente e a negociação no Pipeline não são apagados.
+                    </p>
+                  </>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             {/* `text-white` explícito: o token do botão inverte no tema escuro e
                 rose-600 é escuro o bastante para texto branco nos dois. */}
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-rose-600 text-white hover:bg-rose-700"
-            >
-              Excluir
-            </AlertDialogAction>
+            {/* Some quando algo impede: oferecer o botão seria oferecer um
+                gesto que já se sabe que vai ser recusado. */}
+            {deletePreview !== null && deletePreview.blocks.length === 0 && (
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-rose-600 text-white hover:bg-rose-700"
+              >
+                Excluir
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

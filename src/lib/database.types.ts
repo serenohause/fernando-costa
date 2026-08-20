@@ -3383,6 +3383,10 @@ export type Database = {
         }
         Returns: Json
       }
+      approve_contract_proposal: {
+        Args: { p_contract_id: string }
+        Returns: Json
+      }
       auth_collaborator_id: { Args: never; Returns: string }
       auth_collaborator_role: {
         Args: never
@@ -3392,6 +3396,10 @@ export type Database = {
       can_edit_menu: { Args: { p_menu_key: string }; Returns: boolean }
       can_view_menu: { Args: { p_menu_key: string }; Returns: boolean }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      delete_contract_cascade: {
+        Args: { p_confirm?: boolean; p_contract_id: string }
+        Returns: Json
+      }
       generate_contract_installments: {
         Args: { p_contract_id: string }
         Returns: Json

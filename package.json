@@ -47,7 +47,8 @@
     "test:notify": "node tests/query-notify.mjs",
     "test:phone-dedup": "supabase/tests/run-sql.sh supabase/tests/client-phone-dedup.sql",
     "test:won": "supabase/tests/run-sql.sh supabase/tests/negotiation-won.sql",
-    "test:contract-number": "supabase/tests/run-sql.sh supabase/tests/contract-number.sql"
+    "test:contract-number": "supabase/tests/run-sql.sh supabase/tests/contract-number.sql",
+    "test:contract-cascade": "supabase/tests/run-sql.sh supabase/tests/contract-approval-delete.sql"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
