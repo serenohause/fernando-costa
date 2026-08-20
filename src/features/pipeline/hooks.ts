@@ -361,6 +361,39 @@ export function useMoveNegotiationStage() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    /*
+      A COLUNA MUDA ANTES DA IDA AO BANCO, e isso conserta um defeito visual que
+      o escritório reportou: soltar o cartão fazia ele voltar para a coluna de
+      origem, sumir, e reaparecer na de destino.
+
+      Não era animação errada — era a tela dizendo a verdade. `@hello-pangea/dnd`
+      solta o cartão na posição que os DADOS mandam, e os dados só mudavam depois
+      do UPDATE e do refetch. Entre o dedo soltar e a resposta chegar, a
+      negociação ainda estava na etapa antiga: o cartão voava de volta para lá,
+      era removido no re-render seguinte e desenhado do outro lado. Todo o
+      "pisca" é a ida ao servidor aparecendo na tela.
+
+      Atualizando o cache aqui, o destino já é o certo quando a animação começa e
+      o cartão pousa onde foi solto. Se a gravação falhar, `onError` devolve a
+      lista anterior e o cartão volta — dessa vez porque ele realmente não andou.
+    */
+    onMutate: async ({ id, funnelStage }: { id: string; funnelStage: NegotiationRow['funnel_stage'] }) => {
+      /* Sem isto, um refetch já em voo pousaria DEPOIS e reescreveria o cache
+         com a etapa antiga — o mesmo pisca, agora intermitente. */
+      await queryClient.cancelQueries({ queryKey: pipelineKeys.negotiations() })
+
+      const previous = queryClient.getQueryData<NegotiationRow[]>(pipelineKeys.negotiations())
+      if (previous) {
+        queryClient.setQueryData<NegotiationRow[]>(
+          pipelineKeys.negotiations(),
+          previous.map((negotiation) =>
+            negotiation.id === id ? { ...negotiation, funnel_stage: funnelStage } : negotiation,
+          ),
+        )
+      }
+
+      return { previous }
+    },
     mutationFn: async ({ id, funnelStage }: { id: string; funnelStage: NegotiationRow['funnel_stage'] }) => {
       const { data, error } = await supabase
         .from('negotiations')
@@ -375,7 +408,19 @@ export function useMoveNegotiationStage() {
       )
       return id
     },
-    onSuccess: () => {
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(pipelineKeys.negotiations(), context.previous)
+      }
+    },
+    /*
+      `onSettled`, e não `onSuccess`: o cache aqui está com um palpite. Se a
+      gravação falhar, o `onError` acima desfaz o palpite, mas a lista que sobra
+      é a de antes do arraste — e ela pode já estar velha por outro motivo.
+      Buscar do servidor nos dois desfechos faz a tela terminar sempre no que o
+      banco tem, e não no que este navegador supôs.
+    */
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: pipelineKeys.negotiations() })
     },
   })

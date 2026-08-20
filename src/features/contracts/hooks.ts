@@ -272,6 +272,32 @@ export function useReorderContracts() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    /*
+      A ORDEM MUDA ANTES DA IDA AO BANCO. É o mesmo defeito visual que o
+      escritório reportou no quadro do Pipeline: sem tocar no cache, a linha
+      arrastada volta para o lugar de origem quando o dedo solta e só pula para o
+      destino quando o refetch chega. A lista é ordenada por `display_order` no
+      cliente (`list.ts`), então escrever a posição nova aqui já basta.
+    */
+    onMutate: async (ordered: { id: string; display_order: number | null }[]) => {
+      await queryClient.cancelQueries({ queryKey: contractKeys.list() })
+
+      const previous = queryClient.getQueryData<ContractRow[]>(contractKeys.list())
+      if (previous) {
+        /* A mesma conta que o `mutationFn` grava: a posição no array VIRA o
+           `display_order`. */
+        const positions = new Map(ordered.map((contract, index) => [contract.id, index]))
+        queryClient.setQueryData<ContractRow[]>(
+          contractKeys.list(),
+          previous.map((contract) => {
+            const position = positions.get(contract.id)
+            return position === undefined ? contract : { ...contract, display_order: position }
+          }),
+        )
+      }
+
+      return { previous }
+    },
     mutationFn: async (ordered: { id: string; display_order: number | null }[]) => {
       const changed = ordered
         .map((contract, index) => ({ id: contract.id, index }))
@@ -294,7 +320,17 @@ export function useReorderContracts() {
       )
       return changed.length
     },
-    onSuccess: () => {
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(contractKeys.list(), context.previous)
+      }
+    },
+    /*
+      `onSettled`: a gravação são vários UPDATE em paralelo, um por linha que
+      mudou de posição. Falhando no meio, parte já passou — a ordem no banco não
+      é nem a antiga nem a nova, e só o servidor sabe qual ficou.
+    */
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: contractKeys.all })
     },
   })

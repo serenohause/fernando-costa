@@ -409,6 +409,33 @@ export function useReorderProjects() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    /*
+      A ORDEM MUDA ANTES DA IDA AO BANCO — mesmo defeito visual dos quadros (ver
+      `useMoveTaskPhase`). A lista é ordenada por `display_order` no cliente
+      (`list.ts`), então basta escrever no cache a posição nova de cada linha
+      para a linha arrastada pousar onde foi solta em vez de voltar ao lugar de
+      origem e pular depois.
+    */
+    onMutate: async (ordered: { id: string; display_order: number | null }[]) => {
+      await queryClient.cancelQueries({ queryKey: projectKeys.list() })
+
+      const previous = queryClient.getQueryData<ProjectRow[]>(projectKeys.list())
+      if (previous) {
+        /* A mesma conta que o `mutationFn` grava: a posição no array VIRA o
+           `display_order`. Repetir a regra em dois lugares é o que faz o palpite
+           bater com o que o servidor vai devolver. */
+        const positions = new Map(ordered.map((project, index) => [project.id, index]))
+        queryClient.setQueryData<ProjectRow[]>(
+          projectKeys.list(),
+          previous.map((project) => {
+            const position = positions.get(project.id)
+            return position === undefined ? project : { ...project, display_order: position }
+          }),
+        )
+      }
+
+      return { previous }
+    },
     mutationFn: async (ordered: { id: string; display_order: number | null }[]) => {
       const changed = ordered
         .map((project, index) => ({ id: project.id, index }))
@@ -431,7 +458,18 @@ export function useReorderProjects() {
       )
       return changed.length
     },
-    onSuccess: () => {
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(projectKeys.list(), context.previous)
+      }
+    },
+    /*
+      `onSettled`, e aqui há um motivo extra: a gravação são vários UPDATE em
+      paralelo, um por linha que mudou de posição. Se o terceiro falhar, os dois
+      primeiros já passaram — a ordem no banco não é nem a antiga nem a nova.
+      Só o servidor sabe em que estado ficou.
+    */
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all })
     },
   })
@@ -586,6 +624,41 @@ export function useMoveTaskPhase() {
   const tenantId = useTenantId()
 
   return useMutation({
+    /*
+      A COLUNA MUDA ANTES DA IDA AO BANCO. Mesmo defeito visual do quadro do
+      Pipeline (ver `useMoveNegotiationStage`), e aqui ele era pior: além do
+      UPDATE, esta mutação grava o evento do diário, cria o checklist da etapa
+      nova e recalcula a fase do projeto. O cartão ficava voltando para a coluna
+      de origem durante essa fila inteira, para só então aparecer no destino.
+
+      O palpite copia os QUATRO campos que o UPDATE grava, não só a etapa: o
+      cartão mostra prazo, atraso e crachá de status operacional a partir deles,
+      e adivinhar só a coluna deixaria o cartão pousar certo com o crachá errado
+      por um instante.
+    */
+    onMutate: async ({ move }: { move: TaskPhaseMove; projectId: string | null }) => {
+      await queryClient.cancelQueries({ queryKey: projectKeys.tasks() })
+
+      const previous = queryClient.getQueryData<TaskRow[]>(projectKeys.tasks())
+      if (previous) {
+        queryClient.setQueryData<TaskRow[]>(
+          projectKeys.tasks(),
+          previous.map((task) =>
+            task.id === move.id
+              ? {
+                  ...task,
+                  phase: move.phase,
+                  status: move.status,
+                  completion_date: move.completion_date,
+                  operational_tag: null,
+                }
+              : task,
+          ),
+        )
+      }
+
+      return { previous }
+    },
     mutationFn: async ({
       move,
       projectId,
@@ -649,7 +722,20 @@ export function useMoveTaskPhase() {
       if (projectId) await syncProjectFromTasks(projectId)
       return { id: move.id, event }
     },
-    onSuccess: () => {
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(projectKeys.tasks(), context.previous)
+      }
+    },
+    /*
+      `onSettled` importa mais aqui do que no Pipeline. Esta mutação tem etapas
+      DEPOIS do UPDATE que podem falhar por conta própria — o evento do diário e
+      o recálculo da fase. Se uma delas cair, a tarefa JÁ MUDOU de etapa no banco;
+      desfazer o palpite e parar por aí deixaria a tela mostrando o cartão na
+      coluna velha, que é mentira. Buscar do servidor nos dois desfechos põe a
+      tela no que de fato aconteceu.
+    */
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all })
       /* A gaveta do diário pode estar aberta sobre o mesmo projeto — o evento
          que acabou de nascer é uma linha nova na Timeline dela. */
