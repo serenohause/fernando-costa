@@ -7,7 +7,7 @@ import {
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
 import type { TablesInsert } from '@/lib/database.types'
-import { useCurrentCollaborator } from '@/features/auth/hooks'
+import { useCurrentCollaborator, useCurrentTenant } from '@/features/auth/hooks'
 import {
   PROJECT_ISSUE_CATEGORY,
   SITE_VISIT_STATUS,
@@ -1299,6 +1299,9 @@ export function useResolveProjectIssue() {
 export function useGenerateDiaryReport() {
   const queryClient = useQueryClient()
   const { data: collaborator } = useCurrentCollaborator()
+  /* A capa e o rodape do relatorio levam o nome do ESCRITORIO, lido do tenant —
+     ver o comentario de `officeName` em report.ts. */
+  const { data: tenant } = useCurrentTenant()
 
   return useMutation({
     mutationFn: async ({
@@ -1319,6 +1322,7 @@ export function useGenerateDiaryReport() {
       const chosen = await signReportPhotos(photos.filter((photo) => photo.selected))
 
       const html = buildReportHTML({
+        officeName: tenant?.name ?? '',
         project,
         entries,
         visits,

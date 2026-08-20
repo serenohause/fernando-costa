@@ -193,13 +193,13 @@ export default function AppLayout() {
   /*
     O título da aba também dizia "Fernando Costa", escrito no index.html. Num
     sistema multitenant isso é o nome do escritório errado na aba de todo mundo
-    que não seja o primeiro, então o index.html ficou só com "Backoffice" (que é
+    que não seja o primeiro, então o index.html ficou só com "HausOne" (que é
     verdade para qualquer escritório e aparece antes de existir sessão) e o nome
     entra aqui, quando o tenant chega. A limpeza devolve o título neutro ao sair
     do shell — quem desloga vai para o login, que não é de escritório nenhum.
   */
   useEffect(() => {
-    const baseTitle = 'Backoffice'
+    const baseTitle = 'HausOne'
     document.title = tenantName ? `${baseTitle} ${tenantName}` : baseTitle
     return () => {
       document.title = baseTitle
@@ -287,7 +287,7 @@ export default function AppLayout() {
             {/*
               O nome sai do tenant (`TenantName`), e não mais da string
               "FERNANDO COSTA" que estava aqui. Tipografia intocada: font-light,
-              text-lg, tracking-[0.15em], leading-tight e o "BACKOFFICE"
+              text-lg, tracking-[0.15em], leading-tight e o "HAUSONE"
               embaixo são os do original.
 
               `uppercase` é NOVO e não muda um pixel do que se vê: a caixa alta
@@ -297,13 +297,13 @@ export default function AppLayout() {
               `truncate` + `min-w-0` é o transbordo, que o original nunca
               precisou tratar porque o nome cabia. Sem eles, um nome comprido
               quebra em duas linhas dentro de um cabeçalho de altura fixa (h-16)
-              e empurra o "BACKOFFICE" para fora.
+              e empurra o "HAUSONE" para fora.
             */}
             <div className="text-center w-full min-w-0 py-2">
               <h1 className="font-light text-foreground text-lg tracking-[0.15em] leading-tight uppercase truncate">
                 <TenantName />
               </h1>
-              <p className="text-[10px] text-muted-foreground tracking-[0.3em] mt-1">BACKOFFICE</p>
+              <p className="text-[10px] text-muted-foreground tracking-[0.3em] mt-1">HAUSONE</p>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}

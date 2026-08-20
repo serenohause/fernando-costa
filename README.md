@@ -1,4 +1,4 @@
-# Backoffice Fernando Costa
+# HausOne
 
 Sistema de gestão para escritório de arquitetura: do primeiro contato com o
 lead até a última parcela recebida.

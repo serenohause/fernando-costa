@@ -11,7 +11,7 @@ import { useHomeDashboardTarget } from '../hooks'
   Porta de projeto-original/src/pages/Home.jsx — a rota de entrada.
 
   A tela é só a espera: o quadrado com as iniciais do escritório, o nome dele,
-  "BACKOFFICE" em caixa alta espaçada, o spinner e o "Carregando...". Geometria (w-32 h-32,
+  "HAUSONE" em caixa alta espaçada, o spinner e o "Carregando...". Geometria (w-32 h-32,
   rounded-3xl, shadow-2xl, mb-8/mb-6/mb-4, text-5xl, text-3xl) e microcopy são os
   do original. O degradê de fundo e o do quadrado vêm dos tokens: `from-slate-50
   to-slate-100` é `from-background to-muted` (ver o comentário do src/index.css,
@@ -69,7 +69,7 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-foreground mb-2 uppercase max-w-xs mx-auto wrap-break-word">
             <TenantName />
           </h1>
-          <p className="text-sm text-muted-foreground uppercase tracking-widest">Backoffice</p>
+          <p className="text-sm text-muted-foreground uppercase tracking-widest">HausOne</p>
         </div>
         <Loader2 className="w-8 h-8 text-faint animate-spin mx-auto mb-4" />
         <p className="text-soft">Carregando...</p>

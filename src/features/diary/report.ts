@@ -269,6 +269,7 @@ export function buildReportHTML({
   visits,
   issues,
   authorName,
+  officeName,
   options,
   photos,
   now = new Date(),
@@ -278,6 +279,15 @@ export function buildReportHTML({
   visits: SiteVisitRow[]
   issues: ProjectIssueRow[]
   authorName: string
+  /*
+    O NOME DO ESCRITORIO VEM DE FORA, e nao escrito aqui.
+
+    A capa e o rodape traziam "Fernando Costa" e "Fernando Costa Arquitetura"
+    fixos no codigo. Num sistema com mais de um escritorio isso e documento
+    entregue a cliente com o nome de OUTRA empresa no papel — o mesmo defeito
+    que o cabecalho da tela ja tinha e que foi corrigido lendo o tenant.
+  */
+  officeName: string
   options: ReportOptions
   photos: ReportPhotoWithUrl[]
   now?: Date
@@ -315,7 +325,7 @@ export function buildReportHTML({
   /* Capa */
   parts.push(`
     <div class="cover">
-      <div class="cover-logo">Fernando Costa • Backoffice</div>
+      <div class="cover-logo">${h(officeName)} • HausOne</div>
       <div class="cover-title">${h(project.name)}</div>
       <div class="cover-client">${h(project.client?.name) || '—'}</div>
       <div>
@@ -521,7 +531,7 @@ export function buildReportHTML({
   }
 
   parts.push(
-    `<div class="footer">Fernando Costa Arquitetura • Backoffice — Documento gerado em ${h(
+    `<div class="footer">${h(officeName)} • HausOne — Documento gerado em ${h(
       today,
     )}</div>`,
   )
