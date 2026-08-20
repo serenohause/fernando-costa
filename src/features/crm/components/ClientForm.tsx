@@ -11,6 +11,7 @@ import { CLIENT_TYPE, LEAD_SOURCE, optionsOf, type ClientType, type LeadSource }
 import { maskPhone, maskTaxId, maskZipcode } from '@/lib/masks'
 import { useLookupZipcode } from '../hooks'
 import type { DuplicateClientError } from '../hooks'
+import type { DuplicateField } from '../types'
 import type { Client, ClientInput } from '../types'
 
 /*
@@ -167,6 +168,21 @@ function toClientInput(values: ClientFormValues): ClientInput {
   }
 }
 
+/* Os três campos que deduplicam cliente: documento e e-mail desde a migration
+   0015, telefone desde a 0076. Ternário aqui viraria "este e-mail" para uma
+   colisão de telefone, mandando a pessoa conferir o campo errado. */
+const DUPLICATE_TITLE: Record<DuplicateField, string> = {
+  tax_id: 'Este CPF/CNPJ já está cadastrado',
+  email: 'Este e-mail já está cadastrado',
+  phone: 'Este telefone já está cadastrado',
+}
+
+const DUPLICATE_WHAT: Record<DuplicateField, string> = {
+  tax_id: 'este documento',
+  email: 'este e-mail',
+  phone: 'este telefone',
+}
+
 export default function ClientForm({
   open,
   onClose,
@@ -267,14 +283,12 @@ export default function ClientForm({
               <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600 dark:text-rose-400" />
               <div className="space-y-2">
                 <p className="text-sm font-medium text-rose-900 dark:text-rose-300">
-                  {duplicate.field === 'tax_id'
-                    ? 'Este CPF/CNPJ já está cadastrado'
-                    : 'Este e-mail já está cadastrado'}
+                  {DUPLICATE_TITLE[duplicate.field]}
                 </p>
                 {duplicate.existing ? (
                   <>
                     <p className="text-sm text-rose-800 dark:text-rose-300">
-                      Já existe um cliente com {duplicate.field === 'tax_id' ? 'este documento' : 'este e-mail'}:{' '}
+                      Já existe um cliente com {DUPLICATE_WHAT[duplicate.field]}:{' '}
                       <strong>{duplicate.existing.name}</strong>.
                     </p>
                     {onOpenDuplicate && (

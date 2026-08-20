@@ -983,6 +983,7 @@ export type Database = {
           name: string
           notes: string | null
           phone: string
+          phone_digits: string | null
           search_text: string | null
           site_city: string | null
           site_complement: string | null
@@ -1017,6 +1018,7 @@ export type Database = {
           name: string
           notes?: string | null
           phone: string
+          phone_digits?: string | null
           search_text?: string | null
           site_city?: string | null
           site_complement?: string | null
@@ -1051,6 +1053,7 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string
+          phone_digits?: string | null
           search_text?: string | null
           site_city?: string | null
           site_complement?: string | null

@@ -80,7 +80,7 @@ export type ClientInput = {
   `tenant_id, client_key`) devolvem o mesmo SQLSTATE 23505. A distinção importa
   para a tela: a frase muda, e o cliente a mostrar é achado por coluna diferente.
 */
-export type DuplicateField = 'tax_id' | 'email'
+export type DuplicateField = 'tax_id' | 'email' | 'phone'
 
 /* Endereço devolvido pelo ViaCEP, já validado e reduzido ao que o form usa. */
 export type ZipcodeAddress = {

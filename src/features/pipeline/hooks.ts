@@ -63,6 +63,13 @@ const PIPELINE_ERROR_MESSAGES: DatabaseErrorMessages = {
     'Outro cliente deste escritório já tem este CPF/CNPJ. Provavelmente é a mesma pessoa cadastrada duas vezes — abra o cadastro que já tem o documento e una os dois antes de aplicar.',
   clients_tenant_id_email_normalized_key:
     'Outro cliente deste escritório já tem este e-mail. Confira se não é a mesma pessoa cadastrada duas vezes antes de aplicar.',
+  /*
+    Telefone virou chave de deduplicação na migration 0076, e o briefing é um dos
+    caminhos que esbarram nela: o cliente digita o número no formulário público e
+    a conferência tenta gravá-lo num cadastro que já existe com outro dono.
+  */
+  clients_tenant_id_phone_digits_key:
+    'Outro cliente deste escritório já usa este telefone. Provavelmente é a mesma pessoa cadastrada duas vezes — abra o cadastro que já tem o número e una os dois antes de aplicar.',
 
   '23503': 'O cliente ou o responsável informado não existe mais neste escritório.',
   '23502': 'Falta um campo obrigatório: nome da negociação e responsável comercial.',

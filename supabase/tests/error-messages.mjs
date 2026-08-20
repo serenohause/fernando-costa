@@ -157,6 +157,43 @@ const env = carregarEnv()
   indentação, que é o que o Prettier produz nesses mapas); em troca, frase nova
   é reconhecida sem ninguém avisar nada.
 */
+/*
+  SÓ OS MAPAS DE MENSAGEM CONTAM, e a restrição é o conserto de um furo.
+
+  A varredura antiga pegava qualquer chave com dois espaços de indentação
+  terminada em `_key`/`_check`/`_fkey`, em qualquer lugar do arquivo. Isso passou
+  a ser errado no dia em que nasceu o primeiro objeto que apenas NOMEIA
+  restrições sem explicá-las — `CONSTRAINT_FIELD`, no CRM, que mapeia o nome do
+  índice para o campo do formulário. Uma restrição listada ali passava a contar
+  como "tem frase" sem que nenhuma frase existisse, e o teste dizia que o usuário
+  estava coberto quando não estava. Foi pego por mutação: apagar a mensagem do
+  telefone não derrubou nenhum caso.
+
+  A fonte da verdade é o TIPO: mapa de mensagem é `: DatabaseErrorMessages = {`.
+  O bloco vai até a primeira linha que fecha na coluna zero, que é como todos
+  eles são escritos.
+*/
+function mapasDeMensagem(texto) {
+  const blocos = []
+  const linhas = texto.split('\n')
+  let dentro = null
+
+  for (const linha of linhas) {
+    if (dentro === null) {
+      if (/:\s*DatabaseErrorMessages\s*=\s*\{/.test(linha)) dentro = []
+      continue
+    }
+    if (linha === '}') {
+      blocos.push(dentro.join('\n'))
+      dentro = null
+      continue
+    }
+    dentro.push(linha)
+  }
+
+  return blocos
+}
+
 function frasesDoFrontend() {
   const arquivos = [resolve(ROOT, 'src/lib/db-errors.ts')]
   const base = resolve(ROOT, 'src/features')
@@ -172,9 +209,10 @@ function frasesDoFrontend() {
 
   const nomes = new Set()
   for (const arquivo of arquivos) {
-    const texto = readFileSync(arquivo, 'utf8')
-    for (const m of texto.matchAll(/^ {2}([a-z][a-z0-9_]*(?:_key|_check|_fkey)):/gm)) {
-      nomes.add(m[1])
+    for (const bloco of mapasDeMensagem(readFileSync(arquivo, 'utf8'))) {
+      for (const m of bloco.matchAll(/^ {2}([a-z][a-z0-9_]*(?:_key|_check|_fkey)):/gm)) {
+        nomes.add(m[1])
+      }
     }
   }
   return nomes

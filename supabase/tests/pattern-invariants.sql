@@ -83,9 +83,15 @@ create temp table pattern_tables (
 -- adiante: c_editor_a / c_editor_b (responsavel comercial), fix_client_a /
 -- fix_client_b e fix_neg_a / fix_neg_b (mae das tabelas filhas do modulo 3).
 insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, insert_vals_b) values
+  -- O TELEFONE E SORTEADO, e nao um literal fixo, porque a migration 0076 tornou
+  -- telefone chave de deduplicacao de cliente. A sonda grava `insert_vals` no
+  -- escritorio A duas vezes (a linha de fixture e o caso C1 "quem pode escrever
+  -- CRIA"), e com numero fixo a segunda batia em 23505 - o caso reportava falha
+  -- de PERMISSAO onde havia acerto de UNICIDADE. Trocar por outro literal fixo
+  -- so adiaria o problema para o proximo caso que insira duas vezes.
   (2, 'clients', 'crm',
    'name, phone, address_city, address_state',
-   $$'Cliente Padrao', '(62) 90000-0000', 'Goiania', 'GO'$$,
+   $$'Cliente Padrao', '(62) 9' || lpad((random() * 99999999)::bigint::text, 8, '0'), 'Goiania', 'GO'$$,
    null),
 
   (3, 'negotiations', 'pipeline',

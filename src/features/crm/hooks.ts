@@ -64,7 +64,10 @@ const CRM_ERROR_MESSAGES: DatabaseErrorMessages = {
   map_properties_client_id_fkey:
     'Este cliente tem propriedade marcada no Mapa, e ela não é excluída junto. Remova ou desvincule a propriedade no Mapa antes de excluir o cliente.',
 
-  '23505': 'Já existe um cliente cadastrado com este CPF/CNPJ ou e-mail.',
+  clients_tenant_id_phone_digits_key:
+    'Outro cliente deste escritório já usa este telefone. Abra o cadastro que já tem o número em vez de criar um segundo.',
+
+  '23505': 'Já existe um cliente cadastrado com este CPF/CNPJ, e-mail ou telefone.',
   '23502': 'Falta um campo obrigatório: nome, telefone, cidade, estado ou país.',
   '23514': 'Algum campo está fora do formato aceito. Confira o e-mail e os campos obrigatórios.',
 }
@@ -83,12 +86,18 @@ export function describeDatabaseError(error: unknown): string {
   "CPF já cadastrado" deixa a pessoa exatamente onde ela já estava: sem achar o
   cliente. Por isso o erro carrega a linha existente, e não só a frase.
 */
+const DUPLICATE_LABEL: Record<DuplicateField, string> = {
+  tax_id: 'este CPF/CNPJ',
+  email: 'este e-mail',
+  phone: 'este telefone',
+}
+
 export class DuplicateClientError extends Error {
   field: DuplicateField
   existing: Client | null
 
   constructor(field: DuplicateField, existing: Client | null) {
-    const what = field === 'tax_id' ? 'este CPF/CNPJ' : 'este e-mail'
+    const what = DUPLICATE_LABEL[field]
     super(
       existing
         ? `Já existe um cliente cadastrado com ${what}: ${existing.name}.`
@@ -103,29 +112,92 @@ export class DuplicateClientError extends Error {
 /*
   Traduz 23505 no cliente que ocupa o valor.
 
-  Qual coluna consultar sai da própria definição de `client_key` (migration
-  0015): documento tem precedência. Havendo documento, os DOIS índices únicos
-  batem em `tax_id_digits`, então é por ele que se procura; sem documento, o que
-  colidiu foi `client_key` na forma `email:<normalizado>`.
+  QUAL CAMPO COLIDIU VEM DO NOME DA RESTRIÇÃO, e não de um palpite. Enquanto as
+  chaves eram documento e e-mail, dava para deduzir pela precedência do
+  `client_key` (documento manda; sem documento, sobrou o e-mail). O telefone
+  (migration 0076) quebra essa dedução: um cliente COM CPF pode colidir por
+  telefone, e o palpite antigo diria "CPF já cadastrado" — mandando a pessoa
+  conferir um campo que está certo, enquanto o que colidiu fica invisível.
+
+  O banco já diz qual foi: o nome do índice está na mensagem do 23505, e o
+  trigger `clients_reject_key_collision` levanta o erro com esse mesmo nome de
+  propósito, justamente para a tela não precisar adivinhar.
 
   A busca é por coluna indexada e não por `search_text`: aqui não é busca livre,
   é procurar um valor exato. Falha nesta consulta não vira erro novo — o usuário
   já está vendo uma recusa, e trocá-la por outra mensagem só perderia informação.
 */
-async function findConflictingClient(
+
+/*
+  O ESPELHO EM TYPESCRIPT DA COLUNA GERADA `phone_digits` (migration 0076).
+
+  É uma segunda cópia da regra, e ela é deliberada: o banco calcula a coluna para
+  GRAVAR, e a tela precisa da mesma conta para PROCURAR quem já ocupa o número.
+  Não há como consultar a coluna sem reproduzir a normalização deste lado.
+
+  Se as duas discordarem, o sintoma é discreto: o banco recusa a gravação e a tela
+  não acha o cadastro existente — a pessoa vê "já existe" sem o link para abrir,
+  que é justamente o que a mensagem foi desenhada para evitar. Por isso a regra
+  está escrita aqui do mesmo jeito que na migration: o DDI sai só com 12 ou 13
+  dígitos, porque com 11 o `55` é o DDD de Santa Maria/RS.
+*/
+function normalizePhoneForLookup(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
+    return digits.slice(2)
+  }
+  return digits
+}
+
+const CONSTRAINT_FIELD: Record<string, DuplicateField> = {
+  clients_tenant_id_tax_id_digits_key: 'tax_id',
+  clients_tenant_id_client_key_key: 'tax_id',
+  clients_tenant_id_email_normalized_key: 'email',
+  clients_tenant_id_phone_digits_key: 'phone',
+}
+
+function collidedField(
+  error: unknown,
   parsed: { tax_id: string | null; email: string | null },
+): DuplicateField {
+  const message = (error as { message?: string } | null)?.message ?? ''
+  for (const [constraint, field] of Object.entries(CONSTRAINT_FIELD)) {
+    if (message.includes(constraint)) {
+      /*
+        `client_key` é documento OU e-mail, na precedência da migration 0015 — o
+        nome sozinho não distingue os dois, então aqui a dedução antiga continua
+        valendo, e só aqui.
+      */
+      return constraint === 'clients_tenant_id_client_key_key'
+        ? (parsed.tax_id?.replace(/\D/g, '') ? 'tax_id' : 'email')
+        : field
+    }
+  }
+
+  /* Restrição não reconhecida: cai na precedência antiga em vez de escolher um
+     campo ao acaso. */
+  return parsed.tax_id?.replace(/\D/g, '') ? 'tax_id' : 'email'
+}
+
+async function findConflictingClient(
+  error: unknown,
+  parsed: { tax_id: string | null; email: string | null; phone: string },
   excludeId?: string,
 ): Promise<DuplicateClientError> {
-  const digits = parsed.tax_id?.replace(/\D/g, '') ?? ''
-  const field: DuplicateField = digits ? 'tax_id' : 'email'
+  const field = collidedField(error, parsed)
 
   let query = supabase.from('clients').select('*')
-  if (digits) {
+  if (field === 'tax_id') {
+    const digits = parsed.tax_id?.replace(/\D/g, '') ?? ''
+    if (!digits) return new DuplicateClientError(field, null)
     query = query.eq('tax_id_digits', digits)
-  } else if (parsed.email) {
+  } else if (field === 'email') {
+    if (!parsed.email) return new DuplicateClientError(field, null)
     query = query.eq('email_normalized', parsed.email)
   } else {
-    return new DuplicateClientError(field, null)
+    const digits = normalizePhoneForLookup(parsed.phone)
+    if (!digits) return new DuplicateClientError(field, null)
+    query = query.eq('phone_digits', digits)
   }
   if (excludeId) query = query.neq('id', excludeId)
 
@@ -297,7 +369,7 @@ export function useCreateClient() {
         .single()
 
       if (error) {
-        if (isUniqueViolation(error)) throw await findConflictingClient(parsed)
+        if (isUniqueViolation(error)) throw await findConflictingClient(error, parsed)
         throw error
       }
       return data
@@ -319,7 +391,7 @@ export function useUpdateClient() {
 
       if (error) {
         /* Editar para um documento que já é de outro cliente cai no mesmo 23505. */
-        if (isUniqueViolation(error)) throw await findConflictingClient(parsed, id)
+        if (isUniqueViolation(error)) throw await findConflictingClient(error, parsed, id)
         throw error
       }
       /*
