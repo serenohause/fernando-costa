@@ -129,6 +129,10 @@ create temp table ids on commit drop as select
   -- Projeto sem tarefa nenhuma (caso 8.1) e projeto com tarefas (caso 8.2).
   'd1500000-0000-4000-8000-000000000001'::uuid as project_empty_a,
   'd1500000-0000-4000-8000-000000000002'::uuid as project_full_a,
+  -- Projeto so para o caso do 'Aguardando Cliente' (8.5 a 8.8). Separado do
+  -- project_full_a porque la a fase mais avancada e Projeto Legal, e 70 esconde
+  -- se a fase de espera pontua ou nao.
+  'd1500000-0000-4000-8000-000000000003'::uuid as project_waiting_a,
   'd2500000-0000-4000-8000-000000000001'::uuid as project_b,
   'd1600000-0000-4000-8000-000000000001'::uuid as task_legal_a,
   'd1600000-0000-4000-8000-000000000002'::uuid as task_briefing_a,
@@ -140,7 +144,10 @@ create temp table ids on commit drop as select
   -- As duas tarefas COM tag operacional da secao 10, uma em cada escritorio.
   -- Tambem sem projeto, pela mesma razao da de cima.
   'd1600000-0000-4000-8000-000000000005'::uuid as task_tag_a,
-  'd2600000-0000-4000-8000-000000000001'::uuid as task_tag_b;
+  'd2600000-0000-4000-8000-000000000001'::uuid as task_tag_b,
+  -- As duas tarefas do projeto de espera (8.5 a 8.8).
+  'd1600000-0000-4000-8000-000000000006'::uuid as task_waiting_only_a,
+  'd1600000-0000-4000-8000-000000000007'::uuid as task_layout_a;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 values ((select user_a from ids), '00000000-0000-0000-0000-000000000000'::uuid,
@@ -178,6 +185,7 @@ insert into public.contracts (id, tenant_id, contract_number, contract_type, tot
 insert into public.projects (id, tenant_id, name, project_type) values
   ((select project_empty_a from ids), (select tenant_a from ids), 'Casa sem tarefa', 'architecture'),
   ((select project_full_a from ids), (select tenant_a from ids), 'Residencia Portal do Sol', 'architecture'),
+  ((select project_waiting_a from ids), (select tenant_a from ids), 'Casa em espera', 'architecture'),
   ((select project_b from ids), (select tenant_b from ids), 'Galpao Distrito Industrial', 'architecture');
 
 -- Projeto Legal (70%), Briefing (12%) e Aguardando Cliente (sem percentual
@@ -337,63 +345,81 @@ $q$, (select tenant_a from ids), (select task_checklist_a from ids)));
 
 -- 8. A view project_progress ----------------------------------------------------
 --
--- Cenario: um projeto sem tarefa nenhuma, e um com tres tarefas - Projeto Legal
--- (70%), Briefing (12%) e Aguardando Cliente (sem percentual proprio). Nenhuma
--- concluida, de proposito: no original QUALQUER tarefa concluida leva o projeto
--- a 100%, e com uma delas concluida este caso nao distinguiria "leu a fase mais
--- avancada" de "achou uma concluida".
+-- A REGRA MUDOU DUAS VEZES, e os casos desta secao existem para nenhuma das
+-- duas versoes antigas voltar sem derrubar teste:
+--
+--   0034  escala por fase MAIS o atalho "QUALQUER tarefa concluida vale 100".
+--         Uma tarefa pronta levava o projeto inteiro a 100%.
+--   0035  decisao do usuario: progress_percent virou tarefas concluidas sobre o
+--         total, e a escala por fase foi morar em phase_percent. Matou o 100%
+--         precoce - e junto matou a reacao ao cartao mudando de coluna, que era
+--         o que as telas mostravam.
+--   0075  progress_percent = 100 se TODAS as tarefas estiverem concluidas,
+--         senao o percentual da fase mais avancada. Segue a etapa outra vez, e o
+--         defeito da 0034 continua morto porque exige TODAS, e nao UMA.
+--
+-- Cenario: um projeto sem tarefa nenhuma, um com tres tarefas - Projeto Legal
+-- (70%), Briefing (12%) e Aguardando Cliente (sem percentual proprio) - e um
+-- terceiro so para a fase de espera. Nenhuma tarefa comeca concluida: sao os
+-- casos que vao concluindo, uma de cada vez, e o numero de cada passo e o
+-- assunto.
 
 insert into public.task_checklist_items (tenant_id, task_id, title, is_required, is_completed, completed_at) values
   ((select tenant_a from ids), (select task_legal_a from ids), 'Protocolar na prefeitura', true, true, now()),
   ((select tenant_a from ids), (select task_legal_a from ids), 'Recolher taxas', true, false, null),
   ((select tenant_a from ids), (select task_legal_a from ids), 'Arquivar comprovante', false, false, null);
 
-select pg_temp.val('8.1', 'projeto SEM tarefa devolve 0, e nao nulo nem ausencia de linha',
-  '0|0|0', format($q$
-  select progress_percent || '|' || required_items_total || '|' || required_items_completed
+-- Projeto sem tarefa da 0 nos DOIS numeros, e nao nulo: painel que soma nulo
+-- produz buraco em vez de zero. Este caso tambem guarda a guarda `tasks_total >
+-- 0` da 0075 - sem ela, zero tarefas concluidas de zero tarefas satisfaz "todas
+-- concluidas" e o projeto vazio apareceria com 100%.
+select pg_temp.val('8.1', 'projeto SEM tarefa devolve 0, e nao nulo nem 100 nem ausencia de linha',
+  '0|0|0|0', format($q$
+  select progress_percent || '|' || phase_percent || '|' || required_items_total
+      || '|' || required_items_completed
     from public.project_progress where project_id = %L
 $q$, (select project_empty_a from ids)));
 
--- MUDOU NA 0035, por decisao do usuario. Antes `progress_percent` era a escala
--- por fase com atalho de tarefa concluida — e o atalho fazia UMA tarefa pronta
--- levar o projeto a 100%. Agora sao dois numeros declarados:
---
---   progress_percent = tarefas concluidas / total de tarefas
---   phase_percent    = fase mais avancada, escala do original, SEM o atalho
---
--- A fixture tem 3 tarefas (Projeto Legal, Briefing, Aguardando Cliente) e
--- nenhuma concluida: proporcao 0, fase 70 (Projeto Legal e a mais avancada).
--- 'Aguardando Cliente' continua sem percentual proprio e ignorada na
--- comparacao; se ganhasse valor, phase_percent mudaria e o caso cairia.
-select pg_temp.val('8.2', 'proporcao de tarefas, fase mais avancada, e so os obrigatorios contam',
-  '0|70|3|0|2|1', format($q$
+-- Nada concluido: manda a fase mais avancada, que e Projeto Legal (70).
+-- 'Aguardando Cliente' nao tem percentual proprio e e ignorada na comparacao; se
+-- ganhasse valor, este numero mudaria. Os dois percentuais coincidem enquanto
+-- nenhuma tarefa esta concluida - e assim que a 0075 desenhou: progress_percent
+-- E o phase_percent, ate todas fecharem.
+select pg_temp.val('8.2', 'fase mais avancada manda quando nada esta concluido',
+  '70|70|3|0|2|1', format($q$
   select progress_percent || '|' || phase_percent || '|' || tasks_total || '|'
       || tasks_completed || '|' || required_items_total || '|' || required_items_completed
     from public.project_progress where project_id = %L
 $q$, (select project_full_a from ids)));
 
--- CONTROLE do que a 0035 corrigiu: com UMA das tres tarefas concluida, a
--- proporcao vai a 33 e NAO a 100. Sem este caso, reverter para o calculo do
--- original passaria despercebido — 8.2 sozinho nao distingue "proporcao" de
--- "fase" quando nenhuma tarefa esta concluida.
-select pg_temp.chk('8.2b', 'conclui uma das tres tarefas', 'OK:1', format($q$
+select pg_temp.chk('8.2b', 'conclui UMA das tres tarefas', 'OK:1', format($q$
   update public.tasks set status = 'completed', completion_date = current_date
    where id = %L
 $q$, (select task_briefing_a from ids)));
 
--- 33 = uma de tres. E phase_percent CONTINUA 70: concluir a tarefa de Briefing
--- nao avanca fase nenhuma, porque o atalho "concluida vale 100" foi justamente
--- o que a 0035 removeu. Se alguem devolver o atalho, este numero vira 100 e o
--- caso cai.
-select pg_temp.val('8.2c', 'UMA de tres concluida da 33%, e a fase nao pula para 100',
-  '33|70', format($q$
+-- O CASO QUE IMPEDE O DEFEITO DA 0034 DE VOLTAR. Com uma das tres concluida o
+-- projeto continua valendo 70 (a fase de Projeto Legal), e NAO 100. Se alguem
+-- devolver o atalho "qualquer concluida vale 100", este numero vira 100 e o caso
+-- cai. Se alguem devolver a proporcao da 0035, vira 33 e o caso cai igual.
+select pg_temp.val('8.2c', 'UMA de tres concluida NAO leva a 100 (o defeito da 0034)',
+  '70|70', format($q$
   select progress_percent || '|' || phase_percent
     from public.project_progress where project_id = %L
 $q$, (select project_full_a from ids)));
 
-select pg_temp.chk('8.2d', 'desfaz para nao afetar os casos seguintes', 'OK:1', format($q$
-  update public.tasks set status = 'not_started', completion_date = null where id = %L
-$q$, (select task_briefing_a from ids)));
+select pg_temp.chk('8.2d', 'conclui as outras duas', 'OK:2', format($q$
+  update public.tasks set status = 'completed', completion_date = current_date
+   where project_id = %L and status <> 'completed'
+$q$, (select project_full_a from ids)));
+
+-- TODAS concluidas: 100. E phase_percent CONTINUA 70 - concluir tarefa nao move
+-- a fase, porque a fase descreve onde a entrega chegou e nao quanto fechou. Sao
+-- os dois sinais separados que a 0035 criou, e a 0075 manteve.
+select pg_temp.val('8.2e', 'TODAS concluidas dao 100, e phase_percent nao acompanha',
+  '100|70', format($q$
+  select progress_percent || '|' || phase_percent
+    from public.project_progress where project_id = %L
+$q$, (select project_full_a from ids)));
 
 -- O caso que justifica security_invoker: sem ele a view roda como o DONO
 -- (postgres), ignora a RLS das tabelas e entrega o progresso do projeto de outro
@@ -403,10 +429,49 @@ select pg_temp.val_as('8.3', 'colaborador de A nao ve projeto de B PELA VIEW',
   select count(*)::text from public.project_progress where project_id = %L
 $q$, (select project_b from ids)));
 
+-- CONTROLE do 8.3, e ele ja salvou este arquivo uma vez: entre a 0035 e a 0036
+-- o GRANT sumiu junto com um `drop view`, e o 8.3 passou a devolver ERR:42501 em
+-- vez de zero linhas - erro de privilegio LEMBRA sucesso num teste de negacao.
+-- Quem acusou foi este caso. A 0075 usa `create or replace` justamente para o
+-- GRANT nao ter como sumir.
 select pg_temp.val_as('8.4', 'CONTROLE: colaborador de A ve o proprio projeto pela view',
   '1', (select user_a from ids), (select tenant_a from ids), format($q$
   select count(*)::text from public.project_progress where project_id = %L
 $q$, (select project_full_a from ids)));
+
+-- 'Aguardando Cliente' num projeto so dela: esperar o cliente nao avanca nem
+-- retrocede, entao nao ha fase nenhuma pontuando e o coalesce devolve 0.
+select pg_temp.chk('8.5', 'monta um projeto com UMA tarefa em Aguardando Cliente', 'OK:1', format($q$
+  insert into public.tasks (id, tenant_id, title, project_id, phase)
+  values (%L, %L, 'Aguardar aprovacao do cliente', %L, 'awaiting_client')
+$q$, (select task_waiting_only_a from ids), (select tenant_a from ids),
+     (select project_waiting_a from ids)));
+
+select pg_temp.val('8.6', 'Aguardando Cliente sozinha nao pontua: nao tem percentual proprio',
+  '0|0', format($q$
+  select progress_percent || '|' || phase_percent
+    from public.project_progress where project_id = %L
+$q$, (select project_waiting_a from ids)));
+
+select pg_temp.chk('8.7', 'acrescenta uma tarefa em Layout no mesmo projeto', 'OK:1', format($q$
+  insert into public.tasks (id, tenant_id, title, project_id, phase)
+  values (%L, %L, 'Estudo de layout', %L, 'layout')
+$q$, (select task_layout_a from ids), (select tenant_a from ids),
+     (select project_waiting_a from ids)));
+
+-- CONTROLE do 8.6: o projeto passa a valer o Layout (26), e a tarefa em espera
+-- nao interfere. Sem este caso, o 0 de cima nao distinguiria "a fase de espera e
+-- ignorada" de "a view parou de pontuar qualquer fase".
+--
+-- O QUE ESTE PAR NAO CONSEGUE AFIRMAR, e vale registrar: mapear
+-- 'awaiting_client' para 0 em vez de NULL daria os mesmos dois numeros, porque
+-- max() ignora nulo e 0 perde para qualquer outra fase. A diferenca entre nulo e
+-- zero aqui e de intencao, nao de resultado.
+select pg_temp.val('8.8', 'CONTROLE: vale o Layout - a tarefa em espera nao puxa o numero',
+  '26|26', format($q$
+  select progress_percent || '|' || phase_percent
+    from public.project_progress where project_id = %L
+$q$, (select project_waiting_a from ids)));
 
 -- 9. A fase "Em Obra" e a excecao da importacao --------------------------------
 --
@@ -455,28 +520,41 @@ select pg_temp.chk('9.6', 'CONTROLE: a MESMA tarefa sem legacy_id e recusada', '
   values (%L, '0652 - Thiago e Alyssandra', 'completed')
 $q$, (select tenant_a from ids)));
 
--- A fase nova NAO tem percentual proprio na view project_progress: o CASE da
--- 0035 nao a lista, ela vira NULL e e ignorada no max(), como 'awaiting_client'.
--- Inventar um percentual mudaria o numero exibido de 14 projetos por palpite.
--- Usa o projeto sem tarefa da secao 8, que ja terminou de ser afirmada.
-select pg_temp.chk('9.7', 'monta uma tarefa Em Obra no projeto vazio', 'OK:1', format($q$
-  insert into public.tasks (tenant_id, title, project_id, phase)
-  values (%L, 'Visita de obra', %L, 'under_construction')
-$q$, (select tenant_a from ids), (select project_empty_a from ids)));
-
-select pg_temp.val('9.8', 'Em Obra nao pontua fase: phase_percent continua 0', '0|0', format($q$
-  select progress_percent || '|' || phase_percent
-    from public.project_progress where project_id = %L
-$q$, (select project_empty_a from ids)));
-
--- CONTROLE: sem ele, "0" nao distingue "a fase nova e ignorada" de "a view parou
--- de pontuar qualquer fase".
-select pg_temp.chk('9.9', 'acrescenta uma tarefa de Briefing no mesmo projeto', 'OK:1', format($q$
+-- A FASE NOVA ENTROU NA ESCALA NA 0075, VALENDO 100. A 0061 deixou o percentual
+-- dela em aberto de proposito - "inventar um percentual para uma fase que o
+-- original nunca teve mudaria o numero exibido de 14 projetos com base em
+-- palpite" - e ficou esperando confirmacao. Ela veio de FASE_PERCENTUAIS em
+-- nova-versao/src/components/utils/projectProgressCalculator.jsx, que declara
+-- 'Em Obra': 100 ao lado de 'Alvara de Construcao' e 'Finalizado'.
+--
+-- Ate a 0075 a fase caia em NULL e sumia do max(): as 14 tarefas reais em Em
+-- Obra zeravam o progresso do projeto delas, e nenhuma esta parada no comeco.
+--
+-- Usa o projeto sem tarefa da secao 8, que ja terminou de ser afirmada. O
+-- CONTROLE VEM ANTES: primeiro so uma tarefa de Briefing (12), depois a de Em
+-- Obra (100). Assim o 100 nao pode vir de outra coisa - nem de "todas as tarefas
+-- concluidas" (nenhuma esta), nem de a escala inteira ter desabado para 100,
+-- porque nesse caso o 12 do controle nao apareceria.
+select pg_temp.chk('9.7', 'monta uma tarefa de Briefing no projeto vazio', 'OK:1', format($q$
   insert into public.tasks (tenant_id, title, project_id, phase)
   values (%L, 'Reuniao de briefing', %L, 'briefing')
 $q$, (select tenant_a from ids), (select project_empty_a from ids)));
 
-select pg_temp.val('9.10', 'CONTROLE: a fase que TEM percentual continua pontuando', '0|12', format($q$
+select pg_temp.val('9.8', 'CONTROLE: so Briefing, o projeto vale 12', '12|12', format($q$
+  select progress_percent || '|' || phase_percent
+    from public.project_progress where project_id = %L
+$q$, (select project_empty_a from ids)));
+
+select pg_temp.chk('9.9', 'acrescenta uma tarefa Em Obra no mesmo projeto', 'OK:1', format($q$
+  insert into public.tasks (tenant_id, title, project_id, phase)
+  values (%L, 'Visita de obra', %L, 'under_construction')
+$q$, (select tenant_a from ids), (select project_empty_a from ids)));
+
+-- Se alguem tirar 'under_construction' do CASE da view, ele volta a cair em NULL
+-- e este numero vira 12 outra vez. E o unico lugar do projeto que cobra a fase
+-- nova na escala.
+select pg_temp.val('9.10', 'Em Obra vale 100 na escala (0075 fecha o que a 0061 deixou em aberto)',
+  '100|100', format($q$
   select progress_percent || '|' || phase_percent
     from public.project_progress where project_id = %L
 $q$, (select project_empty_a from ids)));
