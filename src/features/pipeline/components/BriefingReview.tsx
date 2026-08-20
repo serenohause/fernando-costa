@@ -23,7 +23,12 @@ import { useClient } from '@/features/crm/hooks'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { formatDateBR } from '@/lib/format'
 import { buildBriefingDiff } from '../briefing-diff'
-import { describeDatabaseError, useApplyBriefingField } from '../hooks'
+import {
+  describeContractError,
+  describeDatabaseError,
+  useApplyBriefingField,
+  useGenerateContractFromBriefing,
+} from '../hooks'
 import type { ClientIntake } from '../types'
 
 /*
@@ -113,7 +118,9 @@ export default function BriefingReview({
 function BriefingComparison({ intake }: { intake: ClientIntake }) {
   const clientQuery = useClient(intake.client_id)
   const applyMutation = useApplyBriefingField()
+  const generateContract = useGenerateContractFromBriefing()
   const { canEdit: canEditCrm } = useMenuPermissions('crm')
+  const { canEdit: canEditPipeline } = useMenuPermissions('pipeline')
 
   /* Campos já aplicados nesta sessão do diálogo. A comparação some sozinha
      quando o cadastro é relido, mas o retorno da consulta demora — sem isto a
@@ -197,11 +204,76 @@ function BriefingComparison({ intake }: { intake: ClientIntake }) {
       )}
 
       {diffs.length === 0 ? (
-        <EmptyState
-          icon={Check}
-          title="Nada a aplicar"
-          description="O que o cliente preencheu já é o que está no cadastro."
-        />
+        <div className="space-y-4">
+          <EmptyState
+            icon={Check}
+            title="Nada a aplicar"
+            description="O que o cliente preencheu já é o que está no cadastro."
+          />
+
+          {/*
+            O CONTRATO SÓ NASCE POR CLIQUE, e isso não é cerimônia.
+
+            "Nada a aplicar" também é o estado de quem acabou de ABRIR um briefing
+            que já batia com o cadastro — gerar sozinho ao chegar aqui criaria
+            contrato para todo briefing que alguém abrisse para olhar. O botão faz
+            do gesto uma decisão.
+
+            Apertar duas vezes é seguro: `mark_negotiation_won` devolve
+            `already_exists` em vez de criar um segundo contrato para a mesma
+            negociação.
+          */}
+          {intake.negotiation_id == null ? (
+            <p className="text-sm text-muted-foreground">
+              Este briefing não está ligado a uma negociação, então não há de onde tirar os dados do
+              contrato.
+            </p>
+          ) : (
+            <div className="rounded-lg border border-border bg-elevated p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">
+                  Briefing conferido. Gerar o contrato?
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  O contrato nasce em Contratos &amp; Propostas, com os dados da negociação e o
+                  cadastro do cliente como está agora.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                disabled={!canEditPipeline || generateContract.isPending}
+                onClick={() => {
+                  generateContract.mutate(intake.negotiation_id!, {
+                    onSuccess: (result) => {
+                      if (result.outcome === 'created') {
+                        toast.success(`Contrato ${result.contractNumber} criado em Contratos & Propostas.`)
+                      } else if (result.outcome === 'already_exists') {
+                        toast.info(
+                          `Esta negociação já tem o contrato ${result.contractNumber}. Nenhum segundo contrato foi criado.`,
+                        )
+                      } else {
+                        /* generates_contract desmarcado na negociação. Não é
+                           erro, e a tela precisa distinguir isso de "criei". */
+                        toast.info(
+                          'Esta negociação está marcada para não gerar contrato. Mude isso no formulário da negociação, se for o caso.',
+                        )
+                      }
+                    },
+                    onError: (error) => toast.error(describeContractError(error)),
+                  })
+                }}
+              >
+                {generateContract.isPending ? 'Gerando...' : 'Gerar contrato'}
+              </Button>
+            </div>
+          )}
+
+          {!canEditPipeline && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Gerar o contrato exige permissão de edição no Pipeline.
+            </p>
+          )}
+        </div>
       ) : (
         <div className="space-y-2">
           {diffs.map((diff) => (

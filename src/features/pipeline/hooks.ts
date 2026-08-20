@@ -10,6 +10,7 @@ import {
 import type { TablesUpdate } from '@/lib/database.types'
 import { useCurrentCollaborator } from '@/features/auth/hooks'
 import { crmKeys } from '@/features/crm/hooks'
+import { contractKeys } from '@/features/contracts/hooks'
 import { createPageUrl } from '@/lib/page-url'
 import { intakeSubmissionSchema, negotiationInputSchema } from './schemas'
 import type {
@@ -704,6 +705,74 @@ export function useUndoMarkNegotiationWon() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: pipelineKeys.all })
+    },
+  })
+}
+
+/*
+  GERAR O CONTRATO da negociação, depois que o briefing foi conferido.
+
+  Decisão do usuário: terminada a conferência do briefing, o contrato nasce em
+  Contratos & Propostas. É momento DIFERENTE do original, que cria o contrato no
+  instante em que a negociação vira Ganha e não espera o formulário público
+  (Negociacoes.jsx:81-85) — está registrado na migration 0067, que chamava o
+  briefing de "coleta paralela". Esperar a conferência faz o contrato nascer com
+  o retrato do cliente já corrigido pelo que ele mesmo respondeu, em vez de
+  nascer com o cadastro de antes.
+
+  QUEM FAZ O TRABALHO É O BANCO, numa transação: `mark_negotiation_won` (0067,
+  numeração da 0077). Ela confere a permissão por dentro, serializa com FOR
+  UPDATE e devolve `already_exists` em vez de criar um segundo contrato — o que
+  torna o botão seguro de apertar duas vezes. Fazer isso daqui seriam três
+  gravações soltas do navegador, que é exatamente o estado pela metade que
+  aquela migration existe para não produzir.
+*/
+export type GenerateContractOutcome = {
+  outcome: 'created' | 'already_exists' | 'not_requested'
+  contractId: string | null
+  contractNumber: string | null
+  clientSnapshot: boolean | null
+}
+
+/*
+  A função levanta P0001 com mensagem estável, e não com nome de constraint —
+  então a tradução é por texto, e é aqui que ela mora. `describeDatabaseError`
+  não alcança: para ela P0001 é erro não mapeado e vira a frase genérica.
+*/
+const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
+  not_authorized: 'É preciso permissão de edição no Pipeline para gerar o contrato.',
+  negotiation_not_found: 'A negociação deste briefing não existe mais neste escritório.',
+  negotiation_lost: 'Esta negociação está marcada como Perdida. Reabra-a antes de gerar o contrato.',
+  client_required: 'Vincule um cliente à negociação antes de gerar o contrato.',
+  contract_number_conflict:
+    'Não foi possível achar um número livre para o contrato. Confira a numeração em Contratos & Propostas.',
+}
+
+export function describeContractError(error: unknown): string {
+  const message = (error as { message?: string } | null)?.message ?? ''
+  for (const [chave, frase] of Object.entries(CONTRACT_ERROR_MESSAGES)) {
+    if (message.includes(chave)) return frase
+  }
+  return describeDatabaseError(error)
+}
+
+export function useGenerateContractFromBriefing() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (negotiationId: string): Promise<GenerateContractOutcome> => {
+      const { data, error } = await supabase.rpc('mark_negotiation_won', {
+        p_negotiation_id: negotiationId,
+      })
+
+      if (error) throw error
+      return data as unknown as GenerateContractOutcome
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: pipelineKeys.all })
+      /* O contrato nasceu em outro módulo: a lista de Contratos & Propostas
+         precisa relê-lo, senão ele só aparece no próximo carregamento da tela. */
+      void queryClient.invalidateQueries({ queryKey: contractKeys.all })
     },
   })
 }
