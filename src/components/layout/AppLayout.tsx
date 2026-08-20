@@ -9,11 +9,9 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Trash2,
   Users,
   X,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import Breadcrumb from '@/components/shared/Breadcrumb'
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
@@ -462,27 +460,21 @@ export default function AppLayout() {
                 </p>
               </div>
             )}
-            <Button
-              variant="ghost"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Deseja solicitar a exclusão de sua conta? Esta ação será revisada por um administrador.',
-                  )
-                ) {
-                  /*
-                    No original isso dispara um e-mail pela integração do
-                    base44. Não há canal equivalente ainda — ver relatório do
-                    módulo. Até existir, a solicitação não sai daqui.
-                  */
-                  toast.error('Erro ao enviar solicitação. Tente novamente.')
-                }
-              }}
-              className="w-full justify-start text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent mb-2 select-none"
-            >
-              <Trash2 className="w-4 h-4 mr-2 select-none" />
-              Excluir Conta
-            </Button>
+            {/*
+              "EXCLUIR CONTA" SAIU, PROVISORIAMENTE — decisão do usuário.
+
+              O botão existe no original (Layout.jsx), onde dispara um e-mail
+              pela integração do base44 pedindo a exclusão a um administrador.
+              Esse canal nunca foi portado: aqui ele pedia confirmação e, em
+              seguida, mostrava SEMPRE "Erro ao enviar solicitação". Ou seja,
+              prometia uma ação que não existia e terminava em erro toda vez.
+
+              Para trazer de volta: o gesto precisa de destino. O caminho que
+              cabe neste sistema é o mesmo de `access_requests` — uma fila que
+              o Diretor aprova ou recusa pela tela, em vez de e-mail. Enquanto
+              não houver esse destino, botão nenhum aqui é melhor que botão que
+              só sabe falhar.
+            */}
             <Button
               variant="ghost"
               onClick={handleLogout}
