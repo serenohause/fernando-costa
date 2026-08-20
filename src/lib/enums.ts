@@ -277,8 +277,11 @@ export const PROJECT_PHASE = {
     coluna dela no kanban e é o degrau dela em `PHASE_ORDER` / `phaseIndex`
     (src/features/projects/project-phase.ts). Obra vem depois do alvará.
 
-    Como `awaiting_client`, ela NÃO tem percentual próprio na view
-    `project_progress` — cai no `NULL` do `CASE` e é ignorada no `max()`.
+    VALE 100 na escala de `project_progress`, desde a migration 0075. A 0061
+    deixou o percentual em aberto de propósito (inventar um número mudaria o
+    progresso de 14 projetos com base em palpite); a versão nova do base44
+    declara `'Em Obra': 100` e resolveu a dúvida. Antes disso, tarefa em obra
+    caía no `NULL` do `CASE` e o projeto exibia 0%.
   */
   under_construction: 'Em Obra',
   awaiting_client: 'Aguardando Cliente',
