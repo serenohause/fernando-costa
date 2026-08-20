@@ -1,5 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { toast } from 'sonner'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -45,10 +44,14 @@ import type { NegotiationInput, NegotiationRow } from '../types'
 
   O QUE MUDA, E POR QUÊ:
 
-  1. `alert()` vira `toast.error()` com o MESMO texto. Três validações do
-     original param a gravação com `alert` do navegador (linhas 74, 80, 86);
-     `sonner` já é o canal de aviso deste projeto e nenhuma outra tela usa
-     `alert`. As frases, inclusive os emojis "⚠️", são as de lá.
+  1. AS RECUSAS APARECEM NO CAMPO, não em `alert()` nem em toast. O original
+     para a gravação com `alert` do navegador em três pontos (linhas 74, 80, 86).
+     A primeira porta trocou `alert` por `toast.error` com o mesmo texto; o
+     usuário pediu que a recusa fosse para o formulário, e ela foi: o campo é
+     marcado, a frase fica embaixo dele e a tela rola até lá. O texto deixou de
+     ser o do original — "⚠️ Defina um responsável..." virou "Escolha um
+     responsável pela negociação para continuar", porque ao lado do campo o aviso
+     não precisa mais dizer de que campo está falando.
 
   2. `nome_negociacao` DEIXA DE SER DERIVADO DO CLIENTE. No original o nome da
      negociação nunca é digitado: é `formData.cliente_name || 'Negociação sem
@@ -72,6 +75,9 @@ import type { NegotiationInput, NegotiationRow } from '../types'
      `cliente_estado` nem `responsavel_comercial_name`: as desnormalizações
      saíram do schema (migration 0022) e viraram join.
 */
+
+/* Só uma recusa existe por vez: a validação para na primeira. */
+type InvalidField = 'owner' | 'referrer' | null
 
 export type NegotiationFormValues = {
   name: string
@@ -101,8 +107,9 @@ function emptyValues(): NegotiationFormValues {
     commercial_owner_id: '',
     services: [],
     estimated_value: '',
-    /* O formulário do original começa em 50. */
-    close_probability: '50',
+    /* Vazio, e não os 50 do original: o campo saiu da tela (ver o comentário no
+       lugar onde ele ficava), então 50 seria número que ninguém escolheu. */
+    close_probability: '',
     status: 'active',
     funnel_stage: 'lead_received',
     origin: '',
@@ -204,10 +211,27 @@ export default function NegociacaoForm({
 
   useEffect(() => {
     setFormData(initialData ?? emptyValues())
+    setInvalidField(null)
   }, [initialData, open])
 
   const isEditing = Boolean(initialData)
   const showLossFields = formData.status === 'lost'
+
+  /*
+    A RECUSA APARECE NO CAMPO, e não num toast.
+
+    O original avisa com `alert()` (linhas 80 e 86) e a porta virou `toast.error`.
+    Os dois têm o mesmo defeito: a mensagem nasce longe do campo que a causou,
+    some sozinha, e o formulário fica rolado em outro ponto — a pessoa lê "defina
+    um responsável" sem ver qual campo é. Aqui a recusa marca o campo, escreve a
+    frase embaixo dele e rola até ele.
+
+    UM campo por vez, e não um mapa de erros: a validação abaixo para na primeira
+    recusa, então guardar mais de um seria guardar estado que não pode existir.
+  */
+  const [invalidField, setInvalidField] = useState<InvalidField>(null)
+  const ownerFieldRef = useRef<HTMLDivElement>(null)
+  const referrerFieldRef = useRef<HTMLDivElement>(null)
 
   const handleClientChange = (clientId: string) => {
     const selected = clients.find((client) => client.id === clientId)
@@ -226,13 +250,20 @@ export default function NegociacaoForm({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
+    /* O campo fica no meio de um diálogo rolável: sem o scroll, a marcação
+       vermelha acontece fora da área visível e o botão parece não fazer nada. */
+    const recusar = (field: InvalidField, ref: React.RefObject<HTMLDivElement | null>) => {
+      setInvalidField(field)
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+
     if (!formData.commercial_owner_id) {
-      toast.error('⚠️ Defina um responsável pela negociação para continuar.')
+      recusar('owner', ownerFieldRef)
       return
     }
 
     if (formData.origin === 'referral' && !formData.referrer_name.trim()) {
-      toast.error('⚠️ Informe o nome do indicador.')
+      recusar('referrer', referrerFieldRef)
       return
     }
 
@@ -328,31 +359,29 @@ export default function NegociacaoForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="estimated_value">Valor Estimado (R$)</Label>
-              <Input
-                id="estimated_value"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.estimated_value}
-                onChange={(e) => setFormData({ ...formData, estimated_value: e.target.value })}
-                placeholder="0,00"
-              />
-            </div>
+          {/*
+            "Probabilidade de Fechamento" saiu da tela por pedido do usuário. O
+            CAMPO some; a COLUNA fica, e o valor gravado continua passando por
+            `toFormValues` e `toInput` sem ser tocado — 124 negociações reais têm
+            probabilidade preenchida e 20 delas com valor escolhido a mão. Zerar
+            no salvamento apagaria esse dado na primeira edição de cada uma.
 
-            <div className="space-y-2">
-              <Label htmlFor="close_probability">Probabilidade de Fechamento (%)</Label>
-              <Input
-                id="close_probability"
-                type="number"
-                min="0"
-                max="100"
-                value={formData.close_probability}
-                onChange={(e) => setFormData({ ...formData, close_probability: e.target.value })}
-              />
-            </div>
+            Negociação nova nasce com a probabilidade NULA, e não com os 50 que o
+            original preenchia: 50 era o valor que a pessoa via e podia mudar.
+            Sem o campo, gravar 50 seria inventar um número que ninguém escolheu
+            e mostrá-lo como "50% prob." no cartão do funil.
+          */}
+          <div className="space-y-2">
+            <Label htmlFor="estimated_value">Valor Estimado (R$)</Label>
+            <Input
+              id="estimated_value"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.estimated_value}
+              onChange={(e) => setFormData({ ...formData, estimated_value: e.target.value })}
+              placeholder="0,00"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -437,15 +466,23 @@ export default function NegociacaoForm({
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Responsável pela Negociação *</Label>
+              <div className="space-y-2" ref={ownerFieldRef}>
+                <Label htmlFor="commercial_owner">Responsável pela Negociação *</Label>
                 <Select
                   value={formData.commercial_owner_id}
-                  onValueChange={(value) =>
+                  onValueChange={(value) => {
+                    setInvalidField(null)
                     setFormData({ ...formData, commercial_owner_id: value })
-                  }
+                  }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    id="commercial_owner"
+                    aria-invalid={invalidField === 'owner'}
+                    aria-describedby={invalidField === 'owner' ? 'commercial_owner_error' : undefined}
+                    className={
+                      invalidField === 'owner' ? 'border-rose-500 focus:ring-rose-500' : undefined
+                    }
+                  >
                     <SelectValue placeholder="Selecione o responsável" />
                   </SelectTrigger>
                   <SelectContent>
@@ -456,7 +493,19 @@ export default function NegociacaoForm({
                     ))}
                   </SelectContent>
                 </Select>
-                {isEditing && !formData.commercial_owner_id && (
+                {invalidField === 'owner' && (
+                  <p
+                    id="commercial_owner_error"
+                    role="alert"
+                    className="text-xs text-rose-600 dark:text-rose-400"
+                  >
+                    Escolha um responsável pela negociação para continuar.
+                  </p>
+                )}
+                {/* Aviso diferente da recusa: aqui o cadastro perdeu o responsável
+                    (colaborador desligado), e a pessoa precisa saber POR QUE o
+                    campo está vazio numa negociação que já existia. */}
+                {isEditing && !formData.commercial_owner_id && invalidField !== 'owner' && (
                   <p className="text-xs text-muted-foreground">
                     O responsável desta negociação não está mais cadastrado. Escolha um para
                     salvar.
@@ -466,19 +515,45 @@ export default function NegociacaoForm({
             </div>
 
             {formData.origin === 'referral' && (
-              <div className="space-y-2 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg">
+              <div
+                ref={referrerFieldRef}
+                className="space-y-2 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg"
+              >
                 <Label htmlFor="referrer_name">Nome do Indicador *</Label>
+                {/*
+                  `required` sai daqui. Ele fazia o navegador barrar antes da
+                  conferência abaixo, com um balão nativo que não segue nem a cor
+                  nem a tipografia do resto do formulário — e deixava a validação
+                  do código inalcançável, um caminho morto que ninguém percebia.
+                  A recusa passa a ser a mesma do campo de responsável.
+                */}
                 <Input
                   id="referrer_name"
                   value={formData.referrer_name}
-                  onChange={(e) => setFormData({ ...formData, referrer_name: e.target.value })}
+                  onChange={(e) => {
+                    setInvalidField(null)
+                    setFormData({ ...formData, referrer_name: e.target.value })
+                  }}
                   placeholder="Digite o nome de quem indicou..."
-                  required
-                  className="bg-card"
+                  aria-invalid={invalidField === 'referrer'}
+                  aria-describedby={invalidField === 'referrer' ? 'referrer_name_error' : undefined}
+                  className={`bg-card ${
+                    invalidField === 'referrer' ? 'border-rose-500 focus-visible:ring-rose-500' : ''
+                  }`}
                 />
-                <p className="text-xs text-blue-700 dark:text-blue-400">
-                  Obrigatório quando origem for Indicação
-                </p>
+                {invalidField === 'referrer' ? (
+                  <p
+                    id="referrer_name_error"
+                    role="alert"
+                    className="text-xs text-rose-600 dark:text-rose-400"
+                  >
+                    Informe o nome de quem indicou para continuar.
+                  </p>
+                ) : (
+                  <p className="text-xs text-blue-700 dark:text-blue-400">
+                    Obrigatório quando origem for Indicação
+                  </p>
+                )}
               </div>
             )}
           </div>

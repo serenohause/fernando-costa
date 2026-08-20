@@ -360,7 +360,16 @@ export default function Negociacoes() {
         </span>
       ),
     },
-    { header: 'Prob.', cell: (row) => <span>{row.close_probability ?? 0}%</span> },
+    /*
+      "-" e nao "0%" quando nao ha valor. O campo de probabilidade saiu do
+      formulario, entao negociacao nova nasce sem ele — e "0%" leria como "chance
+      zero de fechar", que e um juizo que ninguem fez. A coluna Previsao logo
+      abaixo ja usa "-" para o mesmo caso.
+    */
+    {
+      header: 'Prob.',
+      cell: (row) => <span>{row.close_probability == null ? '-' : `${row.close_probability}%`}</span>,
+    },
     { header: 'Etapa', cell: (row) => <StatusBadge status={labelOf(FUNNEL_STAGE, row.funnel_stage)} /> },
     { header: 'Responsável', cell: ownerCell },
     {
