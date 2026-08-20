@@ -42,7 +42,8 @@
     "test:contract-from-negotiation": "supabase/tests/run-sql.sh supabase/tests/contract-from-negotiation.sql",
     "test:forged": "node supabase/tests/forged-token.mjs",
     "create-tenant": "node scripts/create-tenant.mjs",
-    "test:errors": "node supabase/tests/error-messages.mjs"
+    "test:errors": "node supabase/tests/error-messages.mjs",
+    "test:masks": "node tests/masks.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

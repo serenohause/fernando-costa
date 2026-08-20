@@ -20,6 +20,13 @@
   dígitos vindo da importação), o valor volta cru, como foi digitado, em vez de
   ser truncado. Truncar é o mesmo defeito de mascarar dinheiro: o campo mostra
   um número plausível e errado, e ninguém volta para conferir.
+
+  ISSO NÃO É LICENÇA PARA DIGITAR SEM LIMITE. As duas coisas convivem, e a
+  linha que as separa é a origem do texto: DIGITAR é limitado à capacidade do
+  padrão (a tecla que passaria não faz nada), COLAR e CARREGAR DO BANCO
+  continuam tolerantes. O limite mora em applyMaskEdit, no caminho da
+  digitação — as funções mask* abaixo são de exibição e seguem tolerantes. O
+  detalhe está escrito lá embaixo, junto do código.
 */
 
 export type Mask = (value: string) => string
@@ -97,6 +104,20 @@ export function maskZipcode(value: string): string {
   return maskWithCapacity(value, ZIPCODE_PATTERN, 8)
 }
 
+/*
+  QUANTOS DÍGITOS CADA MÁSCARA COMPORTA.
+
+  Serve para a DIGITAÇÃO, não para a exibição — a diferença é o conserto de um
+  bug reportado. Antes, digitar além do limite fazia a máscara devolver o valor
+  cru: o campo perdia a formatação inteira no meio da digitação e virava um
+  amontoado de números.
+*/
+const CAPACIDADE = new Map<Mask, number>([
+  [maskTaxId, 14],
+  [maskPhone, 11],
+  [maskZipcode, 8],
+])
+
 function countDigits(value: string): number {
   let count = 0
   for (const char of value) if (isDigit(char)) count += 1
@@ -170,6 +191,39 @@ export type MaskEditResult = {
 */
 export function applyMaskEdit(mask: Mask, edit: MaskEdit): MaskEditResult {
   const digitsBeforeCaret = countDigits(edit.value.slice(0, edit.caret))
+
+  /*
+    TECLA ALÉM DO LIMITE NÃO ENTRA — e COLAR é tratado diferente, de propósito.
+
+    Digitar: a tecla que passaria da capacidade simplesmente não faz nada, como
+    em qualquer campo com máscara. Antes ela era aceita e a máscara devolvia o
+    valor cru, desmanchando a formatação da linha inteira.
+
+    Colar: continua passando pelo caminho tolerante, que devolve o valor cru
+    quando não cabe. O motivo está no dado real do escritório — 48 dos 126
+    clientes têm telefone com 12 ou 13 dígitos, na forma `+55 (62) 98765-4321`.
+    Cortar um desses em 11 produziria `(55) 62987-6543`: um número plausível e
+    errado, que é pior que um campo sem formatação. Texto que chega de fora
+    pode legitimamente não caber no padrão; uma tecla a mais num campo já cheio,
+    não.
+
+    A guarda `previamente <= capacidade` existe para não congelar campo que já
+    veio do banco acima do limite: ali a pessoa continua livre para corrigir.
+  */
+  const capacidade = CAPACIDADE.get(mask)
+  const digitouUmCaractere = edit.value.length - edit.previousValue.length === 1
+
+  if (
+    capacidade !== undefined &&
+    digitouUmCaractere &&
+    countDigits(edit.value) > capacidade &&
+    countDigits(edit.previousValue) <= capacidade
+  ) {
+    return {
+      value: edit.previousValue,
+      caret: caretAfterDigits(edit.previousValue, Math.max(0, digitsBeforeCaret - 1)),
+    }
+  }
 
   const removedOneChar = edit.previousValue.length - edit.value.length === 1
   const keptEveryDigit = countDigits(edit.previousValue) === countDigits(edit.value)
