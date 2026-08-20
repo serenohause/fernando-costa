@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   COLLABORATOR_ROLE,
@@ -238,7 +239,9 @@ export default function NegociacaoForm({
     onSubmit(toInput(formData))
   }
 
-  const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name))
+  const clientOptions = [...clients]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((client) => ({ value: client.id, label: client.name }))
 
   /*
     Mesmo recorte do original (linhas 300-303): colaborador ativo que seja da
@@ -276,19 +279,22 @@ export default function NegociacaoForm({
           </div>
 
           <div className="space-y-2">
-            <Label>Cliente</Label>
-            <Select value={formData.client_id} onValueChange={handleClientChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {sortedClients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="negotiation_client">Cliente</Label>
+            {/*
+              Campo COM BUSCA, e não o Select comum dos outros campos: aqui a
+              lista é o escritório inteiro (141 clientes hoje), e achar um deles
+              rolando alfabeticamente é o gesto errado. Os selects de status,
+              etapa e origem continuam Select — têm punhados de opções fixas.
+            */}
+            <SearchableSelect
+              id="negotiation_client"
+              options={clientOptions}
+              value={formData.client_id}
+              onValueChange={handleClientChange}
+              placeholder="Selecione o cliente"
+              searchPlaceholder="Buscar cliente pelo nome..."
+              emptyMessage="Nenhum cliente com esse nome."
+            />
             {!formData.client_id && (
               <p className="text-xs text-muted-foreground">
                 O cliente pode ser vinculado depois — mas é obrigatório para marcar a negociação
