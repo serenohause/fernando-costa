@@ -45,7 +45,8 @@
     "test:errors": "node supabase/tests/error-messages.mjs",
     "test:masks": "node tests/masks.mjs",
     "test:notify": "node tests/query-notify.mjs",
-    "test:phone-dedup": "supabase/tests/run-sql.sh supabase/tests/client-phone-dedup.sql"
+    "test:phone-dedup": "supabase/tests/run-sql.sh supabase/tests/client-phone-dedup.sql",
+    "test:won": "supabase/tests/run-sql.sh supabase/tests/negotiation-won.sql"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

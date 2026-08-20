@@ -50,6 +50,7 @@ import {
   useDeleteLostNegotiations,
   useDeleteNegotiation,
   useMarkNegotiationWon,
+  useUndoMarkNegotiationWon,
   useMoveNegotiationStage,
   useNegotiations,
   useUpdateNegotiation,
@@ -126,7 +127,8 @@ export default function Negociacoes() {
   const moveNegotiationStage = useMoveNegotiationStage()
   const deleteMutation = useDeleteNegotiation()
   const bulkDeleteMutation = useDeleteLostNegotiations()
-  const markWonMutation = useMarkNegotiationWon()
+  const markWon = useMarkNegotiationWon()
+  const undoMarkWonMutation = useUndoMarkNegotiationWon()
 
   const formInitialData = useMemo(
     () => formOverride ?? (editing ? toFormValues(editing) : null),
@@ -169,7 +171,29 @@ export default function Negociacoes() {
     setShowForm(true)
   }
 
+  /*
+    SOLTAR EM "FECHAMENTO" ENCERRA O NEGÓCIO — decisão do usuário, e é divergência
+    do original, que ao arrastar só muda a etapa e deixa "marcar como ganha" como
+    ação separada do menu do cartão.
+
+    O gesto passa a fazer o mesmo que aquela ação: status Ganha, data de
+    fechamento de hoje, briefing criado e link copiado. A negociação some do
+    quadro na hora, porque o quadro mostra só as ativas, e aparece na aba Ganhas.
+
+    E é justamente por sumir que existe o "Desfazer" no aviso: arrastar é um gesto
+    fácil de errar, e sem ele quem soltasse na coluna errada teria que caçar a
+    negociação na aba Ganhas, reabrir o formulário e devolver status e data na
+    mão. As outras colunas continuam sendo só mudança de etapa.
+  */
   const handleStageChange = (id: string, funnelStage: NegotiationRow['funnel_stage']) => {
+    if (funnelStage === 'closing') {
+      const negotiation = negotiations.find((candidate) => candidate.id === id)
+      if (negotiation) {
+        winNegotiation(negotiation, 'closing')
+        return
+      }
+    }
+
     moveNegotiationStage(
       { id, funnelStage },
       { onError: (error) => toast.error('Erro ao mover: ' + describeDatabaseError(error)) },
@@ -181,15 +205,49 @@ export default function Negociacoes() {
     como no original. O que mudou (token gerado pelo banco, validade no banco)
     está no comentário de useMarkNegotiationWon.
   */
-  const handleMarkWon = (negotiation: NegotiationRow) => {
-    markWonMutation.mutate(negotiation, {
-      onSuccess: (link) => {
-        void navigator.clipboard.writeText(link)
-        toast.success(`Link copiado! Envie ao cliente: ${link}`)
+  const winNegotiation = (
+    negotiation: NegotiationRow,
+    funnelStage?: NegotiationRow['funnel_stage'],
+  ) => {
+    /*
+      A conferência do cliente acontece AQUI, e não só dentro da mutação, porque
+      pelo arraste ela precisa acontecer antes de o cartão sair do lugar. Deixar
+      o banco recusar faria o cartão sumir do quadro e voltar — e a pessoa leria
+      o erro sem relacionar com o cartão que piscou.
+    */
+    if (!negotiation.client_id) {
+      toast.error(
+        'Vincule um cliente à negociação antes de marcá-la como Ganha. ' +
+          'O formulário de briefing é enviado para ele.',
+      )
+      return
+    }
+
+    markWon(
+      { negotiation, funnelStage },
+      {
+        onSuccess: (result) => {
+          void navigator.clipboard.writeText(result.link)
+          toast.success(`Link copiado! Envie ao cliente: ${result.link}`, {
+            duration: 10_000,
+            action: {
+              label: 'Desfazer',
+              onClick: () =>
+                undoMarkWonMutation.mutate(result, {
+                  onSuccess: () =>
+                    toast.success('Negociação devolvida ao funil e link do formulário cancelado.'),
+                  onError: (error) =>
+                    toast.error('Não deu para desfazer: ' + describeDatabaseError(error)),
+                }),
+            },
+          })
+        },
+        onError: (error) => toast.error(describeDatabaseError(error)),
       },
-      onError: (error) => toast.error(describeDatabaseError(error)),
-    })
+    )
   }
+
+  const handleMarkWon = (negotiation: NegotiationRow) => winNegotiation(negotiation)
 
   /* O original abre o formulário já com status Perdida e a data de hoje. */
   const handleMarkLost = (negotiation: NegotiationRow) => {

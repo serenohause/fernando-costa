@@ -531,12 +531,49 @@ export function useDeleteLostNegotiations() {
   `contracts` não existe ainda; `generates_contract` já é gravado e o gesto entra
   quando a tabela existir.
 */
+export type MarkWonResult = {
+  link: string
+  /*
+    O necessário para DESFAZER, e a razão de existir está no gesto: soltar o
+    cartão na coluna Fechamento passou a encerrar o negócio, e um arraste errado
+    tira a negociação do funil sem caminho óbvio de volta — quem quisesse
+    corrigir teria que achá-la na aba Ganhas, reabrir o formulário e devolver
+    status e data na mão. Guardando o estado anterior, o desfazer é um clique no
+    aviso.
+
+    `previousClosedAt` e `previousStage` são guardados como estavam, e não
+    deduzidos. Hoje a dedução até funcionaria — o check
+    `negotiations_closed_at_requires_closed_status_check` (migration 0022) proíbe
+    data de fechamento em negociação Ativa, e só as Ativas aparecem no quadro,
+    então o valor anterior é sempre nulo. Guardar o que estava lá faz o desfazer
+    não depender dessa coincidência continuar verdadeira.
+  */
+  intakeId: string
+  negotiationId: string
+  previousStatus: NegotiationRow['status']
+  previousStage: NegotiationRow['funnel_stage']
+  previousClosedAt: string | null
+}
+
+type MarkWonVariables = {
+  negotiation: NegotiationRow
+  /*
+    A etapa entra no MESMO UPDATE do status quando o gesto foi arrastar até
+    Fechamento. Duas gravações soltas deixariam a negociação encerrada numa etapa
+    que não é a que a pessoa escolheu, se a segunda falhasse.
+  */
+  funnelStage?: NegotiationRow['funnel_stage']
+}
+
 export function useMarkNegotiationWon() {
   const queryClient = useQueryClient()
   const tenantId = useTenantId()
 
-  return useMutation({
-    mutationFn: async (negotiation: NegotiationRow) => {
+  const mutation = useMutation({
+    mutationFn: async ({
+      negotiation,
+      funnelStage,
+    }: MarkWonVariables): Promise<MarkWonResult> => {
       if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
       if (!negotiation.client_id) {
         throw new WriteError('Vincule um cliente antes de marcar como ganha')
@@ -546,7 +583,11 @@ export function useMarkNegotiationWon() {
 
       const { data, error } = await supabase
         .from('negotiations')
-        .update({ status: 'won', closed_at: today })
+        .update({
+          status: 'won',
+          closed_at: today,
+          ...(funnelStage ? { funnel_stage: funnelStage } : {}),
+        })
         .eq('id', negotiation.id)
         .select('id')
 
@@ -563,12 +604,103 @@ export function useMarkNegotiationWon() {
           negotiation_id: negotiation.id,
           client_id: negotiation.client_id,
         })
-        .select('token')
+        .select('id, token')
         .single()
 
       if (intakeError) throw intakeError
 
-      return intakeLinkFor(intake.token)
+      return {
+        link: intakeLinkFor(intake.token),
+        intakeId: intake.id,
+        negotiationId: negotiation.id,
+        previousStatus: negotiation.status,
+        previousStage: negotiation.funnel_stage,
+        previousClosedAt: negotiation.closed_at,
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: pipelineKeys.all })
+    },
+  })
+
+  /*
+    O CARTÃO SAI DO QUADRO NA MESMA BATIDA DO GESTO, antes de qualquer `await`.
+
+    Mesmo motivo de `useMoveNegotiationStage`, e aqui o efeito é o inverso: a
+    negociação encerrada deixa de ser "ativa", e o quadro só mostra ativas —
+    então o palpite não move o cartão, faz ele sair. Sem isso, soltar em
+    Fechamento devolveria o cartão à coluna de origem, ele ficaria lá durante o
+    UPDATE e a criação do briefing, e só então desapareceria.
+  */
+  return (variables: MarkWonVariables, options?: MutateOptions<MarkWonResult, Error, MarkWonVariables>) => {
+    void queryClient.cancelQueries({ queryKey: pipelineKeys.negotiations() })
+
+    const previous = queryClient.getQueryData<NegotiationRow[]>(pipelineKeys.negotiations())
+    queryClient.setQueryData<NegotiationRow[]>(pipelineKeys.negotiations(), (current) =>
+      current?.map((row) =>
+        row.id === variables.negotiation.id
+          ? {
+              ...row,
+              status: 'won',
+              closed_at: new Date().toISOString().slice(0, 10),
+              funnel_stage: variables.funnelStage ?? row.funnel_stage,
+            }
+          : row,
+      ),
+    )
+
+    mutation.mutate(variables, {
+      ...options,
+      onError: (error, failed, onMutateResult, context) => {
+        if (previous) queryClient.setQueryData(pipelineKeys.negotiations(), previous)
+        options?.onError?.(error, failed, onMutateResult, context)
+      },
+    })
+  }
+}
+
+/*
+  DESFAZER o "marcar como ganha": devolve a negociação ao estado anterior e apaga
+  o briefing que acabou de nascer.
+
+  Apagar o briefing é o ponto: deixá-lo vivo manteria um link público válido para
+  uma negociação que voltou a ser Ativa, e o cliente que recebesse esse link
+  preencheria um formulário que não deveria mais existir. A policy de DELETE de
+  `client_intakes` é do editor de Pipeline (migration 0025), que é a mesma
+  permissão de quem acabou de arrastar o cartão.
+
+  A ORDEM IMPORTA: primeiro o briefing, depois a negociação. Ao contrário, uma
+  falha no meio deixaria negociação Ativa com link público de pé — o estado que
+  este desfazer existe para não produzir.
+*/
+export function useUndoMarkNegotiationWon() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (result: MarkWonResult) => {
+      const { error: intakeError } = await supabase
+        .from('client_intakes')
+        .delete()
+        .eq('id', result.intakeId)
+
+      if (intakeError) throw intakeError
+
+      const { data, error } = await supabase
+        .from('negotiations')
+        .update({
+          status: result.previousStatus,
+          funnel_stage: result.previousStage,
+          closed_at: result.previousClosedAt,
+        })
+        .eq('id', result.negotiationId)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A negociação não foi devolvida. É preciso permissão de edição no Pipeline.',
+      )
+      return result.negotiationId
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: pipelineKeys.all })
