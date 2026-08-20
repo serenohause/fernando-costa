@@ -123,7 +123,7 @@ export default function Negociacoes() {
 
   const createMutation = useCreateNegotiation()
   const updateMutation = useUpdateNegotiation()
-  const moveMutation = useMoveNegotiationStage()
+  const moveNegotiationStage = useMoveNegotiationStage()
   const deleteMutation = useDeleteNegotiation()
   const bulkDeleteMutation = useDeleteLostNegotiations()
   const markWonMutation = useMarkNegotiationWon()
@@ -170,7 +170,7 @@ export default function Negociacoes() {
   }
 
   const handleStageChange = (id: string, funnelStage: NegotiationRow['funnel_stage']) => {
-    moveMutation.mutate(
+    moveNegotiationStage(
       { id, funnelStage },
       { onError: (error) => toast.error('Erro ao mover: ' + describeDatabaseError(error)) },
     )

@@ -43,7 +43,8 @@
     "test:forged": "node supabase/tests/forged-token.mjs",
     "create-tenant": "node scripts/create-tenant.mjs",
     "test:errors": "node supabase/tests/error-messages.mjs",
-    "test:masks": "node tests/masks.mjs"
+    "test:masks": "node tests/masks.mjs",
+    "test:notify": "node tests/query-notify.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

@@ -163,7 +163,7 @@ export default function Contracts() {
   const updateMutation = useUpdateContract()
   const approveMutation = useApproveContract()
   const deleteMutation = useDeleteContract()
-  const reorderMutation = useReorderContracts()
+  const reorderContracts = useReorderContracts()
   const generateInstallmentsMutation = useGenerateContractInstallments()
 
   /*
@@ -344,7 +344,7 @@ export default function Contracts() {
     const [moved] = reordered.splice(from, 1)
     reordered.splice(to, 0, moved)
 
-    reorderMutation.mutate(
+    reorderContracts(
       reordered.map((contract) => ({
         id: contract.id,
         display_order: contract.display_order,

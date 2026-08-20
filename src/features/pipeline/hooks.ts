@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type MutateOptions } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { invokeEdgeFunction } from '@/lib/edge-functions'
 import {
@@ -349,6 +349,11 @@ export function useUpdateNegotiation() {
   })
 }
 
+type MoveNegotiationStage = {
+  id: string
+  funnelStage: NegotiationRow['funnel_stage']
+}
+
 /*
   O arrastar do quadro. É um UPDATE de `funnel_stage` e nada mais.
 
@@ -360,41 +365,16 @@ export function useUpdateNegotiation() {
 export function useMoveNegotiationStage() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    /*
-      A COLUNA MUDA ANTES DA IDA AO BANCO, e isso conserta um defeito visual que
-      o escritório reportou: soltar o cartão fazia ele voltar para a coluna de
-      origem, sumir, e reaparecer na de destino.
+  const setStage = (id: string, funnelStage: NegotiationRow['funnel_stage']) => {
+    queryClient.setQueryData<NegotiationRow[]>(pipelineKeys.negotiations(), (current) =>
+      current?.map((negotiation) =>
+        negotiation.id === id ? { ...negotiation, funnel_stage: funnelStage } : negotiation,
+      ),
+    )
+  }
 
-      Não era animação errada — era a tela dizendo a verdade. `@hello-pangea/dnd`
-      solta o cartão na posição que os DADOS mandam, e os dados só mudavam depois
-      do UPDATE e do refetch. Entre o dedo soltar e a resposta chegar, a
-      negociação ainda estava na etapa antiga: o cartão voava de volta para lá,
-      era removido no re-render seguinte e desenhado do outro lado. Todo o
-      "pisca" é a ida ao servidor aparecendo na tela.
-
-      Atualizando o cache aqui, o destino já é o certo quando a animação começa e
-      o cartão pousa onde foi solto. Se a gravação falhar, `onError` devolve a
-      lista anterior e o cartão volta — dessa vez porque ele realmente não andou.
-    */
-    onMutate: async ({ id, funnelStage }: { id: string; funnelStage: NegotiationRow['funnel_stage'] }) => {
-      /* Sem isto, um refetch já em voo pousaria DEPOIS e reescreveria o cache
-         com a etapa antiga — o mesmo pisca, agora intermitente. */
-      await queryClient.cancelQueries({ queryKey: pipelineKeys.negotiations() })
-
-      const previous = queryClient.getQueryData<NegotiationRow[]>(pipelineKeys.negotiations())
-      if (previous) {
-        queryClient.setQueryData<NegotiationRow[]>(
-          pipelineKeys.negotiations(),
-          previous.map((negotiation) =>
-            negotiation.id === id ? { ...negotiation, funnel_stage: funnelStage } : negotiation,
-          ),
-        )
-      }
-
-      return { previous }
-    },
-    mutationFn: async ({ id, funnelStage }: { id: string; funnelStage: NegotiationRow['funnel_stage'] }) => {
+  const mutation = useMutation({
+    mutationFn: async ({ id, funnelStage }: MoveNegotiationStage) => {
       const { data, error } = await supabase
         .from('negotiations')
         .update({ funnel_stage: funnelStage })
@@ -408,22 +388,61 @@ export function useMoveNegotiationStage() {
       )
       return id
     },
-    onError: (_error, _variables, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(pipelineKeys.negotiations(), context.previous)
-      }
-    },
     /*
-      `onSettled`, e não `onSuccess`: o cache aqui está com um palpite. Se a
-      gravação falhar, o `onError` acima desfaz o palpite, mas a lista que sobra
-      é a de antes do arraste — e ela pode já estar velha por outro motivo.
-      Buscar do servidor nos dois desfechos faz a tela terminar sempre no que o
-      banco tem, e não no que este navegador supôs.
+      `onSettled`, e não `onSuccess`: o cache passa a carregar um palpite. Buscar
+      do servidor nos DOIS desfechos faz a tela terminar sempre no que o banco
+      tem, e não no que este navegador supôs.
     */
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: pipelineKeys.negotiations() })
     },
   })
+
+  /*
+    A ETAPA MUDA NA MESMA BATIDA DO GESTO, antes de qualquer `await`, e o
+    "antes" é a coisa toda.
+
+    O escritório reportou o cartão voltando para a coluna de origem ao ser
+    solto, sumindo, e reaparecendo no destino. Não era animação errada — era a
+    tela dizendo a verdade: `@hello-pangea/dnd` pousa o cartão onde os DADOS
+    mandam, e os dados só mudavam depois do UPDATE e do refetch.
+
+    A primeira tentativa de conserto usou `onMutate` do React Query, e sobrou
+    uma piscada. O motivo é que `onMutate` NÃO é síncrono: `mutate()` entra numa
+    função `async` e o callback só roda uns microtasks depois. Nesse intervalo a
+    biblioteca já começou a animação de queda contra os dados antigos, e o
+    cartão ainda passava de raspão pela origem.
+
+    Aqui a escrita no cache acontece dentro do próprio `onDragEnd`, sem nenhum
+    `await` antes dela. É o que a biblioteca documenta esperar de quem a usa:
+    atualizar o estado de forma síncrona na resposta ao gesto, para que o cartão
+    seja desenhado no destino e a animação já parta dali.
+
+    A gravação segue em paralelo, e o cartão só volta se ela falhar.
+  */
+  return (
+    variables: MoveNegotiationStage,
+    options?: MutateOptions<string, Error, MoveNegotiationStage>,
+  ) => {
+    /* Refetch já em voo pousaria DEPOIS e reescreveria o cache com a etapa
+       antiga — a mesma piscada, agora intermitente. Sem `await`: esperar aqui
+       devolveria o atraso que este trecho existe para eliminar. */
+    void queryClient.cancelQueries({ queryKey: pipelineKeys.negotiations() })
+
+    /* O desfazer mora nesta chamada, e não em `onMutate`. Cada arraste guarda a
+       sua própria lista de antes — dois arrastes seguidos não disputam um
+       estado compartilhado. */
+    const previous = queryClient.getQueryData<NegotiationRow[]>(pipelineKeys.negotiations())
+    setStage(variables.id, variables.funnelStage)
+
+    mutation.mutate(variables, {
+      ...options,
+      onError: (error, failed, onMutateResult, context) => {
+        if (previous) queryClient.setQueryData(pipelineKeys.negotiations(), previous)
+        options?.onError?.(error, failed, onMutateResult, context)
+      },
+    })
+  }
 }
 
 export function useDeleteNegotiation() {

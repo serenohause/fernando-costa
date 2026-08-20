@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type MutateOptions } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import {
   assertRowAffected,
@@ -250,6 +250,8 @@ export function useDeleteContract() {
   })
 }
 
+type DisplayOrder = { id: string; display_order: number | null }
+
 /*
   O arrastar da lista, que grava `display_order` (Contracts.jsx:751-770).
 
@@ -271,36 +273,23 @@ export function useDeleteContract() {
 export function useReorderContracts() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    /*
-      A ORDEM MUDA ANTES DA IDA AO BANCO. É o mesmo defeito visual que o
-      escritório reportou no quadro do Pipeline: sem tocar no cache, a linha
-      arrastada volta para o lugar de origem quando o dedo solta e só pula para o
-      destino quando o refetch chega. A lista é ordenada por `display_order` no
-      cliente (`list.ts`), então escrever a posição nova aqui já basta.
-    */
-    onMutate: async (ordered: { id: string; display_order: number | null }[]) => {
-      await queryClient.cancelQueries({ queryKey: contractKeys.list() })
+  const applyOrder = (ordered: { id: string }[]) => {
+    /* A mesma conta que o `mutationFn` grava: a posição no array VIRA o
+       `display_order`. Repetir a regra nos dois lugares é o que faz o palpite
+       bater com o que o servidor vai devolver. */
+    const positions = new Map(ordered.map((row, index) => [row.id, index]))
+    queryClient.setQueryData<ContractRow[]>(contractKeys.list(), (current) =>
+      current?.map((row) => {
+        const position = positions.get(row.id)
+        return position === undefined ? row : { ...row, display_order: position }
+      }),
+    )
+  }
 
-      const previous = queryClient.getQueryData<ContractRow[]>(contractKeys.list())
-      if (previous) {
-        /* A mesma conta que o `mutationFn` grava: a posição no array VIRA o
-           `display_order`. */
-        const positions = new Map(ordered.map((contract, index) => [contract.id, index]))
-        queryClient.setQueryData<ContractRow[]>(
-          contractKeys.list(),
-          previous.map((contract) => {
-            const position = positions.get(contract.id)
-            return position === undefined ? contract : { ...contract, display_order: position }
-          }),
-        )
-      }
-
-      return { previous }
-    },
-    mutationFn: async (ordered: { id: string; display_order: number | null }[]) => {
+  const mutation = useMutation({
+    mutationFn: async (ordered: DisplayOrder[]) => {
       const changed = ordered
-        .map((contract, index) => ({ id: contract.id, index }))
+        .map((row, index) => ({ id: row.id, index }))
         .filter(({ index }) => ordered[index].display_order !== index)
 
       if (changed.length === 0) return 0
@@ -314,16 +303,8 @@ export function useReorderContracts() {
       const failed = results.find((result) => result.error)
       if (failed?.error) throw failed.error
 
-      assertRowAffected(
-        results[0]?.data,
-        'A ordem não foi alterada. É preciso permissão de edição em Contratos.',
-      )
+      assertRowAffected(results[0]?.data, 'A ordem não foi alterada. É preciso permissão de edição em Contratos.')
       return changed.length
-    },
-    onError: (_error, _variables, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(contractKeys.list(), context.previous)
-      }
     },
     /*
       `onSettled`: a gravação são vários UPDATE em paralelo, um por linha que
@@ -334,4 +315,26 @@ export function useReorderContracts() {
       void queryClient.invalidateQueries({ queryKey: contractKeys.all })
     },
   })
+
+  /*
+    A ORDEM MUDA NA MESMA BATIDA DO GESTO, antes de qualquer `await`. Mesmo
+    defeito visual dos quadros e mesma correção — o porquê do "antes" está
+    escrito em `useMoveNegotiationStage`. A lista é ordenada por
+    `display_order` no cliente (`list.ts`), então escrever a posição nova no
+    cache já basta.
+  */
+  return (ordered: DisplayOrder[], options?: MutateOptions<number, Error, DisplayOrder[]>) => {
+    void queryClient.cancelQueries({ queryKey: contractKeys.list() })
+
+    const previous = queryClient.getQueryData<ContractRow[]>(contractKeys.list())
+    applyOrder(ordered)
+
+    mutation.mutate(ordered, {
+      ...options,
+      onError: (error, failed, onMutateResult, context) => {
+        if (previous) queryClient.setQueryData(contractKeys.list(), previous)
+        options?.onError?.(error, failed, onMutateResult, context)
+      },
+    })
+  }
 }

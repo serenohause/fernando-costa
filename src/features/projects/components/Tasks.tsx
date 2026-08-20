@@ -127,7 +127,7 @@ export default function Tasks() {
   const createMutation = useCreateTask()
   const updateMutation = useUpdateTask()
   const deleteMutation = useDeleteTask()
-  const moveMutation = useMoveTaskPhase()
+  const moveTaskPhase = useMoveTaskPhase()
   const toggleMutation = useToggleChecklistItem()
   const responsibleMutation = useChangeTaskResponsible()
   const operationalTagMutation = useSetTaskOperationalTag()
@@ -391,7 +391,7 @@ export default function Tasks() {
           }}
           onDelete={handleDelete}
           onMove={(move, projectId) =>
-            moveMutation.mutate(
+            moveTaskPhase(
               { move, projectId },
               {
                 onSuccess: (result) => warnFailedEvent(result.event),

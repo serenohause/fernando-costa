@@ -126,7 +126,7 @@ export default function Projects() {
   const createMutation = useCreateProject()
   const updateMutation = useUpdateProject()
   const deleteMutation = useDeleteProject()
-  const reorderMutation = useReorderProjects()
+  const reorderProjects = useReorderProjects()
 
   /* Referência estável de propósito: ProjectForm reinicia o formulário quando
      `initialData` muda, como no original. Recriar o objeto a cada render apagaria
@@ -198,7 +198,7 @@ export default function Projects() {
     const [moved] = reordered.splice(from, 1)
     reordered.splice(to, 0, moved)
 
-    reorderMutation.mutate(
+    reorderProjects(
       reordered.map((project) => ({ id: project.id, display_order: project.display_order })),
       {
         onSuccess: () => toast.success('Ordem atualizada!'),
