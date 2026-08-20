@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { MaskedInput } from '@/components/ui/masked-input'
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import {
   type PartnershipTier,
   type SupplierCategory,
 } from '@/lib/enums'
+import { maskPhone } from '@/lib/masks'
 import type { SupplierInput, SupplierRow } from '../types'
 
 /*
@@ -390,10 +392,11 @@ export default function SupplierForm({
               </div>
               <div className="space-y-1">
                 <Label htmlFor="supplier-whatsapp">WhatsApp *</Label>
-                <Input
+                <MaskedInput
                   id="supplier-whatsapp"
+                  mask={maskPhone}
                   value={values.contact_whatsapp}
-                  onChange={(e) => set('contact_whatsapp', e.target.value)}
+                  onValueChange={(whatsapp) => set('contact_whatsapp', whatsapp)}
                   required
                 />
               </div>
@@ -408,10 +411,11 @@ export default function SupplierForm({
               </div>
               <div className="space-y-1">
                 <Label htmlFor="supplier-phone">Telefone</Label>
-                <Input
+                <MaskedInput
                   id="supplier-phone"
+                  mask={maskPhone}
                   value={values.phone}
-                  onChange={(e) => set('phone', e.target.value)}
+                  onValueChange={(phone) => set('phone', phone)}
                 />
               </div>
               <div className="space-y-1 col-span-2">

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { MaskedInput } from '@/components/ui/masked-input'
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import {
   type ContractType,
   type InstallmentFrequency,
 } from '@/lib/enums'
+import { maskTaxId, maskZipcode } from '@/lib/masks'
 import { snapshotOfClient } from '../snapshot'
 import type { ContractInput, ContractRow } from '../types'
 
@@ -661,10 +663,11 @@ export default function ContractForm({
 
               <div className="space-y-2">
                 <Label htmlFor="client_tax_id">CPF / CNPJ</Label>
-                <Input
+                <MaskedInput
                   id="client_tax_id"
+                  mask={maskTaxId}
                   value={formData.client_tax_id}
-                  onChange={(e) => setFormData({ ...formData, client_tax_id: e.target.value })}
+                  onValueChange={(client_tax_id) => setFormData({ ...formData, client_tax_id })}
                   placeholder="000.000.000-00"
                 />
               </div>
@@ -696,10 +699,11 @@ export default function ContractForm({
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="space-y-2">
                 <Label htmlFor="client_address_zipcode">CEP</Label>
-                <Input
+                <MaskedInput
                   id="client_address_zipcode"
+                  mask={maskZipcode}
                   value={formData.client_address_zipcode}
-                  onChange={(e) => void handleZipcodeChange(e.target.value, 'client_address')}
+                  onValueChange={(zipcode) => void handleZipcodeChange(zipcode, 'client_address')}
                   placeholder="00000-000"
                   maxLength={9}
                 />
@@ -779,10 +783,11 @@ export default function ContractForm({
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="space-y-2">
                 <Label htmlFor="site_zipcode">CEP</Label>
-                <Input
+                <MaskedInput
                   id="site_zipcode"
+                  mask={maskZipcode}
                   value={formData.site_zipcode}
-                  onChange={(e) => void handleZipcodeChange(e.target.value, 'site')}
+                  onValueChange={(zipcode) => void handleZipcodeChange(zipcode, 'site')}
                   placeholder="00000-000"
                   maxLength={9}
                 />

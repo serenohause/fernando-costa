@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { MaskedInput } from '@/components/ui/masked-input'
 import {
   Select,
   SelectContent,
@@ -20,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { CLIENT_TYPE, optionsOf, type ClientType } from '@/lib/enums'
+import { maskPhone, maskTaxId, maskZipcode } from '@/lib/masks'
 import { firstIssueMessage } from '@/lib/db-errors'
 import { useLookupZipcode } from '@/features/crm/hooks'
 import { useOpenClientIntake, useSubmitClientIntake } from '../hooks'
@@ -336,10 +338,11 @@ export default function FormularioCliente() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="phone">Telefone/WhatsApp *</Label>
-                      <Input
+                      <MaskedInput
                         id="phone"
+                        mask={maskPhone}
                         value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        onValueChange={(phone) => setFormData({ ...formData, phone })}
                         placeholder="(00) 00000-0000"
                       />
                     </div>
@@ -421,10 +424,11 @@ export default function FormularioCliente() {
 
                     <div className="space-y-2">
                       <Label htmlFor="tax_id">CPF / CNPJ</Label>
-                      <Input
+                      <MaskedInput
                         id="tax_id"
+                        mask={maskTaxId}
                         value={formData.tax_id}
-                        onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
+                        onValueChange={(tax_id) => setFormData({ ...formData, tax_id })}
                         placeholder="000.000.000-00"
                       />
                     </div>
@@ -442,11 +446,12 @@ export default function FormularioCliente() {
 
                   <div className="space-y-2">
                     <Label htmlFor="address_zipcode">CEP</Label>
-                    <Input
+                    <MaskedInput
                       id="address_zipcode"
+                      mask={maskZipcode}
                       value={formData.address_zipcode}
-                      onChange={(e) =>
-                        setFormData({ ...formData, address_zipcode: e.target.value })
+                      onValueChange={(address_zipcode) =>
+                        setFormData({ ...formData, address_zipcode })
                       }
                       onBlur={(e) => handleAddressZipcodeBlur(e.target.value)}
                       placeholder="00000-000"
@@ -534,10 +539,11 @@ export default function FormularioCliente() {
 
                   <div className="space-y-2">
                     <Label htmlFor="site_zipcode">CEP da Obra</Label>
-                    <Input
+                    <MaskedInput
                       id="site_zipcode"
+                      mask={maskZipcode}
                       value={formData.site_zipcode}
-                      onChange={(e) => setFormData({ ...formData, site_zipcode: e.target.value })}
+                      onValueChange={(site_zipcode) => setFormData({ ...formData, site_zipcode })}
                       onBlur={(e) => handleSiteZipcodeBlur(e.target.value)}
                       placeholder="00000-000"
                     />
