@@ -128,9 +128,9 @@ export default function Tasks() {
   const updateMutation = useUpdateTask()
   const deleteMutation = useDeleteTask()
   const moveTaskPhase = useMoveTaskPhase()
-  const toggleMutation = useToggleChecklistItem()
-  const responsibleMutation = useChangeTaskResponsible()
-  const operationalTagMutation = useSetTaskOperationalTag()
+  const toggleChecklistItem = useToggleChecklistItem()
+  const changeTaskResponsible = useChangeTaskResponsible()
+  const setOperationalTag = useSetTaskOperationalTag()
   const seedMutation = useSeedTaskChecklist()
 
   /*
@@ -246,7 +246,7 @@ export default function Tasks() {
     const collaborator = collaborators.find((candidate) => candidate.id === collaboratorId)
     if (!collaborator) return
 
-    responsibleMutation.mutate(
+    changeTaskResponsible(
       { task, responsible: { id: collaborator.id, name: collaborator.name } },
       {
         onSuccess: (result) => {
@@ -266,7 +266,7 @@ export default function Tasks() {
     seria uma terceira cópia da mesma lista.
   */
   const handleSetOperationalTag = (task: TaskRow, tag: OperationalTag | null) => {
-    operationalTagMutation.mutate(
+    setOperationalTag(
       { task, tag },
       {
         onSuccess: (result) => warnFailedEvent(result.event),
@@ -277,7 +277,7 @@ export default function Tasks() {
   }
 
   const handleToggleChecklistItem = (item: TaskChecklistItem) => {
-    toggleMutation.mutate(
+    toggleChecklistItem(
       { id: item.id, isCompleted: !item.is_completed },
       {
         onError: (error) => toast.error('Erro ao atualizar o item: ' + describeTaskError(error)),

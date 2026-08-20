@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient, type MutateOptions } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type MutateOptions,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import {
   assertRowAffected,
@@ -476,7 +482,52 @@ export function useReorderProjects() {
   }
 }
 
-/* ── Escrita: tarefas ──────────────────────────────────────────────────── */
+/* ── Escrita: tarefas ────────────────────────────────────────────────────
+
+  AS ESCRITAS DO CARTÃO MUDAM A TELA NA MESMA BATIDA DO GESTO.
+
+  Todas as quatro (mover de coluna, marcar item do checklist, trocar responsável,
+  ligar status operacional) mexem numa linha de `tasks` e nada mais. Sem palpite,
+  cada uma esperava a ida ao banco para o cartão mudar — e no gesto direto isso
+  aparece como atraso: o escritório reportou o checkbox do checklist demorando
+  para marcar e desmarcar.
+
+  Este embrulho existe para que o "antes de qualquer `await`" seja escrito uma
+  vez só. O porquê do "antes" está em `useMoveNegotiationStage`: `onMutate` do
+  React Query não é síncrono, e o palpite tem que estar no cache dentro do
+  próprio evento que o usuário disparou.
+
+  O desfazer mora na CHAMADA, e não num estado do hook: cada gesto guarda a sua
+  própria lista de antes, então dois cliques seguidos não disputam a mesma
+  variável.
+*/
+function optimisticTaskWrite<TData, TVariables>(
+  queryClient: QueryClient,
+  mutation: {
+    mutate: (variables: TVariables, options?: MutateOptions<TData, Error, TVariables>) => void
+  },
+  patch: (tasks: TaskRow[], variables: TVariables) => TaskRow[],
+) {
+  return (variables: TVariables, options?: MutateOptions<TData, Error, TVariables>) => {
+    /* Refetch já em voo pousaria DEPOIS e reescreveria o cache com o estado
+       antigo. Sem `await`: esperar aqui devolveria o atraso que este trecho
+       existe para eliminar. */
+    void queryClient.cancelQueries({ queryKey: projectKeys.tasks() })
+
+    const previous = queryClient.getQueryData<TaskRow[]>(projectKeys.tasks())
+    if (previous) {
+      queryClient.setQueryData<TaskRow[]>(projectKeys.tasks(), patch(previous, variables))
+    }
+
+    mutation.mutate(variables, {
+      ...options,
+      onError: (error, failed, onMutateResult, context) => {
+        if (previous) queryClient.setQueryData(projectKeys.tasks(), previous)
+        options?.onError?.(error, failed, onMutateResult, context)
+      },
+    })
+  }
+}
 
 export function useCreateTask() {
   const queryClient = useQueryClient()
@@ -625,27 +676,9 @@ type MoveTaskPhase = {
   projectId: string | null
 }
 
-type MoveTaskPhaseResult = { id: string; event: TaskDiaryEvent }
-
 export function useMoveTaskPhase() {
   const queryClient = useQueryClient()
   const tenantId = useTenantId()
-
-  const applyMove = (move: TaskPhaseMove) => {
-    queryClient.setQueryData<TaskRow[]>(projectKeys.tasks(), (current) =>
-      current?.map((task) =>
-        task.id === move.id
-          ? {
-              ...task,
-              phase: move.phase,
-              status: move.status,
-              completion_date: move.completion_date,
-              operational_tag: null,
-            }
-          : task,
-      ),
-    )
-  }
 
   const mutation = useMutation({
     mutationFn: async ({
@@ -728,35 +761,27 @@ export function useMoveTaskPhase() {
   })
 
   /*
-    A COLUNA MUDA NA MESMA BATIDA DO GESTO, antes de qualquer `await`. O porquê
-    do "antes" está escrito em `useMoveNegotiationStage` — é o mesmo defeito
-    visual, e a mesma correção.
-
-    Aqui pesa mais: além do UPDATE, esta gravação registra o evento do diário,
-    cria o checklist da etapa nova e recalcula a fase do projeto. O cartão
-    esperava a fila inteira antes de aparecer no lugar certo.
-
     O palpite copia os QUATRO campos que o UPDATE grava, não só a etapa: prazo,
     atraso e crachá de status operacional saem deles, e adivinhar só a coluna
     deixaria o cartão pousar certo com o crachá errado por um instante.
+
+    Aqui o atraso pesava mais do que nas outras escritas: além do UPDATE, esta
+    gravação registra o evento do diário, cria o checklist da etapa nova e
+    recalcula a fase do projeto. O cartão esperava a fila inteira.
   */
-  return (
-    variables: MoveTaskPhase,
-    options?: MutateOptions<MoveTaskPhaseResult, Error, MoveTaskPhase>,
-  ) => {
-    void queryClient.cancelQueries({ queryKey: projectKeys.tasks() })
-
-    const previous = queryClient.getQueryData<TaskRow[]>(projectKeys.tasks())
-    applyMove(variables.move)
-
-    mutation.mutate(variables, {
-      ...options,
-      onError: (error, failed, onMutateResult, context) => {
-        if (previous) queryClient.setQueryData(projectKeys.tasks(), previous)
-        options?.onError?.(error, failed, onMutateResult, context)
-      },
-    })
-  }
+  return optimisticTaskWrite(queryClient, mutation, (tasks, { move }: MoveTaskPhase) =>
+    tasks.map((task) =>
+      task.id === move.id
+        ? {
+            ...task,
+            phase: move.phase,
+            status: move.status,
+            completion_date: move.completion_date,
+            operational_tag: null,
+          }
+        : task,
+    ),
+  )
 }
 
 /*
@@ -775,7 +800,7 @@ export function useMoveTaskPhase() {
 export function useToggleChecklistItem() {
   const queryClient = useQueryClient()
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async ({ id, isCompleted }: { id: string; isCompleted: boolean }) => {
       const { data, error } = await supabase
         .from('task_checklist_items')
@@ -796,10 +821,48 @@ export function useToggleChecklistItem() {
          `project_progress`, que se atualiza sozinha na próxima leitura. */
       return id
     },
-    onSuccess: () => {
+    /*
+      `onSettled`, e não `onSuccess`: o cache passa a carregar um palpite, e a
+      tela tem que terminar no que o banco tem nos dois desfechos.
+    */
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all })
     },
   })
+
+  /*
+    `completed_at` acompanha o palpite pelo mesmo motivo que acompanha a
+    gravação: os dois andam juntos, e deixar a data para trás faria o item
+    aparecer concluído sem quando durante a ida ao banco.
+
+    O que NÃO é adivinhado é a barra de progresso do projeto: ela vem da view
+    `project_progress`, que conta obrigatórios concluídos do lado do servidor.
+    Refazer essa conta aqui seria manter uma segunda versão da regra, e a hora
+    em que as duas discordassem a tela mostraria um número que não existe. A
+    barra continua atualizando na volta da gravação; o checkbox, que é o gesto
+    direto, responde na hora.
+  */
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (tasks, { id, isCompleted }: { id: string; isCompleted: boolean }) =>
+      tasks.map((task) =>
+        task.checklist.some((item) => item.id === id)
+          ? {
+              ...task,
+              checklist: task.checklist.map((item) =>
+                item.id === id
+                  ? {
+                      ...item,
+                      is_completed: isCompleted,
+                      completed_at: isCompleted ? new Date().toISOString() : null,
+                    }
+                  : item,
+              ),
+            }
+          : task,
+      ),
+  )
 }
 
 /*
@@ -854,7 +917,7 @@ export function useSeedTaskChecklist() {
 export function useChangeTaskResponsible() {
   const queryClient = useQueryClient()
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async ({ task, responsible }: { task: TaskRow; responsible: PersonRef }) => {
       const previousName = task.responsible?.name ?? null
 
@@ -885,11 +948,28 @@ export function useChangeTaskResponsible() {
 
       return { id: task.id, event }
     },
-    onSuccess: () => {
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
       void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
     },
   })
+
+  /*
+    O palpite escreve a coluna E o embed. `responsible_id` é o que vai para o
+    banco, mas quem o cartão desenha é `responsible.name` — adivinhar só o id
+    deixaria o nome antigo na tela até a volta da gravação, que é o mesmo atraso
+    com outra cara.
+  */
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (tasks, { task, responsible }: { task: TaskRow; responsible: PersonRef }) =>
+      tasks.map((candidate) =>
+        candidate.id === task.id
+          ? { ...candidate, responsible_id: responsible.id, responsible }
+          : candidate,
+      ),
+  )
 }
 
 /*
@@ -917,7 +997,7 @@ export function useChangeTaskResponsible() {
 export function useSetTaskOperationalTag() {
   const queryClient = useQueryClient()
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async ({ task, tag }: { task: TaskRow; tag: OperationalTag | null }) => {
       const previous = task.operational_tag
 
@@ -949,9 +1029,21 @@ export function useSetTaskOperationalTag() {
 
       return { id: task.id, event }
     },
-    onSuccess: () => {
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
       void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
     },
   })
+
+  /* O crachá suprime o prazo e a borda de atraso do cartão, então este palpite
+     muda três coisas na tela de uma vez — e é justamente por isso que ele não
+     pode esperar a volta do banco. */
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (tasks, { task, tag }: { task: TaskRow; tag: OperationalTag | null }) =>
+      tasks.map((candidate) =>
+        candidate.id === task.id ? { ...candidate, operational_tag: tag } : candidate,
+      ),
+  )
 }
