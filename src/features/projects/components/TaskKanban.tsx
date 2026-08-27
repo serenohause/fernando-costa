@@ -123,19 +123,27 @@ type Column = { id: ProjectPhase; color: string }
   `post_approval` não tem coluna de propósito: `tasks_phase_no_post_approval_check`
   (0049) recusa o valor em tarefa, então a coluna seria sempre vazia.
 
-  `revision` TAMBÉM NÃO TEM, e por decisão do usuário: a produção do escritório
-  removeu a coluna "Revisão" (a lista de lá, em nova-versao/TaskKanban.jsx:29-38,
-  não a tem mais). O que ocupou o lugar dela foi a TAG "Em Revisão"
+  `revision` e `building_permit` TAMBÉM NÃO TÊM, por decisão do usuário: a
+  produção do escritório removeu as duas colunas (a lista de lá, em
+  nova-versao/TaskKanban.jsx:29-38, não as tem mais). O que ocupou o lugar dela foi a TAG "Em Revisão"
   (`operational_tag = in_review`), que este quadro oferece em Layout,
   Perspectivas, Projeto Legal e Projeto Executivo — o cartão fica na etapa onde o
   trabalho está e ganha um crachá, em vez de mudar de coluna.
 
-  O VALOR `revision` FICA NO ENUM. Não há tarefa nem projeto nele hoje (medido:
+  "Alvará de Construção" não perdeu substituto como "Revisão" perdeu: ele é um
+  passo do fluxo que o escritório deixou de acompanhar em coluna própria. A única
+  tarefa que existe nessa fase está CONCLUÍDA desde 18/11/2025, e tarefa concluída
+  aparece na coluna "Finalizado" qualquer que seja a fase dela — então tirar a
+  coluna não esconde nada. Medido antes.
+
+  OS VALORES `revision` E `building_permit` FICAM NO ENUM. Não há tarefa nem projeto nele hoje (medido:
   zero dos dois), mas apagar valor de enum é irreversível e o de/para da
   importação ainda o reconhece — se uma exportação futura trouxer "Revisão", a
-  linha entra com a fase certa e some da tela, como as outras sem coluna. A
-  métrica de revisão do Diário também continua de pé: ela conta os dois fatos, e
-  o que sobrevive é o da tag (`resumo.ts`, `isRevisionEntry`).
+  linha entra com a fase certa e some da tela, como as outras sem coluna. Os dois
+  continuam valendo na escada de `calculateProjectPhase` e na escala de
+  `project_progress` (`building_permit` vale 100 lá) — o que sai é a coluna, não
+  a fase. A métrica de revisão do Diário também continua de pé: ela conta os dois
+  fatos, e o que sobrevive é o da tag (`resumo.ts`, `isRevisionEntry`).
 
   `preliminary_study` e `preliminary_design` (0079) seguem a mesma regra e pelo
   mesmo motivo — a produção não tem coluna para elas.
@@ -149,13 +157,13 @@ const COLUMNS: Column[] = [
   { id: 'hoa_approval', color: 'bg-orange-100 dark:bg-orange-950/40' },
   { id: 'construction_docs', color: 'bg-indigo-100 dark:bg-indigo-950/40' },
   { id: 'engineering_docs', color: 'bg-pink-100 dark:bg-pink-950/40' },
-  { id: 'building_permit', color: 'bg-lime-100 dark:bg-lime-950/40' },
   /*
     COR ESCOLHIDA AQUI, porque o original não tem esta coluna — é a única do
     quadro sem cor de lá. Teal é o único matiz da escala que ainda não estava em
-    uso e que se distingue à primeira vista dos dois vizinhos (lime à esquerda,
-    rose à direita); cyan e emerald, os mais próximos dele, ficam a cinco e a
-    duas colunas de distância. Laranja seria o palpite óbvio — é o que
+    uso e que se distingue à primeira vista dos dois vizinhos: pink à esquerda
+    (era lime, antes de "Alvará de Construção" sair) e rose à direita; cyan e
+    emerald, os mais próximos dele, ficam a três e a duas colunas de distância.
+    Laranja seria o palpite óbvio — é o que
     StatusBadge.jsx:60 do original dá à palavra "Obra" — mas laranja já é
     "Aprovação Condomínio" neste mesmo quadro, e duas colunas da mesma cor tiram
     da cor a única função que ela tem aqui. Escolha reportada ao usuário.
