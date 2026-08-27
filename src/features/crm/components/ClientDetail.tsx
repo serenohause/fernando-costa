@@ -12,6 +12,7 @@ import { CLIENT_TYPE, LEAD_SOURCE, labelOf } from '@/lib/enums'
 import { formatDateBR } from '@/lib/format'
 import { createPageUrl } from '@/lib/page-url'
 import ClientForm, { toFormValues } from './ClientForm'
+import ClientHistory from './ClientHistory'
 import { DuplicateClientError, describeDatabaseError, useClient, useUpdateClient } from '../hooks'
 import type { Client, ClientInput } from '../types'
 
@@ -22,11 +23,10 @@ import type { Client, ClientInput } from '../types'
   O QUE NÃO VEIO, e por quê:
 
   - O painel de histórico (`<ClientHistory clientId={clientId} />`, última linha
-    do original) lista `Project` e `AccountReceivable` do cliente e calcula
-    faturamento, ticket médio e status do relacionamento. As duas tabelas entram
-    nos MÓDULOS 5 e 7. Um painel com zeros seria pior que a ausência dele: diria
-    "este cliente não fatura nada", que não é verdade — é só dado que ainda não
-    existe no sistema.
+    do original) ficou de fora enquanto `projects` e `accounts_receivable` não
+    existiam: um painel de zeros diria "este cliente não fatura nada", que não é
+    verdade — era dado que ainda não existia. As duas tabelas subiram nos módulos
+    5 e 7, e o painel VOLTOU: ver ClientHistory.tsx.
 
   O QUE FOI ACRESCENTADO: estado de erro de leitura. O original só distingue
   "carregando" de "não encontrado", então falha de rede ou recusa da RLS aparece
@@ -266,7 +266,8 @@ export default function ClientDetail() {
         </div>
       </Card>
 
-      {/* Histórico do Cliente: MÓDULOS 5 (projects) e 7 (accounts_receivable). */}
+      {/* Última coisa da página, como no original. */}
+      <ClientHistory clientId={client.id} />
 
       {/* Modal de Edição */}
       <ClientForm

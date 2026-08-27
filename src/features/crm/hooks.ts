@@ -9,12 +9,17 @@ import {
 import { useCurrentCollaborator } from '@/features/auth/hooks'
 import { clientInputSchema, viaCepResponseSchema } from './schemas'
 import type { Client, ClientInput, ClientListRow, DuplicateField, ZipcodeAddress } from './types'
+import type { ProjectStatus } from '@/lib/enums'
 
 export const crmKeys = {
   all: ['crm'] as const,
   clients: (search: string) => [...crmKeys.all, 'clients', search] as const,
   client: (id: string | null | undefined) => [...crmKeys.all, 'client', id] as const,
   clientsByIds: (ids: string[]) => [...crmKeys.all, 'clients-by-ids', [...ids].sort()] as const,
+  /* Dentro de `all`: o painel mostra projetos e faturamento, e mexer no cliente
+     não muda nenhum dos dois — mas gravar um cliente novo a partir de um
+     briefing muda, e uma invalidação só cobre as duas telas. */
+  history: (id: string) => [...crmKeys.all, 'history', id] as const,
 }
 
 /* `Client.list('name', 500)` é como o original carrega a tela. */
@@ -347,6 +352,175 @@ export function useClientsByIds(ids: string[]) {
       const { data, error } = await supabase.from('clients').select('*').in('id', unicos)
       if (error) throw error
       return data ?? []
+    },
+  })
+}
+
+/*
+  O HISTÓRICO DO CLIENTE: os projetos dele e o que já foi faturado.
+
+  Porta de projeto-original/src/components/clients/ClientHistory.jsx, que ficou
+  de fora do módulo 2 com o motivo escrito em ClientDetail.tsx: as duas tabelas
+  ainda não existiam. Elas subiram nos módulos 5 e 7 e ninguém voltou aqui.
+
+  DUAS CONSULTAS RECORTADAS, e não duas listagens inteiras. O original baixa
+  `Project.list()` e `AccountReceivable.list()` — o escritório todo — e filtra no
+  navegador (linhas 11-19). São 74 projetos e 325 parcelas hoje, trazidos para
+  mostrar os de UM cliente.
+
+  A REGRA DE QUAIS PARCELAS CONTAM É A DO ORIGINAL, incluindo a parte estranha
+  (24-34): entram as do cliente, e as que apontam para um projeto dele SEM
+  cliente próprio. Parcela num projeto deste cliente mas registrada no nome de
+  OUTRO cliente fica de fora — é o que `!r.client_id` faz lá, e mexer nisso
+  mudaria o faturamento que o escritório enxerga hoje.
+
+  Leitura larga por policy (`projects_select_active_collaborator` e a irmã de
+  accounts_receivable): qualquer colaborador ativo do escritório lê as duas.
+  Nenhuma porta de menu no meio — então este painel não corre o risco de mostrar
+  "R$ 0 faturado" por falta de permissão, que seria mentira com cara de fato.
+*/
+export type ClientProjectHistory = {
+  id: string
+  name: string
+  status: ProjectStatus
+  city: string | null
+  state: string | null
+  revenue: number
+  lastActivity: string
+}
+
+export type ClientHistory = {
+  projects: ClientProjectHistory[]
+  totalProjects: number
+  totalRevenue: number
+  /*
+    O que está no total e NÃO aparece na coluna da tabela: parcela paga do
+    cliente que não aponta para projeto nenhum.
+
+    O original não expõe isso, e o resultado é um painel onde o total diz R$ 60
+    mil sobre uma tabela cuja coluna soma R$ 55 mil — medido no dado real. Os
+    dois números estão certos; o que falta é a frase que explica a diferença,
+    sem a qual ela é lida como erro de conta.
+  */
+  unassignedRevenue: number
+  averageTicket: number
+  relationship: 'new' | 'active' | 'recurring' | 'inactive'
+}
+
+type HistoryReceivable = {
+  id: string
+  value: number
+  status: string
+  payment_date: string | null
+  created_at: string
+  client_id: string | null
+  project_id: string | null
+}
+
+/*
+  O ESTADO DO RELACIONAMENTO, na regra do original (43-80): sem projeto é Novo;
+  dois ou mais é Recorrente; com um só, Ativo quando o projeto está em
+  desenvolvimento ou em aprovação, e Inativo quando o último pagamento passou de
+  180 dias. Sem pagamento nenhum, o original usa 999 dias — ou seja, Inativo.
+*/
+function relationshipOf(
+  projects: { status: ProjectStatus }[],
+  paid: HistoryReceivable[],
+): ClientHistory['relationship'] {
+  if (projects.length === 0) return 'new'
+  if (projects.length >= 2) return 'recurring'
+
+  if (projects.some((p) => p.status === 'in_development' || p.status === 'in_approval')) {
+    return 'active'
+  }
+
+  const lastPayment = paid.reduce((latest, receivable) => {
+    const when = new Date(receivable.payment_date ?? receivable.created_at).getTime()
+    return when > latest ? when : latest
+  }, 0)
+
+  if (lastPayment === 0) return 'inactive'
+
+  const days = (Date.now() - lastPayment) / (1000 * 60 * 60 * 24)
+  return days > 180 ? 'inactive' : 'active'
+}
+
+export function useClientHistory(clientId: string | null | undefined) {
+  return useQuery({
+    queryKey: crmKeys.history(clientId ?? ''),
+    enabled: Boolean(clientId),
+    queryFn: async (): Promise<ClientHistory> => {
+      const { data: projectRows, error: projectsError } = await supabase
+        .from('projects')
+        .select('id, name, status, city, state, created_at, updated_at')
+        .eq('client_id', clientId!)
+
+      if (projectsError) throw projectsError
+      const projects = projectRows ?? []
+      const projectIds = projects.map((project) => project.id)
+
+      /*
+        `or` numa consulta só, e não duas: são as MESMAS linhas que alimentam o
+        faturamento total e o de cada projeto, e buscá-las em dois momentos
+        deixaria as duas contas discordarem quando alguém dá baixa no meio.
+      */
+      const filtro = [`client_id.eq.${clientId}`]
+      if (projectIds.length > 0) filtro.push(`project_id.in.(${projectIds.join(',')})`)
+
+      const { data: receivableRows, error: receivablesError } = await supabase
+        .from('accounts_receivable')
+        .select('id, value, status, payment_date, created_at, client_id, project_id')
+        .or(filtro.join(','))
+
+      if (receivablesError) throw receivablesError
+
+      const receivables = (receivableRows ?? []).filter(
+        (receivable) =>
+          receivable.client_id === clientId ||
+          (receivable.project_id !== null && receivable.client_id === null),
+      ) as HistoryReceivable[]
+
+      const paid = receivables.filter((receivable) => receivable.status === 'paid')
+      const totalRevenue = paid.reduce((sum, receivable) => sum + Number(receivable.value ?? 0), 0)
+
+      const withRevenue: ClientProjectHistory[] = projects
+        .map((project) => {
+          const paidHere = paid.filter((receivable) => receivable.project_id === project.id)
+
+          /* Sem pagamento no projeto, a "última atividade" é a última mexida
+             nele — é o que o original faz com updated_date (102). */
+          const lastActivity = paidHere.reduce(
+            (latest, receivable) => {
+              const when = receivable.payment_date ?? receivable.created_at
+              return when > latest ? when : latest
+            },
+            project.updated_at ?? project.created_at,
+          )
+
+          return {
+            id: project.id,
+            name: project.name,
+            status: project.status,
+            city: project.city,
+            state: project.state,
+            revenue: paidHere.reduce((sum, receivable) => sum + Number(receivable.value ?? 0), 0),
+            lastActivity,
+          }
+        })
+        .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity))
+
+      const assigned = withRevenue.reduce((sum, project) => sum + project.revenue, 0)
+
+      return {
+        projects: withRevenue,
+        totalProjects: projects.length,
+        totalRevenue,
+        unassignedRevenue: totalRevenue - assigned,
+        /* Divisão por projeto, como no original (41). Sem projeto, zero — e não
+           uma divisão por zero virando NaN na tela. */
+        averageTicket: projects.length > 0 ? totalRevenue / projects.length : 0,
+        relationship: relationshipOf(projects, paid),
+      }
     },
   })
 }
