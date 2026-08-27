@@ -123,26 +123,43 @@ type Column = { id: ProjectPhase; color: string }
   `post_approval` não tem coluna de propósito: `tasks_phase_no_post_approval_check`
   (0049) recusa o valor em tarefa, então a coluna seria sempre vazia.
 
-  `revision` e `building_permit` TAMBÉM NÃO TÊM, por decisão do usuário: a
-  produção do escritório removeu as duas colunas (a lista de lá, em
+  `revision`, `building_permit` e `awaiting_client` TAMBÉM NÃO TÊM, por decisão
+  do usuário: a produção do escritório removeu as três colunas (a lista de lá, em
   nova-versao/TaskKanban.jsx:29-38, não as tem mais). O que ocupou o lugar dela foi a TAG "Em Revisão"
   (`operational_tag = in_review`), que este quadro oferece em Layout,
   Perspectivas, Projeto Legal e Projeto Executivo — o cartão fica na etapa onde o
   trabalho está e ganha um crachá, em vez de mudar de coluna.
 
-  "Alvará de Construção" não perdeu substituto como "Revisão" perdeu: ele é um
+  "Aguardando Cliente" seguiu o mesmo caminho da "Revisão": virou TAG
+  (`operational_tag = awaiting_client`), que este quadro oferece em Layout e
+  Perspectivas e que 9 tarefas do escritório já usam. O cartão fica na etapa onde
+  o trabalho está e ganha um crachá — que é justamente o desenho da tag: ela
+  suprime o prazo e a borda de atraso, porque esperar o cliente pausa o relógio.
+  A única tarefa na FASE `awaiting_client` está concluída, e concluída aparece em
+  "Finalizado". Medido antes.
+
+  CONSEQUÊNCIA QUE VALE SABER: sem coluna, nenhum gesto leva uma tarefa à fase
+  `awaiting_client`, e o cartão "Projetos Aguardando Cliente" do Painel Executivo
+  — que conta por FASE — fica estruturalmente em zero. Não é regressão nossa: a
+  produção está no mesmo estado, com o mesmo cartão contando a mesma fase que o
+  quadro dela não alcança (DashboardExecutivo.jsx:283). Trocar a contagem para a
+  tag seria consertar algo que a produção não consertou, e não foi pedido.
+
+  "Alvará de Construção" não perdeu substituto como "Revisão" e "Aguardando
+  Cliente" perderam: ele é um
   passo do fluxo que o escritório deixou de acompanhar em coluna própria. A única
   tarefa que existe nessa fase está CONCLUÍDA desde 18/11/2025, e tarefa concluída
   aparece na coluna "Finalizado" qualquer que seja a fase dela — então tirar a
   coluna não esconde nada. Medido antes.
 
-  OS VALORES `revision` E `building_permit` FICAM NO ENUM. Não há tarefa nem projeto nele hoje (medido:
+  OS TRÊS VALORES FICAM NO ENUM. Não há tarefa nem projeto nele hoje (medido:
   zero dos dois), mas apagar valor de enum é irreversível e o de/para da
   importação ainda o reconhece — se uma exportação futura trouxer "Revisão", a
   linha entra com a fase certa e some da tela, como as outras sem coluna. Os dois
   continuam valendo na escada de `calculateProjectPhase` e na escala de
-  `project_progress` (`building_permit` vale 100 lá) — o que sai é a coluna, não
-  a fase. A métrica de revisão do Diário também continua de pé: ela conta os dois
+  `project_progress` (`building_permit` vale 100 lá; `awaiting_client` vale nulo
+  de propósito, e a regra 2 do cálculo — tarefa aguardando cliente vence tudo —
+  continua de pé) — o que sai é a coluna, não a fase. A métrica de revisão do Diário também continua de pé: ela conta os dois
   fatos, e o que sobrevive é o da tag (`resumo.ts`, `isRevisionEntry`).
 
   `preliminary_study` e `preliminary_design` (0079) seguem a mesma regra e pelo
@@ -160,16 +177,17 @@ const COLUMNS: Column[] = [
   /*
     COR ESCOLHIDA AQUI, porque o original não tem esta coluna — é a única do
     quadro sem cor de lá. Teal é o único matiz da escala que ainda não estava em
-    uso e que se distingue à primeira vista dos dois vizinhos: pink à esquerda
-    (era lime, antes de "Alvará de Construção" sair) e rose à direita; cyan e
-    emerald, os mais próximos dele, ficam a três e a duas colunas de distância.
+    uso e que se distingue à primeira vista dos dois vizinhos: pink à esquerda e
+    emerald à direita (eram lime e rose, antes de "Alvará de Construção" e
+    "Aguardando Cliente" saírem). Emerald é o vizinho mais próximo do teal na
+    escala, e ainda assim separa: "Finalizado" é a única coluna verde, e verde
+    ali carrega significado próprio.
     Laranja seria o palpite óbvio — é o que
     StatusBadge.jsx:60 do original dá à palavra "Obra" — mas laranja já é
     "Aprovação Condomínio" neste mesmo quadro, e duas colunas da mesma cor tiram
     da cor a única função que ela tem aqui. Escolha reportada ao usuário.
   */
   { id: 'under_construction', color: 'bg-teal-100 dark:bg-teal-950/40' },
-  { id: 'awaiting_client', color: 'bg-rose-100 dark:bg-rose-950/40' },
   { id: 'finished', color: 'bg-emerald-100 dark:bg-emerald-950/40' },
 ]
 
