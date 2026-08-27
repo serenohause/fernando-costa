@@ -150,6 +150,18 @@ import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
+/*
+  O de/para da visita de obra vem da FONTE UNICA dos rotulos (src/lib/enums.ts),
+  invertido — o base44 grava o rotulo em portugues, e esses mapas ja sao a mesma
+  lista que o formulario oferece. Repetir a tabela aqui criaria um segundo lugar
+  para as duas divergirem, que e exatamente o que docs/ENUM-MAP.md existe para
+  evitar.
+*/
+import { SITE_VISIT_STATUS, SITE_VISIT_TYPE } from '../src/lib/enums.ts'
+
+const inverter = (mapa) => Object.fromEntries(Object.entries(mapa).map(([k, v]) => [v, k]))
+const SITE_VISIT_TYPE_BY_LABEL = inverter(SITE_VISIT_TYPE)
+const SITE_VISIT_STATUS_BY_LABEL = inverter(SITE_VISIT_STATUS)
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
@@ -322,13 +334,19 @@ const ENTITIES = [
 ]
 
 /*
-  Duas entidades da exportacao nova NAO entram, e o silencio seria pior que a
-  ausencia: `ProjectIssue` veio com 0 bytes (nenhuma pendencia registrada no
-  base44) e `ProjectSiteVisit` traz 1 visita de obra, que este script ainda nao
-  sabe gravar. As duas sao listadas no relatorio final para nao passarem como
-  importadas.
+  Entidades que so existem nas exportacoes NOVAS. Ausentes, entram como lista
+  vazia em vez de derrubar a importacao: `db/` (06/08/2026) nao tinha nenhuma
+  das duas, e exigir arquivo que a exportacao antiga nao gera transformaria
+  "pasta mais velha" em erro.
 */
-const NAO_IMPORTADAS = ['ProjectIssue', 'ProjectSiteVisit']
+const ENTITIES_OPCIONAIS = ['ProjectSiteVisit']
+
+/*
+  `ProjectIssue` NAO entra: veio com 0 bytes — o escritorio nao registrou
+  pendencia nenhuma no base44. Fica listada no relatorio para a ausencia ser
+  dita em voz alta, e nao confundida com "importei".
+*/
+const NAO_IMPORTADAS = ['ProjectIssue']
 
 function acharArquivo(entity) {
   const candidatos = readdirSync(CSV_DIR)
@@ -348,6 +366,10 @@ for (const entity of ENTITIES) {
     process.exit(1)
   }
   csv[entity] = parseCsv(readFileSync(join(CSV_DIR, arquivo), 'utf8'))
+}
+for (const entity of ENTITIES_OPCIONAIS) {
+  const arquivo = acharArquivo(entity)
+  csv[entity] = arquivo ? parseCsv(readFileSync(join(CSV_DIR, arquivo), 'utf8')) : []
 }
 
 const idsOf = (rows) => new Set(rows.map((r) => r.id))
@@ -1071,8 +1093,9 @@ async function ensureTenant() {
 async function main() {
   log(`\nImportacao do base44 — ${DRY_RUN ? 'DRY RUN (nada e gravado)' : SUPABASE_URL}`)
   log(`CSV em ${CSV_DIR}\n`)
-  for (const entity of ENTITIES) {
-    log(`  ${entity.padEnd(22)} ${String(csv[entity].length).padStart(5)} linhas  (${acharArquivo(entity)})`)
+  for (const entity of [...ENTITIES, ...ENTITIES_OPCIONAIS]) {
+    const arquivo = acharArquivo(entity)
+    log(`  ${entity.padEnd(22)} ${String(csv[entity].length).padStart(5)} linhas  (${arquivo ?? 'ausente nesta pasta'})`)
   }
   /* Dito em voz alta: arquivo presente na pasta que este script NAO grava. */
   for (const entity of NAO_IMPORTADAS) {
@@ -3254,6 +3277,111 @@ async function main() {
   }
 
   // -------------------------------------------------------------------------
+  // Passo 31b — project_site_visits  <- ProjectSiteVisit
+  // -------------------------------------------------------------------------
+  //
+  // A VISITA DE OBRA, que ficou de fora da primeira passada com o motivo dito em
+  // voz alta no relatorio ("NAO IMPORTADA"): o arquivo so apareceu na exportacao
+  // de 27/08 e este script nao sabia grava-la. Sao 1 visita e 1 foto.
+  //
+  // 31b, e nao 32: a visita precisa existir ANTES dos arquivos (a foto dela e
+  // uma linha de project_diary_files apontando para visit_id), e renumerar os
+  // passos seguintes desalinharia docs/IMPORT-PLAN.md sem nenhum ganho.
+  //
+  // O DE/PARA DOS DOIS ENUMS SAI DE src/lib/enums.ts, invertido: SITE_VISIT_TYPE
+  // e SITE_VISIT_STATUS ja guardam o rotulo em portugues que o base44 grava, e
+  // eles sao a mesma lista que o formulario oferece. Repetir a tabela aqui
+  // criaria um segundo lugar para as duas divergirem.
+  //
+  // `hora_visita` E A UNICA HORA DO SISTEMA que vem do base44 — visit_time
+  // existe justamente para ela. Vazia entra nula: 00:00 seria inventar que a
+  // visita foi a meia-noite.
+  step('31b', 'project_site_visits  <- ProjectSiteVisit')
+  const siteVisitIdByLegacy = new Map()
+  {
+    const visitas = csv.ProjectSiteVisit ?? []
+    stat('project_site_visits').source = visitas.length
+
+    for (const r of visitas) {
+      const label = txt(r.resumo) ?? txt(r.project_name) ?? r.id
+      const projectId = ix.project.byLegacy.get(txt(r.project_id) ?? '')
+      if (!projectId) {
+        pend('project_site_visits', r.id, `project_id: orfao: projeto ${r.project_id} nao existe no export`, label)
+        continue
+      }
+
+      const visitDate = date(r.data_visita)
+      if (!visitDate) {
+        pend('project_site_visits', r.id, 'data_visita vazia (visit_date e NOT NULL)', label)
+        continue
+      }
+
+      const visitType = SITE_VISIT_TYPE_BY_LABEL[(txt(r.tipo_visita) ?? '').trim()]
+      if (!visitType) {
+        pend('project_site_visits', r.id, `tipo_visita: valor "${r.tipo_visita}" nao esta em src/lib/enums.ts`, label)
+        continue
+      }
+
+      const visitStatus = SITE_VISIT_STATUS_BY_LABEL[(txt(r.status_visita) ?? '').trim()]
+      if (!visitStatus) {
+        pend('project_site_visits', r.id, `status_visita: valor "${r.status_visita}" nao esta em src/lib/enums.ts`, label)
+        continue
+      }
+
+      /*
+        A hora vem "14:30" e a coluna e `time`. Formato diferente disso entra
+        NULO com ajuste anotado, em vez de derrubar a visita inteira: a hora e
+        detalhe, a visita e o fato.
+      */
+      let visitTime = null
+      const horaCru = txt(r.hora_visita)
+      if (horaCru) {
+        if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(horaCru.trim())) {
+          visitTime = horaCru.trim()
+        } else {
+          adjust('project_site_visits', r.id, `hora_visita "${horaCru}" fora do formato HH:MM e gravada NULA`, label)
+        }
+      }
+
+      /*
+        `timeline_entry_id` e o defeito 7 do plano do modulo 11: a versao nova
+        coleta o campo e NUNCA o grava. No dado real ele vem vazio, entao aqui
+        nao ha o que religar — mas o de/para fica escrito, porque o dia em que
+        vier preenchido nao pode depender de alguem lembrar disso.
+      */
+      const diaryEntryId = diaryEntryIdByLegacy.get(txt(r.timeline_entry_id) ?? '') ?? null
+      if (txt(r.timeline_entry_id) && !diaryEntryId) {
+        adjust('project_site_visits', r.id, `timeline_entry_id ${r.timeline_entry_id} nao foi importado: visita gravada sem o vinculo`, label)
+      }
+
+      const row = {
+        tenant_id: T(),
+        legacy_id: r.id,
+        project_id: projectId,
+        visit_date: visitDate,
+        visit_time: visitTime,
+        visit_type: visitType,
+        status: visitStatus,
+        responsible_id: link(ix.collaborator, r.responsavel_id, 'colaborador'),
+        summary: txt(r.resumo),
+        notes: txt(r.observacoes),
+        diary_entry_id: diaryEntryId,
+        created_by_id: link(ix.collaborator, r.criado_por_id, 'colaborador'),
+      }
+
+      const res = await insertOne('project_site_visits', row, 'tenant_id,legacy_id')
+      if (res.error) {
+        pend('project_site_visits', r.id, `erro do banco: ${res.error.message}`, label)
+        continue
+      }
+      siteVisitIdByLegacy.set(r.id, res.id)
+      stat('project_site_visits').consumed += 1
+      stat('project_site_visits').written += 1
+    }
+    log(`  ${stat('project_site_visits').written} de ${visitas.length}`)
+  }
+
+  // -------------------------------------------------------------------------
   // Passo 32 — project_diary_files  <- ProjectTimelineEntry.anexos[]
   // -------------------------------------------------------------------------
   //
@@ -3275,13 +3403,34 @@ async function main() {
   // bucket (Storage nao tem cascade — ver o COMMENT de project_diary_files). O
   // passo entao PERGUNTA ANTES: se ja existe linha com este legacy_id e o
   // objeto dela ainda esta no bucket, nao baixa e nao sobe nada.
-  step(32, 'project_diary_files  <- ProjectTimelineEntry.anexos[]')
+  step(32, 'project_diary_files  <- ProjectTimelineEntry.anexos[] + ProjectSiteVisit.fotos[]/arquivos[]')
   {
+    /*
+      DUAS MAES, e nao so a entrada de diario: `project_diary_files` tem arco
+      exclusivo entre entry_id, visit_id e issue_id (0069), e a visita de obra
+      traz `fotos` e `arquivos`.
+
+      `fotos` vira file_kind 'photo' e `arquivos` vira 'attachment'. A distincao
+      nao e decorativa: a aba Fotos e o lightbox agregam so photo.
+    */
     const attachments = []
     for (const r of csv.ProjectTimelineEntry) {
       jsonArray(r.anexos).forEach((a, position) => {
-        attachments.push({ entryLegacy: r.id, position, meta: a ?? {}, title: r.titulo })
+        attachments.push({
+          parent: 'entries', parentLegacy: r.id, array: 'anexos',
+          fileKind: 'attachment', position, meta: a ?? {}, title: r.titulo,
+        })
       })
+    }
+    for (const r of csv.ProjectSiteVisit ?? []) {
+      for (const [array, fileKind] of [['fotos', 'photo'], ['arquivos', 'attachment']]) {
+        jsonArray(r[array]).forEach((a, position) => {
+          attachments.push({
+            parent: 'visits', parentLegacy: r.id, array,
+            fileKind, position, meta: a ?? {}, title: r.resumo,
+          })
+        })
+      }
     }
     stat('project_diary_files').source = attachments.length
 
@@ -3317,16 +3466,20 @@ async function main() {
       // Formato documentado na 0069: <legacy_id da mae>:<array>:<indice>. O
       // item do array nao tem id proprio no base44, e a posicao e o que o
       // identifica la — mesmo desenho de budget_item_quotes (0066).
-      const legacy = `${att.entryLegacy}:anexos:${att.position}`
+      const legacy = `${att.parentLegacy}:${att.array}:${att.position}`
       const fileName = txt(att.meta.nome) ?? txt(att.meta.name)
       const url = txt(att.meta.url)
       // O rotulo carrega o que identifica o arquivo (nome e endereco de
       // origem). Ele so aparece no relatorio *.local, nunca no stdout.
       const label = `${fileName ?? '(sem nome)'} — ${url ?? '(sem url)'}`
 
-      const entryId = diaryEntryIdByLegacy.get(att.entryLegacy)
-      if (!entryId) {
-        pend('project_diary_files', legacy, `cascata: entrada de diario ${att.entryLegacy} nao foi importada`, label)
+      const parentId =
+        att.parent === 'entries'
+          ? diaryEntryIdByLegacy.get(att.parentLegacy)
+          : siteVisitIdByLegacy.get(att.parentLegacy)
+      if (!parentId) {
+        const mae = att.parent === 'entries' ? 'entrada de diario' : 'visita de obra'
+        pend('project_diary_files', legacy, `cascata: ${mae} ${att.parentLegacy} nao foi importada`, label)
         continue
       }
       if (!fileName) { pend('project_diary_files', legacy, 'anexo sem nome (file_name e NOT NULL)', label); continue }
@@ -3363,8 +3516,9 @@ async function main() {
         // a anotacao por causa do arquivo dela.
         pend('project_diary_files', legacy, got.reason, label)
         adjust(
-          'project_diary_entries', att.entryLegacy,
-          `entrada gravada SEM o anexo — ${got.reason}; nome e endereco de origem: ${label}`,
+          att.parent === 'entries' ? 'project_diary_entries' : 'project_site_visits',
+          att.parentLegacy,
+          `gravada SEM o arquivo — ${got.reason}; nome e endereco de origem: ${label}`,
           label,
         )
         continue
@@ -3376,15 +3530,16 @@ async function main() {
       // tenant_id = auth_tenant_id() das tabelas. A extensao sai do tipo
       // CONFERIDO nos bytes, e nao do nome enviado; o nome de exibicao vive em
       // project_diary_files.file_name.
-      const path = `${T()}/entries/${entryId}/${randomUUID()}.${MIME_EXTENSION[got.mime] ?? 'bin'}`
+      const path = `${T()}/${att.parent}/${parentId}/${randomUUID()}.${MIME_EXTENSION[got.mime] ?? 'bin'}`
       const { error: uploadError } = await db.storage
         .from(DIARY_BUCKET)
         .upload(path, got.buffer, { contentType: got.mime, upsert: false })
       if (uploadError) {
         pend('project_diary_files', legacy, `upload para o bucket falhou: ${uploadError.message}`, label)
         adjust(
-          'project_diary_entries', att.entryLegacy,
-          `entrada gravada SEM o anexo — upload recusado pelo bucket; nome e endereco de origem: ${label}`,
+          att.parent === 'entries' ? 'project_diary_entries' : 'project_site_visits',
+          att.parentLegacy,
+          `gravada SEM o arquivo — upload recusado pelo bucket; nome e endereco de origem: ${label}`,
           label,
         )
         continue
@@ -3393,13 +3548,10 @@ async function main() {
       const row = {
         tenant_id: T(),
         legacy_id: legacy,
-        entry_id: entryId,
-        visit_id: null,
+        entry_id: att.parent === 'entries' ? parentId : null,
+        visit_id: att.parent === 'visits' ? parentId : null,
         issue_id: null,
-        // `anexos` e a lista de ANEXO; `fotos` (que so existe em visita e
-        // pendencia) e que vira photo. A distincao nao e decorativa: a aba
-        // Fotos e o lightbox agregam so photo.
-        file_kind: 'attachment',
+        file_kind: att.fileKind,
         file_path: path,
         file_name: fileName,
         mime_type: got.mime,
