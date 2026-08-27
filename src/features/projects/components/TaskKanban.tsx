@@ -122,13 +122,29 @@ type Column = { id: ProjectPhase; color: string }
 
   `post_approval` não tem coluna de propósito: `tasks_phase_no_post_approval_check`
   (0049) recusa o valor em tarefa, então a coluna seria sempre vazia.
+
+  `revision` TAMBÉM NÃO TEM, e por decisão do usuário: a produção do escritório
+  removeu a coluna "Revisão" (a lista de lá, em nova-versao/TaskKanban.jsx:29-38,
+  não a tem mais). O que ocupou o lugar dela foi a TAG "Em Revisão"
+  (`operational_tag = in_review`), que este quadro oferece em Layout,
+  Perspectivas, Projeto Legal e Projeto Executivo — o cartão fica na etapa onde o
+  trabalho está e ganha um crachá, em vez de mudar de coluna.
+
+  O VALOR `revision` FICA NO ENUM. Não há tarefa nem projeto nele hoje (medido:
+  zero dos dois), mas apagar valor de enum é irreversível e o de/para da
+  importação ainda o reconhece — se uma exportação futura trouxer "Revisão", a
+  linha entra com a fase certa e some da tela, como as outras sem coluna. A
+  métrica de revisão do Diário também continua de pé: ela conta os dois fatos, e
+  o que sobrevive é o da tag (`resumo.ts`, `isRevisionEntry`).
+
+  `preliminary_study` e `preliminary_design` (0079) seguem a mesma regra e pelo
+  mesmo motivo — a produção não tem coluna para elas.
 */
 const COLUMNS: Column[] = [
   { id: 'not_started', color: 'bg-muted' },
   { id: 'briefing', color: 'bg-blue-100 dark:bg-blue-950/40' },
   { id: 'layout', color: 'bg-violet-100 dark:bg-violet-950/40' },
   { id: 'renderings', color: 'bg-purple-100 dark:bg-purple-950/40' },
-  { id: 'revision', color: 'bg-amber-100 dark:bg-amber-950/40' },
   { id: 'legal_permit', color: 'bg-cyan-100 dark:bg-cyan-950/40' },
   { id: 'hoa_approval', color: 'bg-orange-100 dark:bg-orange-950/40' },
   { id: 'construction_docs', color: 'bg-indigo-100 dark:bg-indigo-950/40' },

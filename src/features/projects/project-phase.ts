@@ -39,6 +39,23 @@ export function phaseIndex(phase: ProjectPhase): number {
   Sem essa entrada, a fase nunca seria devolvida e — pior — o projeto cuja única
   tarefa aberta está em obra caía direto no `return 'finished'` do fim da função,
   ou seja, era calculado como CONCLUÍDO com trabalho em andamento.
+
+  `preliminary_study` e `preliminary_design` (migration 0079) ENTRAM PELA MESMA
+  RAZÃO, e a falta delas aqui foi um defeito real: a 0079 acrescentou os dois
+  valores ao enum sem tocar nesta lista, e 4 projetos do escritório cujas únicas
+  tarefas abertas estão em "Estudo preliminar" cairiam no `return 'finished'` —
+  calculados como CONCLUÍDOS com o projeto ainda por começar. Medido antes de
+  corrigir.
+
+  A POSIÇÃO É A DO FLUXO, invertida: briefing → estudo preliminar → layout →
+  anteprojeto → perspectivas. Esta lista vai da fase mais avançada para a mais
+  inicial, então as duas entram logo ANTES das suas sucessoras.
+
+  A LIÇÃO, escrita para a próxima: valor novo em `project_phase` precisa de três
+  coisas, e nenhuma delas o compilador cobra — percentual na escala de
+  `project_progress`, lugar nesta lista, e (se for para aparecer) coluna no
+  kanban. Faltar a primeira dá progresso zerado; faltar a segunda dá projeto
+  concluído por engano; faltar a terceira some com a tarefa da tela.
 */
 const ADVANCED_TO_INITIAL: ProjectPhase[] = [
   'under_construction',
@@ -49,7 +66,9 @@ const ADVANCED_TO_INITIAL: ProjectPhase[] = [
   'legal_permit',
   'revision',
   'renderings',
+  'preliminary_design',
   'layout',
+  'preliminary_study',
   'briefing',
 ]
 
