@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -3178,6 +3178,7 @@ export type Database = {
       accounts_receivable_status: {
         Row: {
           client_id: string | null
+          client_name: string | null
           contract_id: string | null
           created_at: string | null
           description: string | null
@@ -3195,46 +3196,6 @@ export type Database = {
           tenant_id: string | null
           updated_at: string | null
           value: number | null
-        }
-        Insert: {
-          client_id?: string | null
-          contract_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string | null
-          installment_number?: number | null
-          installment_total?: number | null
-          is_overdue?: never
-          issue_date?: string | null
-          legacy_id?: string | null
-          payment_date?: string | null
-          payment_method?: Database["public"]["Enums"]["payment_method"] | null
-          project_id?: string | null
-          status?: Database["public"]["Enums"]["financial_status"] | null
-          tenant_id?: string | null
-          updated_at?: string | null
-          value?: number | null
-        }
-        Update: {
-          client_id?: string | null
-          contract_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string | null
-          installment_number?: number | null
-          installment_total?: number | null
-          is_overdue?: never
-          issue_date?: string | null
-          legacy_id?: string | null
-          payment_date?: string | null
-          payment_method?: Database["public"]["Enums"]["payment_method"] | null
-          project_id?: string | null
-          status?: Database["public"]["Enums"]["financial_status"] | null
-          tenant_id?: string | null
-          updated_at?: string | null
-          value?: number | null
         }
         Relationships: [
           {
@@ -3632,7 +3593,9 @@ export type Database = {
       project_phase:
         | "not_started"
         | "briefing"
+        | "preliminary_study"
         | "layout"
+        | "preliminary_design"
         | "renderings"
         | "revision"
         | "legal_permit"
@@ -4026,7 +3989,9 @@ export const Constants = {
       project_phase: [
         "not_started",
         "briefing",
+        "preliminary_study",
         "layout",
+        "preliminary_design",
         "renderings",
         "revision",
         "legal_permit",

@@ -351,25 +351,33 @@ fica registrado no relatório de importação.
 | **Em Obra** (migration 0061) | `under_construction` | Em Obra |
 | Aguardando Cliente | `awaiting_client` | Aguardando Cliente |
 | Finalizado | `finished` | Finalizado |
-| **Estudo preliminar** (2ª passada) | `layout` | Layout |
-| **Anteprojeto** (2ª passada) | `renderings` | Perspectivas |
+| **Estudo preliminar** (migration 0079) | `preliminary_study` | Estudo preliminar |
+| **Anteprojeto** (migration 0079) | `preliminary_design` | Anteprojeto |
 | **Executivo** (2ª passada) | `construction_docs` | Projeto Executivo |
 
 As três últimas são fases que a operação usa em `Task.phase` e que nenhuma
 entidade do base44 declara. O critério é o significado no domínio, conferido
 contra o título das tarefas que carregam cada valor:
 
-- **`Estudo preliminar` (18 tarefas) → `layout`.** É a primeira fase de
-  projeto, a mesma que o contrato chama de `prazo_estudo_layout` →
-  `layout_study_days`: estudo preliminar **é** o estudo de layout. As tarefas
-  são as de abertura de projeto ("Iniciar projeto — *cliente*", "*número* —
-  *cliente*"). `Briefing` é a coleta com o cliente, que vem antes e é outra
-  coisa.
-- **`Anteprojeto` (3 tarefas) → `renderings`.** Na NBR 13532 o anteprojeto é a
-  fase seguinte ao estudo preliminar, e nesta lista o que ocupa esse lugar é
-  Perspectivas. As três tarefas são "Modelar volumetria no SketchUp",
-  "Detalhar fachada frontal" e uma de cliente — trabalho de volumetria 3D, que
-  é o que alimenta a perspectiva.
+- **`Estudo preliminar` (18 tarefas) e `Anteprojeto` (3) viraram VALORES
+  PRÓPRIOS na migration 0079.** Até então eram dobrados dentro de `layout` e
+  `renderings`, pelo significado no domínio (estudo preliminar *é* o estudo de
+  layout; na NBR 13532 o anteprojeto ocupa o lugar da perspectiva). O raciocínio
+  continua defensável — o que estava errado era a consequência, e ela foi
+  **medida**: o quadro do Fluxo mostrava 27 cartões em "Layout" onde a produção
+  do escritório mostra 9, e 15 em "Perspectivas" contra 12.
+
+  Duas razões derrubaram a dobra. O banco deixava de guardar o que o base44
+  guarda — e a exportação deve ser replicada como está. E as 21 tarefas
+  apareciam na coluna errada: são tarefas de ABERTURA de projeto ("Iniciar
+  projeto — *cliente*") sentadas na coluna de quem já está desenhando layout,
+  numa tela que a equipe lê como "onde o trabalho está".
+
+  As duas fases **não têm coluna no kanban**, por decisão do usuário — então as
+  tarefas nelas não aparecem no quadro, exatamente como na produção, cujo kanban
+  casa a fase por texto exato (`task.phase === column.id`) e não tem coluna para
+  nenhuma das duas. Nem percentual na escala de progresso, pelo mesmo motivo:
+  `FASE_PERCENTUAIS` da produção não as lista.
 - **`Executivo` (1 tarefa) → `construction_docs`.** Forma curta de Projeto
   Executivo. A tarefa é "Compatibilização estrutural", que só existe no
   executivo.

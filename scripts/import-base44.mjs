@@ -483,12 +483,12 @@ const ENUMS = {
     //   sao as de abertura ("Iniciar projeto - <cliente>", "<numero> -
     //   <cliente>"). Briefing e a coleta com o cliente, que vem antes; o estudo
     //   preliminar E o estudo de layout.
-    'Estudo preliminar': 'layout',
+    'Estudo preliminar': 'preliminary_study',
     //   `Anteprojeto` (3): fase seguinte ao estudo preliminar na NBR 13532, e
     //   as tres tarefas sao "Modelar volumetria no SketchUp", "Detalhar fachada
     //   frontal" e uma de cliente — trabalho de volumetria 3D, que nesta lista
     //   e Perspectivas.
-    Anteprojeto: 'renderings',
+    Anteprojeto: 'preliminary_design',
     //   `Executivo` (1): forma curta de Projeto Executivo. A tarefa e
     //   "Compatibilizacao estrutural", que so existe no executivo.
     Executivo: 'construction_docs',

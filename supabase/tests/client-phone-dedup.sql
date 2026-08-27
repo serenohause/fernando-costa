@@ -245,32 +245,29 @@ select pg_temp.chk('5.1', 'CONTROLE: salvar o cliente mantendo o proprio telefon
 select pg_temp.chk('5.2', 'trocar para o telefone de outro cliente e recusado', 'ERR:23505',
   $q$update public.clients set phone = '(62) 99812-4477' where name = 'Outro Numero'$q$);
 
--- 6. A dispensa das duas linhas de agosto/2026 --------------------------------
+-- 6. A dispensa saiu ------------------------------------------------------
+--
+--    A 0076 dispensava duas linhas nomeadas por id — dois cadastros de teste que
+--    ja dividiam telefone quando a regra entrou. Elas foram apagadas na troca da
+--    exportacao oficial, e a 0081 tirou a dispensa dos dois lugares onde ela
+--    vivia.
+--
+--    O caso que existia aqui ("linha dispensada continua editavel") era o
+--    vigia dessa divida: comecou a devolver OK:0 quando as linhas sumiram, que e
+--    o sinal que o comentario dele anunciava. Cumprida a funcao, ele vira o seu
+--    oposto — agora o que se guarda e que NENHUMA linha escapa da regra.
 
-select pg_temp.val('6.1', 'a dispensa esta no indice E no trigger', 'true',
+select pg_temp.val('6.1', 'nenhum id dispensado sobrou no indice', 'true',
   $q$
-  select (
-    (select indexdef ~ '8db85ac3' and indexdef ~ '3580e4d1'
-       from pg_indexes where indexname = 'clients_tenant_id_phone_digits_key')
-    and
-    (select prosrc ~ '8db85ac3' and prosrc ~ '3580e4d1'
-       from pg_proc where proname = 'clients_reject_key_collision')
-  )::text
+  select (indexdef !~ '8db85ac3' and indexdef !~ '3580e4d1')::text
+    from pg_indexes where indexname = 'clients_tenant_id_phone_digits_key'
   $q$);
 
-/*
-  6.2 e o caso que a dispensa existe para garantir: as duas linhas continuam
-  EDITAVEIS. Salvar qualquer campo do cadastro reenvia `phone`, o trigger acorda,
-  acha a outra linha - e sem a dispensa recusaria a gravacao, travando dois
-  cadastros reais em nome de uma regra que eles nao precisam cumprir.
-
-  Encosta em linha real, e o ROLLBACK desfaz. No dia em que o escritorio corrigir
-  o telefone de uma delas, este caso passa a devolver OK:0 e vira o sinal de que a
-  dispensa pode sair da migration.
-*/
-select pg_temp.chk('6.2', 'linha dispensada continua editavel', 'OK:1',
-  $q$update public.clients set phone = phone
-     where id = '8db85ac3-28b7-4908-9091-ed3dd21541d8'$q$);
+select pg_temp.val('6.2', 'nem no trigger', 'true',
+  $q$
+  select (prosrc !~ '8db85ac3' and prosrc !~ '3580e4d1')::text
+    from pg_proc where proname = 'clients_reject_key_collision'
+  $q$);
 
 -- Resultado ------------------------------------------------------------------
 

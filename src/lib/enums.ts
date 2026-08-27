@@ -259,7 +259,15 @@ export type ProjectStatus = keyof typeof PROJECT_STATUS
 export const PROJECT_PHASE = {
   not_started: 'Não iniciado',
   briefing: 'Briefing',
+  /*
+    Duas fases que a operação usa em `Task.phase` e que NENHUMA coluna do quadro
+    mostra — nem aqui, nem na produção do escritório, cujo kanban casa a fase por
+    texto exato. Entraram na migration 0079 para o banco guardar a fase como o
+    base44 guarda, em vez de dobrá-la dentro da vizinha. Ver o cabeçalho da 0079.
+  */
+  preliminary_study: 'Estudo preliminar',
   layout: 'Layout',
+  preliminary_design: 'Anteprojeto',
   renderings: 'Perspectivas',
   revision: 'Revisão',
   legal_permit: 'Projeto Legal',

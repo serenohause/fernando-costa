@@ -1,0 +1,52 @@
+-- `Estudo preliminar` e `Anteprojeto` viram fases proprias, e deixam de ser
+-- dobradas dentro de Layout e Perspectivas.
+--
+-- O CASO, MEDIDO
+--   O quadro do Fluxo do Projeto mostrava 27 cartoes em "Layout" onde a producao
+--   do escritorio mostra 9. A diferenca sao 18 tarefas cuja fase no base44 e
+--   `Estudo preliminar`, que a importacao gravava como `layout`. O mesmo em
+--   "Perspectivas": 15 contra 12, por causa de 3 tarefas em `Anteprojeto`.
+--
+--   A dobra foi decisao registrada em docs/ENUM-MAP.md ("2a passada"), pelo
+--   significado no dominio: estudo preliminar E o estudo de layout, e anteprojeto
+--   ocupa o lugar de perspectivas na NBR 13532. O raciocinio continua defensavel
+--   — o que estava errado era a consequencia.
+--
+-- POR QUE A DOBRA SAI
+--   1. O BANCO DEIXAVA DE GUARDAR O QUE O BASE44 GUARDA. `Estudo preliminar` e um
+--      valor que a operacao usa em Task.phase; grava-lo como `layout` e perder a
+--      informacao, e a pasta banco/ deve ser replicada como esta.
+--
+--   2. AS 21 TAREFAS APARECIAM NA COLUNA ERRADA. Nao e ruido de contagem: sao
+--      tarefas de ABERTURA de projeto ("Iniciar projeto — <cliente>") sentadas na
+--      coluna de quem ja esta desenhando layout, e a equipe le a coluna como
+--      "onde o trabalho esta".
+--
+-- O QUE ACONTECE COM ELAS AGORA — DECISAO DO USUARIO
+--   Nenhuma coluna nova no quadro. `preliminary_study` e `preliminary_design` nao
+--   tem coluna, entao as 21 tarefas SOMEM da tela — que e exatamente o que
+--   acontece na producao do escritorio hoje: o kanban de la casa a fase por texto
+--   exato (`task.phase === column.id`, TaskKanban.jsx:276) e essas duas fases nao
+--   estao entre as colunas dele. As tarefas existem, tem responsavel e prazo, e
+--   nao aparecem em lugar nenhum.
+--
+--   CONSEQUENCIA, ESCRITA PARA NAO SER DESCOBERTA DEPOIS: tarefa sem coluna e
+--   tarefa que ninguem consegue arrastar. Ela so volta a ser alcancavel quando
+--   ganhar uma coluna, ou quando alguem mudar a fase dela por outro caminho. O
+--   escritorio ja vive com isso na producao; o que muda e que passamos a viver
+--   igual, em vez de mostrar as tarefas num lugar que nao e o delas.
+--
+-- `Executivo` (1 tarefa) CONTINUA VIRANDO construction_docs
+--   E a forma curta de "Projeto Executivo", nao uma fase diferente — a tarefa e
+--   "Compatibilizacao estrutural", que so existe no executivo. A producao nao a
+--   mostra porque compara texto exato e a grafia nao bate; esconder aqui seria
+--   reproduzir um defeito de comparacao de string, e nao replicar um dado.
+--   Efeito visivel: "Projeto Executivo" mostra 38 onde a producao mostra 37.
+--
+-- POR QUE DUAS MIGRATIONS
+--   O Postgres nao deixa USAR um valor de enum na mesma transacao em que ele e
+--   criado. Esta migration so ACRESCENTA os dois valores; a 0080 mexe na view
+--   project_progress, que precisa nomea-los.
+
+alter type public.project_phase add value 'preliminary_study' before 'layout';
+alter type public.project_phase add value 'preliminary_design' before 'renderings';
