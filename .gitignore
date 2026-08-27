@@ -34,4 +34,9 @@ nova-versao
 # importa. A pasta ja esteve desprotegida — um `git add -A` teria publicado 122
 # clientes reais. Se precisar versionar algo dessa importacao, versione o
 # SCRIPT, nunca o CSV.
+# Exportacoes do base44 com dado real de cliente (CPF, endereco, telefone,
+# valor de contrato). NUNCA versionar.
+#   db/    primeira exportacao (06/08/2026), aposentada
+#   banco/ exportacao oficial (27/08/2026)
 /db/
+/banco/

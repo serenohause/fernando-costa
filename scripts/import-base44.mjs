@@ -2,13 +2,20 @@
 // Importacao do dado REAL do base44 para o escritorio Fernando Costa.
 //
 // O QUE ESTE SCRIPT FAZ
-//   Le os 17 CSV de db/ (dado real de cliente: CPF/CNPJ, endereco, telefone,
-//   valor de contrato, coordenada de residencia), cria o tenant do escritorio
-//   real e grava as 32 tabelas na ordem de docs/IMPORT-PLAN.md, secao 5 (as
-//   duas ultimas sao as do Diario do Projeto, modulo 11).
-//   Depois cria as contas de login do time e confere o que gravou.
+//   Le os 17 CSV da pasta de exportacao (dado real de cliente: CPF/CNPJ,
+//   endereco, telefone, valor de contrato, coordenada de residencia), cria o
+//   tenant do escritorio real e grava as 32 tabelas na ordem de
+//   docs/IMPORT-PLAN.md, secao 5 (as duas ultimas sao as do Diario do Projeto,
+//   modulo 11). Depois cria as contas de login do time e confere o que gravou.
 //
-//   node scripts/import-base44.mjs            grava
+//   A PASTA OFICIAL E `banco/`. `db/` foi a primeira exportacao (06/08/2026) e
+//   nao e mais usada: `banco/` (27/08/2026) contem os MESMOS ids do base44 mais
+//   os novos, entao rodar por cima atualiza o que mudou e insere o que falta.
+//   Medido na troca: 0 registros existiam so em db/, com uma unica excecao (um
+//   colaborador que saiu do escritorio). Os arquivos sao achados por PREFIXO,
+//   nao por nome exato - ver ENTITIES.
+//
+//   node scripts/import-base44.mjs --dir=banco   grava (pasta oficial)
 //   node scripts/import-base44.mjs --dry-run  nao abre conexao de escrita:
 //                                             so calcula e escreve o relatorio
 //                                             de pendencias
@@ -139,7 +146,7 @@
 //     comportamento correto e esta explicado em supabase/seed/tenants.mjs.
 
 import { randomBytes, randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
@@ -282,34 +289,65 @@ function parseCsv(text) {
     .map((r) => Object.fromEntries(header.map((h, idx) => [h, r[idx] ?? ''])))
 }
 
-const FILES = {
-  Collaborator: 'Collaborator_export.csv',
-  PermissoesUsuario: 'PermissoesUsuario_export.csv',
-  SolicitacaoAcesso: 'SolicitacaoAcesso_export.csv',
-  Client: 'Client_export.csv',
-  Negociacao: 'Negociacao_export.csv',
-  ClientIntake: 'ClientIntake_export.csv',
-  Contract: 'Contract_export.csv',
-  Project: 'Project_export (1).csv',
-  Task: 'Task_export.csv',
-  Atividade: 'Atividade_export.csv',
-  FinancialCategory: 'FinancialCategory_export.csv',
-  AccountReceivable: 'AccountReceivable_export.csv',
-  AccountPayable: 'AccountPayable_export.csv',
-  Fornecedor: 'Fornecedor_export.csv',
-  ChecklistOrcamento: 'ChecklistOrcamento_export.csv',
-  PropriedadeMapa: 'PropriedadeMapa_export.csv',
-  ProjectTimelineEntry: 'ProjectTimelineEntry_export.csv',
+/*
+  As entidades esperadas, pelo PREFIXO do arquivo.
+
+  Antes eram nomes exatos, e isso quebrou na segunda exportacao: o navegador
+  acrescenta " (1)" e " (2)" quando o arquivo ja existe na pasta de downloads, e
+  a pasta `banco/` chegou inteira com esses sufixos. Nome exato transforma um
+  detalhe do navegador em erro de importacao, e o remendo obvio (renomear 19
+  arquivos na mao) precisa ser refeito a cada exportacao nova.
+
+  O prefixo `<Entidade>_export` e o que o base44 gera de fato; o resto do nome
+  nao carrega informacao.
+*/
+const ENTITIES = [
+  'Collaborator',
+  'PermissoesUsuario',
+  'SolicitacaoAcesso',
+  'Client',
+  'Negociacao',
+  'ClientIntake',
+  'Contract',
+  'Project',
+  'Task',
+  'Atividade',
+  'FinancialCategory',
+  'AccountReceivable',
+  'AccountPayable',
+  'Fornecedor',
+  'ChecklistOrcamento',
+  'PropriedadeMapa',
+  'ProjectTimelineEntry',
+]
+
+/*
+  Duas entidades da exportacao nova NAO entram, e o silencio seria pior que a
+  ausencia: `ProjectIssue` veio com 0 bytes (nenhuma pendencia registrada no
+  base44) e `ProjectSiteVisit` traz 1 visita de obra, que este script ainda nao
+  sabe gravar. As duas sao listadas no relatorio final para nao passarem como
+  importadas.
+*/
+const NAO_IMPORTADAS = ['ProjectIssue', 'ProjectSiteVisit']
+
+function acharArquivo(entity) {
+  const candidatos = readdirSync(CSV_DIR)
+    .filter((nome) => nome.startsWith(`${entity}_export`) && nome.endsWith('.csv'))
+    /* Mais de um: fica o mais recente por data de modificacao. Baixar de novo
+       gera " (2)" ao lado do " (1)", e o antigo nao deve vencer. */
+    .sort((a, b) => statSync(join(CSV_DIR, b)).mtimeMs - statSync(join(CSV_DIR, a)).mtimeMs)
+
+  return candidatos[0] ?? null
 }
 
 const csv = {}
-for (const [entity, file] of Object.entries(FILES)) {
-  const path = join(CSV_DIR, file)
-  if (!existsSync(path)) {
-    console.error(`FALTA: ${path}`)
+for (const entity of ENTITIES) {
+  const arquivo = acharArquivo(entity)
+  if (!arquivo) {
+    console.error(`FALTA: nenhum ${entity}_export*.csv em ${CSV_DIR}`)
     process.exit(1)
   }
-  csv[entity] = parseCsv(readFileSync(path, 'utf8'))
+  csv[entity] = parseCsv(readFileSync(join(CSV_DIR, arquivo), 'utf8'))
 }
 
 const idsOf = (rows) => new Set(rows.map((r) => r.id))
@@ -1033,8 +1071,13 @@ async function ensureTenant() {
 async function main() {
   log(`\nImportacao do base44 — ${DRY_RUN ? 'DRY RUN (nada e gravado)' : SUPABASE_URL}`)
   log(`CSV em ${CSV_DIR}\n`)
-  for (const [entity, file] of Object.entries(FILES)) {
-    log(`  ${entity.padEnd(22)} ${String(csv[entity].length).padStart(5)} linhas  (${file})`)
+  for (const entity of ENTITIES) {
+    log(`  ${entity.padEnd(22)} ${String(csv[entity].length).padStart(5)} linhas  (${acharArquivo(entity)})`)
+  }
+  /* Dito em voz alta: arquivo presente na pasta que este script NAO grava. */
+  for (const entity of NAO_IMPORTADAS) {
+    const arquivo = acharArquivo(entity)
+    if (arquivo) log(`  ${entity.padEnd(22)}    -- NAO IMPORTADA  (${arquivo})`)
   }
 
   const tenantId = await ensureTenant()
@@ -1518,6 +1561,55 @@ async function main() {
     const res = await insertBatch('negotiation_services', rows, 'negotiation_id,service_type')
     if (res.error) abort(`gravar negotiation_services: ${res.error.message}`)
     stat('negotiation_services').written = rows.length
+
+    /*
+      O QUE SAIU DA LISTA TAMBEM PRECISA SAIR DO BANCO.
+
+      O upsert acrescenta e atualiza, nunca remove — e para quase toda tabela
+      isso esta certo, porque a linha some por exclusao e nao por ausencia. Aqui
+      nao: `tipo_servico` e uma LISTA COMPLETA dentro da negociacao, entao um
+      servico desmarcado no base44 simplesmente deixa de aparecer no CSV, sem
+      nenhum registro de exclusao para importar.
+
+      Sem esta limpeza a sobra fica invisivel: a negociacao mostra um servico que
+      o escritorio ja tirou, e a unica pista e a conferencia final acusando
+      contagem a mais. Foi assim que 3 linhas (electrical, structural, plumbing)
+      sobreviveram da exportacao de agosto para a de 27/08.
+
+      SO alcanca negociacao IMPORTADA (legacy_id not null): negociacao criada na
+      tela tem os servicos que a tela gravou, e o CSV nao fala dela.
+    */
+    if (!DRY_RUN) {
+      const esperado = new Set(rows.map((r) => `${r.negotiation_id}|${r.service_type}`))
+      const { data: atuais, error: readError } = await db
+        .from('negotiation_services')
+        .select('negotiation_id, service_type, negotiations!inner(legacy_id)')
+        .eq('tenant_id', T())
+        .not('negotiations.legacy_id', 'is', null)
+
+      if (readError) abort(`ler negotiation_services: ${readError.message}`)
+
+      const sobras = (atuais ?? []).filter(
+        (r) => !esperado.has(`${r.negotiation_id}|${r.service_type}`),
+      )
+
+      for (const sobra of sobras) {
+        const { error } = await db
+          .from('negotiation_services')
+          .delete()
+          .eq('tenant_id', T())
+          .eq('negotiation_id', sobra.negotiation_id)
+          .eq('service_type', sobra.service_type)
+        if (error) abort(`remover negotiation_service: ${error.message}`)
+        adjust(
+          'negotiation_services',
+          sobra.negotiation_id,
+          `servico "${sobra.service_type}" removido: nao esta mais na lista do CSV`,
+        )
+      }
+      if (sobras.length > 0) log(`  ${sobras.length} servico(s) removido(s) por terem saido da lista`)
+    }
+
     log(`  ${rows.length} de ${stat('negotiation_services').source}`)
   }
 
