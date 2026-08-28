@@ -12,6 +12,8 @@ dist-ssr
 # Ambiente
 .env*
 !.env.example
+# Modelo do ambiente de dev: nao carrega valor nenhum, so onde achar cada um.
+!.env.dev.example
 
 # Editor / SO
 .vscode/*

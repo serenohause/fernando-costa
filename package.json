@@ -49,7 +49,10 @@
     "test:won": "supabase/tests/run-sql.sh supabase/tests/negotiation-won.sql",
     "test:contract-number": "supabase/tests/run-sql.sh supabase/tests/contract-number.sql",
     "test:contract-cascade": "supabase/tests/run-sql.sh supabase/tests/contract-approval-delete.sql",
-    "test:project-phase": "node tests/project-phase.mjs"
+    "test:project-phase": "node tests/project-phase.mjs",
+    "env:prod": "node scripts/env-switch.mjs prod",
+    "env:dev": "node scripts/env-switch.mjs dev",
+    "env:which": "node scripts/env-switch.mjs which"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

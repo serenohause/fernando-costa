@@ -34,14 +34,22 @@ import { fileURLToPath } from 'node:url'
 import { createHmac } from 'node:crypto'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const PROJECT_REF = 'yctbmijdyjjcoydasndy'
 
 function loadEnv() {
   const env = { ...process.env }
   try {
     for (const line of readFileSync(resolve(ROOT, '.env'), 'utf8').split('\n')) {
       const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
-      if (m && !env[m[1]]) env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+      /*
+        O ARQUIVO VENCE O SHELL, e a inversao e proposital.
+
+        Antes o shell vencia (`!env[m[1]]`). Com dois projetos em contas
+        diferentes isso vira armadilha: quem exportou SUPABASE_ACCESS_TOKEN da
+        producao na sessao continua com ele depois de `npm run env:dev`, e o teste
+        passaria a autenticar numa conta apontando para o projeto da outra. O
+        ambiente ativo e o .env — e ele que os comandos de troca escrevem.
+      */
+      if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '')
     }
   } catch {
     /* .env opcional */
@@ -50,6 +58,24 @@ function loadEnv() {
 }
 
 const env = loadEnv()
+
+/*
+  O REF VEM DO AMBIENTE ATIVO, e antes vinha escrito aqui dentro.
+
+  Com um projeto so, um literal era inofensivo. Com dois — producao e
+  desenvolvimento, em CONTAS diferentes — ele vira o pior defeito que um teste de
+  seguranca pode ter: rodando "no dev", este arquivo buscaria o segredo e as
+  chaves de assinatura da PRODUCAO e reportaria PASS, afirmando que o dev esta
+  protegido sem nunca ter olhado para o dev.
+
+  Teste que se engana de alvo e pior que teste nenhum: ele ocupa a linha do
+  relatorio que diria "ninguem conferiu".
+*/
+const PROJECT_REF = env.SUPABASE_PROJECT_REF
+if (!PROJECT_REF) {
+  console.error('\n  ABORTADO: SUPABASE_PROJECT_REF ausente. Rode `npm run env:prod` ou `npm run env:dev`.\n')
+  process.exit(1)
+}
 
 function fail(message) {
   console.error(`\n  ABORTADO: ${message}\n`)

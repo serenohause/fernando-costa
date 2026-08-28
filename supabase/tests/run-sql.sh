@@ -11,8 +11,9 @@
 # status, caso, descricao, expected, observed.
 #
 # Exige:
-#   SUPABASE_ACCESS_TOKEN  token pessoal da CLI (vem do direnv)
-#   SUPABASE_PROJECT_REF   ref do projeto (vem do .env)
+#   Os dois saem do .env do ambiente ATIVO (npm run env:prod | env:dev):
+#   SUPABASE_ACCESS_TOKEN  token pessoal da CLI, da conta dona do projeto
+#   SUPABASE_PROJECT_REF   ref do projeto
 #
 # Uso: supabase/tests/run-sql.sh supabase/tests/crm-schema.sql
 
@@ -35,18 +36,35 @@ if [[ ! -f "$SQL_FILE" ]]; then
   exit 2
 fi
 
-if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
-  echo "SUPABASE_ACCESS_TOKEN nao definido (vem do direnv)." >&2
+# O AMBIENTE ATIVO E O .env, E ELE VENCE O SHELL.
+#
+# Antes o shell vencia e o token vinha SO de la. Com dois projetos Supabase em
+# CONTAS diferentes isso virou armadilha: quem exportou o token da producao na
+# sessao continua com ele depois de `npm run env:dev`, e o comando passaria a
+# autenticar numa conta apontando para o projeto da outra — 401 no melhor caso,
+# resultado de outro banco no pior.
+#
+# Quem escreve o .env sao `npm run env:prod` e `npm run env:dev`, e os cinco
+# valores entram juntos ou nenhum entra.
+if [[ ! -f "$ROOT/.env" ]]; then
+  echo "nao ha .env. Rode: npm run env:prod   (ou env:dev)" >&2
   exit 2
 fi
 
-PROJECT_REF="${SUPABASE_PROJECT_REF:-}"
-if [[ -z "$PROJECT_REF" && -f "$ROOT/.env" ]]; then
-  PROJECT_REF="$(grep -E '^SUPABASE_PROJECT_REF=' "$ROOT/.env" | cut -d= -f2- | tr -d '"'"'"' ')"
+leia_env() {
+  grep -E "^$1=" "$ROOT/.env" | tail -1 | cut -d= -f2- | tr -d "\"' "
+}
+
+SUPABASE_ACCESS_TOKEN="$(leia_env SUPABASE_ACCESS_TOKEN)"
+PROJECT_REF="$(leia_env SUPABASE_PROJECT_REF)"
+
+if [[ -z "$SUPABASE_ACCESS_TOKEN" ]]; then
+  echo "SUPABASE_ACCESS_TOKEN ausente no .env. Rode: npm run env:prod   (ou env:dev)" >&2
+  exit 2
 fi
 
 if [[ -z "$PROJECT_REF" ]]; then
-  echo "SUPABASE_PROJECT_REF nao definido nem encontrado no .env." >&2
+  echo "SUPABASE_PROJECT_REF ausente no .env. Rode: npm run env:prod   (ou env:dev)" >&2
   exit 2
 fi
 
