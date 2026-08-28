@@ -137,7 +137,11 @@ function carregarEnv() {
   try {
     for (const linha of readFileSync(resolve(ROOT, '.env'), 'utf8').split('\n')) {
       const m = linha.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
-      if (m && !env[m[1]]) env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+      /* O .env do ambiente ATIVO vence o shell — ver npm run env:prod|env:dev.
+         O contrario deixava um SUPABASE_ACCESS_TOKEN exportado numa sessao
+         antiga sobreviver a troca de ambiente, autenticando numa conta enquanto
+         o resto apontava para o projeto da outra. */
+      if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '')
     }
   } catch {
     /* .env opcional */

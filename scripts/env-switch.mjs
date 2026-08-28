@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const ATIVO = resolve(ROOT, '.env')
+const REF_GRAVADO = resolve(ROOT, 'supabase/.temp/project-ref')
 
 const OBRIGATORIAS = [
   'VITE_SUPABASE_URL',
@@ -145,11 +146,27 @@ try {
     },
   })
 } catch (erro) {
+  /*
+    CODIGO DE SAIDA NAO E A RESPOSTA AQUI — o RESULTADO e.
+
+    A CLI do Supabase sai diferente de zero por motivo que nao tem nada a ver com
+    o link: "Timeout while shutting down PostHog" e a telemetria dela nao
+    conseguindo despachar evento, DEPOIS de gravar o vinculo. Abortar por isso
+    faria um comando que funcionou parecer quebrado, e — pior — mandaria a pessoa
+    "resolver" algo que ja esta certo.
+
+    O que decide e o arquivo que o link escreve. Se ele traz o ref pedido, o
+    vinculo esta feito; senao, o erro e real e sobe com a saida da CLI.
+  */
   const saida = `${erro.stdout ?? ''}${erro.stderr ?? ''}`.trim()
-  abortar(
-    `o .env foi trocado, mas o link da CLI falhou — NAO rode migration antes de resolver.\n` +
-      `  ${saida.split('\n').slice(-3).join('\n  ')}`,
-  )
+  const gravado = existsSync(REF_GRAVADO) ? readFileSync(REF_GRAVADO, 'utf8').trim() : null
+
+  if (gravado !== valores.SUPABASE_PROJECT_REF) {
+    abortar(
+      `o .env foi trocado, mas o link da CLI falhou — NAO rode migration antes de resolver.\n` +
+        `  ${saida.split('\n').slice(-3).join('\n  ')}`,
+    )
+  }
 }
 
 console.log(`\n  ambiente ativo: ${alvo}`)
