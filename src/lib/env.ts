@@ -33,7 +33,22 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse({
   VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
   VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
-  VITE_GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+  /*
+    `|| undefined` TRANSFORMA VAZIO EM AUSENTE, e a falta disso derrubou o
+    ambiente de teste inteiro.
+
+    `.optional()` aceita a variável NÃO EXISTIR; não aceita ela existir vazia.
+    E "existir vazia" é o estado mais comum de uma variável criada num painel:
+    alguém abre o formulário, salva o nome sem o valor, e pronto. Foi o que
+    aconteceu na Vercel do ambiente de dev — `VITE_GOOGLE_MAPS_API_KEY:``` no
+    bundle, `safeParse` falhando, `throw` antes do React montar, tela branca sem
+    uma linha de explicação.
+
+    O comentário do schema acima já dizia a intenção: "o app inteiro sobe sem
+    ela". Sobe sem ela AUSENTE; não subia sem ela VAZIA. Esta linha faz as duas
+    formas de "não tenho essa chave" significarem a mesma coisa.
+  */
+  VITE_GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || undefined,
 })
 
 if (!parsed.success) {

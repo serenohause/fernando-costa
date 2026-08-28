@@ -11,6 +11,36 @@
          nome do escritório errado na aba de todo tenant que não fosse o
          primeiro. -->
     <title>HausOne</title>
+    <!--
+      REDE DE SEGURANÇA PARA FALHA DE BOOT.
+
+      `src/lib/env.ts` lança quando uma variável obrigatória falta ou está
+      inválida — e lançar durante a avaliação do módulo mata a aplicação ANTES do
+      React montar. O resultado é uma página branca sem uma linha de explicação,
+      e a causa só aparece no console do navegador.
+
+      Custou uma investigação inteira descobrir que o motivo era uma variável
+      criada VAZIA no painel da Vercel. Este trecho troca a página branca pela
+      frase que já existia dentro do erro.
+
+      No <head> e antes do módulo de propósito: precisa estar registrado quando a
+      avaliação do bundle falhar. Só escreve se o React não tiver montado nada —
+      erro depois da tela pronta é assunto de outra camada, não deste bloco.
+    -->
+    <script>
+      window.addEventListener('error', function (evento) {
+        var raiz = document.getElementById('root')
+        if (!raiz || raiz.childElementCount > 0) return
+        var mensagem = (evento && evento.error && evento.error.message) || 'Erro desconhecido.'
+        raiz.innerHTML =
+          '<div style="font:16px/1.6 system-ui,sans-serif;max-width:34rem;margin:12vh auto;padding:0 1.5rem;color:#0f172a">' +
+          '<h1 style="font-size:1.25rem;margin:0 0 .75rem">O sistema nao conseguiu iniciar.</h1>' +
+          '<p style="margin:0 0 1rem;color:#475569">' + mensagem.replace(/</g, '&lt;') + '</p>' +
+          '<p style="margin:0;color:#64748b;font-size:.875rem">Se a mensagem fala de variaveis de ambiente, ' +
+          'confira as variaveis do projeto na Vercel — variavel criada sem valor conta como invalida.</p>' +
+          '</div>'
+      })
+    </script>
   </head>
   <body>
     <div id="root"></div>
