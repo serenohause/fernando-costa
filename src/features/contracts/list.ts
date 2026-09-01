@@ -30,7 +30,13 @@ export function sortContracts(contracts: ContractRow[]): ContractRow[] {
   })
 }
 
-export type StatusFilter = ContractStatus | 'all'
+/*
+  'kanban' NÃO É UM STATUS — é a aba do quadro, e entra aqui porque as abas e o
+  filtro compartilham o mesmo estado desde o original. `filterContracts` a trata
+  como 'all': o quadro mostra todas as colunas, e o que ele recorta é a BUSCA,
+  não o status.
+*/
+export type StatusFilter = ContractStatus | 'all' | 'kanban'
 
 /*
   Busca e filtro em memória, como no original (Contracts.jsx:736-749): número do
@@ -45,7 +51,7 @@ export function filterContracts(
   searchTerm: string,
 ): ContractRow[] {
   const filtered =
-    statusFilter === 'all'
+    statusFilter === 'all' || statusFilter === 'kanban'
       ? contracts
       : contracts.filter((contract) => contract.status === statusFilter)
 

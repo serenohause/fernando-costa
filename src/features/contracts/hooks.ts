@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type MutateOptions } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import type { ContractStatus } from '@/lib/enums'
 import { projectKeys } from '@/features/projects/hooks'
 import { financialKeys } from '@/features/financial/hooks'
 import {
@@ -283,6 +284,69 @@ export function useApproveContract() {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all })
     },
   })
+}
+
+/*
+  MUDAR O STATUS PELO ARRASTE do quadro.
+
+  NÃO cobre "Aprovado": aquele gesto cria projeto e cartão no Fluxo, e quem faz
+  isso é `useApproveContract` chamando a função do banco numa transação. Aceitar
+  `approved` aqui daria um segundo caminho para aprovar — um que grava o status e
+  não cria nada, deixando um contrato aprovado sem projeto.
+
+  O palpite entra ANTES de qualquer `await`, pelo mesmo motivo já escrito em
+  `useMoveNegotiationStage`: o `@hello-pangea/dnd` pousa o cartão onde os DADOS
+  mandam, e sem isso ele volta para a coluna de origem e só depois salta.
+*/
+export type ContractStatusChange = {
+  id: string
+  status: Exclude<ContractStatus, 'approved'>
+}
+
+export function useChangeContractStatus() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async ({ id, status }: ContractStatusChange) => {
+      const { data, error } = await supabase
+        .from('contracts')
+        .update({ status })
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O contrato não foi movido. É preciso permissão de edição em Contratos.',
+      )
+      return id
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: contractKeys.all })
+    },
+  })
+
+  return (
+    variables: ContractStatusChange,
+    options?: MutateOptions<string, Error, ContractStatusChange>,
+  ) => {
+    void queryClient.cancelQueries({ queryKey: contractKeys.list() })
+
+    const previous = queryClient.getQueryData<ContractRow[]>(contractKeys.list())
+    queryClient.setQueryData<ContractRow[]>(contractKeys.list(), (current) =>
+      current?.map((contract) =>
+        contract.id === variables.id ? { ...contract, status: variables.status } : contract,
+      ),
+    )
+
+    mutation.mutate(variables, {
+      ...options,
+      onError: (error, failed, onMutateResult, context) => {
+        if (previous) queryClient.setQueryData(contractKeys.list(), previous)
+        options?.onError?.(error, failed, onMutateResult, context)
+      },
+    })
+  }
 }
 
 export type ContractDeleteBlock = {

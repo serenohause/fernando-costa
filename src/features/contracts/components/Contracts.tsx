@@ -56,13 +56,14 @@ import {
   describeInstallmentValue,
   splitInstallments,
 } from '@/features/financial/installments'
-import { CONTRACT_STATUS, CONTRACT_TYPE, INSTALLMENT_FREQUENCY, labelOf } from '@/lib/enums'
+import { CONTRACT_STATUS, CONTRACT_TYPE, INSTALLMENT_FREQUENCY, labelOf, type ContractStatus } from '@/lib/enums'
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
 import { filterContracts, sortContracts, type StatusFilter } from '../list'
 import {
   describeContractFunctionError,
   describeDatabaseError,
   useApproveContract,
+  useChangeContractStatus,
   useContracts,
   useCreateContract,
   useDeleteContract,
@@ -71,6 +72,7 @@ import {
   type ContractDeleteBlock,
   type ContractDeleteResult,
 } from '../hooks'
+import ContractKanban from './ContractKanban'
 import ContractForm, {
   toContractInput,
   toFormValues,
@@ -198,6 +200,35 @@ export default function Contracts() {
     () => filterContracts(contracts, statusFilter, searchTerm),
     [contracts, statusFilter, searchTerm],
   )
+
+  /*
+    SOLTAR EM "APROVADO" PERGUNTA ANTES, e as outras colunas não.
+
+    O gesto de aprovar não muda só uma coluna: cria o projeto em Projetos e o
+    cartão no Fluxo do Projeto, numa transação (migration 0078). Isso é grande
+    demais para acontecer a partir de um arraste que a pessoa pode ter errado —
+    e, diferente de mudar de "Em execução" para "Concluído", não se desfaz
+    arrastando de volta.
+
+    As demais colunas mudam direto: `useChangeContractStatus` nem aceita
+    'approved' no tipo, para que este caminho não exista por engano.
+  */
+  const [approveDialog, setApproveDialog] = useState<ContractRow | null>(null)
+  const changeStatus = useChangeContractStatus()
+
+  const handleKanbanStatusChange = (contract: ContractRow, status: ContractStatus) => {
+    if (status === 'approved') {
+      setApproveDialog(contract)
+      return
+    }
+
+    changeStatus(
+      { id: contract.id, status },
+      {
+        onError: (error) => toast.error('Erro ao mover: ' + describeDatabaseError(error)),
+      },
+    )
+  }
 
   const createMutation = useCreateContract()
   const updateMutation = useUpdateContract()
@@ -515,6 +546,12 @@ export default function Contracts() {
               <TabsTrigger value="approved">Aprovados</TabsTrigger>
               <TabsTrigger value="in_progress">{CONTRACT_STATUS.in_progress}</TabsTrigger>
               <TabsTrigger value="completed">Concluídos</TabsTrigger>
+              {/*
+                A aba do quadro fica no FIM, e não no começo: as cinco anteriores
+                são recortes da mesma lista e a ordem delas veio do original.
+                Entrar no meio delas mudaria o gesto de quem já usa a tela.
+              */}
+              <TabsTrigger value="kanban">Kanban</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -525,7 +562,17 @@ export default function Contracts() {
         lista cheia — e falha de leitura nele deixa a tela igualzinha a "não há
         contrato nenhum".
       */}
-      {contractsQuery.isError ? (
+      {statusFilter === 'kanban' && !contractsQuery.isError && !contractsQuery.isLoading ? (
+        <ContractKanban
+          contracts={filteredContracts}
+          canEdit={canEdit}
+          onOpen={(contract) => {
+            setEditing(contract)
+            setFormOpen(true)
+          }}
+          onStatusChange={handleKanbanStatusChange}
+        />
+      ) : contractsQuery.isError ? (
         <ErrorState
           title="Não foi possível carregar os contratos"
           description="A lista de contratos não pôde ser lida agora."
@@ -896,6 +943,60 @@ export default function Contracts() {
                 Excluir
               </AlertDialogAction>
             )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/*
+        A CONFIRMAÇÃO DIZ O QUE VAI NASCER, e não só "tem certeza?".
+
+        Quem arrasta para "Aprovado" está a um clique de criar um projeto e um
+        cartão no Fluxo. "Deseja continuar?" não dá a essa pessoa nada em que
+        pensar; a lista do que será criado dá.
+      */}
+      <AlertDialog
+        open={approveDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setApproveDialog(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aprovar a proposta {approveDialog?.contract_number}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>Aprovar não muda só a coluna. Isto será criado:</p>
+                <ul className="list-disc pl-5 mt-2 text-sm space-y-1">
+                  <li>
+                    O projeto{' '}
+                    <strong>
+                      {approveDialog?.project_name?.trim() ||
+                        approveDialog?.client?.name ||
+                        approveDialog?.contract_number}
+                    </strong>{' '}
+                    em Projetos
+                  </li>
+                  <li>O cartão inicial no Fluxo do Projeto</li>
+                </ul>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Se o contrato já tiver projeto, ele é reaproveitado — nenhum segundo projeto é
+                  criado.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const target = approveDialog
+                if (!target) return
+                setApproveDialog(null)
+                handleApprove(target)
+              }}
+            >
+              Aprovar
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
