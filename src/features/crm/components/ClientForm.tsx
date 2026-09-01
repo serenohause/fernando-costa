@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,6 +47,7 @@ export type ClientFormValues = {
   email: string
   client_type: ClientType | ''
   lead_source: LeadSource | ''
+  referrer_name: string
   tax_id: string
   birth_date: string
   notes: string
@@ -73,6 +74,7 @@ const EMPTY: ClientFormValues = {
   email: '',
   client_type: '',
   lead_source: '',
+  referrer_name: '',
   tax_id: '',
   birth_date: '',
   notes: '',
@@ -100,6 +102,7 @@ export function toFormValues(client: Client): ClientFormValues {
     email: client.email ?? '',
     client_type: client.client_type ?? '',
     lead_source: client.lead_source ?? '',
+    referrer_name: client.referrer_name ?? '',
     tax_id: client.tax_id ?? '',
     birth_date: client.birth_date ?? '',
     notes: client.notes ?? '',
@@ -147,6 +150,14 @@ function toClientInput(values: ClientFormValues): ClientInput {
     email: orNull(values.email),
     client_type: values.client_type === '' ? null : values.client_type,
     lead_source: values.lead_source === '' ? null : values.lead_source,
+    /*
+      SÓ VIAJA COM A ORIGEM QUE LHE DÁ SENTIDO. Trocar de "Indicação" para
+      "Instagram" e continuar gravando o indicador deixaria um nome pendurado
+      num cadastro que não é mais indicação — e alguém, meses depois, lendo
+      aquilo como fato.
+    */
+    referrer_name:
+      values.lead_source === 'referral' ? orNull(values.referrer_name) : null,
     tax_id: orNull(values.tax_id),
     birth_date: orNull(values.birth_date),
     notes: orNull(values.notes),
@@ -202,9 +213,12 @@ export default function ClientForm({
   onOpenDuplicate?: (client: Client) => void
 }) {
   const [formData, setFormData] = useState<ClientFormValues>({ ...EMPTY, ...initialData })
+  const [referrerMissing, setReferrerMissing] = useState(false)
+  const referrerFieldRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setFormData(initialData ? { ...EMPTY, ...initialData } : EMPTY)
+    setReferrerMissing(false)
   }, [initialData, open])
 
   const addressZipcode = useLookupZipcode()
@@ -243,8 +257,24 @@ export default function ClientForm({
     })
   }
 
+  /*
+    A RECUSA APARECE NO CAMPO, não em toast — a mesma decisão já tomada no
+    formulário de negociação, e pelo mesmo motivo: mensagem que nasce longe do
+    campo que a causou some sozinha e deixa a pessoa procurando.
+
+    O diálogo rola, e este campo fica no meio dele; sem o `scrollIntoView` a
+    marcação vermelha acontece fora da área visível e o botão parece não fazer
+    nada.
+  */
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (formData.lead_source === 'referral' && formData.referrer_name.trim() === '') {
+      setReferrerMissing(true)
+      referrerFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
     onSubmit(toClientInput(formData))
   }
 
@@ -409,6 +439,52 @@ export default function ClientForm({
                 </SelectContent>
               </Select>
             </div>
+
+            {/*
+              QUEM INDICOU, e só quando a origem é Indicação.
+
+              O campo aparece pelo mesmo critério do formulário de negociação
+              (`origin === 'referral'`): numa indicação, quem indicou É o dado —
+              sem ele, "Indicação" fica indistinguível de "Outros". O original
+              oferece a opção e nunca pergunta o nome (ClientForm.jsx:268); é o
+              buraco que este bloco fecha.
+            */}
+            {formData.lead_source === 'referral' && (
+              <div
+                ref={referrerFieldRef}
+                className="space-y-2 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg"
+              >
+                <Label htmlFor="client_referrer_name">Quem indicou? *</Label>
+                <Input
+                  id="client_referrer_name"
+                  maxLength={200}
+                  value={formData.referrer_name}
+                  onChange={(e) => {
+                    setReferrerMissing(false)
+                    setFormData({ ...formData, referrer_name: e.target.value })
+                  }}
+                  placeholder="Nome de quem indicou este cliente..."
+                  aria-invalid={referrerMissing}
+                  aria-describedby={referrerMissing ? 'client_referrer_error' : undefined}
+                  className={`bg-card ${
+                    referrerMissing ? 'border-rose-500 focus-visible:ring-rose-500' : ''
+                  }`}
+                />
+                {referrerMissing ? (
+                  <p
+                    id="client_referrer_error"
+                    role="alert"
+                    className="text-xs text-rose-600 dark:text-rose-400"
+                  >
+                    Informe quem indicou este cliente para continuar.
+                  </p>
+                ) : (
+                  <p className="text-xs text-blue-700 dark:text-blue-400">
+                    Obrigatório quando a origem for Indicação
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* DADOS COMPLEMENTARES */}

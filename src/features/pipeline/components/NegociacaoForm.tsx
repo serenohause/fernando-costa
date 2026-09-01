@@ -100,7 +100,11 @@ export type NegotiationFormValues = {
 
 const today = () => new Date().toISOString().split('T')[0]
 
-function emptyValues(): NegotiationFormValues {
+/* Exportado para quem abre este formulário de fora do Pipeline (o botão
+   "Adicionar ao Pipeline" do detalhe do cliente) poder partir do MESMO estado
+   inicial e só sobrescrever o que sabe. Montar um objeto equivalente à mão lá
+   seria uma segunda definição do que é "negociação vazia". */
+export function emptyValues(): NegotiationFormValues {
   return {
     name: '',
     client_id: '',

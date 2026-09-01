@@ -49,6 +49,8 @@ export type ClientInput = {
   email: string | null
   client_type: ClientType | null
   lead_source: LeadSource | null
+  /* Só com lead_source = referral; a tela zera quando a origem muda (0082). */
+  referrer_name: string | null
   tax_id: string | null
   birth_date: string | null
   notes: string | null

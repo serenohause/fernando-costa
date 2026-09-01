@@ -52,6 +52,15 @@ export const clientInputSchema = z.object({
   client_type: nullIfBlank(z.enum(Constants.public.Enums.client_type).nullable()),
   lead_source: nullIfBlank(z.enum(Constants.public.Enums.lead_source).nullable()),
   /*
+    Quem indicou. O BANCO não exige que só exista com lead_source = referral, e
+    o motivo está no COMMENT da coluna (migration 0082, herdado da 0022): check
+    ali transformaria "troquei a origem de um cadastro antigo" em erro de
+    gravação. Quem exige o preenchimento é a tela, no momento em que a origem
+    escolhida é Indicação — e é ela também que limpa o campo quando a origem
+    deixa de ser essa.
+  */
+  referrer_name: optionalText(200),
+  /*
     Guardado como a pessoa digitou, com pontuação. Sem check de dígito
     verificador, como no original e como a migration 0015 registra: a comparação
     acontece sempre por `tax_id_digits`, e documento parcial não pode derrubar o

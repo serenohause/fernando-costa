@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "db:push": "supabase db push",
     "db:diff": "supabase db diff --linked",
-    "db:types": "supabase gen types typescript --linked > src/lib/database.types.ts",
+    "db:types": "scripts/gen-types.sh",
     "seed": "node supabase/seed/01-foundation.mjs",
     "test:rls": "node supabase/tests/rls-isolation.mjs",
     "test:rls:sql": "supabase/tests/run-sql-isolation.sh",

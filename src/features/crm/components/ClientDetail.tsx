@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
-import { ArrowLeft, Calendar, FileText, Mail, MapPin, Pencil, Phone } from 'lucide-react'
+import { ArrowLeft, Calendar, FileText, Mail, MapPin, Pencil, Phone, TrendingUp } from 'lucide-react'
 import { toast } from 'sonner'
 import ErrorState from '@/components/shared/ErrorState'
 import LoadingPage from '@/components/shared/LoadingPage'
@@ -11,6 +11,12 @@ import { useMenuPermissions } from '@/features/auth/hooks'
 import { CLIENT_TYPE, LEAD_SOURCE, labelOf } from '@/lib/enums'
 import { formatDateBR } from '@/lib/format'
 import { createPageUrl } from '@/lib/page-url'
+import { useCollaborators } from '@/features/team/hooks'
+import NegociacaoForm, { emptyValues as emptyNegotiation } from '@/features/pipeline/components/NegociacaoForm'
+import {
+  describeDatabaseError as describePipelineError,
+  useCreateNegotiation,
+} from '@/features/pipeline/hooks'
 import ClientForm, { toFormValues } from './ClientForm'
 import ClientHistory from './ClientHistory'
 import { DuplicateClientError, describeDatabaseError, useClient, useUpdateClient } from '../hooks'
@@ -41,6 +47,10 @@ export default function ClientDetail() {
   const [duplicate, setDuplicate] = useState<DuplicateClientError | null>(null)
 
   const { canEdit } = useMenuPermissions('crm')
+  const { canEdit: canEditPipeline } = useMenuPermissions('pipeline')
+  const [negotiationOpen, setNegotiationOpen] = useState(false)
+  const collaboratorsQuery = useCollaborators()
+  const createNegotiation = useCreateNegotiation()
   const clientQuery = useClient(clientId)
   const client = clientQuery.data ?? null
   const updateMutation = useUpdateClient()
@@ -152,18 +162,44 @@ export default function ClientDetail() {
             escrita nunca existiu no banco. Aqui ele segue o mesmo `canEdit` que
             governa a listagem — prometer "Editar Cliente" a quem o banco recusa
             é o pior dos dois mundos. */}
-        {canEdit && (
-          <Button
-            onClick={() => {
-              setDuplicate(null)
-              setFormOpen(true)
-            }}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Pencil className="w-4 h-4 mr-2" />
-            Editar Cliente
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/*
+            LEVAR O CLIENTE PARA O FUNIL, sem sair da tela dele.
+
+            O caminho antigo era ir ao Pipeline, abrir "Nova Negociação" e
+            procurar o cliente numa lista de 130 — e quem está lendo o cadastro
+            dele já sabe qual é. Aqui o formulário abre com o cliente e o nome da
+            negociação preenchidos.
+
+            A PERMISSÃO É A DO PIPELINE, e não a do CRM: o que este botão cria é
+            uma negociação. Quem só edita cliente não vê o botão, porque a
+            gravação seria recusada pela policy `negotiations_insert_pipeline_editor`
+            e a pessoa descobriria isso depois de preencher o formulário.
+          */}
+          {canEditPipeline && (
+            <Button variant="outline" onClick={() => setNegotiationOpen(true)}>
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Adicionar ao Pipeline
+            </Button>
+          )}
+
+          {/* O original mostra o botão para todo mundo, porque lá a autorização de
+              escrita nunca existiu no banco. Aqui ele segue o mesmo `canEdit` que
+              governa a listagem — prometer "Editar Cliente" a quem o banco recusa
+              é o pior dos dois mundos. */}
+          {canEdit && (
+            <Button
+              onClick={() => {
+                setDuplicate(null)
+                setFormOpen(true)
+              }}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Pencil className="w-4 h-4 mr-2" />
+              Editar Cliente
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Dados principais */}
@@ -268,6 +304,62 @@ export default function ClientDetail() {
 
       {/* Última coisa da página, como no original. */}
       <ClientHistory clientId={client.id} />
+
+      {/*
+        O MESMO formulário do Pipeline, e não uma cópia reduzida: negociação tem
+        regra própria (responsável obrigatório, indicador quando a origem é
+        Indicação, serviços) e uma segunda tela que grava a mesma tabela seria
+        uma segunda chance de as duas discordarem.
+
+        `clients` recebe SÓ este cliente. O seletor com busca existe para achar
+        um entre 130 — aqui não há o que procurar, e oferecer a lista inteira
+        convidaria a trocar de cliente numa tela que é sobre este.
+      */}
+      {negotiationOpen && (
+        <NegociacaoForm
+          open={negotiationOpen}
+          onClose={() => setNegotiationOpen(false)}
+          isLoading={createNegotiation.isPending}
+          clients={[
+            {
+              id: client.id,
+              name: client.name,
+              client_type: client.client_type,
+              email: client.email,
+              phone: client.phone,
+              address_city: client.address_city,
+              address_state: client.address_state,
+              address_country: client.address_country,
+              lead_source: client.lead_source,
+            },
+          ]}
+          collaborators={collaboratorsQuery.data ?? []}
+          initialData={{
+            ...emptyNegotiation(),
+            client_id: client.id,
+            name: client.name,
+            /*
+              A ORIGEM E O INDICADOR VIAJAM DO CADASTRO, quando existem. As duas
+              listas compartilham a grafia dos valores comuns de propósito
+              (migration 0021), então `referral` do CRM é `referral` no funil —
+              e o nome de quem indicou, que a 0082 passou a guardar no cliente,
+              não precisa ser digitado de novo.
+            */
+            origin: client.lead_source === 'referral' ? 'referral' : '',
+            referrer_name: client.referrer_name ?? '',
+          }}
+          onSubmit={(input) =>
+            createNegotiation.mutate(input, {
+              onSuccess: () => {
+                setNegotiationOpen(false)
+                toast.success(`${client.name} entrou no Pipeline.`)
+              },
+              onError: (error) =>
+                toast.error('Erro ao criar a negociação: ' + describePipelineError(error)),
+            })
+          }
+        />
+      )}
 
       {/* Modal de Edição */}
       <ClientForm

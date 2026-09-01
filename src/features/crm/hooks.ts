@@ -69,6 +69,15 @@ const CRM_ERROR_MESSAGES: DatabaseErrorMessages = {
   map_properties_client_id_fkey:
     'Este cliente tem propriedade marcada no Mapa, e ela não é excluída junto. Remova ou desvincule a propriedade no Mapa antes de excluir o cliente.',
 
+  /*
+    Teto de 200 caracteres em "quem indicou" (migration 0082). O schema Zod
+    recusa antes, e o campo tem `maxLength` — esta frase é a terceira barreira,
+    para o caso de a gravação chegar por outro caminho. Sem ela o usuário veria
+    o nome da constraint.
+  */
+  clients_referrer_name_length_check:
+    'O nome de quem indicou é longo demais (máximo de 200 caracteres). Use só o nome da pessoa.',
+
   clients_tenant_id_phone_digits_key:
     'Outro cliente deste escritório já usa este telefone. Abra o cadastro que já tem o número em vez de criar um segundo.',
 
