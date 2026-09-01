@@ -162,68 +162,93 @@
 }
 
 .dark {
-  /* Três degraus distintos, e nenhum deles preto puro: preto absoluto sob
-     texto claro cansa a vista e apaga a sombra. */
-  --background: 222.2 47% 6%;
-  --foreground: 210 40% 96%;
-  --card: 222.2 44% 9.5%;
-  --card-foreground: 210 40% 96%;
-  --popover: 222.2 44% 11%;
-  --popover-foreground: 210 40% 96%;
+  /*
+    NEUTRO, E NÃO AZUL-MARINHO — pedido do usuário: "mais preto, não azulado".
+
+    O azul não vinha do matiz e sim da SATURAÇÃO: as superfícies estavam entre
+    28% e 47% sobre o matiz 222, o que basta para o fundo ler como azul-marinho
+    numa tela grande. Agora ficam entre 7% e 8%: o matiz continua 222, mas nessa
+    saturação ele é um resfriado imperceptível, que só impede o cinza de puxar
+    para o esverdeado das telas baratas.
+
+    O QUE NÃO MUDOU FOI A LUMINOSIDADE, e essa escolha é o que preserva o
+    trabalho de acessibilidade dos comentários abaixo: contraste é dominado por
+    luminosidade, não por saturação. Medido par a par antes de aplicar — todos
+    os pares de texto melhoraram ou empataram, e nenhum caiu abaixo de AA.
+    O mais apertado continua sendo `destructive` sobre o cartão (3,38), que é
+    cor de alerta em texto grande.
+
+    Três degraus distintos, e nenhum deles preto puro: preto absoluto sob texto
+    claro cansa a vista e apaga a sombra. O fundo desceu de 6% para 4,5% — mais
+    perto do preto do que estava, ainda longe do zero.
+  */
+  --background: 222 8% 4.5%;
+  --foreground: 210 14% 96%;
+  --card: 222 8% 8%;
+  --card-foreground: 210 14% 96%;
+  --popover: 222 8% 10%;
+  --popover-foreground: 210 14% 96%;
 
   /* No claro, primary é slate-900 com texto branco. No escuro isso inverte:
      superfície clara com texto escuro, senão o botão principal desaparece
      dentro do cartão. */
-  --primary: 210 40% 96%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: 210 14% 96%;
+  --primary-foreground: 222 10% 10%;
 
-  --secondary: 222.2 35% 16%;
-  --secondary-foreground: 210 40% 96%;
-  --muted: 222.2 35% 15%;
-  /* 66% de luminância sobre o cartão a 9.5%: passa AA com folga. O valor
+  --secondary: 222 7% 14%;
+  --secondary-foreground: 210 14% 96%;
+  --muted: 222 7% 13%;
+  /* 67% de luminância sobre o cartão a 8%: passa AA com folga (7,85). O valor
      antigo (63.9% sobre fundo idêntico ao cartão) não tinha onde contrastar. */
-  --muted-foreground: 215 18% 66%;
-  --accent: 222.2 35% 18%;
-  --accent-foreground: 210 40% 96%;
+  --muted-foreground: 215 9% 67%;
+  --accent: 222 7% 16%;
+  --accent-foreground: 210 14% 96%;
 
   /* O vermelho antigo (30.6% de luminância) era mais escuro que o texto ao
-     lado dele — alerta que não alerta. */
+     lado dele — alerta que não alerta. Saturação MANTIDA: aqui a cor é o
+     significado, e lavá-la junto com o fundo tiraria o alerta do alerta. */
   --destructive: 0 62% 48%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 222.2 28% 20%;
-  --input: 222.2 28% 22%;
-  --ring: 213 27% 70%;
+  --border: 222 8% 20%;
+  --input: 222 8% 22%;
+  --ring: 213 12% 70%;
 
+  /* As cinco cores de série NÃO são dessaturadas: elas existem para distinguir
+     linhas de gráfico entre si, e cinza não distingue nada. O fundo mais neutro
+     até ajuda — sobre azul-marinho, a série azul competia com a superfície. */
   --chart-1: 217 91% 65%;
   --chart-2: 160 60% 50%;
   --chart-3: 30 85% 60%;
   --chart-4: 280 65% 68%;
   --chart-5: 340 75% 62%;
 
-  /* O mesmo 66% de luminância de --muted-foreground no escuro: o rótulo do eixo
+  /* O mesmo 67% de luminância de --muted-foreground no escuro: o rótulo do eixo
      é texto de apoio e passa AA sobre o cartão, onde o #666 do claro não
      passaria. --chart-sky e --chart-emerald não têm par escuro de propósito
      (são a cor da SÉRIE, e o original não tem um segundo valor para elas); o
      rótulo do eixo é a única coisa do gráfico que é texto. */
-  --chart-axis: 215 18% 66%;
+  --chart-axis: 215 9% 67%;
 
-  --sidebar-background: 222.2 47% 8%;
-  --sidebar-foreground: 215 20% 78%;
-  --sidebar-primary: 210 40% 96%;
-  --sidebar-primary-foreground: 222.2 47.4% 11.2%;
-  --sidebar-accent: 222.2 35% 16%;
-  --sidebar-accent-foreground: 210 40% 96%;
-  --sidebar-border: 222.2 28% 18%;
+  --sidebar-background: 222 8% 6%;
+  --sidebar-foreground: 215 10% 78%;
+  --sidebar-primary: 210 14% 96%;
+  --sidebar-primary-foreground: 222 10% 10%;
+  --sidebar-accent: 222 7% 14%;
+  --sidebar-accent-foreground: 210 14% 96%;
+  --sidebar-border: 222 8% 17%;
+  /* O anel de foco continua azul e saturado, de propósito: ele precisa ser
+     visto, e é a única coisa da interface cuja função é chamar atenção para si.
+     Sobre um fundo agora neutro ele fica MAIS legível, não menos. */
   --sidebar-ring: 217.2 91.2% 59.8%;
 
-  --elevated: 222.2 40% 13%;
+  --elevated: 222 8% 12%;
 
   /* Ordem invertida em relação ao claro: aqui "soft" é MAIS claro que
      muted-foreground (mais próximo do texto principal) e "faint" é mais
      escuro. A distância entre os três é mantida. */
-  --text-soft: 215 20% 80%;
-  --text-faint: 215 16% 54%;
+  --text-soft: 215 11% 81%;
+  --text-faint: 215 8% 55%;
 }
 
 @theme inline {
