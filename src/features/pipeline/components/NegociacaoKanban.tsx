@@ -1,4 +1,5 @@
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
+import { useNavigate } from 'react-router'
 import { Calendar, DollarSign, Edit, MoreVertical, Trash2, TrendingUp, User } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { FUNNEL_STAGE, SERVICE_TYPE, labelOf, type FunnelStage } from '@/lib/enums'
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
+import { useMenuPermissions } from '@/features/auth/hooks'
+import { createPageUrl } from '@/lib/page-url'
 import type { NegotiationRow } from '../types'
 
 /*
@@ -93,6 +96,14 @@ export default function NegociacaoKanban({
   */
   canEdit: boolean
 }) {
+  const navigate = useNavigate()
+  const { canView: canViewCrm } = useMenuPermissions('crm')
+
+  /* Mesma rota que a listagem do CRM usa (Clients.tsx:137): detalhe por query
+     string, como no original. */
+  const openClient = (clientId: string) =>
+    navigate(createPageUrl('ClientDetail') + `?id=${clientId}`)
+
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return
     if (result.destination.droppableId === result.source.droppableId) return
@@ -197,8 +208,45 @@ export default function NegociacaoKanban({
 
                               {negotiation.client && (
                                 <div className="flex items-center gap-2 text-xs text-soft">
-                                  <User className="h-3.5 w-3.5 text-faint" />
-                                  <span className="font-medium">{negotiation.client.name}</span>
+                                  <User className="h-3.5 w-3.5 shrink-0 text-faint" />
+                                  {/*
+                                    O NOME DO CLIENTE ABRE O CADASTRO DELE.
+
+                                    Só vira link para quem PODE VER o CRM, e o
+                                    motivo é COERÊNCIA COM O MENU, não
+                                    confidencialidade: não há guarda na rota
+                                    `/ClientDetail`, e a policy de leitura de
+                                    `clients` é larga de propósito (qualquer
+                                    colaborador ativo lê). Quem digitar a URL
+                                    entra.
+
+                                    O que a permissão de menu governa é para
+                                    onde a pessoa NAVEGA. Se o escritório tirou o
+                                    CRM da barra lateral dela, oferecer uma porta
+                                    lateral aqui contradiz essa decisão — e não é
+                                    este componente o lugar de revisá-la.
+
+                                    `stopPropagation` no clique e no mousedown:
+                                    o cartão inteiro é a alça de arrastar
+                                    (`dragHandleProps` está na Card), e sem isso
+                                    o gesto de clicar no nome começa um arraste
+                                    que só termina em nada.
+                                  */}
+                                  {canViewCrm ? (
+                                    <button
+                                      type="button"
+                                      onMouseDown={(event) => event.stopPropagation()}
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        openClient(negotiation.client!.id)
+                                      }}
+                                      className="font-medium text-left underline-offset-2 hover:underline hover:text-foreground transition-colors"
+                                    >
+                                      {negotiation.client.name}
+                                    </button>
+                                  ) : (
+                                    <span className="font-medium">{negotiation.client.name}</span>
+                                  )}
                                 </div>
                               )}
 
