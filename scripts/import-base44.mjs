@@ -1542,6 +1542,25 @@ async function main() {
   // -------------------------------------------------------------------------
   step(9, 'negotiation_services  <- Negociacao.tipo_servico')
   {
+    /*
+      O DE/PARA AGORA TEM DOIS SALTOS. `ENUMS.service_type` continua traduzindo
+      o rotulo do base44 para a CHAVE do servico, mas desde a 0084 a coluna
+      guarda `service_type_id` — os tipos viraram tabela por escritorio, porque
+      o escritorio precisa acrescentar tipo sem migration.
+
+      A chave e imutavel e tipo fora de linha e desativado, nunca apagado, entao
+      toda chave do de/para tem de existir aqui. Se nao existir, e pendencia:
+      inventar o tipo no meio de uma importacao criaria, calado, uma linha de
+      configuracao que ninguem pediu.
+    */
+    const { data: serviceTypeRows, error: serviceTypeError } = await db
+      .from('service_types')
+      .select('id, key')
+      .eq('tenant_id', T())
+    if (serviceTypeError) abort(`ler service_types: ${serviceTypeError.message}`)
+    const serviceTypeIdByKey = new Map((serviceTypeRows ?? []).map((r) => [r.key, r.id]))
+    const serviceTypeKeyById = new Map((serviceTypeRows ?? []).map((r) => [r.id, r.key]))
+
     const rows = []
     for (const r of csv.Negociacao) {
       const services = jsonArray(r.tipo_servico)
@@ -1580,12 +1599,26 @@ async function main() {
           stat('negotiation_services').consumed += 1
           continue
         }
+        const serviceTypeId = serviceTypeIdByKey.get(value)
+        if (!serviceTypeId) {
+          pend(
+            'negotiation_services',
+            r.id,
+            `tipo_servico "${s}" mapeia para a chave "${value}", que nao existe em service_types deste escritorio`,
+            r.nome_negociacao,
+          )
+          continue
+        }
         seen.add(value)
-        rows.push({ tenant_id: T(), negotiation_id: negotiationId, service_type: value })
+        rows.push({
+          tenant_id: T(),
+          negotiation_id: negotiationId,
+          service_type_id: serviceTypeId,
+        })
         stat('negotiation_services').consumed += 1
       }
     }
-    const res = await insertBatch('negotiation_services', rows, 'negotiation_id,service_type')
+    const res = await insertBatch('negotiation_services', rows, 'negotiation_id,service_type_id')
     if (res.error) abort(`gravar negotiation_services: ${res.error.message}`)
     stat('negotiation_services').written = rows.length
 
@@ -1607,17 +1640,17 @@ async function main() {
       tela tem os servicos que a tela gravou, e o CSV nao fala dela.
     */
     if (!DRY_RUN) {
-      const esperado = new Set(rows.map((r) => `${r.negotiation_id}|${r.service_type}`))
+      const esperado = new Set(rows.map((r) => `${r.negotiation_id}|${r.service_type_id}`))
       const { data: atuais, error: readError } = await db
         .from('negotiation_services')
-        .select('negotiation_id, service_type, negotiations!inner(legacy_id)')
+        .select('negotiation_id, service_type_id, negotiations!inner(legacy_id)')
         .eq('tenant_id', T())
         .not('negotiations.legacy_id', 'is', null)
 
       if (readError) abort(`ler negotiation_services: ${readError.message}`)
 
       const sobras = (atuais ?? []).filter(
-        (r) => !esperado.has(`${r.negotiation_id}|${r.service_type}`),
+        (r) => !esperado.has(`${r.negotiation_id}|${r.service_type_id}`),
       )
 
       for (const sobra of sobras) {
@@ -1626,12 +1659,12 @@ async function main() {
           .delete()
           .eq('tenant_id', T())
           .eq('negotiation_id', sobra.negotiation_id)
-          .eq('service_type', sobra.service_type)
+          .eq('service_type_id', sobra.service_type_id)
         if (error) abort(`remover negotiation_service: ${error.message}`)
         adjust(
           'negotiation_services',
           sobra.negotiation_id,
-          `servico "${sobra.service_type}" removido: nao esta mais na lista do CSV`,
+          `servico "${serviceTypeKeyById.get(sobra.service_type_id) ?? sobra.service_type_id}" removido: nao esta mais na lista do CSV`,
         )
       }
       if (sobras.length > 0) log(`  ${sobras.length} servico(s) removido(s) por terem saido da lista`)

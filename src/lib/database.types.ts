@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -1690,21 +1685,21 @@ export type Database = {
           created_at: string
           id: string
           negotiation_id: string
-          service_type: Database["public"]["Enums"]["service_type"]
+          service_type_id: string
           tenant_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           negotiation_id: string
-          service_type: Database["public"]["Enums"]["service_type"]
+          service_type_id: string
           tenant_id: string
         }
         Update: {
           created_at?: string
           id?: string
           negotiation_id?: string
-          service_type?: Database["public"]["Enums"]["service_type"]
+          service_type_id?: string
           tenant_id?: string
         }
         Relationships: [
@@ -1713,6 +1708,13 @@ export type Database = {
             columns: ["negotiation_id", "tenant_id"]
             isOneToOne: false
             referencedRelation: "negotiations"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "negotiation_services_service_type_id_fkey"
+            columns: ["service_type_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "service_types"
             referencedColumns: ["id", "tenant_id"]
           },
           {
@@ -2644,6 +2646,50 @@ export type Database = {
         }
         Relationships: []
       }
+      service_types: {
+        Row: {
+          contract_group: Database["public"]["Enums"]["service_contract_group"]
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          contract_group?: Database["public"]["Enums"]["service_contract_group"]
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          contract_group?: Database["public"]["Enums"]["service_contract_group"]
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supplier_brands: {
         Row: {
           created_at: string
@@ -3181,7 +3227,6 @@ export type Database = {
       accounts_receivable_status: {
         Row: {
           client_id: string | null
-          client_name: string | null
           contract_id: string | null
           created_at: string | null
           description: string | null
@@ -3199,6 +3244,46 @@ export type Database = {
           tenant_id: string | null
           updated_at: string | null
           value: number | null
+        }
+        Insert: {
+          client_id?: string | null
+          contract_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string | null
+          installment_number?: number | null
+          installment_total?: number | null
+          is_overdue?: never
+          issue_date?: string | null
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["financial_status"] | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          value?: number | null
+        }
+        Update: {
+          client_id?: string | null
+          contract_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string | null
+          installment_number?: number | null
+          installment_total?: number | null
+          is_overdue?: never
+          issue_date?: string | null
+          legacy_id?: string | null
+          payment_date?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          project_id?: string | null
+          status?: Database["public"]["Enums"]["financial_status"] | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          value?: number | null
         }
         Relationships: [
           {
@@ -3626,6 +3711,7 @@ export type Database = {
         | "semiannual"
         | "annual"
       recurrence_status: "active" | "paused" | "ended"
+      service_contract_group: "none" | "interiors" | "engineering"
       service_type:
         | "architecture"
         | "interiors"
@@ -4025,6 +4111,7 @@ export const Constants = {
         "annual",
       ],
       recurrence_status: ["active", "paused", "ended"],
+      service_contract_group: ["none", "interiors", "engineering"],
       service_type: [
         "architecture",
         "interiors",
@@ -4083,3 +4170,4 @@ export const Constants = {
     },
   },
 } as const
+

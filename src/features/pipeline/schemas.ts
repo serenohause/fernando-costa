@@ -59,7 +59,12 @@ export const negotiationInputSchema = z
     client_id: nullIfBlank(uuid('Cliente inválido.').nullable()),
     commercial_owner_id: uuid('Defina um responsável pela negociação.'),
 
-    services: z.array(z.enum(Constants.public.Enums.service_type)),
+    /*
+      Lista de IDs de `service_types` (0084), nao mais valores de enum: o
+      escritorio cadastra os tipos em Configuracoes. A existencia de cada id
+      quem confere e a FK de `negotiation_services`.
+    */
+    services: z.array(uuid('Tipo de servico invalido.')),
 
     estimated_value: z
       .number()

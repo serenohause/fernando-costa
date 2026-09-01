@@ -228,6 +228,12 @@ acontecer **antes** da importação, não depois.
 | 8 | Fornecedores e Orçamento | Fornecedor, ChecklistOrcamento | a fazer |
 | 9 | Mapa | PropriedadeMapa, MapaProjetos | a fazer |
 | 10 | Dashboards | Dashboard, DashboardExecutivo, DashboardComercial | a fazer |
+| 12 | Configurações | service_types (tipos de serviço do Pipeline) | em dev |
+
+O módulo 12 não vem do original: nasceu de um pedido do escritório, e é onde
+entra o que antes só mudava por migration. Hoje tem uma opção — os tipos de
+serviço do Pipeline, que a 0084 tirou do enum e pôs numa tabela por escritório.
+Outras devem vir, e a tela já é dividida em seções por isso.
 
 Dashboards ficam por último de propósito: agregam dado de todos os módulos
 anteriores, e construí-los antes significaria refazê-los a cada módulo novo.

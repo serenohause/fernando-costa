@@ -40,7 +40,7 @@ import { useMenuPermissions } from '@/features/auth/hooks'
 import { useClients, useClientsByIds } from '@/features/crm/hooks'
 import { buildBriefingDiff } from '../briefing-diff'
 import { useCollaborators } from '@/features/team/hooks'
-import { FUNNEL_STAGE, LEAD_ORIGIN, LOSS_REASON, SERVICE_TYPE, labelOf } from '@/lib/enums'
+import { FUNNEL_STAGE, LEAD_ORIGIN, LOSS_REASON, labelOf } from '@/lib/enums'
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
 import { applyFilters, applySearch, EMPTY_FILTERS, type PipelineFilterState } from '../filters'
 import {
@@ -364,8 +364,8 @@ export default function Negociacoes() {
   const servicesCell = (row: NegotiationRow) => (
     <div className="flex flex-col gap-1">
       {row.services.map((service) => (
-        <Badge key={service.service_type} variant="outline" className="text-xs">
-          {labelOf(SERVICE_TYPE, service.service_type)}
+        <Badge key={service.service_type_id} variant="outline" className="text-xs">
+          {service.type?.label ?? '—'}
         </Badge>
       ))}
     </div>

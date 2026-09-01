@@ -25,7 +25,18 @@ DESTINO="$ROOT/src/lib/database.types.ts"
 TEMP="$(mktemp)"
 trap 'rm -f "$TEMP"' EXIT
 
-if ! npx supabase gen types typescript --linked > "$TEMP" 2>"$TEMP.err"; then
+# COMO FALAR COM O BANCO
+#   `--linked` passa pela Management API, e a conta do projeto de DEV nao tem
+#   privilegio para esse endpoint. `--db-url` conecta direto no Postgres com a
+#   senha que ja esta no .env do ambiente, e funciona nos dois — por isso e o
+#   preferido, com `--linked` de reserva.
+if DB_URL="$(node "$ROOT/scripts/db-url.mjs" 2>/dev/null)" && [[ -n "$DB_URL" ]]; then
+  GERAR=(npx supabase gen types typescript --db-url "$DB_URL")
+else
+  GERAR=(npx supabase gen types typescript --linked)
+fi
+
+if ! "${GERAR[@]}" > "$TEMP" 2>"$TEMP.err"; then
   echo "FALHOU ao gerar os tipos. $DESTINO NAO foi tocado." >&2
   head -3 "$TEMP.err" >&2 || true
   head -c 300 "$TEMP" >&2 || true

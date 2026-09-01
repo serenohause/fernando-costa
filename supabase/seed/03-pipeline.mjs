@@ -219,6 +219,18 @@ async function main() {
     },
   ]
 
+  /*
+    Desde a 0084 os tipos de serviço são linhas de `service_types`, semeadas
+    por escritório pela própria migration. O seed traduz a chave para o id — não
+    cria tipo: se faltar, é sinal de que a migration não rodou neste banco.
+  */
+  const { data: serviceTypeRows, error: serviceTypeError } = await db
+    .from('service_types')
+    .select('id, key')
+    .eq('tenant_id', tenant.id)
+  if (serviceTypeError) fail(`ler service_types: ${serviceTypeError.message}`)
+  const serviceTypeIdByKey = new Map((serviceTypeRows ?? []).map((r) => [r.key, r.id]))
+
   const created = []
   for (const n of NEGOTIATIONS) {
     const linked = n.client ? client(n.client) : null
@@ -246,11 +258,11 @@ async function main() {
 
     if (n.services.length) {
       const { error: sError } = await db.from('negotiation_services').insert(
-        n.services.map((s) => ({
-          tenant_id: tenant.id,
-          negotiation_id: row.id,
-          service_type: s,
-        })),
+        n.services.map((s) => {
+          const id = serviceTypeIdByKey.get(s)
+          if (!id) fail(`serviço "${s}" de "${n.name}" não existe em service_types`)
+          return { tenant_id: tenant.id, negotiation_id: row.id, service_type_id: id }
+        }),
       )
       if (sError) fail(`serviços de "${n.name}": ${sError.message}`)
     }

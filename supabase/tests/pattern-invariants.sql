@@ -99,22 +99,46 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
    $$'Negociacao Padrao', 'ea100000-0000-4000-8000-000000000001'$$,
    $$'Negociacao Padrao', 'eb100000-0000-4000-8000-000000000001'$$),
 
-  -- O servico sai da posicao seguinte do enum a cada linha ja gravada NAQUELA
-  -- negociacao. Motivo: negotiation_services tem unique (negotiation_id,
-  -- service_type), e a suite grava a mesma "linha minima valida" duas vezes no
-  -- escritorio A (a fixture dos casos B, e o INSERT do caso C1). Com valor fixo,
-  -- C1 receberia 23505 e o caso "quem tem can_edit CRIA" passaria a afirmar que
-  -- a unicidade existe. A contagem e filtrada pela negociacao da fixture de
-  -- proposito: contagem sobre a tabela inteira mudaria de resultado no dia em
-  -- que o seed do modulo 3 entrar.
+  -- O servico sai da posicao seguinte da LISTA DO ESCRITORIO a cada linha ja
+  -- gravada NAQUELA negociacao. Motivo: negotiation_services tem unique
+  -- (negotiation_id, service_type_id), e a suite grava a mesma "linha minima
+  -- valida" duas vezes no escritorio A (a fixture dos casos B, e o INSERT do
+  -- caso C1). Com valor fixo, C1 receberia 23505 e o caso "quem tem can_edit
+  -- CRIA" passaria a afirmar que a unicidade existe. A contagem e filtrada pela
+  -- negociacao da fixture de proposito: contagem sobre a tabela inteira mudaria
+  -- de resultado no dia em que o seed do modulo 3 entrar.
+  --
+  -- Ate a 0084 a posicao saia de `enum_range(service_type)`; agora sai de
+  -- service_types do PROPRIO escritorio, que o gatilho da 0084 semeia junto com
+  -- o tenant da fixture.
   (3, 'negotiation_services', 'pipeline',
-   'negotiation_id, service_type',
+   'negotiation_id, service_type_id',
    $$'ea200000-0000-4000-8000-000000000001',
-     (enum_range(null::public.service_type))[1 + (select count(*) from public.negotiation_services s
-                                                  where s.negotiation_id = 'ea200000-0000-4000-8000-000000000001')]$$,
+     (select st.id from public.service_types st
+       where st.tenant_id = 'e1111111-1111-4111-8111-111111111111'
+       order by st.display_order, st.key
+       offset (select count(*) from public.negotiation_services s
+                where s.negotiation_id = 'ea200000-0000-4000-8000-000000000001')
+       limit 1)$$,
    $$'eb200000-0000-4000-8000-000000000001',
-     (enum_range(null::public.service_type))[1 + (select count(*) from public.negotiation_services s
-                                                  where s.negotiation_id = 'eb200000-0000-4000-8000-000000000001')]$$),
+     (select st.id from public.service_types st
+       where st.tenant_id = 'e2222222-2222-4222-8222-222222222222'
+       order by st.display_order, st.key
+       offset (select count(*) from public.negotiation_services s
+                where s.negotiation_id = 'eb200000-0000-4000-8000-000000000001')
+       limit 1)$$),
+
+  -- Modulo 12 (Configuracoes). A chave leva a contagem por escritorio pelo mesmo
+  -- motivo do telefone de `clients`: unique (tenant_id, key), e a suite grava a
+  -- mesma linha minima duas vezes no escritorio A.
+  (12, 'service_types', 'settings',
+   'key, label',
+   $$'padrao_' || (select count(*) from public.service_types s
+                    where s.tenant_id = 'e1111111-1111-4111-8111-111111111111')::text,
+     'Servico Padrao'$$,
+   $$'padrao_' || (select count(*) from public.service_types s
+                    where s.tenant_id = 'e2222222-2222-4222-8222-222222222222')::text,
+     'Servico Padrao'$$),
 
   -- clock_timestamp(), e nao o default now(): now() e o instante da TRANSACAO e
   -- portanto identico em todas as linhas desta suite, e a tabela tem

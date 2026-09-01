@@ -20,15 +20,14 @@ import {
   LEAD_ORIGIN,
   LOSS_REASON,
   NEGOTIATION_STATUS,
-  SERVICE_TYPE,
   labelOf,
   optionsOf,
   type FunnelStage,
   type LeadOrigin,
   type LossReason,
   type NegotiationStatus,
-  type ServiceType,
 } from '@/lib/enums'
+import { useServiceTypes } from '@/features/settings/hooks'
 import type { Collaborator } from '@/features/team/types'
 import type { ClientListRow } from '@/features/crm/types'
 import type { NegotiationInput, NegotiationRow } from '../types'
@@ -83,7 +82,8 @@ export type NegotiationFormValues = {
   name: string
   client_id: string
   commercial_owner_id: string
-  services: ServiceType[]
+  /* IDs dos tipos marcados (migration 0084). */
+  services: string[]
   estimated_value: string
   close_probability: string
   status: NegotiationStatus
@@ -144,7 +144,7 @@ export function toFormValues(negotiation: NegotiationRow): NegotiationFormValues
     name: negotiation.name,
     client_id: negotiation.client_id ?? '',
     commercial_owner_id: negotiation.commercial_owner_id ?? '',
-    services: negotiation.services.map((service) => service.service_type),
+    services: negotiation.services.map((service) => service.service_type_id),
     estimated_value: negotiation.estimated_value == null ? '' : String(negotiation.estimated_value),
     close_probability:
       negotiation.close_probability == null ? '' : String(negotiation.close_probability),
@@ -212,6 +212,7 @@ export default function NegociacaoForm({
   collaborators: Collaborator[]
 }) {
   const [formData, setFormData] = useState<NegotiationFormValues>(initialData ?? emptyValues())
+  const serviceTypes = useServiceTypes().data ?? []
 
   useEffect(() => {
     setFormData(initialData ?? emptyValues())
@@ -340,26 +341,45 @@ export default function NegociacaoForm({
 
           <div className="space-y-2">
             <Label>Tipos de Serviço *</Label>
+            {/*
+              A LISTA VEM DO BANCO, e não mais de um enum: o escritório acrescenta
+              tipos em Configurações (migration 0084).
+
+              SÓ OS ATIVOS aparecem aqui — tipo tirado de linha não deve ser
+              oferecido numa negociação nova. Mas o que JÁ ESTÁ MARCADO continua
+              aparecendo mesmo desativado, senão editar uma negociação antiga
+              apagaria em silêncio um serviço que foi vendido de verdade.
+            */}
             <div className="space-y-2 p-4 border border-border rounded-lg bg-elevated">
-              {optionsOf(SERVICE_TYPE).map((option) => (
-                <div key={option.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={option.value}
-                    checked={formData.services.includes(option.value)}
-                    onCheckedChange={(checked) => {
-                      setFormData((previous) => ({
-                        ...previous,
-                        services: checked
-                          ? [...previous.services, option.value]
-                          : previous.services.filter((service) => service !== option.value),
-                      }))
-                    }}
-                  />
-                  <Label htmlFor={option.value} className="cursor-pointer font-normal">
-                    {option.label}
-                  </Label>
-                </div>
-              ))}
+              {serviceTypes
+                .filter((type) => type.is_active || formData.services.includes(type.id))
+                .map((type) => (
+                  <div key={type.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`service-${type.id}`}
+                      checked={formData.services.includes(type.id)}
+                      onCheckedChange={(checked) => {
+                        setFormData((previous) => ({
+                          ...previous,
+                          services: checked
+                            ? [...previous.services, type.id]
+                            : previous.services.filter((service) => service !== type.id),
+                        }))
+                      }}
+                    />
+                    <Label htmlFor={`service-${type.id}`} className="cursor-pointer font-normal">
+                      {type.label}
+                      {!type.is_active && (
+                        <span className="ml-2 text-xs text-muted-foreground">(desativado)</span>
+                      )}
+                    </Label>
+                  </div>
+                ))}
+              {serviceTypes.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum tipo de serviço cadastrado. Configurações → Tipos de Serviço.
+                </p>
+              )}
             </div>
           </div>
 

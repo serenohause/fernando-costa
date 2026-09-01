@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   MapPin,
   ShieldCheck,
+  SlidersHorizontal,
   Store,
   TrendingUp,
   UserCircle,
@@ -58,6 +59,9 @@ export const MENU_META: Record<string, MenuMeta> = {
   },
   team: { page: 'Collaborators', icon: UserCircle },
   access_control: { page: 'AprovacoesAcesso', icon: ShieldCheck },
+  /* Não vem do original: módulo novo, com a rota nomeada no mesmo padrão dos
+     demais (`/<NomeDaPagina>`). */
+  settings: { page: 'Settings', icon: SlidersHorizontal },
 }
 
 /*

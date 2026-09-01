@@ -282,7 +282,15 @@ insert into public.negotiations
    'lost', 'closing', current_date, 'price', true);
 
 -- Os quatro conjuntos de servico que o criterio de docs/ENUM-MAP.md distingue.
-insert into public.negotiation_services (tenant_id, negotiation_id, service_type) values
+--
+-- Desde a 0084 o servico e uma linha de service_types, resolvida aqui pela
+-- CHAVE. E de proposito que o teste passe pela chave e nao pelo id literal: a
+-- derivacao do tipo de contrato agora le `contract_group` da tabela, e o que
+-- este arquivo precisa provar e que o criterio antigo continua valendo para os
+-- seis tipos que o escritorio ja tinha.
+insert into public.negotiation_services (tenant_id, negotiation_id, service_type_id)
+select v.tenant_id, v.negotiation_id, st.id
+from (values
   ((select tenant_a from ids), (select n_main from ids), 'architecture'),
   ((select tenant_a from ids), (select n_main from ids), 'interiors'),
   ((select tenant_a from ids), (select n_main from ids), 'electrical'),
@@ -293,7 +301,10 @@ insert into public.negotiation_services (tenant_id, negotiation_id, service_type
   ((select tenant_a from ids), (select n_eng from ids), 'structural'),
   ((select tenant_a from ids), (select n_partial from ids), 'architecture'),
   ((select tenant_b from ids), (select n_b from ids), 'architecture'),
-  ((select tenant_b from ids), (select n_b_number from ids), 'architecture');
+  ((select tenant_b from ids), (select n_b_number from ids), 'architecture')
+) as v(tenant_id, negotiation_id, key)
+join public.service_types st
+  on st.tenant_id = v.tenant_id and st.key = v.key;
 
 -- O sufixo do relogio ja ocupado no escritorio B, com o maior valor possivel de
 -- 13 digitos: o proximo numero gerado la NAO pode ser este.
@@ -552,8 +563,13 @@ $q$, (select cl_partial from ids), (select n_partial from ids)));
 
 -- 6. O numero do contrato ---------------------------------------------------------
 
-select pg_temp.val('6.1', 'o numero segue o formato do original: CTR-<digitos>', 'true', format($q$
-  select bool_and(contract_number ~ '^CTR-[0-9]+$')::text
+-- ESCRITORIO SEM CONTRATO ANTERIOR: nao ha modelo a seguir, e a numeracao
+-- comeca em 0001 e anda de um em um (0083). O formato CTR-<relogio> que este
+-- caso conferia era o do original e saiu junto com o sufixo de relogio: quem
+-- da o modelo agora e o ULTIMO contrato do proprio escritorio, como no 6.3.
+select pg_temp.val('6.1', 'sem contrato anterior, a numeracao comeca em 0001 e e sequencial',
+  '0001,0002,0003,0004,0005', format($q$
+  select string_agg(contract_number, ',' order by contract_number)
     from public.contracts where tenant_id = %L
 $q$, (select tenant_a from ids)));
 
@@ -577,10 +593,12 @@ select pg_temp.val('6.4', 'CONTROLE: os dois numeros convivem no escritorio B',
     from public.contracts where tenant_id = %L
 $q$, (select tenant_b from ids)));
 
--- A numeracao e por escritorio: o CTR-9999999999999 do B nao empurrou o A.
-select pg_temp.val('6.5', 'CONTROLE: e nao empurraram a numeracao do escritorio A', 'true', format($q$
-  select bool_and(contract_number < 'CTR-9')::text
-    from public.contracts where tenant_id = %L
+-- A NUMERACAO E POR ESCRITORIO: o CTR-9999999999999 do B nao serviu de modelo
+-- para o A, que seguiu comecando do zero. Sem o recorte por tenant_id o
+-- escritorio A teria herdado a numeracao de um escritorio que nao e o dele.
+select pg_temp.val('6.5', 'CONTROLE: e nao empurraram a numeracao do escritorio A', '0', format($q$
+  select count(*)::text from public.contracts
+   where tenant_id = %L and contract_number like 'CTR-%%'
 $q$, (select tenant_a from ids)));
 
 select case when observed = expected then 'PASS' else 'FAIL' end as status,

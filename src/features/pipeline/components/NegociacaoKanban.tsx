@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { FUNNEL_STAGE, SERVICE_TYPE, labelOf, type FunnelStage } from '@/lib/enums'
+import { FUNNEL_STAGE, labelOf, type FunnelStage } from '@/lib/enums'
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { createPageUrl } from '@/lib/page-url'
@@ -255,11 +255,11 @@ export default function NegociacaoKanban({
                                   <div className="flex flex-wrap gap-1.5">
                                     {negotiation.services.map((service) => (
                                       <Badge
-                                        key={service.service_type}
+                                        key={service.service_type_id}
                                         variant="outline"
                                         className="text-xs bg-elevated"
                                       >
-                                        {labelOf(SERVICE_TYPE, service.service_type)}
+                                        {service.type?.label ?? '—'}
                                       </Badge>
                                     ))}
                                   </div>

@@ -148,7 +148,18 @@ Escolher `individual` ou `company` seria inventar o documento da pessoa.
 
 ### `service_type`
 
-| base44 | Postgres | Rótulo UI |
+> **Deixou de ser enum na migration 0084.** Os tipos de serviço viraram a tabela
+> `service_types`, uma lista por escritório, editável em Configurações — o
+> escritório precisa acrescentar tipo sem migration, e enum só cresce por DDL.
+> `negotiation_services` guarda `service_type_id`, não mais um valor de enum.
+>
+> **O de/para abaixo continua valendo, e é ele que a importação usa**: a coluna
+> "Postgres" passou a ser a `key` da linha em `service_types` — imutável, ao
+> contrário do rótulo, que o escritório pode renomear. Um rótulo do base44 sem
+> chave correspondente na tabela do escritório vira pendência de importação, e
+> não um tipo criado em silêncio.
+
+| base44 | `service_types.key` | Rótulo UI |
 |---|---|---|
 | Arquitetura | `architecture` | Arquitetura |
 | Interiores | `interiors` | Interiores |
@@ -162,7 +173,7 @@ Escolher `individual` ou `company` seria inventar o documento da pessoa.
 `Projeto de Arquitetura` é o rótulo que `Contract` usa para o mesmo conceito —
 a mesma unificação de rótulo que a seção Contratos já descreve, agora do lado
 do serviço. Na única linha em que aparece, `Arquitetura` também está na lista;
-a deduplicação por `(negotiation_id, service_type)` resolve.
+a deduplicação por `(negotiation_id, service_type_id)` resolve.
 
 `Complementares` é o guarda-chuva de Estrutura + Hidrosanitário + Elétrico, e
 na única linha em que aparece **os três já estão listados um a um ao lado

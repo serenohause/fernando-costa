@@ -266,32 +266,47 @@ $q$, (select owner_a from ids)));
 
 -- 6. negotiation_services (substitui o array tipo_servico) ---------------------
 
+-- Desde a 0084 o servico e uma LINHA de service_types, e nao mais um valor de
+-- enum. O tipo e resolvido pela chave dentro do proprio INSERT: a chave e
+-- estavel por contrato (a etiqueta e que e editavel), e o gatilho
+-- `tenants_seed_service_types` garante que todo escritorio criado aqui ja
+-- nasce com os seis padrao.
+
 select pg_temp.chk('6.1', 'CONTROLE: primeiro servico da negociacao entra', 'OK:1', format($q$
-  insert into public.negotiation_services (tenant_id, negotiation_id, service_type)
-  values (%L, %L, 'architecture')
-$q$, (select tenant_a from ids), (select neg_a from ids)));
+  insert into public.negotiation_services (tenant_id, negotiation_id, service_type_id)
+  values (%L, %L, (select id from public.service_types where tenant_id = %L and key = 'architecture'))
+$q$, (select tenant_a from ids), (select neg_a from ids), (select tenant_a from ids)));
 
 select pg_temp.chk('6.2', 'CONTROLE: segundo servico DIFERENTE na mesma negociacao entra', 'OK:1', format($q$
-  insert into public.negotiation_services (tenant_id, negotiation_id, service_type)
-  values (%L, %L, 'interiors')
-$q$, (select tenant_a from ids), (select neg_a from ids)));
+  insert into public.negotiation_services (tenant_id, negotiation_id, service_type_id)
+  values (%L, %L, (select id from public.service_types where tenant_id = %L and key = 'interiors'))
+$q$, (select tenant_a from ids), (select neg_a from ids), (select tenant_a from ids)));
 
 select pg_temp.chk('6.3', 'o mesmo servico duas vezes na mesma negociacao e recusado', 'ERR:23505', format($q$
-  insert into public.negotiation_services (tenant_id, negotiation_id, service_type)
-  values (%L, %L, 'architecture')
-$q$, (select tenant_a from ids), (select neg_a from ids)));
+  insert into public.negotiation_services (tenant_id, negotiation_id, service_type_id)
+  values (%L, %L, (select id from public.service_types where tenant_id = %L and key = 'architecture'))
+$q$, (select tenant_a from ids), (select neg_a from ids), (select tenant_a from ids)));
 
 select pg_temp.chk('6.4', 'CONTROLE: o mesmo servico em OUTRA negociacao entra', 'OK:1', format($q$
-  insert into public.negotiation_services (tenant_id, negotiation_id, service_type)
-  values (%L, %L, 'architecture')
-$q$, (select tenant_a from ids), (select neg_cascade from ids)));
+  insert into public.negotiation_services (tenant_id, negotiation_id, service_type_id)
+  values (%L, %L, (select id from public.service_types where tenant_id = %L and key = 'architecture'))
+$q$, (select tenant_a from ids), (select neg_cascade from ids), (select tenant_a from ids)));
 
 select pg_temp.chk('6.5', 'servico de A apontando para negociacao de B e recusado', 'ERR:23503', format($q$
-  insert into public.negotiation_services (tenant_id, negotiation_id, service_type)
-  values (%L, %L, 'structural')
-$q$, (select tenant_a from ids), (select neg_b from ids)));
+  insert into public.negotiation_services (tenant_id, negotiation_id, service_type_id)
+  values (%L, %L, (select id from public.service_types where tenant_id = %L and key = 'structural'))
+$q$, (select tenant_a from ids), (select neg_b from ids), (select tenant_a from ids)));
 
-select pg_temp.val('6.6', 'CONTROLE: a negociacao tem 2 servicos antes de ser apagada', '2', format($q$
+-- A OUTRA metade da FK composta, que so passou a existir na 0084: o servico
+-- aponta para a negociacao certa, mas para o TIPO DO OUTRO ESCRITORIO. Sem a
+-- composicao com tenant_id isto entraria, e o escritorio A passaria a mostrar
+-- num card um tipo de servico que quem o renomeia e o escritorio B.
+select pg_temp.chk('6.6', 'servico de A apontando para o TIPO de B e recusado', 'ERR:23503', format($q$
+  insert into public.negotiation_services (tenant_id, negotiation_id, service_type_id)
+  values (%L, %L, (select id from public.service_types where tenant_id = %L and key = 'consulting'))
+$q$, (select tenant_a from ids), (select neg_a from ids), (select tenant_b from ids)));
+
+select pg_temp.val('6.7', 'CONTROLE: a negociacao tem 2 servicos antes de ser apagada', '2', format($q$
   select count(*)::text from public.negotiation_services where negotiation_id = %L
 $q$, (select neg_a from ids)));
 

@@ -21,7 +21,6 @@ import type {
   NegotiationRow,
   OpenIntakeResult,
 } from './types'
-import type { ServiceType } from '@/lib/enums'
 
 export const pipelineKeys = {
   all: ['pipeline'] as const,
@@ -39,8 +38,10 @@ export const pipelineKeys = {
 const NEGOTIATIONS_LIST_LIMIT = 500
 
 const PIPELINE_ERROR_MESSAGES: DatabaseErrorMessages = {
-  negotiation_services_negotiation_id_service_type_key:
+  negotiation_services_negotiation_id_service_type_id_key:
     'Este serviço já está marcado nesta negociação.',
+  negotiation_services_service_type_id_fkey:
+    'Este tipo de serviço não existe mais na configuração do escritório. Recarregue a página e escolha de novo.',
   negotiation_owner_history_negotiation_id_changed_at_key:
     'Já há uma troca de responsável registrada neste exato instante para esta negociação. Aguarde um segundo e tente de novo.',
   /*
@@ -105,11 +106,20 @@ function useTenantId() {
   módulo são compostas (`(client_id, tenant_id)`), então `clients!inner(...)`
   não desambigua sozinho.
 */
+/*
+  O TIPO DE SERVIÇO VEM JUNTO, e não só o id: o cartão e a tabela mostram o
+  RÓTULO, e resolvê-lo no cliente exigiria cruzar duas consultas que podem
+  chegar em momentos diferentes — mostrando o crachá vazio no intervalo.
+
+  A chave vem junto do rótulo porque é ela que os filtros comparam: rótulo é
+  editável em Configurações (migration 0084), e um filtro guardado por rótulo
+  pararia de casar no dia em que alguém corrigisse um acento.
+*/
 const NEGOTIATIONS_SELECT = `
   *,
   client:clients!negotiations_client_id_fkey(id, name, address_city, address_state),
   owner:collaborators!negotiations_commercial_owner_id_fkey(id, name),
-  services:negotiation_services(service_type)
+  services:negotiation_services(service_type_id, type:service_types(id, key, label))
 `
 
 /*
@@ -189,17 +199,17 @@ export function intakeLinkFor(token: string): string {
 
   No original isto é um array dentro da própria linha, reescrito inteiro a cada
   gravação. Aqui são linhas: só o que mudou é tocado, o unique
-  `(negotiation_id, service_type)` impede repetição, e desmarcar um serviço é um
+  `(negotiation_id, service_type_id)` impede repetição, e desmarcar um serviço é um
   DELETE — que exige a mesma permissão de editar a negociação.
 */
 async function syncServices(
   negotiationId: string,
   tenantId: string,
-  desired: ServiceType[],
+  desired: string[],
 ): Promise<void> {
   const { data: existingRows, error: readError } = await supabase
     .from('negotiation_services')
-    .select('id, service_type')
+    .select('id, service_type_id')
     .eq('negotiation_id', negotiationId)
 
   if (readError) throw readError
@@ -207,8 +217,8 @@ async function syncServices(
   const existing = existingRows ?? []
   const wanted = new Set(desired)
 
-  const toRemove = existing.filter((row) => !wanted.has(row.service_type))
-  const present = new Set(existing.map((row) => row.service_type))
+  const toRemove = existing.filter((row) => !wanted.has(row.service_type_id))
+  const present = new Set(existing.map((row) => row.service_type_id))
   const toAdd = desired.filter((service) => !present.has(service))
 
   if (toRemove.length > 0) {
@@ -227,7 +237,7 @@ async function syncServices(
       toAdd.map((service) => ({
         tenant_id: tenantId,
         negotiation_id: negotiationId,
-        service_type: service,
+        service_type_id: service,
       })),
     )
     if (error) throw error

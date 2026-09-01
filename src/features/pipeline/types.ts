@@ -5,7 +5,6 @@ import type {
   LeadOrigin,
   LossReason,
   NegotiationStatus,
-  ServiceType,
 } from '@/lib/enums'
 
 export type Negotiation = Tables<'negotiations'>
@@ -41,7 +40,16 @@ export type NegotiationRow = Negotiation & {
     address_state: string | null
   } | null
   owner: { id: string; name: string } | null
-  services: { service_type: ServiceType }[]
+  /*
+    O tipo de serviço virou uma LINHA (migration 0084), e o embed traz o rótulo
+    junto do id — a tela mostra `type.label`, os filtros comparam `type.key`.
+    `type` é anulável no tipo porque o PostgREST assim o declara num embed; na
+    prática a FK é not null e ele sempre vem.
+  */
+  services: {
+    service_type_id: string
+    type: { id: string; key: string; label: string } | null
+  }[]
 }
 
 /*
@@ -60,7 +68,9 @@ export type NegotiationInput = {
   name: string
   client_id: string | null
   commercial_owner_id: string
-  services: ServiceType[]
+  /* Os IDs dos tipos marcados no formulário. Era uma lista de valores de enum
+     até a 0084. */
+  services: string[]
   estimated_value: number | null
   close_probability: number | null
   status: NegotiationStatus

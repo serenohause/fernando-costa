@@ -91,17 +91,12 @@ export type LeadSource = keyof typeof LEAD_SOURCE
 
 // ── Pipeline ────────────────────────────────────────────────────────────
 
-/* Ordem dos checkboxes de NegociacaoForm.jsx do original, não alfabética. */
-export const SERVICE_TYPE = {
-  architecture: 'Arquitetura',
-  interiors: 'Interiores',
-  structural: 'Estrutura',
-  plumbing: 'Hidrosanitário',
-  electrical: 'Elétrico',
-  consulting: 'Consultoria',
-} as const satisfies LabelMap<string>
-
-export type ServiceType = keyof typeof SERVICE_TYPE
+/*
+  SERVICE_TYPE saiu daqui na 0084: os tipos de serviço viraram a tabela
+  `service_types`, porque o escritório precisa acrescentar tipo sem migration.
+  A lista vem de `useServiceTypes()` (src/features/settings/hooks.ts). O enum
+  do Postgres continua existindo sem uso — vide o cabeçalho da migration.
+*/
 
 export const NEGOTIATION_STATUS = {
   active: 'Ativa',

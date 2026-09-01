@@ -1027,6 +1027,18 @@ async function main() {
   // 8. Negociações e serviços --------------------------------------------------
   const negotiation = {}
   let serviceCount = 0
+
+  /*
+    Tipos de serviço são linhas desde a 0084, e a própria migration semeia os
+    seis padrão para TODO tenant — inclusive este, criado depois. O seed só
+    traduz chave para id; se faltar, a migration não rodou neste banco.
+  */
+  const { data: serviceTypeRows, error: serviceTypeError } = await db
+    .from('service_types')
+    .select('id, key')
+    .eq('tenant_id', tenant.id)
+  if (serviceTypeError) fail(`ler service_types: ${serviceTypeError.message}`)
+  const serviceTypeIdByKey = new Map((serviceTypeRows ?? []).map((r) => [r.key, r.id]))
   for (const n of NEGOTIATIONS) {
     negotiation[n.key] = await insertOne(
       'negotiations',
@@ -1046,10 +1058,16 @@ async function main() {
       },
       'id, name',
     )
-    for (const service_type of n.services) {
+    for (const serviceKey of n.services) {
+      const serviceTypeId = serviceTypeIdByKey.get(serviceKey)
+      if (!serviceTypeId) fail(`serviço "${serviceKey}" não existe em service_types`)
       await insertOne(
         'negotiation_services',
-        { tenant_id: tenant.id, negotiation_id: negotiation[n.key].id, service_type },
+        {
+          tenant_id: tenant.id,
+          negotiation_id: negotiation[n.key].id,
+          service_type_id: serviceTypeId,
+        },
         'id',
       )
       serviceCount++

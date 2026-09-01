@@ -84,7 +84,10 @@ export function applyFilters(
     if (filters.city !== 'todos' && row.client?.address_city !== filters.city) return false
     if (
       filters.service !== 'todos' &&
-      !row.services.some((service) => service.service_type === filters.service)
+      /* Compara a CHAVE, e não o rótulo: rótulo é editável em Configurações
+         (0084), e um filtro guardado por rótulo pararia de casar no dia em que
+         alguém corrigisse um acento. */
+      !row.services.some((service) => service.type?.key === filters.service)
     ) {
       return false
     }

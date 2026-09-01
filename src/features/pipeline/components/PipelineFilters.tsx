@@ -8,7 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { LEAD_ORIGIN, SERVICE_TYPE, labelOf } from '@/lib/enums'
+import { LEAD_ORIGIN, labelOf } from '@/lib/enums'
+import { useServiceTypes } from '@/features/settings/hooks'
 import type { Collaborator } from '@/features/team/types'
 import type { NegotiationRow } from '../types'
 import type { PipelineFilterState } from '../filters'
@@ -51,6 +52,8 @@ export default function PipelineFilters({
   collaborators: Collaborator[]
   negotiations: NegotiationRow[]
 }) {
+  const serviceTypes = useServiceTypes().data ?? []
+
   const cities = [
     ...new Set(negotiations.map((n) => n.client?.address_city).filter(Boolean)),
   ].sort() as string[]
@@ -117,9 +120,9 @@ export default function PipelineFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos os tipos</SelectItem>
-            {Object.entries(SERVICE_TYPE).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
+            {serviceTypes.map((type) => (
+              <SelectItem key={type.id} value={type.key}>
+                {type.label}
               </SelectItem>
             ))}
           </SelectContent>
