@@ -169,16 +169,20 @@ $q$, (select tenant_a from ids)));
 select pg_temp.val('3.2', 'client_key cai no e-mail quando nao ha documento', 'email:paulo.andrade@outlook.com',
   $q$select client_key::text from public.clients where name = 'Paulo Andrade'$q$);
 
+-- TELEFONE PROPRIO em cada uma das tres linhas abaixo, e nao o do Paulo. Desde
+-- a 0076 o telefone tambem deduplica cliente, e repeti-lo faria estes casos
+-- receberem 23505 do INDICE DE TELEFONE — o caso continuaria verde afirmando
+-- uma colisao de e-mail que nao foi testada.
 select pg_temp.chk('3.3', 'mesmo e-mail em CAIXA DIFERENTE colide', 'ERR:23505', format($q$
   insert into public.clients (tenant_id, name, phone, email, address_city, address_state)
-  values (%L, 'Paulo A. (duplicata)', '62984112030', 'PAULO.ANDRADE@OUTLOOK.COM', 'Goiania', 'GO')
+  values (%L, 'Paulo A. (duplicata)', '62984112031', 'PAULO.ANDRADE@OUTLOOK.COM', 'Goiania', 'GO')
 $q$, (select tenant_a from ids)));
 
 -- Espaco nas pontas nao chega a virar duplicata porque o check de formato recusa
 -- antes: o e-mail cru e o que a tela exibe, entao " x@y.com " nao entra.
 select pg_temp.chk('3.4', 'e-mail com espaco nas pontas e RECUSADO pelo check de formato', 'ERR:23514', format($q$
   insert into public.clients (tenant_id, name, phone, email, address_city, address_state)
-  values (%L, 'Paulo A. (duplicata 2)', '62984112030', '  paulo.andrade@outlook.com  ', 'Goiania', 'GO')
+  values (%L, 'Paulo A. (duplicata 2)', '62984112032', '  paulo.andrade@outlook.com  ', 'Goiania', 'GO')
 $q$, (select tenant_a from ids)));
 
 -- Limite conhecido do modelo de chave, herdado do original: documento tem
@@ -186,7 +190,7 @@ $q$, (select tenant_a from ids)));
 -- documento. Esta afirmado aqui para nao ser descoberto como surpresa.
 select pg_temp.chk('3.5', 'LIMITE: e-mail repetido NAO colide quando a linha nova tem documento', 'OK:1', format($q$
   insert into public.clients (tenant_id, name, phone, email, tax_id, address_city, address_state)
-  values (%L, 'Paulo Andrade (empresa)', '62984112030', 'paulo.andrade@outlook.com', '11.222.333/0001-44', 'Goiania', 'GO')
+  values (%L, 'Paulo Andrade (empresa)', '62984112033', 'paulo.andrade@outlook.com', '11.222.333/0001-44', 'Goiania', 'GO')
 $q$, (select tenant_a from ids)));
 
 -- 4. Bordas ------------------------------------------------------------------
@@ -385,7 +389,7 @@ select pg_temp.val('6.1c', 'extensoes que a busca por pedaco exige estao ativas'
 -- trigger de colisao precisam enxergar tambem o cliente IMPORTADO, que saiu do
 -- indice unico. Ver a secao 7 e o cabecalho da 0065.
 select pg_temp.val('6.3', 'indices da tabela',
-  'clients_id_tenant_id_key,clients_pkey,clients_tenant_id_client_key_idx,clients_tenant_id_client_key_key,clients_tenant_id_created_at_idx,clients_tenant_id_legacy_id_key,clients_tenant_id_name_idx,clients_tenant_id_search_text_idx,clients_tenant_id_tax_id_digits_idx,clients_tenant_id_tax_id_digits_key',
+  'clients_id_tenant_id_key,clients_pkey,clients_tenant_id_client_key_idx,clients_tenant_id_client_key_key,clients_tenant_id_created_at_idx,clients_tenant_id_legacy_id_key,clients_tenant_id_name_idx,clients_tenant_id_phone_digits_idx,clients_tenant_id_phone_digits_key,clients_tenant_id_search_text_idx,clients_tenant_id_tax_id_digits_idx,clients_tenant_id_tax_id_digits_key',
   $q$select string_agg(indexname, ',' order by indexname) from pg_indexes
      where schemaname = 'public' and tablename = 'clients'$q$);
 
@@ -403,7 +407,7 @@ select pg_temp.val('6.7', 'o unico de chave de cliente tem a mesma condicao',
   $q$select indexdef from pg_indexes
      where schemaname = 'public' and indexname = 'clients_tenant_id_client_key_key'$q$);
 
-select pg_temp.val('6.4', 'colunas geradas declaradas', 'client_key,email_normalized,search_text,tax_id_digits',
+select pg_temp.val('6.4', 'colunas geradas declaradas', 'client_key,email_normalized,phone_digits,search_text,tax_id_digits',
   $q$select string_agg(column_name, ',' order by column_name) from information_schema.columns
      where table_schema = 'public' and table_name = 'clients' and is_generated = 'ALWAYS'$q$);
 
