@@ -1403,6 +1403,181 @@ export type Database = {
           },
         ]
       }
+      google_calendar_connections: {
+        Row: {
+          calendar_id: string
+          calendar_label: string | null
+          connected_at: string
+          connected_by_id: string | null
+          created_at: string
+          google_account_email: string
+          granted_scopes: string
+          id: string
+          last_error: string | null
+          last_error_at: string | null
+          last_success_at: string | null
+          refresh_token_secret_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          calendar_id?: string
+          calendar_label?: string | null
+          connected_at?: string
+          connected_by_id?: string | null
+          created_at?: string
+          google_account_email: string
+          granted_scopes: string
+          id?: string
+          last_error?: string | null
+          last_error_at?: string | null
+          last_success_at?: string | null
+          refresh_token_secret_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          calendar_id?: string
+          calendar_label?: string | null
+          connected_at?: string
+          connected_by_id?: string | null
+          created_at?: string
+          google_account_email?: string
+          granted_scopes?: string
+          id?: string
+          last_error?: string | null
+          last_error_at?: string | null
+          last_success_at?: string | null
+          refresh_token_secret_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_connections_connected_by_fkey"
+            columns: ["connected_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "google_calendar_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_oauth_states: {
+        Row: {
+          collaborator_id: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          state_hash: string
+          tenant_id: string
+        }
+        Insert: {
+          collaborator_id: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          state_hash: string
+          tenant_id: string
+        }
+        Update: {
+          collaborator_id?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          state_hash?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_oauth_states_collaborator_fkey"
+            columns: ["collaborator_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "google_oauth_states_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_api_keys: {
+        Row: {
+          created_at: string
+          created_by_id: string | null
+          id: string
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          revoked_at: string | null
+          revoked_by_id: string | null
+          scope: Database["public"]["Enums"]["integration_scope"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_id?: string | null
+          id?: string
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          revoked_at?: string | null
+          revoked_by_id?: string | null
+          scope?: Database["public"]["Enums"]["integration_scope"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_id?: string | null
+          id?: string
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          revoked_at?: string | null
+          revoked_by_id?: string | null
+          scope?: Database["public"]["Enums"]["integration_scope"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_api_keys_created_by_fkey"
+            columns: ["created_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "integration_api_keys_revoked_by_fkey"
+            columns: ["revoked_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "integration_api_keys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       map_properties: {
         Row: {
           address: string | null
@@ -3444,6 +3619,23 @@ export type Database = {
       auth_tenant_id: { Args: never; Returns: string }
       can_edit_menu: { Args: { p_menu_key: string }; Returns: boolean }
       can_view_menu: { Args: { p_menu_key: string }; Returns: boolean }
+      collaborator_can_edit_menu: {
+        Args: { p_menu_key: string; p_user_id: string }
+        Returns: {
+          collaborator_id: string
+          tenant_id: string
+        }[]
+      }
+      create_integration_api_key: {
+        Args: {
+          p_name: string
+          p_scope?: Database["public"]["Enums"]["integration_scope"]
+        }
+        Returns: {
+          api_key: string
+          id: string
+        }[]
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       delete_contract_cascade: {
         Args: { p_confirm?: boolean; p_contract_id: string }
@@ -3452,6 +3644,39 @@ export type Database = {
       generate_contract_installments: {
         Args: { p_contract_id: string }
         Returns: Json
+      }
+      google_calendar_connect: {
+        Args: {
+          p_collaborator_id: string
+          p_email: string
+          p_refresh_token: string
+          p_scopes: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
+      google_calendar_disconnect: {
+        Args: { p_tenant_id: string }
+        Returns: boolean
+      }
+      google_calendar_record_result: {
+        Args: { p_error?: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      google_calendar_refresh_token: {
+        Args: { p_tenant_id: string }
+        Returns: string
+      }
+      google_oauth_state_consume: {
+        Args: { p_state_hash: string }
+        Returns: {
+          collaborator_id: string
+          tenant_id: string
+        }[]
+      }
+      google_oauth_state_issue: {
+        Args: { p_state_hash: string; p_user_id: string }
+        Returns: string
       }
       hit_public_endpoint: {
         Args: {
@@ -3504,6 +3729,14 @@ export type Database = {
         }
         Returns: Json
       }
+      resolve_integration_api_key: {
+        Args: {
+          p_key: string
+          p_scope: Database["public"]["Enums"]["integration_scope"]
+        }
+        Returns: string
+      }
+      revoke_integration_api_key: { Args: { p_id: string }; Returns: boolean }
       submit_client_intake: {
         Args: { p_payload: Json; p_token: string }
         Returns: boolean
@@ -3625,6 +3858,7 @@ export type Database = {
         | "closing"
       geocode_status: "pending" | "ok" | "failed"
       installment_frequency: "monthly" | "biweekly" | "weekly" | "single"
+      integration_scope: "calendar_agenda"
       lead_origin: "instagram" | "referral" | "website" | "event" | "other"
       lead_source: "instagram" | "referral" | "website" | "other"
       loss_reason:
@@ -4022,6 +4256,7 @@ export const Constants = {
       ],
       geocode_status: ["pending", "ok", "failed"],
       installment_frequency: ["monthly", "biweekly", "weekly", "single"],
+      integration_scope: ["calendar_agenda"],
       lead_origin: ["instagram", "referral", "website", "event", "other"],
       lead_source: ["instagram", "referral", "website", "other"],
       loss_reason: [

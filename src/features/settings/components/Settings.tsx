@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Wrench } from 'lucide-react'
+import { Plug, Wrench } from 'lucide-react'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import ServiceTypesSection from './ServiceTypesSection'
+import IntegrationsSection from './IntegrationsSection'
 
 /*
   MÓDULO NOVO, SEM ORIGINAL DE REFERÊNCIA.
@@ -20,6 +21,12 @@ const SECTIONS = [
     label: 'Tipos de Serviço',
     description: 'Opções de serviço do Pipeline',
     icon: Wrench,
+  },
+  {
+    key: 'integrations',
+    label: 'Integrações',
+    description: 'Google Agenda e chaves de automação',
+    icon: Plug,
   },
 ] as const
 
@@ -69,6 +76,7 @@ export default function Settings() {
 
         <div className="flex-1 min-w-0">
           {section === 'service_types' && <ServiceTypesSection canEdit={canEdit} />}
+          {section === 'integrations' && <IntegrationsSection canEdit={canEdit} />}
         </div>
       </div>
     </div>

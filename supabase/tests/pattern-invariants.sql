@@ -69,6 +69,17 @@ begin;
 --                                de Diretor), entao ele continua provando
 --                                policy, e nao privilegio de papel.
 
+/*
+  O QUE FICA DE FORA DESTA SUITE, E POR QUE
+    As tres tabelas da integracao com o Google (0085) — google_calendar_connections,
+    integration_api_keys e google_oauth_states — nao entram aqui, e a ausencia e
+    deliberada: elas nao seguem o padrao que esta suite mede. O padrao e "escrita
+    por can_edit_menu, via policy"; nelas a escrita nao tem policy nenhuma e
+    acontece por funcao security definer chamada como service_role, porque toda
+    escrita envolve o Vault ou o Google. Os casos C1-C5 daqui afirmariam o
+    contrario do desenho.
+    Elas tem suite propria: supabase/tests/integrations-schema.sql.
+*/
 create temp table pattern_tables (
   modulo int,
   tabela text,

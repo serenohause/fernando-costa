@@ -27,6 +27,9 @@ const SETTINGS_ERROR_MESSAGES: DatabaseErrorMessages = {
     caminho (a API, um script): 42501 é falta de permissão no menu `settings`,
     e 23503 é a FK de `negotiation_services` protegendo o histórico.
   */
+  integration_api_keys_name_not_blank_check: 'Dê um nome à chave de automação.',
+  integration_api_keys_name_length_check:
+    'O nome da chave é longo demais (máximo de 80 caracteres).',
   '42501': 'Sem permissão de edição em Configurações.',
   '23503': 'Este tipo de serviço está em uso por alguma negociação. Desative em vez de excluir.',
 }

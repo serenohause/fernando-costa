@@ -444,6 +444,48 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# Edge Functions do modulo 12 (Configuracoes) - integracao com o Google Agenda.
+#
+# TRES COM SESSAO E DUAS SEM, e as duas de fora sao de fora por motivos
+# diferentes:
+#
+#   google-calendar-callback  o Google redireciona o NAVEGADOR para ca. Redirect
+#                             nao carrega JWT. Quem faz o papel da sessao e o
+#                             `state`, emitido por google-calendar-start e
+#                             consumido uma unica vez no banco
+#                             (public.google_oauth_state_consume, migration
+#                             0085). Sem ele, um terceiro ligaria a conta Google
+#                             dele ao escritorio.
+#
+#   google-calendar-agenda    quem chama e a automacao em n8n, que nao tem
+#                             usuario. A credencial dela e uma chave DESTE
+#                             sistema, comparada por SHA-256 no banco
+#                             (public.resolve_integration_api_key) e e ela que
+#                             diz de qual escritorio e a agenda - nenhum
+#                             parametro da requisicao escolhe tenant. Tem limite
+#                             de requisicoes pelo mesmo contador das funcoes
+#                             publicas do modulo 3.
+
+[functions.google-calendar-start]
+enabled = true
+verify_jwt = true
+
+[functions.google-calendar-disconnect]
+enabled = true
+verify_jwt = true
+
+[functions.google-calendar-list]
+enabled = true
+verify_jwt = true
+
+[functions.google-calendar-callback]
+enabled = true
+verify_jwt = false
+
+[functions.google-calendar-agenda]
+enabled = true
+verify_jwt = false
+
 
 # Experimental features may be deprecated any time
 [experimental]

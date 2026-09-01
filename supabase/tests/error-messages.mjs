@@ -83,14 +83,26 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
   `project_issue_events`. Estão em `src/features/diary/hooks.ts`, e a maioria
   delas o schema Zod barra antes — a frase existe para o que não passa pelo
   formulário.
+  2026-09-01 — SOBE PARA 131. A integração com o Google Agenda (0085) trouxe
+  oito checks, e seis deles não têm com quem falar: e-mail da conta e id da
+  agenda em branco, formato do hash da chave, coerência de `revoked_at` ×
+  `revoked_by_id`, formato do hash do `state` e a validade dele. Todos os seis
+  são escritos por Edge Function a partir da resposta do Google ou de
+  `gen_random_bytes` — nenhum campo de formulário chega neles, e violar um seria
+  bug nosso. Os outros dois, que o usuário digita (o nome da chave de
+  automação), ganharam frase em `src/features/settings/hooks.ts`.
 */
-const TETO_CHECKS_SEM_FRASE = 125
+const TETO_CHECKS_SEM_FRASE = 131
 
 /*
   Restrições que o usuário não alcança, uma a uma e com o motivo. Padrão que
   engole tudo não vale: a graça do teste é justamente o que sobra.
 */
 const NAO_ALCANCAVEL = {
+  google_calendar_connections_tenant_id_key:
+    'uma conexão por escritório, e o caminho de escrita é google_calendar_connect(), que ATUALIZA a linha existente em vez de inserir outra — reconectar nunca chega a colidir',
+  integration_api_keys_key_hash_key:
+    'o hash é SHA-256 de 32 bytes de gen_random_bytes; colidir aqui não é gesto de usuário, é o fim da criptografia',
   client_intakes_token_key:
     'o token tem gen_random_uuid() no default e o INSERT nem menciona a coluna — não há caminho de escrita que escolha o valor',
   budget_item_approval_files_tenant_id_file_path_key:
