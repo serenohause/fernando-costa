@@ -73,6 +73,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { assertOnlyTestTenants } from './tenants.mjs'
+import { caminhoCredenciaisExistente } from './credenciais-path.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TEST_TENANT_SLUG = 'fernando-costa-teste'
@@ -100,7 +101,7 @@ const db = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
 })
 
 async function signedInAsDirector() {
-  const creds = readFileSync(resolve(ROOT, 'supabase/seed/credenciais.local'), 'utf8')
+  const creds = readFileSync(caminhoCredenciaisExistente(), 'utf8')
   const m = creds.match(/email:\s+(diretora\S+)\n\s+senha:\s+(\S+)/)
   if (!m) fail('não achei as credenciais da Diretora. Rode: npm run seed')
 

@@ -32,6 +32,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHmac } from 'node:crypto'
+import { caminhoCredenciaisExistente } from '../seed/credenciais-path.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -206,7 +207,7 @@ async function main() {
     provar nada, calados), mas a causa era esta linha: segredo copiado para um
     segundo lugar envelhece no primeiro dia em que o primeiro muda.
   */
-  const creds = readFileSync(resolve(ROOT, 'supabase/seed/credenciais.local'), 'utf8')
+  const creds = readFileSync(caminhoCredenciaisExistente(), 'utf8')
   const match = creds.match(/email:\s+(diretora\S+)\n\s+senha:\s+(\S+)/)
   if (!match) {
     fail(

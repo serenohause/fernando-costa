@@ -3938,6 +3938,60 @@ async function verify(tenantId, credentials) {
     map_property_purposes: 'map_properties',
   }
 
+  /* Tabelas que vem DIRETO de um CSV, e de qual. Só estas conseguem dizer o que
+     o export deixou de declarar; as filhas herdam o destino da mae. */
+  const TABELA_ENTIDADE = {
+    collaborators: 'Collaborator',
+    access_requests: 'SolicitacaoAcesso',
+    clients: 'Client',
+    negotiations: 'Negociacao',
+    client_intakes: 'ClientIntake',
+    contracts: 'Contract',
+    projects: 'Project',
+    tasks: 'Task',
+    activities: 'Atividade',
+    financial_categories: 'FinancialCategory',
+    accounts_receivable: 'AccountReceivable',
+    accounts_payable: 'AccountPayable',
+    suppliers: 'Fornecedor',
+    budget_checklists: 'ChecklistOrcamento',
+    map_properties: 'PropriedadeMapa',
+    project_diary_entries: 'ProjectTimelineEntry',
+  }
+
+  /*
+    Quantas linhas de cada tabela tem legacy_id que o CSV NAO declara mais.
+    Calculado uma vez e usado pelas duas conferencias, para as duas contarem a
+    mesma coisa — se cada uma fizesse a sua conta, elas divergiriam no dia em que
+    alguem mudasse uma delas.
+  */
+  const sobrasPorTabela = new Map()
+  for (const [table, entity] of Object.entries(TABELA_ENTIDADE)) {
+    const { rows, error } = await selectAll(table, 'legacy_id', (q) =>
+      q.eq('tenant_id', tenantId).not('legacy_id', 'is', null),
+    )
+    if (error) continue
+    const noCsv = new Set((csv[entity] ?? []).map((r) => r.id))
+    sobrasPorTabela.set(table, rows.filter((r) => !noCsv.has(r.legacy_id)).length)
+  }
+
+  /*
+    A FILHA HERDA A SOBRA DA MAE, e esquecer disso deixou a conferencia falhando
+    por 14 linhas que ja tinham explicacao: as permissoes de um colaborador que
+    saiu do escritorio. A linha filha nao tem legacy_id proprio para comparar com
+    o CSV — quem decide se ela ainda deveria existir e a mae.
+  */
+  for (const [table, parent] of Object.entries(MAE)) {
+    const entity = TABELA_ENTIDADE[parent]
+    if (!entity) continue
+    const { rows, error } = await selectAll(table, `mae:${parent}!inner(legacy_id)`, (q) =>
+      q.eq('tenant_id', tenantId).not('mae.legacy_id', 'is', null),
+    )
+    if (error) continue
+    const noCsv = new Set((csv[entity] ?? []).map((r) => r.id))
+    sobrasPorTabela.set(table, rows.filter((r) => !noCsv.has(r.mae?.legacy_id)).length)
+  }
+
   for (const table of TABLES) {
     /*
       `task_checklist_items` NAO E CONFERIVEL POR CONTAGEM, e o motivo e do
@@ -3975,9 +4029,34 @@ async function verify(tenantId, credentials) {
     const { count, error } = await query
     if (error) { problems.push(`${table}: nao consegui contar (${error.message})`); continue }
     const expected = stat(table).written
-    const ok = count === expected
-    log(`   ${ok ? 'ok  ' : 'FALHA'} ${table.padEnd(28)} importadas=${String(count).padStart(5)} esperado=${String(expected).padStart(5)}`)
-    if (!ok) problems.push(`${table}: banco tem ${count} importadas, esperado ${expected}`)
+
+    /*
+      O QUE O CSV NAO DECLARA MAIS NAO CONTA COMO ERRO AQUI.
+
+      `expected` e o que ESTA execucao gravou; `count` e tudo que tem legacy_id
+      no banco. A diferenca inclui linha gravada por uma importacao ANTERIOR e
+      que o export de hoje nao traz mais — alguem removida na origem, mantida
+      aqui de proposito (o caso concreto: um colaborador que saiu do escritorio
+      e foi desativado em vez de apagado, para nao perder o rastro do trabalho
+      dele).
+
+      Sem este desconto, a conferencia passaria a abortar para sempre depois da
+      primeira remocao na origem — e uma conferencia que sempre falha e uma
+      conferencia que ninguem le. A pergunta que ela precisa responder continua
+      inteira: "tudo que eu gravei esta la?".
+    */
+    const foraDoCsv = (sobrasPorTabela.get(table) ?? 0)
+    const ok = count - foraDoCsv === expected
+    log(
+      `   ${ok ? 'ok  ' : 'FALHA'} ${table.padEnd(28)} importadas=${String(count).padStart(5)}` +
+        ` esperado=${String(expected).padStart(5)}` +
+        (foraDoCsv > 0 ? `  (+${foraDoCsv} fora do CSV, removida na origem)` : ''),
+    )
+    if (!ok) {
+      problems.push(
+        `${table}: banco tem ${count} importadas (${foraDoCsv} fora do CSV), esperado ${expected}`,
+      )
+    }
   }
 
   // 3. nenhuma linha do escritorio real caiu em outro tenant ------------------
@@ -4108,23 +4187,48 @@ async function verify(tenantId, credentials) {
         acusar diferenca NEGATIVA a cada cadastro novo — e foi o que aconteceu
         assim que o escritorio comecou a usar o sistema.
       */
-      const { count, error } = await db
-        .from(table)
-        .select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId)
-        .not('legacy_id', 'is', null)
+      const { rows: importadas, error } = await selectAll(table, 'legacy_id', (q) =>
+        q.eq('tenant_id', tenantId).not('legacy_id', 'is', null),
+      )
       if (error) { problems.push(`${table}: nao consegui contar (${error.message})`); continue }
-      const gap = source - count
+
+      /*
+        DUAS PERGUNTAS DIFERENTES, e antes elas eram uma so.
+
+        A conferencia comparava `CSV - total importado` e exigia que a diferenca
+        fosse igual as pendencias. Isso confunde "linha do CSV que nao chegou"
+        com "linha que o CSV nao tem mais" — e as duas passaram a existir no dia
+        em que o escritorio removeu alguem do base44 e a decisao aqui foi manter
+        o registro, desativado, em vez de apagar (Luiz Antonio, 31/08/2026).
+
+        Somadas, elas se cancelam: uma linha faltando e uma sobrando davam
+        diferenca zero e a conferencia passava com um defeito dentro. Separadas,
+        cada uma diz o que e.
+
+          FALTA   linha do CSV que nao esta no banco. Tem que ser exatamente o
+                  que o relatorio de pendencias explica. Isto continua sendo
+                  FALHA.
+          SOBRA   linha no banco com legacy_id que o CSV nao declara mais.
+                  Removida na origem. E INFORMACAO, e vai listada — decisao de
+                  apagar ou nao e do escritorio, nao deste script.
+      */
+      const noCsv = new Set(csv[entity].map((r) => r.id))
+      const presentes = new Set(importadas.map((r) => r.legacy_id))
+      const gap = source - [...noCsv].filter((id) => presentes.has(id)).length
+      const sobra = [...presentes].filter((id) => !noCsv.has(id))
       missing += gap
       log(
-        `   ${label.padEnd(16)}${String(source).padStart(6)}${String(count).padStart(7)}` +
-          `${(gap === 0 ? '-' : String(gap)).padStart(7)}`,
+        `   ${label.padEnd(16)}${String(source).padStart(6)}${String(importadas.length).padStart(7)}` +
+          `${(gap === 0 ? '-' : String(gap)).padStart(7)}` +
+          (sobra.length > 0 ? `   (+${sobra.length} fora do CSV)` : ''),
       )
-      // A diferenca precisa ser exatamente o que o relatorio de pendencias
-      // explica. Sobra sem motivo escrito e defeito, nao decisao.
+
       const pended = (pendByEntity.get(table) ?? []).length
       if (gap !== pended) {
         problems.push(`${table}: faltam ${gap} linhas e o relatorio explica ${pended}`)
+      }
+      for (const id of sobra) {
+        adjust(table, id, 'linha existe no banco e o CSV nao a declara mais: removida na origem')
       }
     }
     log(`   ${'TOTAL'.padEnd(16)}${''.padStart(6)}${''.padStart(7)}${String(missing).padStart(7)}`)
@@ -4234,7 +4338,25 @@ async function verify(tenantId, credentials) {
         'project_diary_files', 'legacy_id, file_path, mime_type, byte_size, entry_id', (q) => q.eq('tenant_id', tenantId))
       if (filesError) problems.push(`project_diary_files: nao consegui reler (${filesError.message})`)
       else {
-        const sourceFiles = csv.ProjectTimelineEntry.reduce((n, r) => n + jsonArray(r.anexos).length, 0)
+        /*
+          AS DUAS MAES, e nao so a entrada de diario.
+
+          Esta conta somava apenas `ProjectTimelineEntry.anexos` e ficou para
+          tras quando o passo 32 passou a coletar tambem `fotos` e `arquivos` da
+          visita de obra. O resultado foi uma FALHA que nao descrevia defeito
+          nenhum: "5 anexos = 4 no bucket + 2 pendencias" — 4+2=6, porque a sexta
+          linha existia e o total esperado e que estava velho.
+
+          Conferencia que conta menos do que o passo grava acusa erro onde nao ha,
+          e some com o erro que houver: o proximo anexo de verdade que faltasse
+          entraria nessa mesma diferenca sem ninguem distinguir.
+        */
+        const sourceFiles =
+          csv.ProjectTimelineEntry.reduce((n, r) => n + jsonArray(r.anexos).length, 0) +
+          (csv.ProjectSiteVisit ?? []).reduce(
+            (n, r) => n + jsonArray(r.fotos).length + jsonArray(r.arquivos).length,
+            0,
+          )
         const filesPended = (pendByEntity.get('project_diary_files') ?? []).length
         check(
           files.length + filesPended === sourceFiles,

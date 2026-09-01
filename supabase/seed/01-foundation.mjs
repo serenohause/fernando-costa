@@ -33,6 +33,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { assertOnlyTestTenants, TEST_TENANTS } from './tenants.mjs'
+import { caminhoCredenciais } from './credenciais-path.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '../..')
@@ -372,7 +373,7 @@ async function main() {
   console.log('  3 solicitacoes de acesso (1 pendente, 1 aprovada, 1 recusada)')
 
   // 7. Credenciais ------------------------------------------------------------
-  const file = resolve(HERE, 'credenciais.local')
+  const file = caminhoCredenciais()
   const content =
     `Contas de teste — escritorio "${TEST_TENANT_SLUG}"\n` +
     `Gerado em ${now.toISOString()}\n` +
@@ -387,7 +388,7 @@ async function main() {
       .join('\n')
   writeFileSync(file, content, { mode: 0o600 })
 
-  console.log(`\n  Credenciais em supabase/seed/credenciais.local\n`)
+  console.log(`\n  Credenciais em ${caminhoCredenciais().replace(ROOT + '/', '')}\n`)
   for (const c of credentials) {
     console.log(`    ${c.email.padEnd(34)} ${c.role.padEnd(12)} ${c.status}`)
   }
