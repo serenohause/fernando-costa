@@ -3380,6 +3380,7 @@ export type Database = {
           hit_count: number
         }[]
       }
+      increment_contract_number: { Args: { p_atual: string }; Returns: string }
       is_active_collaborator: { Args: never; Returns: boolean }
       is_financial_overdue: {
         Args: {
@@ -3422,6 +3423,7 @@ export type Database = {
         Args: { p_payload: Json; p_token: string }
         Returns: boolean
       }
+      suggest_contract_number: { Args: never; Returns: string }
     }
     Enums: {
       access_request_status: "pending" | "approved" | "rejected"

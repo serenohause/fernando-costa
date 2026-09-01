@@ -26,6 +26,7 @@ import {
   type InstallmentFrequency,
 } from '@/lib/enums'
 import { maskTaxId, maskZipcode } from '@/lib/masks'
+import { useNextContractNumber } from '../hooks'
 import { snapshotOfClient } from '../snapshot'
 import type { ContractInput, ContractRow } from '../types'
 
@@ -319,12 +320,35 @@ export default function ContractForm({
   clients: ClientListRow[]
 }) {
   const [formData, setFormData] = useState<ContractFormValues>(initialData ?? emptyValues())
+  /* A pessoa mexeu no número? A partir daí a sugestão não volta a escrever. */
+  const [numberTouched, setNumberTouched] = useState(false)
 
   useEffect(() => {
     setFormData(initialData ?? emptyValues())
+    setNumberTouched(false)
   }, [initialData, open])
 
   const isEditing = Boolean(initialData)
+  const nextNumber = useNextContractNumber(open && !isEditing)
+
+  /*
+    A SUGESTÃO ENTRA NO CAMPO, e as três condições existem cada uma por um caso
+    concreto:
+
+      !isEditing       renomear um contrato assinado seria o oposto do pedido;
+      !numberTouched   a resposta do banco pode chegar depois de a pessoa já ter
+                       digitado, e sobrescrever o que ela escreveu é pior que
+                       não sugerir nada;
+      campo vazio      idem para quando o formulário reabre com algo dentro.
+  */
+  useEffect(() => {
+    if (isEditing || numberTouched || !nextNumber.data) return
+    setFormData((previous) =>
+      previous.contract_number === ''
+        ? { ...previous, contract_number: nextNumber.data }
+        : previous,
+    )
+  }, [isEditing, numberTouched, nextNumber.data])
   const lookupZipcode = useLookupZipcode()
 
   /*
@@ -405,10 +429,29 @@ export default function ContractForm({
                 <Input
                   id="contract_number"
                   value={formData.contract_number}
-                  onChange={(e) => setFormData({ ...formData, contract_number: e.target.value })}
+                  onChange={(e) => {
+                    /* Digitou: a sugestão perde a vez. Sem isto, o efeito
+                       abaixo poderia sobrescrever o que a pessoa acabou de
+                       escrever quando a resposta do banco chegasse atrasada. */
+                    setNumberTouched(true)
+                    setFormData({ ...formData, contract_number: e.target.value })
+                  }}
                   placeholder="Ex: 2024-001"
                   required
                 />
+                {/*
+                  A SUGESTÃO SEGUE A SÉRIE DO ESCRITÓRIO, e o campo continua
+                  editável: a numeração é do escritório, não do sistema.
+
+                  Só em contrato NOVO. Em edição, o número já existe e
+                  sobrescrevê-lo com "o próximo" seria renomear um contrato
+                  assinado.
+                */}
+                {!isEditing && nextNumber.data && !numberTouched && (
+                  <p className="text-xs text-muted-foreground">
+                    Seguindo a numeração do escritório. Pode alterar.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

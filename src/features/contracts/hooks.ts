@@ -115,6 +115,37 @@ export function useContracts() {
 
 /* ── Escrita ───────────────────────────────────────────────────────────── */
 
+/*
+  O PRÓXIMO NÚMERO DA SÉRIE, para o formulário sugerir em vez de deixar o campo
+  vazio.
+
+  A conta vive no banco (`increment_contract_number`, migration 0083) e é a
+  MESMA que o contrato nascido do briefing usa. Refazê-la aqui em TypeScript
+  criaria duas definições de "o próximo número", e elas divergiriam no primeiro
+  dia em que uma fosse ajustada.
+
+  É SUGESTÃO, e não reserva: nada é gravado, dois formulários abertos ao mesmo
+  tempo recebem o mesmo número, e quem decide de verdade é o índice único na
+  hora de gravar. O campo continua editável — o escritório manda na numeração
+  dele.
+
+  `staleTime: 0` porque a resposta envelhece a cada contrato criado: cache aqui
+  faria o segundo formulário do dia sugerir um número já usado.
+*/
+export function useNextContractNumber(enabled: boolean) {
+  return useQuery({
+    queryKey: [...contractKeys.all, 'next-number'],
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: async (): Promise<string> => {
+      const { data, error } = await supabase.rpc('suggest_contract_number')
+      if (error) throw error
+      return (data as unknown as string) ?? ''
+    },
+  })
+}
+
 export function useCreateContract() {
   const queryClient = useQueryClient()
   const tenantId = useTenantId()
