@@ -89,6 +89,23 @@ begin
     `p_avatar_path` nulo LIMPA a foto, e e assim que o botao "Remover foto"
     funciona. Quem so quer trocar o nome manda o caminho atual de volta.
   */
+  /*
+    O CAMINHO DA FOTO TEM DE SER O DA PROPRIA PASTA.
+
+    O check da coluna confere o FORMATO; as policies do Storage impedem gravar
+    ou apagar objeto na pasta de outra pessoa. Nenhum dos dois impede o que
+    sobra: apontar o proprio cadastro para o objeto de um COLEGA do mesmo
+    escritorio e passar a exibir a foto dele. Nao e vazamento (a foto ja e
+    visivel para o escritorio), e sim identidade trocada na tela — que num
+    sistema com foto ao lado do nome e o suficiente para confundir quem le.
+  */
+  if p_avatar_path is not null and (
+       split_part(p_avatar_path, '/', 1) <> (select public.auth_tenant_id())::text
+       or split_part(p_avatar_path, '/', 2) <> v_collaborator_id::text
+     ) then
+    raise exception 'caminho de foto fora da propria pasta' using errcode = '42501';
+  end if;
+
   update public.collaborators c
   set name = btrim(p_name),
       phone = nullif(btrim(coalesce(p_phone, '')), ''),
@@ -101,7 +118,7 @@ end;
 $BODY$;
 
 comment on function public.update_own_profile(text, text, text) is
-  'Deixa o colaborador editar o PROPRIO nome, telefone e foto - e so isso. Existe porque RLS decide quais linhas e nunca quais colunas: uma policy de "editar a propria linha" em collaborators deixaria qualquer um reescrever `role` e virar Diretor. As colunas editaveis estao nomeadas no corpo, e a lista e auditavel lendo a funcao.';
+  'Deixa o colaborador editar o PROPRIO nome, telefone e foto - e so isso. O caminho da foto tem de estar dentro da propria pasta (<tenant>/<colaborador>/), senao daria para apontar o proprio cadastro para o objeto de um colega e exibir a foto dele. Existe porque RLS decide quais linhas e nunca quais colunas: uma policy de "editar a propria linha" em collaborators deixaria qualquer um reescrever `role` e virar Diretor. As colunas editaveis estao nomeadas no corpo, e a lista e auditavel lendo a funcao.';
 
 revoke all on function public.update_own_profile(text, text, text) from public, anon;
 grant execute on function public.update_own_profile(text, text, text) to authenticated;

@@ -234,7 +234,25 @@ select pg_temp.rec('4.1', 'CONTROLE: caminho no formato esperado entra', 'OK',
 
 /* URL no lugar do caminho e o erro que o check existe para pegar: bucket privado
    nao serve URL publica, e guardar uma seria guardar mentira. */
-select pg_temp.rec('4.2', 'URL no lugar do caminho e recusada', 'ERR:23514',
+/* A titularidade do caminho, e nao so o formato: sem esta checagem daria para
+   apontar o proprio cadastro para o objeto de um COLEGA e exibir a foto dele.
+   Nao e vazamento — a foto ja e visivel para o escritorio — e sim identidade
+   trocada na tela. */
+select pg_temp.rec('4.1b', 'caminho na pasta de um COLEGA e recusado', 'ERR:42501',
+  pg_temp.como((select user_arq from ids), (select tenant_a from ids), format($q$
+    select 'OK' from public.update_own_profile('Ana', null, %L)
+  $q$, (select tenant_a from ids)::text || '/' || (select col_colega from ids)::text || '/44444444-aaaa-4aaa-8aaa-000000000006.png')));
+
+select pg_temp.rec('4.1c', 'caminho de OUTRO escritorio e recusado', 'ERR:42501',
+  pg_temp.como((select user_arq from ids), (select tenant_a from ids), format($q$
+    select 'OK' from public.update_own_profile('Ana', null, %L)
+  $q$, (select tenant_b from ids)::text || '/' || (select col_arq from ids)::text || '/44444444-aaaa-4aaa-8aaa-000000000007.png')));
+
+/* URL no lugar do caminho: bucket privado nao serve URL publica, e guardar uma
+   seria guardar mentira. Quem recusa e a checagem de PASTA (42501), que vem
+   antes — uma URL nao comeca pelo tenant. O check da coluna continua sendo a
+   ultima barreira, e quem o exercita e o 4.3: pasta certa, extensao errada. */
+select pg_temp.rec('4.2', 'URL no lugar do caminho e recusada', 'ERR:42501',
   pg_temp.como((select user_arq from ids), (select tenant_a from ids),
     $q$select 'OK' from public.update_own_profile('Ana', null, 'https://exemplo.test/foto.png')$q$));
 
