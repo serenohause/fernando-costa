@@ -1518,6 +1518,7 @@ export type Database = {
           id: string
           key_hash: string
           key_prefix: string
+          key_secret_id: string | null
           last_used_at: string | null
           name: string
           revoked_at: string | null
@@ -1532,6 +1533,7 @@ export type Database = {
           id?: string
           key_hash: string
           key_prefix: string
+          key_secret_id?: string | null
           last_used_at?: string | null
           name: string
           revoked_at?: string | null
@@ -1546,6 +1548,7 @@ export type Database = {
           id?: string
           key_hash?: string
           key_prefix?: string
+          key_secret_id?: string | null
           last_used_at?: string | null
           name?: string
           revoked_at?: string | null
@@ -3701,6 +3704,18 @@ export type Database = {
       }
       is_project_diary_writer: { Args: never; Returns: boolean }
       is_tenant_director: { Args: never; Returns: boolean }
+      issue_integration_api_key: {
+        Args: {
+          p_collaborator_id: string
+          p_name: string
+          p_scope?: Database["public"]["Enums"]["integration_scope"]
+          p_tenant_id: string
+        }
+        Returns: {
+          api_key: string
+          id: string
+        }[]
+      }
       mark_negotiation_won: {
         Args: { p_negotiation_id: string }
         Returns: Json
@@ -3736,6 +3751,7 @@ export type Database = {
         }
         Returns: string
       }
+      reveal_integration_api_key: { Args: { p_id: string }; Returns: string }
       revoke_integration_api_key: { Args: { p_id: string }; Returns: boolean }
       submit_client_intake: {
         Args: { p_payload: Json; p_token: string }

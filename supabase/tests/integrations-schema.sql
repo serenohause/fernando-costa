@@ -347,6 +347,82 @@ select pg_temp.rec('4.7', 'a tabela de states nao e alcancavel pela tela', 'ERR:
   pg_temp.como((select user_dir_a from ids), (select tenant_a from ids),
     'select count(*)::text from public.google_oauth_states'));
 
+-- 5. A chave nasce com a conexao, e pode ser revelada (0086) --------------------
+
+/* O escritorio B ainda nao conectou nada: e a base limpa para provar que a
+   chave aparece POR CAUSA da conexao, e nao por acaso. */
+select pg_temp.rec('5.1', 'CONTROLE: escritorio B nao tem chave antes de conectar', '0',
+  (select count(*)::text from public.integration_api_keys
+    where tenant_id = (select tenant_b from ids)));
+
+select public.google_calendar_connect(
+  (select tenant_b from ids), (select col_dir_b from ids),
+  'diretor-b@integ.test', 'refresh-token-secreto-B', 'openid email calendar.readonly');
+
+select pg_temp.rec('5.2', 'conectar o Google ja emite a chave da automacao', '1',
+  (select count(*)::text from public.integration_api_keys
+    where tenant_id = (select tenant_b from ids) and revoked_at is null));
+
+/* Reconectar NAO emite outra: cada reconexao deixaria uma chave viva a mais. */
+select public.google_calendar_connect(
+  (select tenant_b from ids), (select col_dir_b from ids),
+  'diretor-b@integ.test', 'refresh-token-secreto-B2', 'openid email calendar.readonly');
+
+select pg_temp.rec('5.3', 'reconectar NAO emite uma segunda chave', '1',
+  (select count(*)::text from public.integration_api_keys
+    where tenant_id = (select tenant_b from ids) and revoked_at is null));
+
+/* A chave emitida pela conexao funciona de verdade — nao basta a linha existir. */
+select pg_temp.rec('5.4', 'CONTROLE: a chave emitida resolve o escritorio B', 'true',
+  (select (public.resolve_integration_api_key(
+     (select s.decrypted_secret
+        from vault.decrypted_secrets s
+       where s.id = (select k.key_secret_id from public.integration_api_keys k
+                      where k.tenant_id = (select tenant_b from ids)
+                        and k.revoked_at is null limit 1)),
+     'calendar_agenda') = (select tenant_b from ids))::text));
+
+select pg_temp.rec('5.5', 'Diretor de B revela a propria chave', 'true',
+  (select (pg_temp.como((select user_dir_b from ids), (select tenant_b from ids),
+     format('select public.reveal_integration_api_key(%L)',
+       (select id from public.integration_api_keys
+         where tenant_id = (select tenant_b from ids) and revoked_at is null limit 1)))
+     like 'fc\_int\_%')::text));
+
+/* O recorte por escritorio esta no WHERE da funcao: pedir a chave do vizinho
+   devolve nada, e nao o valor dela. */
+select pg_temp.rec('5.6', 'Diretora de A NAO revela a chave de B', '<null>',
+  pg_temp.como((select user_dir_a from ids), (select tenant_a from ids),
+    format('select public.reveal_integration_api_key(%L)',
+      (select id from public.integration_api_keys
+        where tenant_id = (select tenant_b from ids) and revoked_at is null limit 1))));
+
+select pg_temp.rec('5.7', 'Arquiteto sem settings NAO revela chave nenhuma', 'ERR:42501',
+  pg_temp.como((select user_arq_a from ids), (select tenant_a from ids),
+    format('select public.reveal_integration_api_key(%L)',
+      (select id from public.integration_api_keys
+        where tenant_id = (select tenant_a from ids) limit 1))));
+
+-- Revogar apaga o valor guardado: chave revogada nao precisa mais ser lida.
+create temp table chave_b on commit drop as
+select id, key_secret_id from public.integration_api_keys
+where tenant_id = (select tenant_b from ids) and revoked_at is null limit 1;
+
+select pg_temp.rec('5.8', 'CONTROLE: o valor da chave esta no Vault antes de revogar', '1',
+  (select count(*)::text from vault.secrets s where s.id = (select key_secret_id from chave_b)));
+
+select pg_temp.rec('5.9', 'CONTROLE: revogar devolve true',
+  'true',
+  pg_temp.como((select user_dir_b from ids), (select tenant_b from ids),
+    format('select public.revoke_integration_api_key(%L)::text', (select id from chave_b))));
+
+select pg_temp.rec('5.10', 'revogar apaga o valor do Vault', '0',
+  (select count(*)::text from vault.secrets s where s.id = (select key_secret_id from chave_b)));
+
+select pg_temp.rec('5.11', 'chave revogada nao pode mais ser revelada', '<null>',
+  pg_temp.como((select user_dir_b from ids), (select tenant_b from ids),
+    format('select public.reveal_integration_api_key(%L)', (select id from chave_b))));
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;

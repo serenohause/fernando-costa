@@ -8,6 +8,7 @@ import {
   KeyRound,
   Link2,
   Link2Off,
+  Eye,
   Plus,
   RefreshCw,
 } from 'lucide-react'
@@ -50,6 +51,7 @@ import {
   useGoogleCalendarConnection,
   useGoogleCalendarOptions,
   useIntegrationApiKeys,
+  useRevealIntegrationApiKey,
   useRevokeIntegrationApiKey,
   useSelectGoogleCalendar,
   useStartGoogleConnection,
@@ -93,6 +95,7 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
   const selectCalendarMutation = useSelectGoogleCalendar()
   const createKeyMutation = useCreateIntegrationApiKey()
   const revokeKeyMutation = useRevokeIntegrationApiKey()
+  const revealKeyMutation = useRevealIntegrationApiKey()
 
   const connection = connectionQuery.data ?? null
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -168,6 +171,22 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
          e continua selecionável à mão. */
       toast.error('Não foi possível copiar. Selecione o texto e copie manualmente.')
     }
+  }
+
+  const handleReveal = (key: IntegrationApiKeyRow) => {
+    revealKeyMutation.mutate(key.id, {
+      onSuccess: (value) => {
+        if (value === null) {
+          /* Chave anterior à 0086: só o hash foi guardado, e não há valor para
+             mostrar. Dizer isso é melhor do que abrir um diálogo vazio. */
+          toast.error('Esta chave é antiga e o valor dela não foi guardado. Gere uma nova.')
+          return
+        }
+        setFreshKey(value)
+        setCopied(false)
+      },
+      onError: (error) => toast.error('Erro ao revelar: ' + describeDatabaseError(error)),
+    })
   }
 
   const activeKeys = (keysQuery.data ?? []).filter((key) => key.revoked_at === null)
@@ -363,7 +382,8 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
           <div className="mt-4 h-14 bg-muted rounded-lg animate-pulse" />
         ) : activeKeys.length === 0 ? (
           <p className="text-sm text-muted-foreground mt-4">
-            Nenhuma chave ativa. {canEdit ? 'Gere uma para a automação usar.' : ''}
+            Nenhuma chave ativa. A primeira nasce junto com a conexão do Google
+            {canEdit ? ' — ou gere uma agora.' : '.'}
           </p>
         ) : (
           <div className="mt-4 divide-y divide-border border border-border rounded-lg">
@@ -377,14 +397,25 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
                   </p>
                 </div>
                 {canEdit && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => setRevoking(key)}
-                  >
-                    Revogar
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleReveal(key)}
+                      disabled={revealKeyMutation.isPending}
+                    >
+                      <Eye className="w-4 h-4 mr-1.5" />
+                      Ver chave
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setRevoking(key)}
+                    >
+                      Revogar
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
@@ -480,24 +511,22 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
       </Dialog>
 
       {/*
-        A CHAVE, UMA VEZ SÓ. Fechar este diálogo é a última vez que ela existe —
-        o banco guardou apenas o SHA-256. O aviso não é decorativo: quem fechar
-        sem copiar precisa gerar outra.
+        A CHAVE, À VISTA. Desde a 0086 ela fica guardada cifrada e pode ser
+        revelada de novo por quem edita Configurações — o mesmo diálogo serve
+        para a chave recém-criada e para o "Ver chave".
       */}
       <Dialog
         open={freshKey !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            setFreshKey(null)
-            toast.success('Chave criada')
-          }
+          if (!open) setFreshKey(null)
         }}
       >
         <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle>Copie a chave agora</DialogTitle>
+            <DialogTitle>Chave de automação</DialogTitle>
             <DialogDescription>
-              Ela não pode ser exibida de novo. Se perder, gere outra e revogue esta.
+              É o valor que vai no cabeçalho <code className="font-mono">X-Integration-Key</code>.
+              Quem edita Configurações pode ver de novo aqui quando precisar.
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2">
@@ -509,7 +538,7 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
             </Button>
           </div>
           <DialogFooter>
-            <Button onClick={() => setFreshKey(null)}>Já copiei</Button>
+            <Button onClick={() => setFreshKey(null)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -540,8 +569,8 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Revogar “{revoking?.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              Toda automação que usa esta chave para de funcionar na hora. Não dá para desfazer —
-              seria preciso gerar uma chave nova.
+              Toda automação que usa esta chave para de funcionar na hora, e o valor dela é
+              apagado. Não dá para desfazer — seria preciso gerar uma chave nova.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

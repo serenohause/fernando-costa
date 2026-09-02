@@ -31,6 +31,7 @@ const SETTINGS_ERROR_MESSAGES: DatabaseErrorMessages = {
   integration_api_keys_name_length_check:
     'O nome da chave é longo demais (máximo de 80 caracteres).',
   '42501': 'Sem permissão de edição em Configurações.',
+  not_authorized: 'Sem permissão de edição em Configurações.',
   '23503': 'Este tipo de serviço está em uso por alguma negociação. Desative em vez de excluir.',
 }
 

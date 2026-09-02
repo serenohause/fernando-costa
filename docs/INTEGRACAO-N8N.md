@@ -41,9 +41,13 @@ automação chama".
 X-Integration-Key: fc_int_<64 caracteres hexadecimais>
 ```
 
-A chave é gerada em **Configurações → Integrações → Gerar chave**, por um
-Diretor. Ela aparece **uma única vez**, na hora de gerar — o sistema guarda só o
-SHA-256 dela. Perdeu, gera outra e revoga a anterior.
+A chave **nasce junto com a conexão do Google** — não há passo manual por
+escritório. Ela fica em **Configurações → Integrações → Ver chave**, disponível
+para quem edita Configurações sempre que precisar (o valor fica cifrado no
+Vault, ao lado do token do Google).
+
+"Gerar chave" continua existindo para uma segunda chave ou para rotação.
+Revogar apaga o valor e corta a automação na hora.
 
 `Authorization` não é usado. Não envie a `anon key`.
 
@@ -173,6 +177,8 @@ supabase functions deploy google-calendar-agenda
 ```
 
 **3. O diretor conecta a conta** — três cliques em Configurações → Integrações.
+A chave da automação é emitida nesse mesmo momento; ninguém precisa lembrar de
+gerá-la.
 Na primeira vez o Google mostra um aviso de "app não verificado"; é esperado
 enquanto a verificação não sai, e passa por "Avançado → Continuar".
 

@@ -165,6 +165,28 @@ export function useCreateIntegrationApiKey() {
   })
 }
 
+/*
+  REVELAR EXISTE PORQUE A CHAVE NASCE SOZINHA (migration 0086).
+
+  Até a 0085 o banco guardava só o SHA-256, e o valor aparecia uma vez, na
+  geração — o que obrigava cada escritório a um passo manual e transformava
+  "perdi a chave" em "gere outra e reconfigure o n8n". Agora ela é emitida junto
+  com a conexão do Google e fica cifrada no Vault, ao lado do refresh_token, que
+  é um segredo estritamente mais poderoso.
+
+  Devolve `null` quando não há o que mostrar: chave revogada, ou criada antes da
+  0086. A tela distingue os dois casos de "erro".
+*/
+export function useRevealIntegrationApiKey() {
+  return useMutation({
+    mutationFn: async (id: string): Promise<string | null> => {
+      const { data, error } = await supabase.rpc('reveal_integration_api_key', { p_id: id })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
 export function useRevokeIntegrationApiKey() {
   const queryClient = useQueryClient()
 
