@@ -172,28 +172,22 @@ export default function Negociacoes() {
   }
 
   /*
-    SOLTAR EM "FECHAMENTO" ENCERRA O NEGÓCIO — decisão do usuário, e é divergência
-    do original, que ao arrastar só muda a etapa e deixa "marcar como ganha" como
-    ação separada do menu do cartão.
+    ARRASTAR SÓ MUDA A ETAPA — inclusive para "Fechamento".
 
-    O gesto passa a fazer o mesmo que aquela ação: status Ganha, data de
-    fechamento de hoje, briefing criado e link copiado. A negociação some do
-    quadro na hora, porque o quadro mostra só as ativas, e aparece na aba Ganhas.
+    Por um tempo soltar em "Fechamento" encerrava o negócio: status Ganha,
+    briefing criado e link copiado. O efeito na tela era o cartão DESAPARECER no
+    meio do gesto, porque o quadro mostra só as ativas — e quem estava
+    organizando o funil via o cartão sumir sem ter pedido nada disso. Arrastar é
+    um gesto de arrumar a mesa, não de fechar contrato.
 
-    E é justamente por sumir que existe o "Desfazer" no aviso: arrastar é um gesto
-    fácil de errar, e sem ele quem soltasse na coluna errada teria que caçar a
-    negociação na aba Ganhas, reabrir o formulário e devolver status e data na
-    mão. As outras colunas continuam sendo só mudança de etapa.
+    Quem encerra é a ação explícita "marcar como ganha", na aba Ativas (e no
+    menu do cartão): um clique que a pessoa dá sabendo o que ele faz — e que
+    continua criando o briefing e copiando o link, com o "Desfazer" do aviso.
+
+    Isto é também a volta ao comportamento do original, que ao arrastar só muda
+    a etapa.
   */
   const handleStageChange = (id: string, funnelStage: NegotiationRow['funnel_stage']) => {
-    if (funnelStage === 'closing') {
-      const negotiation = negotiations.find((candidate) => candidate.id === id)
-      if (negotiation) {
-        winNegotiation(negotiation, 'closing')
-        return
-      }
-    }
-
     moveNegotiationStage(
       { id, funnelStage },
       { onError: (error) => toast.error('Erro ao mover: ' + describeDatabaseError(error)) },
@@ -205,10 +199,7 @@ export default function Negociacoes() {
     como no original. O que mudou (token gerado pelo banco, validade no banco)
     está no comentário de useMarkNegotiationWon.
   */
-  const winNegotiation = (
-    negotiation: NegotiationRow,
-    funnelStage?: NegotiationRow['funnel_stage'],
-  ) => {
+  const winNegotiation = (negotiation: NegotiationRow) => {
     /*
       A conferência do cliente acontece AQUI, e não só dentro da mutação, porque
       pelo arraste ela precisa acontecer antes de o cartão sair do lugar. Deixar
@@ -224,7 +215,7 @@ export default function Negociacoes() {
     }
 
     markWon(
-      { negotiation, funnelStage },
+      { negotiation },
       {
         onSuccess: (result) => {
           void navigator.clipboard.writeText(result.link)
@@ -248,6 +239,9 @@ export default function Negociacoes() {
   }
 
   const handleMarkWon = (negotiation: NegotiationRow) => winNegotiation(negotiation)
+
+  /* A ETAPA NÃO É TOCADA AO MARCAR COMO GANHA, como no original: quem move a
+     negociação no funil é quem arrasta. Encerrar é sobre o status. */
 
   /* O original abre o formulário já com status Perdida e a data de hoje. */
   const handleMarkLost = (negotiation: NegotiationRow) => {
