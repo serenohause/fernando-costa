@@ -1,5 +1,6 @@
 import { Edit3, ExternalLink, MapPin, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import ClientLink from '@/features/crm/components/ClientLink'
 import type { EnrichedMapProperty } from '../types'
 
 /*
@@ -44,7 +45,11 @@ export default function PropertyPopup({
         {property.clientName && (
           <div className="flex items-start gap-2 mb-2">
             <span className="text-xs text-muted-foreground min-w-[60px]">Cliente:</span>
-            <span className="text-sm text-soft">{property.clientName}</span>
+            <ClientLink
+              clientId={property.client_id}
+              name={property.clientName}
+              className="text-sm text-soft"
+            />
           </div>
         )}
 

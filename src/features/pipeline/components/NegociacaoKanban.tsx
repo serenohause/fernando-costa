@@ -1,5 +1,4 @@
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
-import { useNavigate } from 'react-router'
 import { Calendar, DollarSign, Edit, MoreVertical, Trash2, TrendingUp, User } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,8 +12,7 @@ import {
 import { FUNNEL_STAGE, labelOf, type FunnelStage } from '@/lib/enums'
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
 import CardLink from '@/components/shared/CardLink'
-import { useMenuPermissions } from '@/features/auth/hooks'
-import { createPageUrl } from '@/lib/page-url'
+import ClientLink from '@/features/crm/components/ClientLink'
 import type { NegotiationRow } from '../types'
 
 /*
@@ -97,14 +95,6 @@ export default function NegociacaoKanban({
   */
   canEdit: boolean
 }) {
-  const navigate = useNavigate()
-  const { canView: canViewCrm } = useMenuPermissions('crm')
-
-  /* Mesma rota que a listagem do CRM usa (Clients.tsx:137): detalhe por query
-     string, como no original. */
-  const openClient = (clientId: string) =>
-    navigate(createPageUrl('ClientDetail') + `?id=${clientId}`)
-
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return
     if (result.destination.droppableId === result.source.droppableId) return
@@ -221,34 +211,13 @@ export default function NegociacaoKanban({
                               {negotiation.client && (
                                 <div className="flex items-center gap-2 text-xs text-soft">
                                   <User className="h-3.5 w-3.5 shrink-0 text-faint" />
-                                  {/*
-                                    O NOME DO CLIENTE ABRE O CADASTRO DELE.
-
-                                    Só vira link para quem PODE VER o CRM, e o
-                                    motivo é COERÊNCIA COM O MENU, não
-                                    confidencialidade: não há guarda na rota
-                                    `/ClientDetail`, e a policy de leitura de
-                                    `clients` é larga de propósito (qualquer
-                                    colaborador ativo lê). Quem digitar a URL
-                                    entra.
-
-                                    O que a permissão de menu governa é para
-                                    onde a pessoa NAVEGA. Se o escritório tirou o
-                                    CRM da barra lateral dela, oferecer uma porta
-                                    lateral aqui contradiz essa decisão — e não é
-                                    este componente o lugar de revisá-la.
-
-                                    A armadilha do arraste (clicar dentro de um
-                                    cartão que é a própria alça) está resolvida
-                                    dentro de `CardLink`.
-                                  */}
-                                  <CardLink
-                                    enabled={canViewCrm}
-                                    onClick={() => openClient(negotiation.client!.id)}
+                                  {/* A permissão de menu e a armadilha do
+                                      arraste estão dentro de `ClientLink`. */}
+                                  <ClientLink
+                                    clientId={negotiation.client.id}
+                                    name={negotiation.client.name}
                                     className="font-medium"
-                                  >
-                                    {negotiation.client.name}
-                                  </CardLink>
+                                  />
                                 </div>
                               )}
 

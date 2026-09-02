@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -248,7 +249,13 @@ export default function BudgetChecklistDetail({
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-foreground">{checklist.client?.name}</h1>
+          <h1 className="text-2xl font-semibold text-foreground">
+            <ClientLink
+              clientId={checklist.client?.id}
+              name={checklist.client?.name}
+              fallback="Cliente não definido"
+            />
+          </h1>
           {/*
             O RÓTULO sai de `PROJECT_PHASE`, e não de `BUDGET_PROJECT_PHASE`: a
             COLUNA é o enum inteiro de doze fases (o recorte de quatro é check do

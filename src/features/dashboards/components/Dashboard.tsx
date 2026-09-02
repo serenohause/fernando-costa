@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
@@ -240,7 +241,7 @@ export default function Dashboard() {
                             cópia `client_name`, congelada quando a parcela
                             nasceu. */}
                         <p className="font-medium text-foreground text-sm">
-                          {item.client?.name ?? 'Sem cliente'}
+                          <ClientLink clientId={item.client?.id} name={item.client?.name} />
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           Vencimento: {formatDateBR(item.due_date)}

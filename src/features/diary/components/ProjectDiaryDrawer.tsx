@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -323,7 +324,11 @@ export default function ProjectDiaryDrawer({
               {project.client && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <User className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{project.client.name}</span>
+                  <ClientLink
+                    clientId={project.client.id}
+                    name={project.client.name}
+                    className="truncate"
+                  />
                 </div>
               )}
               {project.responsible && (

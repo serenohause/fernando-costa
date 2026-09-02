@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
 import { FolderKanban, GripVertical, MapPin, MoreVertical, Pencil, Search, Trash2, User } from 'lucide-react'
 import { toast } from 'sonner'
-import CardLink from '@/components/shared/CardLink'
+import ClientLink from '@/features/crm/components/ClientLink'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { useNavigation } from '@/components/shared/useNavigation'
-import { createPageUrl } from '@/lib/page-url'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -109,10 +108,8 @@ export default function Projects() {
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>('all')
   const [searchTerm, setSearchTerm] = useState('')
 
-  const navigate = useNavigate()
   const { saveOrigin } = useNavigation()
   const { canEdit } = useMenuPermissions('projects')
-  const { canView: canViewCrm } = useMenuPermissions('crm')
 
   /*
     `?focus=<id>` — quem chega do quadro do Fluxo clicando no nome do projeto.
@@ -431,16 +428,10 @@ export default function Projects() {
                               <div>
                                 <p className="font-medium text-foreground">{project.name}</p>
                                 <p className="text-sm text-muted-foreground">
-                                  <CardLink
-                                    enabled={canViewCrm && Boolean(project.client)}
-                                    onClick={() =>
-                                      navigate(
-                                        createPageUrl('ClientDetail') + `?id=${project.client!.id}`,
-                                      )
-                                    }
-                                  >
-                                    {project.client?.name ?? 'Sem cliente'}
-                                  </CardLink>
+                                  <ClientLink
+                                    clientId={project.client?.id}
+                                    name={project.client?.name}
+                                  />
                                 </p>
                                 <div className="flex flex-wrap items-center gap-2 mt-2">
                                   <Badge
@@ -462,16 +453,10 @@ export default function Projects() {
                                 {/* Nome ATUAL do cadastro, via join: no original ele
                                     congela no momento em que o projeto nasceu. */}
                                 <p className="text-sm text-muted-foreground">
-                                  <CardLink
-                                    enabled={canViewCrm && Boolean(project.client)}
-                                    onClick={() =>
-                                      navigate(
-                                        createPageUrl('ClientDetail') + `?id=${project.client!.id}`,
-                                      )
-                                    }
-                                  >
-                                    {project.client?.name ?? 'Sem cliente'}
-                                  </CardLink>
+                                  <ClientLink
+                                    clientId={project.client?.id}
+                                    name={project.client?.name}
+                                  />
                                 </p>
                               </div>
 

@@ -1,9 +1,7 @@
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
-import { useNavigate } from 'react-router'
 import { Calendar, FileText, User } from 'lucide-react'
 import CardLink from '@/components/shared/CardLink'
-import { useMenuPermissions } from '@/features/auth/hooks'
-import { createPageUrl } from '@/lib/page-url'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { CONTRACT_STATUS, CONTRACT_TYPE, labelOf, type ContractStatus } from '@/lib/enums'
@@ -73,8 +71,6 @@ export default function ContractKanban({
   onOpen: (contract: ContractRow) => void
   canEdit: boolean
 }) {
-  const navigate = useNavigate()
-  const { canView: canViewCrm } = useMenuPermissions('crm')
 
   const byStatus = (status: ContractStatus) => contracts.filter((c) => c.status === status)
 
@@ -171,18 +167,11 @@ export default function ContractKanban({
                                         o CRM não vira link: o motivo é
                                         coerência com o menu, não
                                         confidencialidade. */}
-                                    <CardLink
-                                      enabled={canViewCrm}
-                                      onClick={() =>
-                                        navigate(
-                                          createPageUrl('ClientDetail') +
-                                            `?id=${contract.client!.id}`,
-                                        )
-                                      }
+                                    <ClientLink
+                                      clientId={contract.client.id}
+                                      name={contract.client.name}
                                       className="font-medium line-clamp-1"
-                                    >
-                                      {contract.client.name}
-                                    </CardLink>
+                                    />
                                   </div>
                                 )}
 

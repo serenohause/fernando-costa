@@ -14,6 +14,7 @@ import {
 import ErrorState from '@/components/shared/ErrorState'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { Badge } from '@/components/ui/badge'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -320,7 +321,7 @@ export default function MinhasAtividades() {
                           schema no módulo 5. */}
                       {project.client && (
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {project.client.name}
+                          <ClientLink clientId={project.client.id} name={project.client.name} />
                         </p>
                       )}
                     </div>
@@ -391,7 +392,13 @@ export default function MinhasAtividades() {
               <div>
                 <h3 className="text-lg font-semibold text-foreground">{selectedProject.name}</h3>
                 {selectedProject.client && (
-                  <p className="text-sm text-soft mt-1">Cliente: {selectedProject.client.name}</p>
+                  <p className="text-sm text-soft mt-1">
+                    Cliente:{' '}
+                    <ClientLink
+                      clientId={selectedProject.client.id}
+                      name={selectedProject.client.name}
+                    />
+                  </p>
                 )}
               </div>
 

@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -899,7 +900,13 @@ export default function MapaProjetos() {
                   >
                     <div className="font-medium text-sm text-foreground">{property.displayName}</div>
                     {property.clientName && (
-                      <div className="text-xs text-muted-foreground mt-1">{property.clientName}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {/* O botão da lista seleciona a propriedade no mapa; o
+                            nome do cliente, dentro dele, abre o CRM. O
+                            `stopPropagation` de CardLink é o que separa os
+                            dois gestos. */}
+                        <ClientLink clientId={property.client_id} name={property.clientName} />
+                      </div>
                     )}
                     <div className="text-xs text-faint mt-1">{property.city}</div>
                   </button>

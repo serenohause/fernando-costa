@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { MapPin, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PROJECT_TYPE, labelOf } from '@/lib/enums'
@@ -93,7 +94,10 @@ export default function PropertySummaryModal({
           {/* Cliente */}
           {property.clientName && (
             <InfoSection title="Cliente">
-              <InfoRow label="Nome" value={property.clientName} />
+              <InfoRow
+                label="Nome"
+                value={<ClientLink clientId={property.client_id} name={property.clientName} />}
+              />
             </InfoSection>
           )}
 

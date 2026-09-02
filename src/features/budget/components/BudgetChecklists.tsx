@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -323,8 +324,14 @@ export default function BudgetChecklists() {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 cursor-pointer" onClick={() => setSelected(checklist)}>
+                    {/* O nome do cliente abre o CRM; o resto do bloco continua
+                        abrindo o orçamento — `stopPropagation` separa os dois. */}
                     <p className="font-semibold text-foreground leading-tight">
-                      {checklist.client?.name || 'Cliente não definido'}
+                      <ClientLink
+                        clientId={checklist.client?.id}
+                        name={checklist.client?.name}
+                        fallback="Cliente não definido"
+                      />
                     </p>
                     <p className="text-sm text-muted-foreground mt-0.5">
                       {checklist.project?.name || 'Sem projeto vinculado'}

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, CheckSquare, Clock, FolderKanban, Target, Users, Zap } from 'lucide-react'
 import ErrorState from '@/components/shared/ErrorState'
 import { Badge } from '@/components/ui/badge'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -783,7 +784,10 @@ export default function DashboardExecutivo() {
                                 </h4>
                                 {row.project.client && (
                                   <Badge variant="outline" className="text-xs bg-card">
-                                    {row.project.client.name}
+                                    <ClientLink
+                                      clientId={row.project.client.id}
+                                      name={row.project.client.name}
+                                    />
                                   </Badge>
                                 )}
                               </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentType } from 'react'
+import { useMemo, useState, type ComponentType, type ReactNode } from 'react'
 import {
   Bar,
   BarChart,
@@ -28,6 +28,7 @@ import {
   X,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import ErrorState from '@/components/shared/ErrorState'
@@ -189,9 +190,18 @@ export default function ResumoTab({
   }
 
   /* As seis linhas do painel, e cada uma some quando não há o que mostrar —
-     como no original (ResumoTab.jsx:261). */
-  const info: [string, string | null][] = [
-    ['Cliente', project.client?.name ?? null],
+     como no original (ResumoTab.jsx:261).
+
+     O valor é um nó, e não texto, por causa de uma linha só: o nome do cliente
+     abre o cadastro dele, como em todo o resto do sistema. As outras cinco
+     continuam sendo texto. */
+  const info: [string, ReactNode | null][] = [
+    [
+      'Cliente',
+      project.client ? (
+        <ClientLink clientId={project.client.id} name={project.client.name} />
+      ) : null,
+    ],
     ['Responsável', project.responsible?.name ?? null],
     ['Etapa atual', project.current_phase ? labelOf(PROJECT_PHASE, project.current_phase) : null],
     ['Data de início', project.start_date ? formatDateBR(project.start_date) : null],

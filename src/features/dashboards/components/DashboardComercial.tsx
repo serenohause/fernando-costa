@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import ClientLink from '@/features/crm/components/ClientLink'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
@@ -708,7 +709,10 @@ export default function DashboardComercial() {
                                   são as cópias `cliente_name` e
                                   `responsavel_comercial_name`. */}
                               <p className="text-xs text-soft">
-                                {negotiation.client?.name || 'Sem cliente'}
+                                <ClientLink
+                                  clientId={negotiation.client?.id}
+                                  name={negotiation.client?.name}
+                                />
                               </p>
                               <span className="text-xs text-faint">•</span>
                               <p className="text-xs text-soft">
