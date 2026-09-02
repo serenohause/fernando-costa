@@ -73,9 +73,13 @@ create table public.google_calendar_connections (
   -- concorrendo pelo mesmo disparo diario, sem nada dizendo qual vale.
   constraint google_calendar_connections_tenant_id_key unique (tenant_id),
 
+  -- SET NULL COM LISTA DE COLUNAS: sem ela o SET NULL zera tambem o tenant_id,
+  -- que e NOT NULL, e apagar o colaborador que conectou falharia com 23502.
+  -- Mesma armadilha desarmada pela 0073 no modulo 11.
   constraint google_calendar_connections_connected_by_fkey
     foreign key (connected_by_id, tenant_id)
-    references public.collaborators (id, tenant_id) on delete set null,
+    references public.collaborators (id, tenant_id)
+    on delete set null (connected_by_id),
 
   constraint google_calendar_connections_email_not_blank_check
     check (btrim(google_account_email) <> ''),
@@ -135,12 +139,16 @@ create table public.integration_api_keys (
   constraint integration_api_keys_id_tenant_id_key unique (id, tenant_id),
   constraint integration_api_keys_key_hash_key unique (key_hash),
 
+  -- Lista de colunas no SET NULL, pelo motivo escrito em
+  -- google_calendar_connections acima.
   constraint integration_api_keys_created_by_fkey
     foreign key (created_by_id, tenant_id)
-    references public.collaborators (id, tenant_id) on delete set null,
+    references public.collaborators (id, tenant_id)
+    on delete set null (created_by_id),
   constraint integration_api_keys_revoked_by_fkey
     foreign key (revoked_by_id, tenant_id)
-    references public.collaborators (id, tenant_id) on delete set null,
+    references public.collaborators (id, tenant_id)
+    on delete set null (revoked_by_id),
 
   constraint integration_api_keys_name_not_blank_check check (btrim(name) <> ''),
   constraint integration_api_keys_name_length_check check (length(name) <= 80),

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,9 +7,10 @@ import { MaskedInput } from '@/components/ui/masked-input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { CLIENT_TYPE, LEAD_SOURCE, optionsOf, type ClientType, type LeadSource } from '@/lib/enums'
 import { maskPhone, maskTaxId, maskZipcode } from '@/lib/masks'
-import { useLookupZipcode } from '../hooks'
+import { useClients, useLookupZipcode } from '../hooks'
 import type { DuplicateClientError } from '../hooks'
 import type { DuplicateField } from '../types'
 import type { Client, ClientInput } from '../types'
@@ -48,6 +49,9 @@ export type ClientFormValues = {
   client_type: ClientType | ''
   lead_source: LeadSource | ''
   referrer_name: string
+  /* Vazio quando quem indicou não é cliente do escritório — ver `referrer_client_id`
+     na migration 0087. */
+  referrer_client_id: string
   tax_id: string
   birth_date: string
   notes: string
@@ -75,6 +79,7 @@ const EMPTY: ClientFormValues = {
   client_type: '',
   lead_source: '',
   referrer_name: '',
+  referrer_client_id: '',
   tax_id: '',
   birth_date: '',
   notes: '',
@@ -103,6 +108,7 @@ export function toFormValues(client: Client): ClientFormValues {
     client_type: client.client_type ?? '',
     lead_source: client.lead_source ?? '',
     referrer_name: client.referrer_name ?? '',
+    referrer_client_id: client.referrer_client_id ?? '',
     tax_id: client.tax_id ?? '',
     birth_date: client.birth_date ?? '',
     notes: client.notes ?? '',
@@ -158,6 +164,16 @@ function toClientInput(values: ClientFormValues): ClientInput {
     */
     referrer_name:
       values.lead_source === 'referral' ? orNull(values.referrer_name) : null,
+    /*
+      O PONTEIRO SÓ VAI JUNTO COM O NOME. O banco tem um check exigindo isso
+      (0087), e a razão é de leitura: quase todo o sistema lê o indicador por
+      `referrer_name`, e um ponteiro sem nome apareceria como "sem indicação"
+      em toda parte menos aqui.
+    */
+    referrer_client_id:
+      values.lead_source === 'referral' && values.referrer_name.trim() !== ''
+        ? orNull(values.referrer_client_id)
+        : null,
     tax_id: orNull(values.tax_id),
     birth_date: orNull(values.birth_date),
     notes: orNull(values.notes),
@@ -202,12 +218,16 @@ export default function ClientForm({
   isLoading,
   duplicate,
   onOpenDuplicate,
+  editingClientId,
 }: {
   open: boolean
   onClose: () => void
   onSubmit: (data: ClientInput) => void
   initialData?: ClientFormValues | null
   isLoading?: boolean
+  /* Quem está sendo editado, para sair da lista de indicadores. Ausente na
+     criação, quando o cadastro ainda não tem id. */
+  editingClientId?: string | null
   /* Recusa por unicidade da gravação anterior, já com o cliente que ocupa o valor. */
   duplicate?: DuplicateClientError | null
   onOpenDuplicate?: (client: Client) => void
@@ -215,6 +235,28 @@ export default function ClientForm({
   const [formData, setFormData] = useState<ClientFormValues>({ ...EMPTY, ...initialData })
   const [referrerMissing, setReferrerMissing] = useState(false)
   const referrerFieldRef = useRef<HTMLDivElement>(null)
+
+  /*
+    Começa na busca quando o cadastro não tem indicador OU o indicador é um
+    cliente; começa no texto livre quando já há um nome que não aponta para
+    ninguém — senão editar um cadastro antigo apagaria o nome que está lá.
+  */
+  const [referrerFreeText, setReferrerFreeText] = useState(
+    () => Boolean(initialData?.referrer_name) && !initialData?.referrer_client_id,
+  )
+
+  /* A lista inteira do escritório: `useClients('')` traz até o teto da consulta,
+     ordenada por nome, e o SearchableSelect filtra no cliente. */
+  const referrerCandidates = useClients('').data ?? []
+  const referrerOptions = useMemo(
+    () =>
+      referrerCandidates
+        /* O cadastro em edição sai da lista: cliente não indica a si mesmo, e o
+           banco recusa (0087). Melhor não oferecer do que recusar depois. */
+        .filter((candidate) => candidate.id !== editingClientId)
+        .map((candidate) => ({ value: candidate.id, label: candidate.name })),
+    [referrerCandidates, editingClientId],
+  )
 
   useEffect(() => {
     setFormData(initialData ? { ...EMPTY, ...initialData } : EMPTY)
@@ -454,22 +496,89 @@ export default function ClientForm({
                 ref={referrerFieldRef}
                 className="space-y-2 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg"
               >
-                <Label htmlFor="client_referrer_name">Quem indicou? *</Label>
-                <Input
-                  id="client_referrer_name"
-                  maxLength={200}
-                  value={formData.referrer_name}
-                  onChange={(e) => {
+                <Label htmlFor="client_referrer">Quem indicou? *</Label>
+
+                {/*
+                  BUSCA ENTRE OS CLIENTES, COM SAÍDA PARA TEXTO LIVRE.
+
+                  Quem mais indica são os próprios clientes, e digitar o nome de
+                  novo produz grafia divergente que não cruza com nada. Mas
+                  indicação também vem de arquiteto parceiro, fornecedor, amigo
+                  do diretor — gente que não é cliente e não deve virar um para
+                  caber neste campo. Daí as duas portas.
+
+                  Escolher da lista grava o ponteiro E o nome; digitar grava só
+                  o nome. O banco recusa ponteiro sem nome (migration 0087).
+                */}
+                {referrerFreeText ? (
+                  <Input
+                    id="client_referrer"
+                    maxLength={200}
+                    value={formData.referrer_name}
+                    onChange={(e) => {
+                      setReferrerMissing(false)
+                      setFormData({
+                        ...formData,
+                        referrer_name: e.target.value,
+                        referrer_client_id: '',
+                      })
+                    }}
+                    placeholder="Nome de quem indicou este cliente..."
+                    aria-invalid={referrerMissing}
+                    aria-describedby={referrerMissing ? 'client_referrer_error' : undefined}
+                    className={`bg-card ${
+                      referrerMissing ? 'border-rose-500 focus-visible:ring-rose-500' : ''
+                    }`}
+                  />
+                ) : (
+                  <SearchableSelect
+                    id="client_referrer"
+                    options={referrerOptions}
+                    value={formData.referrer_client_id}
+                    onValueChange={(clientId) => {
+                      const chosen = referrerCandidates.find(
+                        (candidate) => candidate.id === clientId,
+                      )
+                      setReferrerMissing(false)
+                      setFormData({
+                        ...formData,
+                        referrer_client_id: clientId,
+                        /* O nome viaja junto: é por ele que o resto do sistema
+                           lê o indicador, e ele sobrevive se o cadastro do
+                           indicador for apagado. */
+                        referrer_name: chosen?.name ?? formData.referrer_name,
+                      })
+                    }}
+                    placeholder="Busque o cliente que indicou..."
+                    searchPlaceholder="Buscar cliente pelo nome..."
+                    emptyMessage="Nenhum cliente com esse nome."
+                    className={
+                      referrerMissing ? 'border-rose-500 focus-visible:ring-rose-500' : undefined
+                    }
+                  />
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReferrerFreeText((current) => !current)
                     setReferrerMissing(false)
-                    setFormData({ ...formData, referrer_name: e.target.value })
+                    /* Trocar de porta zera o campo: manter o nome do cliente
+                       escolhido num campo de texto livre deixaria o ponteiro e
+                       o texto contando histórias diferentes. */
+                    setFormData((current) => ({
+                      ...current,
+                      referrer_client_id: '',
+                      referrer_name: '',
+                    }))
                   }}
-                  placeholder="Nome de quem indicou este cliente..."
-                  aria-invalid={referrerMissing}
-                  aria-describedby={referrerMissing ? 'client_referrer_error' : undefined}
-                  className={`bg-card ${
-                    referrerMissing ? 'border-rose-500 focus-visible:ring-rose-500' : ''
-                  }`}
-                />
+                  className="text-xs text-blue-700 dark:text-blue-400 underline-offset-2 hover:underline"
+                >
+                  {referrerFreeText
+                    ? 'Escolher entre os clientes cadastrados'
+                    : 'Quem indicou não é cliente? Digitar o nome'}
+                </button>
+
                 {referrerMissing ? (
                   <p
                     id="client_referrer_error"

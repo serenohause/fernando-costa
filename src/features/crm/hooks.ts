@@ -78,6 +78,17 @@ const CRM_ERROR_MESSAGES: DatabaseErrorMessages = {
   clients_referrer_name_length_check:
     'O nome de quem indicou é longo demais (máximo de 200 caracteres). Use só o nome da pessoa.',
 
+  /*
+    Os dois checks da 0087. O formulário não deixa chegar a nenhum deles — a
+    lista de indicadores exclui o cadastro em edição, e o ponteiro só é gravado
+    junto com o nome —, mas gravação por outro caminho veria o nome da
+    constraint sem estas frases.
+  */
+  clients_referrer_not_self_check:
+    'Um cliente não pode ser indicado por ele mesmo. Escolha outro cliente ou digite o nome de quem indicou.',
+  clients_referrer_client_needs_name_check:
+    'Escolha o cliente que indicou ou digite o nome — o registro da indicação precisa do nome.',
+
   clients_tenant_id_phone_digits_key:
     'Outro cliente deste escritório já usa este telefone. Abra o cadastro que já tem o número em vez de criar um segundo.',
 

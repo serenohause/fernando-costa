@@ -389,7 +389,7 @@ select pg_temp.val('6.1c', 'extensoes que a busca por pedaco exige estao ativas'
 -- trigger de colisao precisam enxergar tambem o cliente IMPORTADO, que saiu do
 -- indice unico. Ver a secao 7 e o cabecalho da 0065.
 select pg_temp.val('6.3', 'indices da tabela',
-  'clients_id_tenant_id_key,clients_pkey,clients_tenant_id_client_key_idx,clients_tenant_id_client_key_key,clients_tenant_id_created_at_idx,clients_tenant_id_legacy_id_key,clients_tenant_id_name_idx,clients_tenant_id_phone_digits_idx,clients_tenant_id_phone_digits_key,clients_tenant_id_search_text_idx,clients_tenant_id_tax_id_digits_idx,clients_tenant_id_tax_id_digits_key',
+  'clients_id_tenant_id_key,clients_pkey,clients_tenant_id_client_key_idx,clients_tenant_id_client_key_key,clients_tenant_id_created_at_idx,clients_tenant_id_legacy_id_key,clients_tenant_id_name_idx,clients_tenant_id_phone_digits_idx,clients_tenant_id_phone_digits_key,clients_tenant_id_referrer_client_id_idx,clients_tenant_id_search_text_idx,clients_tenant_id_tax_id_digits_idx,clients_tenant_id_tax_id_digits_key',
   $q$select string_agg(indexname, ',' order by indexname) from pg_indexes
      where schemaname = 'public' and tablename = 'clients'$q$);
 
@@ -420,6 +420,58 @@ select pg_temp.val('6.5', 'busca livre encontra por pedaco do nome, do e-mail e 
     (select count(*) from public.clients where tenant_id = %1$L and search_text ilike '%%99812%%')
   )::text
 $q$, (select tenant_a from ids)));
+
+-- 6B. Quem indicou, quando e um cliente do escritorio (0087) -------------------
+
+select pg_temp.chk('6B.1', 'CONTROLE: cliente indicado por outro cliente entra', 'OK:1', format($q$
+  insert into public.clients (tenant_id, name, phone, lead_source, referrer_name,
+                              referrer_client_id, address_city, address_state)
+  values (%L, 'Indicado da Mariana', '62 98765-1111', 'referral', 'Mariana Rezende',
+          (select id from public.clients where name = 'Mariana Rezende' and tenant_id = %1$L),
+          'Goiania', 'GO')
+$q$, (select tenant_a from ids)));
+
+/* Ponteiro sem nome nao existe: quase todo o sistema le o indicador por
+   `referrer_name`, e a linha apareceria como "sem indicacao" em toda parte
+   menos no formulario. */
+select pg_temp.chk('6B.2', 'indicador apontado SEM o nome e recusado', 'ERR:23514', format($q$
+  insert into public.clients (tenant_id, name, phone, lead_source,
+                              referrer_client_id, address_city, address_state)
+  values (%L, 'Sem nome do indicador', '62 98765-2222', 'referral',
+          (select id from public.clients where name = 'Mariana Rezende' and tenant_id = %1$L),
+          'Goiania', 'GO')
+$q$, (select tenant_a from ids)));
+
+/* A lista da tela exclui o cadastro em edicao, e o banco recusa de todo jeito:
+   a tela e conveniencia, o check e a garantia. */
+select pg_temp.chk('6B.3', 'cliente indicado por si mesmo e recusado', 'ERR:23514', format($q$
+  update public.clients
+  set lead_source = 'referral',
+      referrer_name = name,
+      referrer_client_id = id
+  where name = 'Mariana Rezende' and tenant_id = %L
+$q$, (select tenant_a from ids)));
+
+/* A FK e composta com tenant_id. Sem isso, apontar o indicador para um cliente
+   de OUTRO escritorio faria um nome vazar atraves de uma FK. */
+select pg_temp.chk('6B.4', 'indicador de OUTRO escritorio e recusado', 'ERR:23503', format($q$
+  insert into public.clients (tenant_id, name, phone, lead_source, referrer_name,
+                              referrer_client_id, address_city, address_state)
+  values (%L, 'Indicado de fora', '62 98765-3333', 'referral', 'Alguem de B',
+          (select id from public.clients where tenant_id = %L limit 1),
+          'Goiania', 'GO')
+$q$, (select tenant_a from ids), (select tenant_b from ids)));
+
+/* `on delete set null`: apagar o cadastro de quem indicou nao pode derrubar o
+   cadastro de quem foi indicado — e o NOME permanece, que e o que preserva a
+   informacao. */
+select pg_temp.chk('6B.5', 'CONTROLE: apagar o indicador funciona', 'OK:1', format($q$
+  delete from public.clients where name = 'Mariana Rezende' and tenant_id = %L
+$q$, (select tenant_a from ids)));
+
+select pg_temp.val('6B.6', 'o ponteiro fica nulo e o NOME permanece', '<null>|Mariana Rezende',
+  $q$select coalesce(referrer_client_id::text, '<null>') || '|' || coalesce(referrer_name, '<null>')
+       from public.clients where name = 'Indicado da Mariana'$q$);
 
 -- 7. A excecao da importacao: legacy_id distingue o que veio do base44 --------
 --

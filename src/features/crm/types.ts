@@ -51,6 +51,9 @@ export type ClientInput = {
   lead_source: LeadSource | null
   /* Só com lead_source = referral; a tela zera quando a origem muda (0082). */
   referrer_name: string | null
+  /* O cliente que indicou, quando quem indicou é cliente do escritório (0087).
+     Nulo quando o indicador é de fora — e nunca preenchido sem `referrer_name`. */
+  referrer_client_id: string | null
   tax_id: string | null
   birth_date: string | null
   notes: string | null

@@ -61,6 +61,12 @@ export const clientInputSchema = z.object({
   */
   referrer_name: optionalText(200),
   /*
+    O cliente que indicou, quando quem indicou é cliente do escritório (0087).
+    A existência dele e o recorte por escritório são da FK composta; aqui só se
+    confere que é um uuid, para texto solto não chegar ao banco como erro 22P02.
+  */
+  referrer_client_id: nullIfBlank(z.uuid('Indicador inválido.').nullable()),
+  /*
     Guardado como a pessoa digitou, com pontuação. Sem check de dígito
     verificador, como no original e como a migration 0015 registra: a comparação
     acontece sempre por `tax_id_digits`, e documento parcial não pode derrubar o

@@ -979,6 +979,7 @@ export type Database = {
           notes: string | null
           phone: string
           phone_digits: string | null
+          referrer_client_id: string | null
           referrer_name: string | null
           search_text: string | null
           site_city: string | null
@@ -1015,6 +1016,7 @@ export type Database = {
           notes?: string | null
           phone: string
           phone_digits?: string | null
+          referrer_client_id?: string | null
           referrer_name?: string | null
           search_text?: string | null
           site_city?: string | null
@@ -1051,6 +1053,7 @@ export type Database = {
           notes?: string | null
           phone?: string
           phone_digits?: string | null
+          referrer_client_id?: string | null
           referrer_name?: string | null
           search_text?: string | null
           site_city?: string | null
@@ -1066,6 +1069,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "clients_referrer_client_fkey"
+            columns: ["referrer_client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
           {
             foreignKeyName: "clients_tenant_id_fkey"
             columns: ["tenant_id"]

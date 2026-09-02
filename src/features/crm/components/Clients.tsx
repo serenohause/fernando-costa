@@ -348,6 +348,7 @@ export default function Clients() {
         onClose={closeForm}
         onSubmit={handleSubmit}
         initialData={formInitialData}
+        editingClientId={editingClient?.id ?? null}
         isLoading={createMutation.isPending || updateMutation.isPending}
         duplicate={duplicate}
         onOpenDuplicate={(client) => {

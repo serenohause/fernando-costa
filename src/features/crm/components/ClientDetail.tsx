@@ -267,6 +267,32 @@ export default function ClientDetail() {
               >
                 {labelOf(LEAD_SOURCE, client.lead_source)}
               </Badge>
+
+              {/*
+                QUEM INDICOU, e o nome vira link quando o indicador é cliente do
+                escritório (migration 0087). Sem o ponteiro é só texto — quem
+                indicou pode ser um parceiro que não tem cadastro.
+              */}
+              {client.referrer_name && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Indicado por{' '}
+                  {client.referrer_client_id ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(
+                          createPageUrl('ClientDetail') + `?id=${client.referrer_client_id}`,
+                        )
+                      }
+                      className="font-medium text-foreground underline-offset-2 hover:underline"
+                    >
+                      {client.referrer_name}
+                    </button>
+                  ) : (
+                    <span className="font-medium text-foreground">{client.referrer_name}</span>
+                  )}
+                </p>
+              )}
             </div>
           )}
 
@@ -367,6 +393,7 @@ export default function ClientDetail() {
         onClose={closeForm}
         onSubmit={handleSubmit}
         initialData={formInitialData}
+        editingClientId={client?.id ?? null}
         isLoading={updateMutation.isPending}
         duplicate={duplicate}
         onOpenDuplicate={(other) => {
