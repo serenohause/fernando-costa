@@ -27,29 +27,25 @@ export function isTaskOverdue(
 /*
   A ordenação e os filtros da lista de projetos, fora do componente.
 
-  ORDEM (Projects.jsx:54-71): projeto arrastado tem `display_order` e vem
-  primeiro, na ordem em que foi arrastado; o resto cai no critério seguinte, que
-  é o NÚMERO DO CONTRATO em ordem decrescente — comparado pelos dígitos, porque
-  "FC-2026-018" e "2024-001" não se comparam como texto. É o mesmo critério da
-  lista de Contratos, e o original diz isso em comentário.
+  ORDEM: projeto arrastado tem `display_order` e vem primeiro, na ordem em que
+  foi arrastado; o resto vem do MAIS RECENTE PARA O MAIS ANTIGO.
 
-  DUAS TRADUÇÕES:
+  O CRITÉRIO DE DESEMPATE MUDOU, a pedido do usuário. O original (e esta lista,
+  até aqui) ordenava pelo NÚMERO DO CONTRATO em ordem decrescente — critério que
+  só funciona enquanto todo projeto tem contrato e a numeração cresce com o
+  tempo. Projeto sem contrato caía com número 0, ou seja, no fim da lista: o
+  projeto recém-criado, que é justamente o que se quer ver primeiro, era o
+  último. Agora o critério é a data de criação.
 
-  1. No original o teste é `ordem_exibicao !== undefined`, porque o base44 não
-     devolve o campo quando ele nunca foi gravado. Aqui a coluna existe e é nula
-     até alguém arrastar (migration 0032), então o teste é por nulo. Mesmo
-     desfecho em tela.
-  2. `contract_number` era coluna COPIADA em `Project` e saiu do schema
-     (migration 0032, item 3): número de contrato pertence ao contrato. O
-     critério continua sendo o mesmo número, agora lido pelo embed de
-     `contract_id` — que é o lado único da ligação (o contrato não guarda
-     `project_id`).
+  O ARRASTE CONTINUA VENCENDO, e é deliberado: `display_order` só existe onde
+  alguém arrastou o projeto de propósito (migration 0032, a coluna é nula até
+  lá), e desfazer em silêncio uma ordenação que alguém montou à mão seria pior
+  do que a ordem padrão errada. Quem nunca arrastou vê a lista inteira por data.
+
+  Uma tradução que continua valendo: no original o teste é
+  `ordem_exibicao !== undefined`, porque o base44 não devolve o campo quando ele
+  nunca foi gravado; aqui a coluna existe e é nula até alguém arrastar.
 */
-function orderNumber(project: ProjectRow): number {
-  const digits = (project.contract?.contract_number || '0').replace(/\D/g, '')
-  return Number.parseInt(digits, 10) || 0
-}
-
 export function sortProjects(projects: ProjectRow[]): ProjectRow[] {
   return [...projects].sort((a, b) => {
     if (a.display_order != null && b.display_order != null) {
@@ -57,7 +53,11 @@ export function sortProjects(projects: ProjectRow[]): ProjectRow[] {
     }
     if (a.display_order != null) return -1
     if (b.display_order != null) return 1
-    return orderNumber(b) - orderNumber(a)
+    /* Empate no instante de criação (importação em lote, por exemplo) fica
+       decidido pelo id — arbitrário, mas ESTÁVEL: sem ele a lista trocaria de
+       ordem sozinha a cada releitura. */
+    const byCreation = b.created_at.localeCompare(a.created_at)
+    return byCreation !== 0 ? byCreation : a.id.localeCompare(b.id)
   })
 }
 
