@@ -1,5 +1,9 @@
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
+import { useNavigate } from 'react-router'
 import { Calendar, FileText, User } from 'lucide-react'
+import CardLink from '@/components/shared/CardLink'
+import { useMenuPermissions } from '@/features/auth/hooks'
+import { createPageUrl } from '@/lib/page-url'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { CONTRACT_STATUS, CONTRACT_TYPE, labelOf, type ContractStatus } from '@/lib/enums'
@@ -69,6 +73,9 @@ export default function ContractKanban({
   onOpen: (contract: ContractRow) => void
   canEdit: boolean
 }) {
+  const navigate = useNavigate()
+  const { canView: canViewCrm } = useMenuPermissions('crm')
+
   const byStatus = (status: ContractStatus) => contracts.filter((c) => c.status === status)
 
   const handleDragEnd = (result: DropResult) => {
@@ -143,17 +150,39 @@ export default function ContractKanban({
                               <CardContent className="p-4 space-y-2.5">
                                 <div className="flex items-start gap-2">
                                   <FileText className="h-3.5 w-3.5 shrink-0 mt-0.5 text-faint" />
-                                  <h4 className="font-bold text-foreground text-sm line-clamp-2">
+                                  {/* O cartão inteiro já abre o contrato; o
+                                      número vira link para o gesto ficar
+                                      visível, e não só descoberto por
+                                      tentativa. */}
+                                  <CardLink
+                                    onClick={() => onOpen(contract)}
+                                    className="font-bold text-foreground text-sm line-clamp-2"
+                                  >
                                     {contract.contract_number}
-                                  </h4>
+                                  </CardLink>
                                 </div>
 
                                 {contract.client && (
                                   <div className="flex items-center gap-2 text-xs text-soft">
                                     <User className="h-3.5 w-3.5 shrink-0 text-faint" />
-                                    <span className="font-medium line-clamp-1">
+                                    {/* O NOME DO CLIENTE ABRE O CADASTRO DELE,
+                                        e não o contrato — é o mesmo gesto do
+                                        quadro do Pipeline. Sem permissão de ver
+                                        o CRM não vira link: o motivo é
+                                        coerência com o menu, não
+                                        confidencialidade. */}
+                                    <CardLink
+                                      enabled={canViewCrm}
+                                      onClick={() =>
+                                        navigate(
+                                          createPageUrl('ClientDetail') +
+                                            `?id=${contract.client!.id}`,
+                                        )
+                                      }
+                                      className="font-medium line-clamp-1"
+                                    >
                                       {contract.client.name}
-                                    </span>
+                                    </CardLink>
                                   </div>
                                 )}
 

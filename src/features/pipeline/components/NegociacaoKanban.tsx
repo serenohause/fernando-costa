@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { FUNNEL_STAGE, labelOf, type FunnelStage } from '@/lib/enums'
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format'
+import CardLink from '@/components/shared/CardLink'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { createPageUrl } from '@/lib/page-url'
 import type { NegotiationRow } from '../types'
@@ -175,9 +176,20 @@ export default function NegociacaoKanban({
                           >
                             <CardContent className="p-4 space-y-3">
                               <div className="flex items-start justify-between">
-                                <h4 className="font-bold text-foreground text-sm line-clamp-2 flex-1 pr-2">
+                                {/* O NOME ABRE A NEGOCIAÇÃO. Não há tela de
+                                    detalhe de negociação no sistema: o que
+                                    existe é o formulário, e é para ele que o
+                                    nome leva — o mesmo destino do "Editar" do
+                                    menu, um gesto mais curto. Sem permissão de
+                                    edição não vira link, porque o formulário
+                                    é justamente o que ela governa. */}
+                                <CardLink
+                                  enabled={canEdit}
+                                  onClick={() => onEdit(negotiation)}
+                                  className="font-bold text-foreground text-sm line-clamp-2 flex-1 pr-2"
+                                >
                                   {negotiation.name}
-                                </h4>
+                                </CardLink>
                                 {canEdit && (
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -226,27 +238,17 @@ export default function NegociacaoKanban({
                                     lateral aqui contradiz essa decisão — e não é
                                     este componente o lugar de revisá-la.
 
-                                    `stopPropagation` no clique e no mousedown:
-                                    o cartão inteiro é a alça de arrastar
-                                    (`dragHandleProps` está na Card), e sem isso
-                                    o gesto de clicar no nome começa um arraste
-                                    que só termina em nada.
+                                    A armadilha do arraste (clicar dentro de um
+                                    cartão que é a própria alça) está resolvida
+                                    dentro de `CardLink`.
                                   */}
-                                  {canViewCrm ? (
-                                    <button
-                                      type="button"
-                                      onMouseDown={(event) => event.stopPropagation()}
-                                      onClick={(event) => {
-                                        event.stopPropagation()
-                                        openClient(negotiation.client!.id)
-                                      }}
-                                      className="font-medium text-left underline-offset-2 hover:underline hover:text-foreground transition-colors"
-                                    >
-                                      {negotiation.client.name}
-                                    </button>
-                                  ) : (
-                                    <span className="font-medium">{negotiation.client.name}</span>
-                                  )}
+                                  <CardLink
+                                    enabled={canViewCrm}
+                                    onClick={() => openClient(negotiation.client!.id)}
+                                    className="font-medium"
+                                  >
+                                    {negotiation.client.name}
+                                  </CardLink>
                                 </div>
                               )}
 

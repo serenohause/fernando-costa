@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
 import {
   Calendar,
@@ -12,11 +13,13 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import CardLink from '@/components/shared/CardLink'
 import PageHeader from '@/components/shared/PageHeader'
 import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { useNavigation } from '@/components/shared/useNavigation'
+import { createPageUrl } from '@/lib/page-url'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -184,6 +187,8 @@ export default function Contracts() {
 
   const { saveOrigin } = useNavigation()
   const { canEdit } = useMenuPermissions('contracts')
+  const { canView: canViewCrm } = useMenuPermissions('crm')
+  const navigate = useNavigate()
 
   useEffect(() => {
     saveOrigin()
@@ -640,7 +645,16 @@ export default function Contracts() {
                                   na assinatura é `client_legal_name`, e os dois
                                   podem divergir legitimamente. */}
                               <p className="text-sm text-muted-foreground">
-                                {contract.client?.name ?? 'Sem cliente'}
+                                <CardLink
+                                  enabled={canViewCrm && Boolean(contract.client)}
+                                  onClick={() =>
+                                    navigate(
+                                      createPageUrl('ClientDetail') + `?id=${contract.client!.id}`,
+                                    )
+                                  }
+                                >
+                                  {contract.client?.name ?? 'Sem cliente'}
+                                </CardLink>
                               </p>
                               {contract.origin === 'referral' && contract.referrer_name && (
                                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">

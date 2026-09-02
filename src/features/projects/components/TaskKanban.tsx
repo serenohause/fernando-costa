@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
 import {
   AlertCircle,
@@ -32,6 +33,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import CardLink from '@/components/shared/CardLink'
+import { useMenuPermissions } from '@/features/auth/hooks'
+import { createPageUrl } from '@/lib/page-url'
 import type { Collaborator } from '@/features/team/types'
 import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
 import type { DiaryProject } from '@/features/diary/types'
@@ -371,6 +375,9 @@ export default function TaskKanban({
     underConstruction: boolean
   } | null>(null)
 
+  const navigate = useNavigate()
+  const { canView: canViewProjects } = useMenuPermissions('projects')
+
   const responsibles = operationalCandidates(collaborators)
 
   const handleDragEnd = (result: DropResult) => {
@@ -544,9 +551,18 @@ export default function TaskKanban({
                                       }`}
                                     >
                                       <div className="flex items-start justify-between gap-2 mb-3">
-                                        <h4 className="font-medium text-foreground text-sm line-clamp-2 flex-1">
+                                        {/* O TÍTULO ABRE A TAREFA. Não existe
+                                            tela de detalhe de tarefa: o que
+                                            existe é o formulário, e é o mesmo
+                                            destino do "Editar" do menu. Sem
+                                            permissão de edição fica texto. */}
+                                        <CardLink
+                                          enabled={canEdit}
+                                          onClick={() => onEdit(task)}
+                                          className="font-medium text-foreground text-sm line-clamp-2 flex-1"
+                                        >
                                           {task.title}
-                                        </h4>
+                                        </CardLink>
                                         {/* O percentual vem da view, não de coluna. */}
                                         {task.project_id && (
                                           <div className="shrink-0 px-2 py-0.5 bg-muted rounded text-xs font-bold text-soft">
@@ -727,7 +743,30 @@ export default function TaskKanban({
 
                                       {task.project && (
                                         <p className="text-xs text-muted-foreground mb-2 truncate">
-                                          {task.project.name}
+                                          {/*
+                                            O NOME DO PROJETO LEVA À LISTA DE
+                                            PROJETOS, com aquele projeto em
+                                            destaque — não há tela de detalhe de
+                                            projeto no sistema, e inventar uma
+                                            aqui seria bem mais do que foi
+                                            pedido. `Projects` lê `?focus=` e
+                                            rola até o cartão.
+
+                                            Só vira link para quem enxerga o
+                                            menu Projetos, pela mesma razão de
+                                            coerência dos outros quadros.
+                                          */}
+                                          <CardLink
+                                            enabled={canViewProjects && Boolean(task.project_id)}
+                                            onClick={() =>
+                                              navigate(
+                                                createPageUrl('Projects') +
+                                                  `?focus=${task.project_id}`,
+                                              )
+                                            }
+                                          >
+                                            {task.project.name}
+                                          </CardLink>
                                         </p>
                                       )}
 
