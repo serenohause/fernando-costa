@@ -23,6 +23,7 @@ import DashboardComercial from '@/features/dashboards/components/DashboardComerc
 import DashboardExecutivo from '@/features/dashboards/components/DashboardExecutivo'
 import Home from '@/features/dashboards/components/Home'
 import Settings from '@/features/settings/components/Settings'
+import Perfil from '@/features/profile/components/Perfil'
 
 /*
   O shell já está de pé; as telas de conteúdo entram módulo a módulo, na ordem
@@ -92,6 +93,10 @@ export function AppRoutes() {
         {/* Módulo sem correspondente no original: é onde o escritório mexe no
             que antes só uma migration mudava. Menu `settings` (0084). */}
         <Route path="/Settings" element={<Settings />} />
+        {/* Sem item na barra lateral: chega-se pelo bloco de usuário do rodapé.
+            Todo mundo edita o próprio perfil, então não há menu a permissionar
+            — e uma entrada na barra seria uma linha a mais para todos. */}
+        <Route path="/Perfil" element={<Perfil />} />
         <Route path="*" element={<PagePlaceholder />} />
       </Route>
     </Routes>

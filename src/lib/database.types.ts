@@ -1143,12 +1143,14 @@ export type Database = {
       collaborators: {
         Row: {
           area: Database["public"]["Enums"]["collaborator_area"] | null
+          avatar_path: string | null
           coordinator_id: string | null
           created_at: string
           email: string
           id: string
           legacy_id: string | null
           name: string
+          phone: string | null
           role: Database["public"]["Enums"]["collaborator_role"]
           status: Database["public"]["Enums"]["collaborator_status"]
           tenant_id: string
@@ -1158,12 +1160,14 @@ export type Database = {
         }
         Insert: {
           area?: Database["public"]["Enums"]["collaborator_area"] | null
+          avatar_path?: string | null
           coordinator_id?: string | null
           created_at?: string
           email: string
           id?: string
           legacy_id?: string | null
           name: string
+          phone?: string | null
           role: Database["public"]["Enums"]["collaborator_role"]
           status?: Database["public"]["Enums"]["collaborator_status"]
           tenant_id: string
@@ -1173,12 +1177,14 @@ export type Database = {
         }
         Update: {
           area?: Database["public"]["Enums"]["collaborator_area"] | null
+          avatar_path?: string | null
           coordinator_id?: string | null
           created_at?: string
           email?: string
           id?: string
           legacy_id?: string | null
           name?: string
+          phone?: string | null
           role?: Database["public"]["Enums"]["collaborator_role"]
           status?: Database["public"]["Enums"]["collaborator_status"]
           tenant_id?: string
@@ -3768,6 +3774,32 @@ export type Database = {
         Returns: boolean
       }
       suggest_contract_number: { Args: never; Returns: string }
+      update_own_profile: {
+        Args: { p_avatar_path?: string; p_name: string; p_phone?: string }
+        Returns: {
+          area: Database["public"]["Enums"]["collaborator_area"] | null
+          avatar_path: string | null
+          coordinator_id: string | null
+          created_at: string
+          email: string
+          id: string
+          legacy_id: string | null
+          name: string
+          phone: string | null
+          role: Database["public"]["Enums"]["collaborator_role"]
+          status: Database["public"]["Enums"]["collaborator_status"]
+          tenant_id: string
+          updated_at: string
+          user_id: string | null
+          weekly_hours: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "collaborators"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       access_request_status: "pending" | "approved" | "rejected"

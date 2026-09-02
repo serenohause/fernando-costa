@@ -8,11 +8,13 @@ import {
   FolderKanban,
   LayoutDashboard,
   LogOut,
+  Settings2,
   Menu,
   Users,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import AvatarPicture from '@/features/profile/components/AvatarPicture'
 import Breadcrumb from '@/components/shared/Breadcrumb'
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import LoadingPage from '@/components/shared/LoadingPage'
@@ -449,16 +451,37 @@ export default function AppLayout() {
 
           {/* User section */}
           <div className="p-4 border-t border-sidebar-border">
+            {/*
+              O BLOCO DO USUÁRIO VIROU A PORTA DO PERFIL — pedido do usuário.
+              É onde a pessoa já olha para conferir com quem está logada, e era
+              o único lugar da tela que falava dela sem oferecer nada.
+
+              `/Perfil` não tem item na barra e não tem menu: todo mundo edita o
+              próprio perfil, então não há permissão a consultar.
+            */}
             {currentCollaborator && (
-              <div className="mb-3 px-4">
-                <p className="text-xs text-muted-foreground mb-1">Usuário</p>
-                <p className="text-sm font-medium text-foreground">{currentCollaborator.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {currentCollaborator.area
-                    ? labelOf(COLLABORATOR_AREA, currentCollaborator.area)
-                    : 'Sem área'}
-                </p>
-              </div>
+              <Link
+                to={createPageUrl('Perfil')}
+                onClick={() => setSidebarOpen(false)}
+                className="mb-3 flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-sidebar-accent transition-colors group"
+              >
+                <AvatarPicture
+                  avatarPath={currentCollaborator.avatar_path}
+                  name={currentCollaborator.name}
+                  size={36}
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-foreground truncate">
+                    {currentCollaborator.name}
+                  </span>
+                  <span className="block text-xs text-muted-foreground truncate">
+                    {currentCollaborator.area
+                      ? labelOf(COLLABORATOR_AREA, currentCollaborator.area)
+                      : 'Sem área'}
+                  </span>
+                </span>
+                <Settings2 className="w-4 h-4 ml-auto text-faint group-hover:text-sidebar-foreground shrink-0" />
+              </Link>
             )}
             {/*
               "EXCLUIR CONTA" SAIU, PROVISORIAMENTE — decisão do usuário.

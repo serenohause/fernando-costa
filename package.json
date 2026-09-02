@@ -47,6 +47,7 @@
     "test:notify": "node tests/query-notify.mjs",
     "test:phone-dedup": "supabase/tests/run-sql.sh supabase/tests/client-phone-dedup.sql",
     "test:won": "supabase/tests/run-sql.sh supabase/tests/negotiation-won.sql",
+    "test:profile": "supabase/tests/run-sql.sh supabase/tests/profile-schema.sql",
     "test:integrations": "supabase/tests/run-sql.sh supabase/tests/integrations-schema.sql",
     "test:contract-number": "supabase/tests/run-sql.sh supabase/tests/contract-number.sql",
     "test:contract-cascade": "supabase/tests/run-sql.sh supabase/tests/contract-approval-delete.sql",
