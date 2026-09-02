@@ -51,6 +51,7 @@
     "test:integrations": "supabase/tests/run-sql.sh supabase/tests/integrations-schema.sql",
     "test:contract-number": "supabase/tests/run-sql.sh supabase/tests/contract-number.sql",
     "test:contract-cascade": "supabase/tests/run-sql.sh supabase/tests/contract-approval-delete.sql",
+    "test:avatar-crop": "node tests/avatar-crop.mjs",
     "test:project-order": "node tests/project-order.mjs",
     "test:project-phase": "node tests/project-phase.mjs",
     "env:prod": "node scripts/env-switch.mjs prod",

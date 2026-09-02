@@ -18,6 +18,7 @@ import {
   useUploadAvatar,
 } from '../hooks'
 import AvatarPicture from './AvatarPicture'
+import AvatarCropDialog from './AvatarCropDialog'
 
 /*
   PERFIL DO USUÁRIO — módulo sem correspondente no original.
@@ -33,8 +34,20 @@ import AvatarPicture from './AvatarPicture'
   para leitura, porque quem abre o perfil quer conferi-los.
 */
 
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+/*
+  O TETO DA ESCOLHA É DE SANIDADE, e não o limite do que se guarda: o que sobe é
+  sempre o recorte comprimido pelo navegador (`../image`), na casa das dezenas
+  de KB. 25 MB é o ponto em que decodificar a imagem começa a travar a aba de
+  quem escolheu o arquivo errado — um vídeo, um PSD.
+*/
+const MAX_PICK_BYTES = 25 * 1024 * 1024
+
+/*
+  Aceita o que o navegador sabe decodificar, e não só os três tipos que o bucket
+  guarda: o recorte SAI em WebP ou JPEG de qualquer forma. Restringir a entrada
+  a esses três recusaria um PNG grande que o sistema converteria sem problema.
+*/
+const ACCEPTED_PICK_TYPES = 'image/*'
 
 /* O mesmo mínimo que o Supabase aplica por padrão. Dizer antes evita a recusa
    do servidor em inglês depois de a pessoa digitar duas vezes. */
@@ -59,6 +72,7 @@ export default function Perfil() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [cropFile, setCropFile] = useState<File | null>(null)
 
   /* Os campos nascem com o que está gravado, e voltam a nascer quando a
      gravação devolve valores novos — sem isto, salvar e continuar na tela
@@ -115,24 +129,36 @@ export default function Perfil() {
     )
   }
 
+  /* Escolher o arquivo não envia nada: abre o recorte. Quem confirma é o
+     diálogo, com a imagem já ajustada e comprimida. */
   const handlePickFile = (file: File | undefined) => {
     if (!file) return
 
-    /* As duas conferências existem no bucket também (0088) — aqui elas evitam
-       enviar 8 MB para receber uma recusa depois da subida. */
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast.error('A foto precisa ser JPG, PNG ou WebP.')
+    if (!file.type.startsWith('image/')) {
+      toast.error('Escolha um arquivo de imagem.')
       return
     }
-    if (file.size > MAX_AVATAR_BYTES) {
-      toast.error('A foto precisa ter no máximo 2 MB.')
+    if (file.size > MAX_PICK_BYTES) {
+      toast.error('Essa imagem é grande demais para abrir. Use uma de até 25 MB.')
       return
     }
 
+    setCropFile(file)
+  }
+
+  const handleConfirmCrop = (blob: Blob, extension: 'webp' | 'jpg') => {
     uploadAvatar.mutate(
-      { file, name: name.trim() || collaborator.name, phone: phoneDigits === '' ? null : phone },
       {
-        onSuccess: () => toast.success('Foto atualizada'),
+        blob,
+        extension,
+        name: name.trim() || collaborator.name,
+        phone: phoneDigits === '' ? null : phone,
+      },
+      {
+        onSuccess: () => {
+          setCropFile(null)
+          toast.success('Foto atualizada')
+        },
         onError: (error) => toast.error('Erro ao enviar a foto: ' + describeDatabaseError(error)),
       },
     )
@@ -204,7 +230,7 @@ export default function Perfil() {
             <input
               ref={fileRef}
               type="file"
-              accept={ACCEPTED_TYPES.join(',')}
+              accept={ACCEPTED_PICK_TYPES}
               className="hidden"
               onChange={(event) => {
                 handlePickFile(event.target.files?.[0])
@@ -217,10 +243,9 @@ export default function Perfil() {
               variant="outline"
               size="sm"
               onClick={() => fileRef.current?.click()}
-              disabled={uploadAvatar.isPending}
             >
               <Camera className="w-4 h-4 mr-2" />
-              {uploadAvatar.isPending ? 'Enviando...' : 'Trocar foto'}
+              Trocar foto
             </Button>
             {collaborator.avatar_path && (
               <Button
@@ -248,8 +273,17 @@ export default function Perfil() {
             )}
           </div>
         </div>
-        <p className="text-xs text-faint mt-3">JPG, PNG ou WebP, até 2 MB.</p>
+        <p className="text-xs text-faint mt-3">
+          Qualquer imagem até 25 MB — o sistema recorta e comprime antes de enviar.
+        </p>
       </section>
+
+      <AvatarCropDialog
+        file={cropFile}
+        onCancel={() => setCropFile(null)}
+        onConfirm={handleConfirmCrop}
+        isSaving={uploadAvatar.isPending}
+      />
 
       {/* ── Dados pessoais ────────────────────────────────────────────── */}
       <section className="bg-card rounded-xl border border-border p-5 space-y-4">

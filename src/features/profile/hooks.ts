@@ -100,8 +100,11 @@ export function useUpdateProfile() {
   })
 }
 
-function avatarObjectPath(tenantId: string, collaboratorId: string, file: File): string {
-  const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+function avatarObjectPath(
+  tenantId: string,
+  collaboratorId: string,
+  extension: 'webp' | 'jpg',
+): string {
   /* Nome de arquivo é uuid, nunca o nome que veio do computador de quem envia:
      nome escolhido por terceiro não entra em caminho de storage. */
   return `${tenantId}/${collaboratorId}/${crypto.randomUUID()}.${extension}`
@@ -111,20 +114,35 @@ function avatarObjectPath(tenantId: string, collaboratorId: string, file: File):
   ENVIAR A FOTO, e apagar a anterior só DEPOIS de a nova estar gravada no
   cadastro. Na ordem inversa, uma falha no meio deixaria a pessoa sem foto
   nenhuma — e o arquivo antigo já teria ido embora.
+
+  O QUE CHEGA AQUI JÁ É O RECORTE COMPRIMIDO (`../image`), e não o arquivo que a
+  pessoa escolheu: um quadrado de até 512px, na casa das dezenas de KB. É o que
+  permite aceitar a foto de 8 MB do celular sem que o bucket precise aceitar
+  8 MB — e sem guardar 8 MB por pessoa.
 */
 export function useUploadAvatar() {
   const queryClient = useQueryClient()
   const { data: collaborator } = useCurrentCollaborator()
 
   return useMutation({
-    mutationFn: async ({ file, name, phone }: { file: File; name: string; phone: string | null }) => {
+    mutationFn: async ({
+      blob,
+      extension,
+      name,
+      phone,
+    }: {
+      blob: Blob
+      extension: 'webp' | 'jpg'
+      name: string
+      phone: string | null
+    }) => {
       if (!collaborator) throw new WriteError('Sessão não identificada.')
 
-      const path = avatarObjectPath(collaborator.tenant_id, collaborator.id, file)
+      const path = avatarObjectPath(collaborator.tenant_id, collaborator.id, extension)
 
       const { error: uploadError } = await supabase.storage
         .from(AVATARS_BUCKET)
-        .upload(path, file, { contentType: file.type, upsert: false })
+        .upload(path, blob, { contentType: blob.type, upsert: false })
 
       if (uploadError) throw uploadError
 
