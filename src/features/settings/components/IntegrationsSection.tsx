@@ -343,11 +343,22 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
             </div>
           </div>
 
-          {canEdit && (
+          {/*
+            O BOTÃO SÓ APARECE QUANDO NÃO HÁ CHAVE ATIVA.
+
+            No caminho normal a chave nasce junto com a conexão do Google
+            (migration 0086) e oferecer "gerar" ao lado dela convida a criar uma
+            segunda que ninguém pediu — e chave viva a mais é superfície a mais.
+
+            Ele não sumiu de vez porque isso abriria um buraco: quem revogasse
+            ficaria sem chave E sem como criar outra, já que a emissão
+            automática só acontece ao conectar, e a conexão já existe.
+          */}
+          {canEdit && activeKeys.length === 0 && (
             <Button
               variant="outline"
               onClick={() => {
-                setKeyName('n8n — agenda diária')
+                setKeyName('Automação — agenda do dia')
                 setKeyDialogOpen(true)
               }}
             >
@@ -382,7 +393,7 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
           <div className="mt-4 h-14 bg-muted rounded-lg animate-pulse" />
         ) : activeKeys.length === 0 ? (
           <p className="text-sm text-muted-foreground mt-4">
-            Nenhuma chave ativa. A primeira nasce junto com a conexão do Google
+            Nenhuma chave ativa. Ela nasce junto com a conexão do Google
             {canEdit ? ' — ou gere uma agora.' : '.'}
           </p>
         ) : (
@@ -570,7 +581,8 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
             <AlertDialogTitle>Revogar “{revoking?.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
               Toda automação que usa esta chave para de funcionar na hora, e o valor dela é
-              apagado. Não dá para desfazer — seria preciso gerar uma chave nova.
+              apagado. Não dá para desfazer: depois disso é preciso gerar uma chave nova e
+              configurá-la na automação.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
