@@ -231,22 +231,27 @@ function toClientInput(values: ClientFormValues): ClientInput {
     site_state: orNull(values.site_state),
 
     /*
-      OS DADOS DA EMPRESA SÓ VIAJAM COM O TIPO QUE LHES DÁ SENTIDO, pelo mesmo
-      motivo de `referrer_name` logo acima: trocar de Pessoa Jurídica para
-      Física e continuar gravando a razão social deixaria um dado pendurado num
-      cadastro que não é mais empresa — e alguém, meses depois, lendo aquilo
-      como fato.
+      O QUE FOI PREENCHIDO É GRAVADO, qualquer que seja o tipo do cliente.
+
+      Estes campos já dependeram de `client_type === 'company'`, junto com o
+      bloqueio da aba. Sem o bloqueio, aquela condição vira uma armadilha:
+      alguém preenche a razão social num cadastro marcado como Pessoa Física, o
+      formulário aceita, salva — e o dado é descartado sem aviso. Perder em
+      silêncio o que a pessoa digitou é pior do que não ter deixado digitar.
+
+      Some com isso o caso real que o bloqueio atrapalhava: MEI e profissional
+      liberal têm CNPJ e são cadastrados como pessoa.
     */
-    company_legal_name: values.client_type === 'company' ? orNull(values.company_legal_name) : null,
-    company_trade_name: values.client_type === 'company' ? orNull(values.company_trade_name) : null,
-    company_state_registration: values.client_type === 'company' ? orNull(values.company_state_registration) : null,
-    company_address_zipcode: values.client_type === 'company' ? orNull(values.company_address_zipcode) : null,
-    company_address_street: values.client_type === 'company' ? orNull(values.company_address_street) : null,
-    company_address_number: values.client_type === 'company' ? orNull(values.company_address_number) : null,
-    company_address_complement: values.client_type === 'company' ? orNull(values.company_address_complement) : null,
-    company_address_district: values.client_type === 'company' ? orNull(values.company_address_district) : null,
-    company_address_city: values.client_type === 'company' ? orNull(values.company_address_city) : null,
-    company_address_state: values.client_type === 'company' ? orNull(values.company_address_state) : null,
+    company_legal_name: orNull(values.company_legal_name),
+    company_trade_name: orNull(values.company_trade_name),
+    company_state_registration: orNull(values.company_state_registration),
+    company_address_zipcode: orNull(values.company_address_zipcode),
+    company_address_street: orNull(values.company_address_street),
+    company_address_number: orNull(values.company_address_number),
+    company_address_complement: orNull(values.company_address_complement),
+    company_address_district: orNull(values.company_address_district),
+    company_address_city: orNull(values.company_address_city),
+    company_address_state: orNull(values.company_address_state),
   }
 }
 
@@ -291,8 +296,6 @@ export default function ClientForm({
   const [activeTab, setActiveTab] = useState('cliente')
   const [companyInfo, setCompanyInfo] = useState<CompanyLookup | null>(null)
   const cnpjLookup = useLookupCnpj()
-
-  const isCompany = formData.client_type === 'company'
 
   /*
     O interruptor começa LIGADO quando o cadastro já tem dados de empresa — é a
@@ -527,9 +530,13 @@ export default function ClientForm({
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="cliente">Dados do cliente</TabsTrigger>
-              <TabsTrigger value="pj" disabled={!isCompany}>
-                Dados PJ
-              </TabsTrigger>
+              {/*
+                SEM BLOQUEIO, por decisão do usuário: "quem vai preencher sabe
+                quais dados colocar". A aba já esteve desabilitada fora de
+                Pessoa Jurídica, e o caso que isso atrapalhava é comum — MEI e
+                profissional liberal têm CNPJ e são cadastrados como pessoa.
+              */}
+              <TabsTrigger value="pj">Dados PJ</TabsTrigger>
               <TabsTrigger value="obra">Dados da Obra</TabsTrigger>
             </TabsList>
 
