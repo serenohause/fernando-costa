@@ -10,10 +10,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { CLIENT_TYPE, LEAD_SOURCE, optionsOf, type ClientType, type LeadSource } from '@/lib/enums'
 import { maskPhone, maskTaxId, maskZipcode } from '@/lib/masks'
-import { useClients, useLookupZipcode } from '../hooks'
+import { toast } from 'sonner'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useClients, useLookupCnpj, useLookupZipcode } from '../hooks'
 import type { DuplicateClientError } from '../hooks'
 import type { DuplicateField } from '../types'
-import type { Client, ClientInput } from '../types'
+import type { Client, ClientInput, CompanyLookup } from '../types'
 
 /*
   Porta de projeto-original/src/components/forms/ClientForm.jsx.
@@ -70,6 +73,19 @@ export type ClientFormValues = {
   site_complement: string
   site_city: string
   site_state: string
+
+  /* Empresa (migration 0091). Só fazem sentido com client_type = 'company', e
+     quem exige isso é a tela: a aba fica desabilitada nos outros tipos. */
+  company_legal_name: string
+  company_trade_name: string
+  company_state_registration: string
+  company_address_zipcode: string
+  company_address_street: string
+  company_address_number: string
+  company_address_complement: string
+  company_address_district: string
+  company_address_city: string
+  company_address_state: string
 }
 
 const EMPTY: ClientFormValues = {
@@ -98,6 +114,16 @@ const EMPTY: ClientFormValues = {
   site_complement: '',
   site_city: '',
   site_state: '',
+  company_legal_name: '',
+  company_trade_name: '',
+  company_state_registration: '',
+  company_address_zipcode: '',
+  company_address_street: '',
+  company_address_number: '',
+  company_address_complement: '',
+  company_address_district: '',
+  company_address_city: '',
+  company_address_state: '',
 }
 
 export function toFormValues(client: Client): ClientFormValues {
@@ -138,6 +164,17 @@ export function toFormValues(client: Client): ClientFormValues {
     site_complement: client.site_complement ?? '',
     site_city: client.site_city ?? '',
     site_state: client.site_state ?? '',
+
+    company_legal_name: client.company_legal_name ?? '',
+    company_trade_name: client.company_trade_name ?? '',
+    company_state_registration: client.company_state_registration ?? '',
+    company_address_zipcode: client.company_address_zipcode ?? '',
+    company_address_street: client.company_address_street ?? '',
+    company_address_number: client.company_address_number ?? '',
+    company_address_complement: client.company_address_complement ?? '',
+    company_address_district: client.company_address_district ?? '',
+    company_address_city: client.company_address_city ?? '',
+    company_address_state: client.company_address_state ?? '',
   }
 }
 
@@ -192,6 +229,24 @@ function toClientInput(values: ClientFormValues): ClientInput {
     site_complement: orNull(values.site_complement),
     site_city: orNull(values.site_city),
     site_state: orNull(values.site_state),
+
+    /*
+      OS DADOS DA EMPRESA SÓ VIAJAM COM O TIPO QUE LHES DÁ SENTIDO, pelo mesmo
+      motivo de `referrer_name` logo acima: trocar de Pessoa Jurídica para
+      Física e continuar gravando a razão social deixaria um dado pendurado num
+      cadastro que não é mais empresa — e alguém, meses depois, lendo aquilo
+      como fato.
+    */
+    company_legal_name: values.client_type === 'company' ? orNull(values.company_legal_name) : null,
+    company_trade_name: values.client_type === 'company' ? orNull(values.company_trade_name) : null,
+    company_state_registration: values.client_type === 'company' ? orNull(values.company_state_registration) : null,
+    company_address_zipcode: values.client_type === 'company' ? orNull(values.company_address_zipcode) : null,
+    company_address_street: values.client_type === 'company' ? orNull(values.company_address_street) : null,
+    company_address_number: values.client_type === 'company' ? orNull(values.company_address_number) : null,
+    company_address_complement: values.client_type === 'company' ? orNull(values.company_address_complement) : null,
+    company_address_district: values.client_type === 'company' ? orNull(values.company_address_district) : null,
+    company_address_city: values.client_type === 'company' ? orNull(values.company_address_city) : null,
+    company_address_state: values.client_type === 'company' ? orNull(values.company_address_state) : null,
   }
 }
 
@@ -233,6 +288,21 @@ export default function ClientForm({
   onOpenDuplicate?: (client: Client) => void
 }) {
   const [formData, setFormData] = useState<ClientFormValues>({ ...EMPTY, ...initialData })
+  const [activeTab, setActiveTab] = useState('cliente')
+  const [companyInfo, setCompanyInfo] = useState<CompanyLookup | null>(null)
+  const cnpjLookup = useLookupCnpj()
+
+  const isCompany = formData.client_type === 'company'
+
+  /*
+    O interruptor começa LIGADO quando o cadastro já tem dados de empresa — é a
+    mesma regra do campo de indicação: quem abre um cadastro antigo não pode ver
+    o que está gravado sumir da tela.
+  */
+  const [companyOpen, setCompanyOpen] = useState(
+    () => Boolean(initialData?.company_legal_name || initialData?.company_trade_name),
+  )
+
   const [referrerMissing, setReferrerMissing] = useState(false)
   const referrerFieldRef = useRef<HTMLDivElement>(null)
 
@@ -308,6 +378,62 @@ export default function ClientForm({
     marcação vermelha acontece fora da área visível e o botão parece não fazer
     nada.
   */
+  /*
+    Desligar LIMPA os campos, e não apenas os esconde: um cadastro com meia
+    empresa gravada — razão social sem endereço, endereço sem razão social — é
+    pior que nenhum, porque o contrato sai pela metade sem ninguém perceber.
+  */
+  const handleToggleCompany = (open: boolean) => {
+    setCompanyOpen(open)
+    if (!open) {
+      setCompanyInfo(null)
+      setFormData((current) => ({
+        ...current,
+        company_legal_name: '',
+        company_trade_name: '',
+        company_state_registration: '',
+        company_address_zipcode: '',
+        company_address_street: '',
+        company_address_number: '',
+        company_address_complement: '',
+        company_address_district: '',
+        company_address_city: '',
+        company_address_state: '',
+      }))
+    }
+  }
+
+  /*
+    A CONSULTA PREENCHE, E NÃO SOBRESCREVE O QUE JÁ ESTÁ LÁ. Quem já digitou a
+    razão social à mão — porque a Receita traz um nome antigo, por exemplo — não
+    a perde ao clicar em Buscar por causa do endereço.
+  */
+  const handleLookupCnpj = () => {
+    cnpjLookup.mutate(formData.tax_id, {
+      onSuccess: (dados) => {
+        if (!dados) {
+          toast.error('CNPJ não encontrado. Confira o número ou preencha à mão.')
+          return
+        }
+        setCompanyInfo(dados)
+        setFormData((current) => ({
+          ...current,
+          company_legal_name: current.company_legal_name || dados.legalName,
+          company_trade_name: current.company_trade_name || dados.tradeName,
+          company_address_zipcode: current.company_address_zipcode || maskZipcode(dados.zipcode),
+          company_address_street: current.company_address_street || dados.street,
+          company_address_number: current.company_address_number || dados.number,
+          company_address_complement: current.company_address_complement || dados.complement,
+          company_address_district: current.company_address_district || dados.district,
+          company_address_city: current.company_address_city || dados.city,
+          company_address_state: current.company_address_state || dados.state,
+        }))
+        toast.success('Dados da empresa preenchidos.')
+      },
+      onError: () => toast.error('Não foi possível consultar o CNPJ agora.'),
+    })
+  }
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -386,6 +512,32 @@ export default function ClientForm({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+          {/*
+            TRÊS ABAS, e não três blocos empilhados — pedido do usuário. O
+            cadastro tem 27 campos, e rolar até o fim para achar o endereço da
+            obra era o gesto de sempre.
+
+            `forceMount` nas três, com o inativo escondido por CSS: o Radix
+            DESMONTA o conteúdo da aba inativa por padrão, e cinco campos deste
+            formulário são `required`. Um campo obrigatório vazio fora do DOM
+            trava o submit em silêncio — o navegador tenta focar um elemento que
+            não existe e desiste, sem mensagem. Com tudo montado, o aviso
+            aparece e a aba certa continua sendo a que a pessoa escolheu.
+          */}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="cliente">Dados do cliente</TabsTrigger>
+              <TabsTrigger value="pj" disabled={!isCompany}>
+                Dados PJ
+              </TabsTrigger>
+              <TabsTrigger value="obra">Dados da Obra</TabsTrigger>
+            </TabsList>
+
+            <TabsContent
+              value="cliente"
+              forceMount
+              className="space-y-6 mt-4 data-[state=inactive]:hidden"
+            >
           {/* DADOS INICIAIS */}
           <div className="p-4 bg-elevated rounded-lg border border-border space-y-4">
             <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">
@@ -738,6 +890,250 @@ export default function ClientForm({
             </div>
           </div>
 
+            </TabsContent>
+
+            <TabsContent
+              value="pj"
+              forceMount
+              className="space-y-6 mt-4 data-[state=inactive]:hidden"
+            >
+              {/*
+                O INTERRUPTOR EXISTE PORQUE PJ NEM SEMPRE QUER DIZER "TENHO OS
+                DADOS". O escritório cadastra a empresa quando vai emitir
+                contrato no nome dela; até lá, o cliente é Pessoa Jurídica e o
+                cadastro tem só o CNPJ. Desligado, os campos somem — e são
+                limpos, para não gravar meia empresa.
+              */}
+              <div className="flex items-center gap-3 p-4 bg-elevated rounded-lg border border-border">
+                <Switch
+                  id="tem-empresa"
+                  checked={companyOpen}
+                  onCheckedChange={handleToggleCompany}
+                />
+                <Label htmlFor="tem-empresa" className="font-medium cursor-pointer">
+                  Preencher os dados da empresa
+                </Label>
+              </div>
+
+              {companyOpen && (
+                <div className="p-4 bg-violet-50 dark:bg-violet-950/40 rounded-lg border border-violet-200 dark:border-violet-900 space-y-4">
+                  <h3 className="text-sm font-bold text-violet-900 dark:text-violet-300 uppercase tracking-wide">
+                    🏢 Dados da Empresa
+                  </h3>
+
+                  {/*
+                    O CNPJ É O MESMO `tax_id` DO CADASTRO, e não um campo novo:
+                    ele já é o documento do cliente quando o tipo é Pessoa
+                    Jurídica, e a deduplicação do CRM (0015, 0065) trabalha
+                    sobre ele. Uma segunda coluna com o mesmo documento seria a
+                    primeira coisa a divergir.
+                  */}
+                  <div className="space-y-2">
+                    <Label htmlFor="company_cnpj">CNPJ</Label>
+                    <div className="flex gap-2">
+                      <MaskedInput
+                        id="company_cnpj"
+                        mask={maskTaxId}
+                        value={formData.tax_id}
+                        onValueChange={(value) => setFormData({ ...formData, tax_id: value })}
+                        placeholder="00.000.000/0000-00"
+                        className="bg-card"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleLookupCnpj}
+                        disabled={cnpjLookup.isPending || formData.tax_id.replace(/\D/g, '').length !== 14}
+                      >
+                        {cnpjLookup.isPending ? 'Buscando...' : 'Buscar'}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      A busca preenche razão social e endereço da sede a partir do CNPJ. É o mesmo
+                      documento da aba anterior.
+                    </p>
+                  </div>
+
+                  {/* O que a consulta informou e o cadastro NÃO guarda: os dois
+                      envelhecem, e um contrato afirmando "ATIVA" com base numa
+                      consulta antiga seria uma mentira com data. */}
+                  {companyInfo && (
+                    <div className="text-xs text-violet-800 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 rounded-lg p-3 space-y-1">
+                      {companyInfo.status && (
+                        <p>
+                          <span className="font-medium">Situação na Receita:</span>{' '}
+                          {companyInfo.status}
+                        </p>
+                      )}
+                      {companyInfo.mainActivity && (
+                        <p>
+                          <span className="font-medium">Atividade principal:</span>{' '}
+                          {companyInfo.mainActivity}
+                        </p>
+                      )}
+                      <p className="text-violet-700 dark:text-violet-400">
+                        Consultado agora, e não guardado no cadastro — situação de empresa muda.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="company_legal_name">Razão Social</Label>
+                    <Input
+                      id="company_legal_name"
+                      maxLength={200}
+                      value={formData.company_legal_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, company_legal_name: e.target.value })
+                      }
+                      placeholder="Razão social da empresa"
+                      className="bg-card"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="company_trade_name">Nome Fantasia</Label>
+                      <Input
+                        id="company_trade_name"
+                        maxLength={200}
+                        value={formData.company_trade_name}
+                        onChange={(e) =>
+                          setFormData({ ...formData, company_trade_name: e.target.value })
+                        }
+                        placeholder="Nome fantasia"
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="company_state_registration">Inscrição Estadual</Label>
+                      <Input
+                        id="company_state_registration"
+                        maxLength={30}
+                        value={formData.company_state_registration}
+                        onChange={(e) =>
+                          setFormData({ ...formData, company_state_registration: e.target.value })
+                        }
+                        placeholder="Isento, ou o número"
+                        className="bg-card"
+                      />
+                    </div>
+                  </div>
+
+                  <h4 className="text-xs font-bold text-violet-900 dark:text-violet-300 uppercase tracking-wide pt-2">
+                    Endereço da sede
+                  </h4>
+                  <p className="text-xs text-muted-foreground -mt-2">
+                    O terceiro endereço do cadastro: a pessoa mora num lugar, a obra fica em outro,
+                    e a empresa que assina tem o seu.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="company_address_zipcode">CEP</Label>
+                      <MaskedInput
+                        id="company_address_zipcode"
+                        mask={maskZipcode}
+                        value={formData.company_address_zipcode}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, company_address_zipcode: value })
+                        }
+                        placeholder="00000-000"
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="company_address_district">Bairro</Label>
+                      <Input
+                        id="company_address_district"
+                        value={formData.company_address_district}
+                        onChange={(e) =>
+                          setFormData({ ...formData, company_address_district: e.target.value })
+                        }
+                        placeholder="Bairro"
+                        className="bg-card"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="company_address_street">Endereço</Label>
+                      <Input
+                        id="company_address_street"
+                        value={formData.company_address_street}
+                        onChange={(e) =>
+                          setFormData({ ...formData, company_address_street: e.target.value })
+                        }
+                        placeholder="Rua, avenida..."
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="company_address_number">Número</Label>
+                      <Input
+                        id="company_address_number"
+                        value={formData.company_address_number}
+                        onChange={(e) =>
+                          setFormData({ ...formData, company_address_number: e.target.value })
+                        }
+                        placeholder="Nº"
+                        className="bg-card"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="company_address_city">Cidade</Label>
+                      <Input
+                        id="company_address_city"
+                        value={formData.company_address_city}
+                        onChange={(e) =>
+                          setFormData({ ...formData, company_address_city: e.target.value })
+                        }
+                        placeholder="Cidade"
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="company_address_state">UF</Label>
+                      <Input
+                        id="company_address_state"
+                        maxLength={2}
+                        value={formData.company_address_state}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            company_address_state: e.target.value.toUpperCase(),
+                          })
+                        }
+                        placeholder="UF"
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="company_address_complement">Complemento</Label>
+                      <Input
+                        id="company_address_complement"
+                        value={formData.company_address_complement}
+                        onChange={(e) =>
+                          setFormData({ ...formData, company_address_complement: e.target.value })
+                        }
+                        placeholder="Sala, andar..."
+                        className="bg-card"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent
+              value="obra"
+              forceMount
+              className="space-y-6 mt-4 data-[state=inactive]:hidden"
+            >
           {/* ENDEREÇO DA OBRA */}
           <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-900 space-y-4">
             <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wide">
@@ -802,6 +1198,11 @@ export default function ClientForm({
             </div>
           </div>
 
+            </TabsContent>
+          </Tabs>
+
+          {/* O rodapé fica FORA das abas: salvar é sobre o cadastro inteiro, e
+              não sobre a aba aberta. */}
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar

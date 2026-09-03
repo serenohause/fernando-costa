@@ -54,6 +54,18 @@ export type ClientInput = {
   /* O cliente que indicou, quando quem indicou é cliente do escritório (0087).
      Nulo quando o indicador é de fora — e nunca preenchido sem `referrer_name`. */
   referrer_client_id: string | null
+
+  /* Empresa (0091). Nulos quando o cliente não é Pessoa Jurídica. */
+  company_legal_name: string | null
+  company_trade_name: string | null
+  company_state_registration: string | null
+  company_address_zipcode: string | null
+  company_address_street: string | null
+  company_address_number: string | null
+  company_address_complement: string | null
+  company_address_district: string | null
+  company_address_city: string | null
+  company_address_state: string | null
   tax_id: string | null
   birth_date: string | null
   notes: string | null
@@ -88,6 +100,23 @@ export type ClientInput = {
 export type DuplicateField = 'tax_id' | 'email' | 'phone'
 
 /* Endereço devolvido pelo ViaCEP, já validado e reduzido ao que o form usa. */
+/* O que a consulta de CNPJ devolve ao formulário, já traduzido para os nomes
+   das colunas — a tela não fala o vocabulário da API. */
+export type CompanyLookup = {
+  legalName: string
+  tradeName: string
+  zipcode: string
+  street: string
+  number: string
+  complement: string
+  district: string
+  city: string
+  state: string
+  /* Só para exibir; nenhum dos dois é gravado (migration 0091). */
+  status: string
+  mainActivity: string
+}
+
 export type ZipcodeAddress = {
   street: string
   district: string

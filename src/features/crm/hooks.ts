@@ -7,8 +7,15 @@ import {
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
 import { useCurrentCollaborator } from '@/features/auth/hooks'
-import { clientInputSchema, viaCepResponseSchema } from './schemas'
-import type { Client, ClientInput, ClientListRow, DuplicateField, ZipcodeAddress } from './types'
+import { brasilApiCnpjResponseSchema, clientInputSchema, viaCepResponseSchema } from './schemas'
+import type {
+  Client,
+  ClientInput,
+  ClientListRow,
+  CompanyLookup,
+  DuplicateField,
+  ZipcodeAddress,
+} from './types'
 import type { ProjectStatus } from '@/lib/enums'
 
 export const crmKeys = {
@@ -84,6 +91,20 @@ const CRM_ERROR_MESSAGES: DatabaseErrorMessages = {
     junto com o nome —, mas gravação por outro caminho veria o nome da
     constraint sem estas frases.
   */
+  /*
+    Tetos dos campos de empresa (0091). O schema Zod e o `maxLength` do campo
+    recusam antes; estas frases são a terceira barreira, para uma gravação por
+    outro caminho não mostrar o nome da constraint.
+  */
+  clients_company_legal_name_length_check:
+    'A razão social é longa demais (máximo de 200 caracteres).',
+  clients_company_trade_name_length_check:
+    'O nome fantasia é longo demais (máximo de 200 caracteres).',
+  clients_company_state_registration_length_check:
+    'A inscrição estadual é longa demais (máximo de 30 caracteres).',
+  clients_company_address_state_length_check:
+    'A UF da sede tem duas letras (ex.: GO).',
+
   clients_referrer_not_self_check:
     'Um cliente não pode ser indicado por ele mesmo. Escolha outro cliente ou digite o nome de quem indicou.',
   clients_referrer_client_needs_name_check:
@@ -627,6 +648,60 @@ export function useDeleteClient() {
 }
 
 /* ── CEP ───────────────────────────────────────────────────────────────── */
+
+/*
+  CONSULTA DE CNPJ — pedido do usuário, e não existe no original.
+
+  BrasilAPI (`brasilapi.com.br/api/cnpj/v1/<cnpj>`): pública, sem chave, sem
+  limite declarado para uso desta ordem, e com CORS liberado — o que importa
+  porque quem chama é o navegador de quem cadastra, não um servidor nosso.
+  Testada com um CNPJ real do escritório antes de entrar.
+
+  Mesma disciplina do ViaCEP logo abaixo: a resposta passa por Zod antes de
+  encostar no formulário. É entrada externa, e a tela vai escrever o que vier
+  dela dentro de um cadastro de cliente.
+
+  O QUE ELA NÃO FAZ: gravar. A consulta devolve valores para o formulário, e
+  quem grava é quem clicar em salvar. Preencher e salvar sozinho transformaria
+  um erro de digitação de CNPJ numa troca silenciosa de razão social.
+
+  Falha de rede, CNPJ inexistente e resposta fora do formato devolvem null, e o
+  formulário não muda — a tela avisa.
+*/
+export function useLookupCnpj() {
+  return useMutation({
+    mutationFn: async (cnpj: string): Promise<CompanyLookup | null> => {
+      const digits = cnpj.replace(/\D/g, '')
+      if (digits.length !== 14) return null
+
+      try {
+        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`)
+        if (!response.ok) return null
+
+        const parsed = brasilApiCnpjResponseSchema.safeParse(await response.json())
+        if (!parsed.success) return null
+
+        const d = parsed.data
+        return {
+          legalName: d.razao_social ?? '',
+          tradeName: d.nome_fantasia ?? '',
+          /* A API devolve o CEP sem pontuação; a máscara da tela formata. */
+          zipcode: d.cep ?? '',
+          street: d.logradouro ?? '',
+          number: d.numero ?? '',
+          complement: d.complemento ?? '',
+          district: d.bairro ?? '',
+          city: d.municipio ?? '',
+          state: d.uf ?? '',
+          status: d.descricao_situacao_cadastral ?? '',
+          mainActivity: d.cnae_fiscal_descricao ?? '',
+        }
+      } catch {
+        return null
+      }
+    },
+  })
+}
 
 /*
   Consulta de CEP do ClientForm.jsx original (ViaCEP, no `onBlur` do campo).

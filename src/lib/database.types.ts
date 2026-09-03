@@ -969,6 +969,16 @@ export type Database = {
           birth_date: string | null
           client_key: string | null
           client_type: Database["public"]["Enums"]["client_type"] | null
+          company_address_city: string | null
+          company_address_complement: string | null
+          company_address_district: string | null
+          company_address_number: string | null
+          company_address_state: string | null
+          company_address_street: string | null
+          company_address_zipcode: string | null
+          company_legal_name: string | null
+          company_state_registration: string | null
+          company_trade_name: string | null
           created_at: string
           email: string | null
           email_normalized: string | null
@@ -1006,6 +1016,16 @@ export type Database = {
           birth_date?: string | null
           client_key?: string | null
           client_type?: Database["public"]["Enums"]["client_type"] | null
+          company_address_city?: string | null
+          company_address_complement?: string | null
+          company_address_district?: string | null
+          company_address_number?: string | null
+          company_address_state?: string | null
+          company_address_street?: string | null
+          company_address_zipcode?: string | null
+          company_legal_name?: string | null
+          company_state_registration?: string | null
+          company_trade_name?: string | null
           created_at?: string
           email?: string | null
           email_normalized?: string | null
@@ -1043,6 +1063,16 @@ export type Database = {
           birth_date?: string | null
           client_key?: string | null
           client_type?: Database["public"]["Enums"]["client_type"] | null
+          company_address_city?: string | null
+          company_address_complement?: string | null
+          company_address_district?: string | null
+          company_address_number?: string | null
+          company_address_state?: string | null
+          company_address_street?: string | null
+          company_address_zipcode?: string | null
+          company_legal_name?: string | null
+          company_state_registration?: string | null
+          company_trade_name?: string | null
           created_at?: string
           email?: string | null
           email_normalized?: string | null

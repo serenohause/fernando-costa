@@ -66,6 +66,24 @@ export const clientInputSchema = z.object({
     confere que é um uuid, para texto solto não chegar ao banco como erro 22P02.
   */
   referrer_client_id: nullIfBlank(z.uuid('Indicador inválido.').nullable()),
+
+  /*
+    Empresa (0091). Os tetos são os dos checks da coluna; a UF tem dois
+    caracteres como em todo o resto do cadastro. Quem exige que estes campos só
+    existam num cliente PJ é a tela — o banco não tem check para isso, pelo
+    mesmo motivo de `referrer_name`: trocar o tipo de um cadastro antigo viraria
+    erro de gravação em vez de campo limpo.
+  */
+  company_legal_name: optionalText(200),
+  company_trade_name: optionalText(200),
+  company_state_registration: optionalText(30),
+  company_address_zipcode: optionalText(20),
+  company_address_street: optionalText(200),
+  company_address_number: optionalText(20),
+  company_address_complement: optionalText(100),
+  company_address_district: optionalText(100),
+  company_address_city: optionalText(100),
+  company_address_state: optionalText(2),
   /*
     Guardado como a pessoa digitou, com pontuação. Sem check de dígito
     verificador, como no original e como a migration 0015 registra: a comparação
@@ -110,6 +128,32 @@ export type ClientInputParsed = z.infer<typeof clientInputSchema>
 
   `erro` vem como boolean em algumas respostas e como a string "true" em outras.
 */
+/*
+  A resposta da BrasilAPI para uma consulta de CNPJ, recortada ao que o cadastro
+  usa. Ela devolve 48 campos; declarar os oito que interessam é o que impede
+  que a tela passe a depender, sem querer, de algo que a API mude amanhã.
+
+  TUDO OPCIONAL de propósito: empresa sem nome fantasia é comum, e endereço
+  incompleto acontece. Campo ausente vira campo vazio no formulário, nunca
+  quebra a consulta inteira.
+*/
+export const brasilApiCnpjResponseSchema = z.object({
+  razao_social: z.string().optional(),
+  nome_fantasia: z.string().optional(),
+  cep: z.string().optional(),
+  logradouro: z.string().optional(),
+  numero: z.string().optional(),
+  complemento: z.string().optional(),
+  bairro: z.string().optional(),
+  municipio: z.string().optional(),
+  uf: z.string().optional(),
+  /* Mostrados na tela e NÃO gravados: os dois envelhecem, e um contrato
+     afirmando "ATIVA" com base numa consulta antiga seria uma mentira com
+     data. Ver o cabeçalho da migration 0091. */
+  descricao_situacao_cadastral: z.string().optional(),
+  cnae_fiscal_descricao: z.string().optional(),
+})
+
 export const viaCepResponseSchema = z.object({
   logradouro: z.string().optional(),
   bairro: z.string().optional(),
