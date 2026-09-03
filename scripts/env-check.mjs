@@ -132,5 +132,71 @@ conferir(
   'npm run db:push',
 )
 
+/*
+  4.1 PERGUNTA PELO EFEITO, E NAO PELA CONFIGURACAO — e a diferenca importa aqui.
+
+  A Management API devolve o HASH dos segredos de Edge Function, nunca o valor:
+  nao da para ler `APP_ALLOWED_ORIGINS` e conferir se o dominio esta la. O que
+  da para fazer e o que o navegador do cliente faz — um preflight — e ver se a
+  resposta traz o cabecalho de origem permitida.
+
+  ISTO EXISTE POR CAUSA DE UM BUG QUE CHEGOU AO ESCRITORIO: `APP_ALLOWED_ORIGINS`
+  nunca tinha sido definido em producao, entao a funcao caia no default do
+  codigo, que so conhecia a URL da Vercel. O escritorio passou a usar
+  hausone.com.br, e o formulario publico de briefing — a unica tela que o CLIENTE
+  FINAL abre — parou com "Houve uma falha ao contatar o escritorio". Nada
+  acusava: as funcoes respondiam 200, o banco estava certo, e o erro so existia
+  dentro do navegador de quem abria o link.
+*/
+const ORIGEM_DO_APP = {
+  prod: 'https://www.hausone.com.br',
+}
+
+/*
+  `APP_ORIGIN` no .env do ambiente vence o mapa acima — e o mapa so tem producao
+  porque so dela eu conheco o dominio. Ambiente sem origem declarada AVISA e
+  segue; chutar um dominio produziria uma falha que nao e falha, e checagem que
+  grita errado deixa de ser lida.
+*/
+const origemEsperada = cfg.APP_ORIGIN ?? ORIGEM_DO_APP[cfg.HAUSONE_ENV]
+
+if (!origemEsperada) {
+  console.log(
+    `AVISO 4.0  origem do app nao declarada para "${cfg.HAUSONE_ENV ?? '?'}" — ` +
+      'a checagem de CORS foi pulada',
+  )
+  console.log('      conserto: APP_ORIGIN=<url do app deste ambiente> no .env')
+}
+
+if (origemEsperada) {
+  const preflight = await fetch(`${cfg.VITE_SUPABASE_URL}/functions/v1/open-client-intake`, {
+    method: 'OPTIONS',
+    headers: { Origin: origemEsperada, 'Access-Control-Request-Method': 'POST' },
+  })
+  const permitida = preflight.headers.get('access-control-allow-origin')
+
+  conferir(
+    '4.1  o dominio do app e origem permitida nas edge functions',
+    permitida === origemEsperada,
+    `preflight de ${origemEsperada} devolveu ${permitida ?? '(nenhum cabecalho)'} — ` +
+      'o navegador descarta a resposta, e o formulario publico de briefing para',
+    'supabase secrets set APP_ALLOWED_ORIGINS="<origens separadas por virgula>" ' +
+      '(ou POST /v1/projects/<ref>/secrets)',
+  )
+
+  /* CONTROLE: origem desconhecida NAO pode receber o cabecalho. Sem este caso, um
+     `APP_ALLOWED_ORIGINS=*` passaria no 4.1 e a checagem viraria enfeite. */
+  const invasor = await fetch(`${cfg.VITE_SUPABASE_URL}/functions/v1/open-client-intake`, {
+    method: 'OPTIONS',
+    headers: { Origin: 'https://origem-desconhecida.test', 'Access-Control-Request-Method': 'POST' },
+  })
+  conferir(
+    '4.2  origem desconhecida continua SEM o cabecalho',
+    invasor.headers.get('access-control-allow-origin') === null,
+    'a funcao devolveu Access-Control-Allow-Origin para uma origem que ninguem cadastrou',
+    'a lista precisa ser explicita; `*` empresta o navegador de qualquer visitante',
+  )
+}
+
 console.log(`\n${ok}/${ok + falhas} conferencias passaram.`)
 if (falhas > 0) process.exit(1)

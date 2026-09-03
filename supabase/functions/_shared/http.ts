@@ -30,7 +30,27 @@ const ALLOWED_HEADERS = 'authorization, x-client-info, apikey, content-type'
   `Vary: Origin` porque a resposta passa a depender do cabeçalho de origem —
   sem ele, um cache intermediário serviria a permissão de uma origem para outra.
 */
-const DEFAULT_ALLOWED_ORIGINS = ['https://fernando-costa.vercel.app', 'http://localhost:5173']
+/*
+  O DEFAULT PRECISA CONHECER O DOMINIO REAL DO ESCRITORIO, e essa linha e a
+  correcao de um bug que chegou ao cliente final.
+
+  `APP_ALLOWED_ORIGINS` nunca tinha sido definido em producao, entao a lista era
+  esta — e ela so conhecia a URL da Vercel. Quando o escritorio passou a usar
+  hausone.com.br, o formulario publico de briefing (a UNICA tela que o cliente
+  do escritorio abre) parou com "Houve uma falha ao contatar o escritorio":
+  sem o cabecalho de origem, o navegador descarta uma resposta que chegou
+  inteira. As funcoes respondiam 200 o tempo todo.
+
+  O segredo continua sendo o lugar de configurar isto por ambiente. O default e
+  a rede de baixo: um ambiente esquecido cai em algo que funciona, em vez de
+  cair numa lista que nao inclui a propria casa.
+*/
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://www.hausone.com.br',
+  'https://hausone.com.br',
+  'https://fernando-costa.vercel.app',
+  'http://localhost:5173',
+]
 
 function allowedOrigins(): string[] {
   const configured = (Deno.env.get('APP_ALLOWED_ORIGINS') ?? '')
