@@ -52,6 +52,7 @@
     "test:contract-number": "supabase/tests/run-sql.sh supabase/tests/contract-number.sql",
     "test:contract-cascade": "supabase/tests/run-sql.sh supabase/tests/contract-approval-delete.sql",
     "backup:tenant": "node scripts/backup-tenant.mjs",
+    "test:activity-scope": "node tests/activity-scope.mjs",
     "test:avatar-crop": "node tests/avatar-crop.mjs",
     "test:project-order": "node tests/project-order.mjs",
     "test:project-phase": "node tests/project-phase.mjs",

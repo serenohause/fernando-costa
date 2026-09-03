@@ -102,6 +102,47 @@ export type ActivityFilters = {
   status: WorkStatus | 'all'
 }
 
+/*
+  O ESCOPO DA TELA — o que era o interruptor "Visão Gerencial" do original
+  (Atividades.jsx:214-231), e que voltou porque a ausência dele virou bug no
+  escritório: todo mundo via as atividades de todos, o tempo todo.
+
+  Por que a ausência produziu isso: a lista que chega do banco já vem recortada
+  pela PERMISSÃO DE MENU (policy `activities_select_own_or_activities_viewer`,
+  0059), e a importação do base44 trouxe `can_view` em "Atividades" para 13 dos
+  16 colaboradores. Lá isso não significava ver tudo — a tela filtrava por
+  pessoa, e o interruptor, desligado por padrão, era o que abria. A permissão
+  governava a TELA; o recorte de quem aparece era outra coisa.
+
+  DESLIGADO devolve:
+    - as atividades da própria pessoa;
+    - mais as que ela COORDENA, quando `coordinator_id` aponta para ela.
+
+  O segundo caso é o ramo do Coordenador do original, e aqui ele é exato: lá o
+  filtro era pela FUNÇÃO do responsável (Arquiteto/Estagiário/Coordenador), uma
+  aproximação de "quem eu coordeno" que trazia gente de outra equipe e deixava
+  de fora quem tinha a função "errada". A coluna responde a pergunta certa.
+
+  Isto é filtro de TELA, e não de segurança — quem faz o recorte que ninguém
+  contorna é a policy. Aqui a pergunta é outra: o que a pessoa quer ver quando
+  abre a página.
+*/
+export function scopeActivitiesToPerson(
+  activities: ActivityRow[],
+  collaboratorId: string | null | undefined,
+): ActivityRow[] {
+  /* Sem colaborador identificado não há "minhas": devolver a lista inteira
+     seria abrir mais do que o padrão promete, e devolver vazio esconderia o
+     trabalho de quem está esperando a tela carregar. A tela só chama isto com
+     a sessão resolvida. */
+  if (!collaboratorId) return activities
+
+  return activities.filter(
+    (activity) =>
+      activity.collaborator_id === collaboratorId || activity.coordinator_id === collaboratorId,
+  )
+}
+
 export function filterActivities(
   activities: ActivityRow[],
   filters: ActivityFilters,

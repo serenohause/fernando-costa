@@ -8,6 +8,8 @@ import StatusBadge from '@/components/shared/StatusBadge'
 import { useNavigation } from '@/components/shared/useNavigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
@@ -33,6 +35,7 @@ import { useProjects } from '@/features/projects/hooks'
 import { PRIORITY_LEVEL, WORK_STATUS, labelOf, optionsOf } from '@/lib/enums'
 import {
   countActivities,
+  scopeActivitiesToPerson,
   filterActivities,
   formatDayMonth,
   isOverdue,
@@ -81,27 +84,32 @@ import type { ActivityInput, ActivityRow } from '../types'
   - Criar e excluir continuam exigindo o menu: criar é atribuir trabalho, e
     excluir remove da auditoria de quem fez o quê.
 
+  O INTERRUPTOR "VISÃO GERENCIAL" SAIU E VOLTOU, e vale registrar o caminho.
+
+  Ele foi deixado de fora na primeira versão desta tela, com o argumento de que
+  o recorte agora é do BANCO: a policy `activities_select_own_or_activities_viewer`
+  (0059) devolve todas as atividades a quem tem o menu, e só as próprias aos
+  demais — então o interruptor não teria o que ligar.
+
+  O argumento estava errado sobre o dado real. A importação do base44 trouxe
+  `can_view` em "Atividades" para 13 dos 16 colaboradores, porque LÁ ter o menu
+  significava ter a TELA, não ver todo mundo: o recorte por pessoa era do
+  navegador, e o interruptor — desligado por padrão — é que abria. Sem ele,
+  todos passaram a ver as atividades de todos o tempo todo, e foi assim que o
+  escritório relatou.
+
+  Voltou como no original: começa desligado, aparece para quem o banco deixa
+  ler todas, e o subtítulo segue o ESCOPO da tela e não quem pode escrever. O
+  ramo desligado ficou melhor que o de lá: o original filtrava pela FUNÇÃO do
+  responsável (Arquiteto/Estagiário/Coordenador) como aproximação de "quem eu
+  coordeno", e aqui `coordinator_id` responde isso de verdade.
+
+  Consequência conhecida, que continua: o select "Responsável", que no original
+  só filtrava com o interruptor ligado (linha 265), filtra sempre.
+
   O QUE NÃO FOI PORTADO, E POR QUÊ:
 
-  1. O interruptor "Visão Gerencial (ver atividades de todos)" (linhas 466-477) e
-     os dois blocos que dependiam dele (linhas 216-231 e 304-318). Ele existia
-     para emular no navegador o recorte que agora é do BANCO: a lista que chega
-     aqui JÁ é "todas as atividades" ou "só as minhas", conforme a permissão de
-     menu de quem consulta. Com a policy no lugar, o interruptor não teria o que
-     ligar e desligar — e o ramo desligado dele, para Coordenador, filtrava pela
-     FUNÇÃO do responsável (Arquiteto/Estagiário/Coordenador), aproximação do
-     "quem eu coordeno" que a coluna `coordinator_id` responde de verdade.
-
-     O SUBTÍTULO DO CABEÇALHO SEGUE O MESMO CRITÉRIO, e é por isso que ele não
-     se decide por `canEdit`: no original (linha 456) o texto sai do estado do
-     interruptor, ou seja, do ESCOPO do que está na tela, não de quem pode
-     escrever. O que lá era o interruptor, aqui é `useActivityReadScope()`.
-
-     Consequência conhecida: o select "Responsável", que no original só filtrava
-     com o interruptor ligado (linha 265), passa a filtrar sempre. Ele está
-     desenhado na tela do original nos dois estados.
-
-  2. `AlertasAtividades` (linha 452), que dispara e-mail de atraso pela
+  1. `AlertasAtividades` (linha 452), que dispara e-mail de atraso pela
      integração do base44 e carimba `ultimo_alerta_em`. Não há canal de e-mail
      equivalente no projeto — mesma pendência já registrada no botão "Excluir
      Conta" do AppLayout. O componente renderiza `null`, então nada sai da tela;
@@ -116,6 +124,16 @@ export default function Atividades() {
     activity: null,
   })
   const [reorderOpen, setReorderOpen] = useState(false)
+
+  /*
+    COMEÇA DESLIGADO, como no original (Atividades.jsx:60). Quem abre a tela vê
+    o próprio trabalho; ver o de todos é um gesto deliberado.
+
+    Não é preferência guardada: no original também não é, e o padrão importa
+    justamente no primeiro acesso do dia — que é quando a lista de dezenas de
+    atividades de outras pessoas atrapalha.
+  */
+  const [visaoGerencial, setVisaoGerencial] = useState(false)
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('todas')
   const [filters, setFilters] = useState<Omit<ActivityFilters, 'quick'>>({
     priority: 'all',
@@ -138,7 +156,22 @@ export default function Atividades() {
   const projectsQuery = useProjects()
   const clientsQuery = useClients('')
 
-  const activities = useMemo(() => activitiesQuery.data ?? [], [activitiesQuery.data])
+  const allActivities = useMemo(() => activitiesQuery.data ?? [], [activitiesQuery.data])
+
+  /*
+    O ESCOPO VEM ANTES DE TUDO, e os CONTADORES contam sobre ele: o alerta de
+    atrasadas e os números dos filtros rápidos têm de falar da mesma lista que a
+    tela mostra. Contar sobre a lista inteira diria "8 atrasadas" para quem vê
+    duas — e a pessoa procuraria as outras seis.
+  */
+  const activities = useMemo(
+    () =>
+      visaoGerencial
+        ? allActivities
+        : scopeActivitiesToPerson(allActivities, currentCollaborator?.id),
+    [allActivities, visaoGerencial, currentCollaborator?.id],
+  )
+
   const counters = useMemo(() => countActivities(activities), [activities])
   const visibleActivities = useMemo(
     () => sortActivities(filterActivities(activities, { ...filters, quick: quickFilter })),
@@ -347,11 +380,14 @@ export default function Atividades() {
       */}
       <PageHeader
         title="Atividades"
+        /* O subtítulo diz o ESCOPO do que está na tela, e não quem pode
+           escrever — mesmo critério do original (linha 456), agora seguindo o
+           interruptor de novo. */
         subtitle={
-          readsAllActivities
+          visaoGerencial
             ? 'Visão geral de todas as atividades'
             : currentCollaborator?.role === 'coordinator'
-              ? 'Visão geral de atividades da equipe'
+              ? 'Suas atividades e as da equipe que você coordena'
               : 'Suas atividades operacionais'
         }
         actionLabel={canEdit ? 'Nova Atividade' : undefined}
@@ -364,6 +400,31 @@ export default function Atividades() {
             : undefined
         }
       />
+
+      {/*
+        O INTERRUPTOR DO ORIGINAL, de volta (Atividades.jsx:465-477).
+
+        Aparece para quem o BANCO deixa ler todas as atividades — sem isso, ligar
+        não traria uma linha a mais e a tela prometeria o que não pode cumprir.
+        Lá o critério era a função (Diretor ou Coordenador); aqui é a permissão
+        de menu, que é o que a policy consulta.
+
+        Ele não é uma trava: quem consegue ler todas continua conseguindo, pela
+        API, com ou sem interruptor. O que ele governa é o PADRÃO da tela — e o
+        padrão passou a ser o próprio trabalho.
+      */}
+      {readsAllActivities && (
+        <div className="mb-6 flex items-center gap-3 p-4 bg-elevated rounded-xl border border-border">
+          <Switch
+            id="visao-gerencial"
+            checked={visaoGerencial}
+            onCheckedChange={setVisaoGerencial}
+          />
+          <Label htmlFor="visao-gerencial" className="font-medium cursor-pointer">
+            Visão Gerencial (ver atividades de todos)
+          </Label>
+        </div>
+      )}
 
       {counters.atrasadas > 0 && (
         <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl flex items-start gap-3">
