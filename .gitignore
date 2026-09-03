@@ -42,3 +42,8 @@ nova-versao
 #   banco/ exportacao oficial (27/08/2026)
 /db/
 /banco/
+
+# Backups do banco de PRODUCAO, tirados antes de apagar e reimportar. Mesmo
+# conteudo do CSV acima — CPF, endereco, telefone, valor de contrato — e a mesma
+# regra: nunca entra no repositorio.
+/backup/
