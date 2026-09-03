@@ -16,6 +16,38 @@ description: Use when the user wants to deploy or publish the project to product
 pedir com todas as letras ("sobe pra main", "manda pra produção"). Ele às
 vezes diz "master"; a branch chama-se `main`.
 
+**`dev` NUNCA FICA ATRÁS DE `main`.** A regra tem duas metades, e elas não
+são simétricas:
+
+- **Correção pedida direto em produção** — "corrige em prod", "arruma isso
+  no ar" — entra nas DUAS branches. `dev` é onde o trabalho seguinte
+  acontece: se ela não tiver a correção, o próximo commit reintroduz o bug,
+  ou o merge seguinte desfaz o conserto sem que ninguém veja.
+- **Trabalho feito só em `dev`** fica em `dev` até o usuário pedir. Essa
+  metade não mudou.
+
+Na prática: depois de mexer em produção, `git merge dev` a partir de `main`
+e empurrar as duas — ou fazer o commit em `dev` e levá-lo a `main` no mesmo
+gesto. Nunca commitar direto em `main` e seguir em frente.
+
+**A DIVERGÊNCIA NÃO É SÓ DE GIT**, e essa foi a que passou despercebida.
+Migration aplicada pela Management API não se registra sozinha em
+`supabase_migrations`, Edge Function publicada num projeto não aparece no
+outro, e segredo (`supabase secrets set`) é por projeto. Depois de mexer em
+produção, conferir os quatro:
+
+```
+git log --oneline origin/dev..origin/main    commits só em produção
+npm run env:check                            migrations aplicadas × repositório
+supabase functions list                      publicadas naquele projeto
+supabase secrets list                        nomes (o valor vem como hash)
+```
+
+Limitação conhecida e não resolvida: o token da conta de DEV não tem
+privilégio de Edge Functions (`403 ... does not have the necessary
+privileges`), então as cinco funções do Google estão publicadas só em
+produção. Publicar em dev exige um token da conta dona daquele projeto.
+
 **O PUSH NA `main` É O DEPLOY.** Não existe um passo separado depois dele: a
 Vercel observa a branch e publica sozinha, em segundos. Isso inverte a
 ordem que o resto deste arquivo pressupõe — o checklist abaixo vale para o

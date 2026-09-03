@@ -20,6 +20,14 @@ fala com o banco do escritório. O push na branch É o deploy — a Vercel
 observa e publica sozinha, então o checklist abaixo vale para o momento
 ANTES do merge, não depois dele.
 
+**`dev` não fica atrás de produção.** Correção pedida direto no ar entra nas
+DUAS branches; trabalho feito só em `dev` espera o usuário pedir. E a
+divergência não é só de git: migration aplicada pela Management API não se
+registra sozinha em `supabase_migrations`, Edge Function é publicada por
+projeto, e segredo é por projeto. Depois de mexer em produção, confira
+`git log origin/dev..origin/main`, `npm run env:check`, as funções e os
+segredos dos dois lados.
+
 Antes de qualquer comando que escreva (seed, migration, importação),
 confirme o ambiente com `npm run env:which`. Os dois projetos Supabase estão
 em contas diferentes e cada token só alcança o seu; `npm run env:prod|dev`
