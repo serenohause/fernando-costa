@@ -29,11 +29,22 @@ export default function AvatarPicture({
   name,
   size = 40,
   className,
+  shapeClassName = 'rounded-full bg-elevated border border-border',
+  initialClassName = 'text-muted-foreground',
 }: {
   avatarPath: string | null | undefined
   name: string | null | undefined
   size?: number
   className?: string
+  /*
+    A FORMA E O FUNDO SÃO DE QUEM CHAMA, porque cada tela já tinha o seu antes
+    deste componente existir: a barra lateral usa círculo neutro, a Equipe usa
+    quadrado arredondado violeta com a inicial. Trocar o visual delas para
+    caber num componente comum seria mexer em layout que ninguém pediu — o que
+    o componente traz é a foto e a espera, não uma aparência nova.
+  */
+  shapeClassName?: string
+  initialClassName?: string
 }) {
   const { data: url, isPending } = useAvatarUrl(avatarPath)
   const initial = name?.trim()?.charAt(0)?.toUpperCase() ?? null
@@ -66,7 +77,7 @@ export default function AvatarPicture({
 
   return (
     <span
-      className={`relative inline-flex items-center justify-center rounded-full bg-elevated border border-border overflow-hidden shrink-0 ${className ?? ''}`}
+      className={`relative inline-flex items-center justify-center overflow-hidden shrink-0 ${shapeClassName} ${className ?? ''}`}
       style={{ width: size, height: size }}
       role={imagemVisivel ? undefined : 'img'}
       aria-label={imagemVisivel ? undefined : name ? `Foto de ${name}` : 'Sem foto de perfil'}
@@ -92,7 +103,7 @@ export default function AvatarPicture({
         !loaded &&
         (initial ? (
           <span
-            className="font-semibold text-muted-foreground"
+            className={`font-semibold ${initialClassName}`}
             style={{ fontSize: Math.max(12, Math.round(size / 2.5)) }}
             aria-hidden="true"
           >
@@ -100,7 +111,7 @@ export default function AvatarPicture({
           </span>
         ) : (
           <User
-            className="text-muted-foreground"
+            className={initialClassName}
             style={{ width: size / 2, height: size / 2 }}
             aria-hidden="true"
           />

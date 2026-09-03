@@ -6,6 +6,7 @@ import DataTable, { type Column } from '@/components/shared/DataTable'
 import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
 import StatusBadge from '@/components/shared/StatusBadge'
+import AvatarPicture from '@/features/profile/components/AvatarPicture'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu,
@@ -159,9 +160,22 @@ export default function Collaborators() {
       header: 'Colaborador',
       cell: (row) => (
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-100 to-violet-200 flex items-center justify-center">
-            <span className="font-semibold text-violet-600">{row.name?.charAt(0).toUpperCase()}</span>
-          </div>
+          {/*
+            A FOTO DE PERFIL DA PESSOA, quando ela tem uma (migration 0088). Sem
+            foto continua a inicial no quadrado violeta, que é o visual desta
+            tela desde o original — o que muda é ter foto, não a aparência.
+
+            Quem pode ver: a policy do bucket libera leitura para qualquer
+            colaborador ativo do escritório, e a foto já aparece ao lado do nome
+            em outras telas.
+          */}
+          <AvatarPicture
+            avatarPath={row.avatar_path}
+            name={row.name}
+            size={40}
+            shapeClassName="rounded-xl bg-gradient-to-br from-violet-100 to-violet-200"
+            initialClassName="text-violet-600"
+          />
           <div>
             <p className="font-medium text-foreground">{row.name}</p>
             <p className="text-sm text-muted-foreground">{labelOf(COLLABORATOR_ROLE, row.role)}</p>
