@@ -539,14 +539,35 @@ select pg_temp.val('5.3', 'e com o endereco da obra',
     from public.contracts where negotiation_id = %L
 $q$, (select n_main from ids)));
 
--- Falta UM campo do criterio (o CEP da obra): o retrato nao entra.
-select pg_temp.call_val('5.4', 'cadastro incompleto: clientSnapshot e falso', 'false',
+/*
+  CADASTRO INCOMPLETO — e aqui esta a regra que a 0090 trocou.
+
+  O cliente desta negociacao tem nome, telefone, e-mail, documento, cidade e UF
+  da residencia, rua/cidade/UF da obra — e NAO tem o CEP da obra nem o numero.
+  Antes da 0090 essa unica ausencia apagava os catorze campos do retrato, e o
+  contrato abria em branco na tela de edicao. Foi o bug relatado em producao.
+
+  Agora a copia e campo a campo: entra o que existe, fica vazio o que falta.
+*/
+select pg_temp.call_val('5.4', 'cadastro incompleto: clientSnapshot diz que HAVIA cliente', 'true',
   (select u_pipe from ids), (select tenant_a from ids), format($q$
   select public.mark_negotiation_won(%L) ->> 'clientSnapshot'
 $q$, (select n_partial from ids)));
 
-select pg_temp.val('5.5', 'e o contrato nasceu SEM o retrato', '<null>', format($q$
-  select coalesce(client_legal_name, '<null>') || coalesce(site_city, '')
+select pg_temp.val('5.5', 'o que o cadastro TEM foi copiado', 'Otavio Mendes|987.654.321-00|otavio@example.test', format($q$
+  select concat_ws('|', client_legal_name, client_tax_id, client_email)
+    from public.contracts where negotiation_id = %L
+$q$, (select n_partial from ids)));
+
+select pg_temp.val('5.5b', 'e o endereco da obra entrou pela parte que existe', 'Rua das Acacias|Nova Lima|MG', format($q$
+  select concat_ws('|', site_street, site_city, site_state)
+    from public.contracts where negotiation_id = %L
+$q$, (select n_partial from ids)));
+
+/* O QUE NAO EXISTE CONTINUA VAZIO: a copia campo a campo nao inventa o CEP nem
+   o numero da obra, que ninguem informou. */
+select pg_temp.val('5.5c', 'o que falta no cadastro continua nulo no contrato', 'true', format($q$
+  select (site_zipcode is null and site_number is null)::text
     from public.contracts where negotiation_id = %L
 $q$, (select n_partial from ids)));
 
