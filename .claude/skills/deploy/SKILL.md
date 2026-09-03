@@ -43,10 +43,14 @@ supabase functions list                      publicadas naquele projeto
 supabase secrets list                        nomes (o valor vem como hash)
 ```
 
-Limitação conhecida e não resolvida: o token da conta de DEV não tem
-privilégio de Edge Functions (`403 ... does not have the necessary
-privileges`), então as cinco funções do Google estão publicadas só em
-produção. Publicar em dev exige um token da conta dona daquele projeto.
+Uma diferença conhecida e que NÃO bloqueia nada: o token da conta de DEV não
+tem privilégio de Edge Functions (`403 ... does not have the necessary
+privileges`), então as cinco funções do Google Agenda estão publicadas só em
+produção. Não atrapalha o desenvolvimento — ninguém conectou conta Google em
+ambiente nenhum, o OAuth Client sequer foi criado no Google Cloud, e as
+funções respondem 401 a quem chamar. Só volta a importar no dia em que a
+integração com o n8n for adiante e precisar ser testada em dev; aí é preciso
+um token da conta dona daquele projeto. Não tratar como pendência urgente.
 
 **O PUSH NA `main` É O DEPLOY.** Não existe um passo separado depois dele: a
 Vercel observa a branch e publica sozinha, em segundos. Isso inverte a
