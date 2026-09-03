@@ -421,6 +421,54 @@ select pg_temp.val('6.5', 'busca livre encontra por pedaco do nome, do e-mail e 
   )::text
 $q$, (select tenant_a from ids)));
 
+-- 6C. search_text sobrevive a campo nulo (0089) --------------------------------
+--
+--     O BUG QUE ISTO GUARDA, e ele chegou ao escritorio: `search_text` concatena
+--     com `||`, e um NULL em qualquer parte anula a expressao INTEIRA. Cidade
+--     virou anulavel na 0064 e a expressao da 0020 nao a protegia, entao cliente
+--     sem cidade ficava com search_text NULO — e ILIKE contra NULO nao casa
+--     nunca. O cliente aparecia na lista e sumia ao digitar qualquer letra,
+--     inclusive a primeira do proprio nome. Tres clientes reais em producao.
+--
+--     Nao havia como o resto da suite pegar: a coluna existia, o indice existia,
+--     e a linha entrava sem erro. O que faltava era afirmar sobre uma linha SEM
+--     os campos opcionais.
+
+/* COM legacy_id, e nao por acaso: cidade so pode faltar em cliente IMPORTADO
+   (`clients_address_city_required_check`, 0064). E exatamente por isso que os
+   tres clientes afetados em producao vieram do base44 — a tela nunca deixaria
+   gravar um cadastro assim. */
+select pg_temp.chk('6C.1', 'CONTROLE: cliente IMPORTADO sem cidade, documento e e-mail entra', 'OK:1', format($q$
+  insert into public.clients (tenant_id, name, phone, legacy_id)
+  values (%L, 'Alencar Maquinas Teste', '(62) 93333-0001', 'legacy-alencar')
+$q$, (select tenant_a from ids)));
+
+select pg_temp.val('6C.2', 'e o search_text dele NAO e nulo', 'false',
+  $q$select (search_text is null)::text from public.clients where name = 'Alencar Maquinas Teste'$q$);
+
+/* O sintoma exato do relato: buscar por uma letra do proprio nome. */
+select pg_temp.val('6C.3', 'e ele e ENCONTRADO pela primeira letra do nome', '1',
+  format($q$select count(*)::text from public.clients
+            where tenant_id = %L and search_text ilike '%%a%%' and name = 'Alencar Maquinas Teste'$q$,
+         (select tenant_a from ids)));
+
+select pg_temp.val('6C.4', 'e pelo pedaco do nome', '1',
+  format($q$select count(*)::text from public.clients
+            where tenant_id = %L and search_text ilike '%%lencar maq%%'$q$,
+         (select tenant_a from ids)));
+
+/* Telefone e NOT NULL hoje; o coalesce nele existe para que a proxima migration
+   que o torne anulavel nao repita o bug em silencio. Este caso afirma que a
+   busca por telefone continua funcionando na mesma linha. */
+select pg_temp.val('6C.5', 'CONTROLE: e continua achavel pelo telefone', '1',
+  format($q$select count(*)::text from public.clients
+            where tenant_id = %L and search_text ilike '%%93333-0001%%'$q$,
+         (select tenant_a from ids)));
+
+select pg_temp.val('6C.6', 'nenhum cliente do escritorio fica com search_text nulo', '0',
+  format($q$select count(*)::text from public.clients where tenant_id = %L and search_text is null$q$,
+         (select tenant_a from ids)));
+
 -- 6B. Quem indicou, quando e um cliente do escritorio (0087) -------------------
 
 select pg_temp.chk('6B.1', 'CONTROLE: cliente indicado por outro cliente entra', 'OK:1', format($q$
