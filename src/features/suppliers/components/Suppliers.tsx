@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Plus, Search, Store } from 'lucide-react'
 import { toast } from 'sonner'
 import ErrorState from '@/components/shared/ErrorState'
+import { useFocusParam } from '@/components/shared/useFocusParam'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -113,6 +114,8 @@ export default function Suppliers() {
   const [deleting, setDeleting] = useState<SupplierRow | null>(null)
 
   const { canEdit } = useMenuPermissions('suppliers')
+  /* Chegada da busca global. */
+  const { registerFocusRef, focusClassName } = useFocusParam()
 
   const suppliersQuery = useSuppliers(filters)
   const hasAnyQuery = useHasAnySuppliers()
@@ -378,11 +381,12 @@ export default function Suppliers() {
               {filteredSuppliers.map((supplier) => (
                 <tr
                   key={supplier.id}
+                  ref={registerFocusRef(supplier.id)}
                   onClick={() => {
                     setSelected(supplier)
                     setDrawerOpen(true)
                   }}
-                  className="hover:bg-elevated cursor-pointer transition-colors"
+                  className={`hover:bg-elevated cursor-pointer transition-colors ${focusClassName(supplier.id)}`}
                 >
                   <td className="px-4 py-3">
                     <p className="font-medium text-foreground">{supplier.name}</p>

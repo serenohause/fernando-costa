@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import GlobalSearch from '@/features/search/components/GlobalSearch'
 import {
   Activity,
   Columns,
@@ -224,34 +225,7 @@ export default function QuickActions({
         </Tooltip>
       </TooltipProvider>
 
-      {searchOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 z-50 flex items-start justify-center pt-20"
-          onClick={() => setSearchOpen(false)}
-        >
-          <div
-            className="bg-card rounded-lg shadow-2xl w-full max-w-2xl p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <Search className="w-5 h-5 text-faint" />
-              <input
-                type="text"
-                placeholder="Buscar projetos, atividades, clientes..."
-                /*
-                  Sem `bg-transparent`/`text-foreground` o input cai no estilo do
-                  navegador (fundo `field`, texto `fieldtext`): caixa branca com
-                  texto preto dentro do diálogo escuro. Em cima do cartão branco
-                  do tema claro o resultado é o mesmo de antes.
-                */
-                className="flex-1 outline-hidden text-lg bg-transparent text-foreground placeholder:text-faint"
-                autoFocus
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">Digite para buscar em todo o sistema</p>
-          </div>
-        </div>
-      )}
+      {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
     </div>
   )
 }

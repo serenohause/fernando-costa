@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useEffect, useMemo, useState } from 'react'
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
 import { FolderKanban, GripVertical, MapPin, MoreVertical, Pencil, Search, Trash2, User } from 'lucide-react'
 import { toast } from 'sonner'
@@ -9,6 +8,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { useNavigation } from '@/components/shared/useNavigation'
+import { useFocusParam } from '@/components/shared/useFocusParam'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -111,19 +111,9 @@ export default function Projects() {
   const { saveOrigin } = useNavigation()
   const { canEdit } = useMenuPermissions('projects')
 
-  /*
-    `?focus=<id>` — quem chega do quadro do Fluxo clicando no nome do projeto.
-    Não existe tela de detalhe de projeto; o que dá para fazer, e é o que o
-    parâmetro faz, é rolar até o cartão e destacá-lo por alguns segundos.
-
-    O parâmetro NÃO vira filtro de busca: mexer no filtro mudaria a lista
-    inteira e a ordem por arraste, e quem veio ver um projeto ficaria sem os
-    outros — um efeito colateral bem maior do que o pedido.
-  */
-  const [searchParams, setSearchParams] = useSearchParams()
-  const focusId = searchParams.get('focus')
-  const [highlighted, setHighlighted] = useState<string | null>(null)
-  const focusRef = useRef<HTMLDivElement>(null)
+  /* `?focus=<id>` — quem chega do quadro do Fluxo ou da busca global. A lógica
+     vive em `useFocusParam`, compartilhada com as outras cinco listas. */
+  const { registerFocusRef, focusClassName } = useFocusParam()
 
   useEffect(() => {
     saveOrigin()
@@ -140,25 +130,6 @@ export default function Projects() {
     [projects, statusFilter, searchTerm],
   )
 
-  useEffect(() => {
-    if (!focusId) return
-
-    setHighlighted(focusId)
-    /* O cartão só existe depois que a lista carrega; o `focusRef` é atribuído
-       na renderização em que ele aparece, e este efeito roda de novo quando
-       isso acontece porque a lista filtrada está nas dependências. */
-    focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-
-    /* O parâmetro sai da URL: sem isso, um F5 (ou voltar para esta aba) faria a
-       tela rolar de novo para um projeto que a pessoa já deixou para trás. */
-    const next = new URLSearchParams(searchParams)
-    next.delete('focus')
-    setSearchParams(next, { replace: true })
-
-    const timer = window.setTimeout(() => setHighlighted(null), 4000)
-    return () => window.clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusId, filteredProjects.length])
 
   const createMutation = useCreateProject()
   const updateMutation = useUpdateProject()
@@ -399,16 +370,12 @@ export default function Projects() {
                       <Card
                         ref={(node) => {
                           dragProvided.innerRef(node)
-                          if (project.id === focusId) focusRef.current = node
+                          registerFocusRef(project.id)(node)
                         }}
                         {...dragProvided.draggableProps}
                         className={`border-0 shadow-xs transition-shadow ${
                           dragSnapshot.isDragging ? 'shadow-lg' : ''
-                        } ${
-                          highlighted === project.id
-                            ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
-                            : ''
-                        }`}
+                        } ${focusClassName(project.id)}`}
                       >
                         <div className="p-4 flex items-center gap-4">
                           <div

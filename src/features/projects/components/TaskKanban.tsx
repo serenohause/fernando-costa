@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import CardLink from '@/components/shared/CardLink'
+import { useFocusParam } from '@/components/shared/useFocusParam'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { createPageUrl } from '@/lib/page-url'
 import type { Collaborator } from '@/features/team/types'
@@ -377,6 +378,8 @@ export default function TaskKanban({
 
   const navigate = useNavigate()
   const { canView: canViewProjects } = useMenuPermissions('projects')
+  /* Chegada da busca global: `?focus=<id>` rola até a tarefa e a destaca. */
+  const { registerFocusRef, focusClassName } = useFocusParam()
 
   const responsibles = operationalCandidates(collaborators)
 
@@ -541,14 +544,17 @@ export default function TaskKanban({
                                 >
                                   {(dragProvided, dragSnapshot) => (
                                     <Card
-                                      ref={dragProvided.innerRef}
+                                      ref={(node) => {
+                                        dragProvided.innerRef(node)
+                                        registerFocusRef(task.id)(node)
+                                      }}
                                       {...dragProvided.draggableProps}
                                       {...dragProvided.dragHandleProps}
                                       className={`p-4 bg-card border-0 shadow-xs hover:shadow-md transition-all ${
                                         canEdit ? 'cursor-grab' : ''
                                       } ${dragSnapshot.isDragging ? 'shadow-lg rotate-2' : ''} ${
                                         showOverdueBorder ? 'border-l-4 border-l-rose-500' : ''
-                                      }`}
+                                      } ${focusClassName(task.id)}`}
                                     >
                                       <div className="flex items-start justify-between gap-2 mb-3">
                                         {/* O TÍTULO ABRE A TAREFA. Não existe

@@ -3799,6 +3799,17 @@ export type Database = {
       }
       reveal_integration_api_key: { Args: { p_id: string }; Returns: string }
       revoke_integration_api_key: { Args: { p_id: string }; Returns: boolean }
+      search_platform: {
+        Args: { p_term: string }
+        Returns: {
+          detalhe: string
+          id: string
+          ordem: number
+          subtitulo: string
+          tipo: string
+          titulo: string
+        }[]
+      }
       submit_client_intake: {
         Args: { p_payload: Json; p_token: string }
         Returns: boolean

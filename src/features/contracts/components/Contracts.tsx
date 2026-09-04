@@ -18,6 +18,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { useNavigation } from '@/components/shared/useNavigation'
+import { useFocusParam } from '@/components/shared/useFocusParam'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -185,6 +186,8 @@ export default function Contracts() {
 
   const { saveOrigin } = useNavigation()
   const { canEdit } = useMenuPermissions('contracts')
+  /* Chegada da busca global: `?focus=<id>` rola até o contrato e o destaca. */
+  const { registerFocusRef, focusClassName } = useFocusParam()
 
   useEffect(() => {
     saveOrigin()
@@ -614,9 +617,12 @@ export default function Contracts() {
                   >
                     {(dragProvided, dragSnapshot) => (
                       <Card
-                        ref={dragProvided.innerRef}
+                        ref={(node) => {
+                          dragProvided.innerRef(node)
+                          registerFocusRef(contract.id)(node)
+                        }}
                         {...dragProvided.draggableProps}
-                        className={`border-0 shadow-xs transition-shadow ${
+                        className={`border-0 shadow-xs transition-shadow ${focusClassName(contract.id)} ${
                           dragSnapshot.isDragging ? 'shadow-lg' : ''
                         }`}
                       >

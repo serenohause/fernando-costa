@@ -34,12 +34,24 @@ export default function DataTable<T extends { id?: string }>({
   isLoading,
   onRowClick,
   emptyMessage = 'Nenhum registro encontrado',
+  rowRef,
+  rowClassName,
 }: {
   columns: Column<T>[]
   data: T[]
   isLoading?: boolean
   onRowClick?: (row: T) => void
   emptyMessage?: string
+  /*
+    As duas existem para `?focus=<id>`: a busca global manda a pessoa para a
+    lista já apontando um registro, e quem sabe rolar até ele é a linha. Ficam
+    aqui, e não em cada tela, porque três listas usam este componente — e a
+    terceira a copiar a lógica seria a que esqueceria uma metade.
+
+    Opcionais: quem não usa foco não passa nada e nada muda.
+  */
+  rowRef?: (id: string) => (node: HTMLTableRowElement | null) => void
+  rowClassName?: (row: T) => string
 }) {
   if (isLoading) {
     return (
@@ -92,10 +104,11 @@ export default function DataTable<T extends { id?: string }>({
                   */
                   <motion.tr
                     key={row.id ?? rowIndex}
+                    ref={row.id && rowRef ? rowRef(row.id) : undefined}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: rowIndex * 0.05, duration: 0.2 }}
-                    className={`border-b border-border transition-colors hover:bg-elevated ${onRowClick ? 'cursor-pointer' : ''}`}
+                    className={`border-b border-border transition-colors hover:bg-elevated ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName?.(row) ?? ''}`}
                     onClick={() => onRowClick && onRowClick(row)}
                   >
                     {columns.map((column, colIndex) => (

@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import PageHeader from '@/components/shared/PageHeader'
 import DataTable, { type Column } from '@/components/shared/DataTable'
+import { useFocusParam } from '@/components/shared/useFocusParam'
 import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
 import StatusBadge from '@/components/shared/StatusBadge'
@@ -109,6 +110,8 @@ export default function Negociacoes() {
 
   const { saveOrigin } = useNavigation()
   const { canEdit } = useMenuPermissions('pipeline')
+  /* Chegada da busca global. */
+  const { registerFocusRef, focusClassName } = useFocusParam()
 
   useEffect(() => {
     saveOrigin()
@@ -776,6 +779,8 @@ export default function Negociacoes() {
                 columns={activeColumns}
                 data={activeNegotiations}
                 isLoading={negotiationsQuery.isLoading}
+                rowRef={registerFocusRef}
+                rowClassName={(row) => focusClassName(row.id)}
                 onRowClick={handleEdit}
                 emptyMessage="Nenhuma negociação ativa"
               />
@@ -821,6 +826,8 @@ export default function Negociacoes() {
                 columns={wonColumns}
                 data={wonNegotiations}
                 isLoading={negotiationsQuery.isLoading}
+                rowRef={registerFocusRef}
+                rowClassName={(row) => focusClassName(row.id)}
                 onRowClick={handleEdit}
                 emptyMessage="Nenhuma negociação ganha"
               />
@@ -845,6 +852,8 @@ export default function Negociacoes() {
                 columns={lostColumns}
                 data={lostNegotiations}
                 isLoading={negotiationsQuery.isLoading}
+                rowRef={registerFocusRef}
+                rowClassName={(row) => focusClassName(row.id)}
                 onRowClick={handleEdit}
                 emptyMessage="Nenhuma negociação perdida"
               />

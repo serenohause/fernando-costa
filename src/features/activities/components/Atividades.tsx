@@ -6,6 +6,7 @@ import DataTable, { type Column } from '@/components/shared/DataTable'
 import ErrorState from '@/components/shared/ErrorState'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { useNavigation } from '@/components/shared/useNavigation'
+import { useFocusParam } from '@/components/shared/useFocusParam'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -145,6 +146,8 @@ export default function Atividades() {
   const { saveOrigin } = useNavigation()
   const { canEdit } = useMenuPermissions('activities')
   const { readsAllActivities } = useActivityReadScope()
+  /* Chegada da busca global: `?focus=<id>` rola até a atividade e a destaca. */
+  const { registerFocusRef, focusClassName } = useFocusParam()
   const { data: currentCollaborator } = useCurrentCollaborator()
 
   useEffect(() => {
@@ -599,6 +602,8 @@ export default function Atividades() {
           columns={columns}
           data={visibleActivities}
           isLoading={activitiesQuery.isLoading}
+          rowRef={registerFocusRef}
+          rowClassName={(row) => focusClassName(row.id)}
           onRowClick={(row) => {
             if (!canEditRow(row)) return
             setEditing(row)
