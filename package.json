@@ -50,6 +50,7 @@
     "test:search": "supabase/tests/run-sql.sh supabase/tests/search-platform.sql",
     "test:profile": "supabase/tests/run-sql.sh supabase/tests/profile-schema.sql",
     "test:integrations": "supabase/tests/run-sql.sh supabase/tests/integrations-schema.sql",
+    "test:kanban": "supabase/tests/run-sql.sh supabase/tests/kanban-schema.sql",
     "test:contract-number": "supabase/tests/run-sql.sh supabase/tests/contract-number.sql",
     "test:contract-cascade": "supabase/tests/run-sql.sh supabase/tests/contract-approval-delete.sql",
     "backup:tenant": "node scripts/backup-tenant.mjs",

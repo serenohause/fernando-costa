@@ -1627,6 +1627,101 @@ export type Database = {
           },
         ]
       }
+      kanban_boards: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_boards_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kanban_columns: {
+        Row: {
+          board_id: string
+          color: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          phase: Database["public"]["Enums"]["project_phase"] | null
+          progress_percent: number | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          board_id: string
+          color?: string
+          created_at?: string
+          display_order: number
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          phase?: Database["public"]["Enums"]["project_phase"] | null
+          progress_percent?: number | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          board_id?: string
+          color?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          phase?: Database["public"]["Enums"]["project_phase"] | null
+          progress_percent?: number | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_columns_board_fkey"
+            columns: ["board_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_boards"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_columns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       map_properties: {
         Row: {
           address: string | null

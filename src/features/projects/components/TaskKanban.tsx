@@ -39,6 +39,8 @@ import { useMenuPermissions } from '@/features/auth/hooks'
 import { createPageUrl } from '@/lib/page-url'
 import type { Collaborator } from '@/features/team/types'
 import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
+import { useKanbanBoard } from '@/features/kanban/hooks'
+import { columnHeaderClass } from '@/features/kanban/types'
 import type { DiaryProject } from '@/features/diary/types'
 import {
   COLLABORATOR_ROLE,
@@ -113,17 +115,29 @@ import type {
   cada montagem do quadro e em todo mundo que abre a página, não é layout.
 */
 
-type Column = { id: ProjectPhase; color: string }
+type Column = { id: ProjectPhase; label: string; headerClass: string }
 
 /*
-  As cores do original (linhas 21-34), com variante escura acrescentada: no
-  escuro, um fundo de tom 100 vira faixa branca sob texto claro. O cinza da
-  primeira coluna é o próprio degrau neutro do tema.
+  O QUADRO PADRÃO — e desde a migration 0093 ele é só o PONTO DE PARTIDA.
 
-  A LISTA CONTINUA FIXA E ESCRITA À MÃO, e não derivada de `PROJECT_PHASE`: cada
-  coluna precisa de uma cor, e cor não sai do enum. O preço é este — fase nova no
-  banco não aparece aqui sozinha, e a tarefa some da tela sem erro. Foi o que
-  aconteceu com `under_construction` (migration 0061) até esta linha existir.
+  Quem manda no quadro agora é `kanban_columns`, que o escritório edita em
+  Configurações → Quadros: nome, cor, ordem e quais etapas aparecem. Esta lista
+  continua aqui por dois motivos, e nenhum deles é sobra:
+
+  1. É a semeadura da 0093 escrita em TypeScript. Um escritório recém-criado
+     recebe exatamente estas dez colunas, com estas cores e nesta ordem.
+  2. É o que o quadro desenha enquanto a configuração não chegou, ou se a leitura
+     dela falhar. Um quadro vazio seria pior: quem abre o Fluxo do Projeto não
+     saberia se o escritório não tem etapas ou se a página quebrou.
+
+  A CONSEQUÊNCIA DO ITEM 2 vale declarar: se a leitura falhar DEPOIS de o
+  escritório ter escondido uma etapa, ela reaparece nesta lista de emergência. O
+  quadro continua funcionando (as fases são as mesmas), mas exibe o desenho
+  padrão em vez do configurado. É o custo de não deixar a tela em branco.
+
+  As cores são as do original (linhas 21-34), agora por NOME em vez de classe —
+  a variante escura e o mapa nome → classes ficam em `COLUMN_COLORS`
+  (src/features/kanban/types.ts), com o motivo escrito lá.
 
   `post_approval` não tem coluna de propósito: `tasks_phase_no_post_approval_check`
   (0049) recusa o valor em tarefa, então a coluna seria sempre vazia.
@@ -170,15 +184,15 @@ type Column = { id: ProjectPhase; color: string }
   `preliminary_study` e `preliminary_design` (0079) seguem a mesma regra e pelo
   mesmo motivo — a produção não tem coluna para elas.
 */
-const COLUMNS: Column[] = [
-  { id: 'not_started', color: 'bg-muted' },
-  { id: 'briefing', color: 'bg-blue-100 dark:bg-blue-950/40' },
-  { id: 'layout', color: 'bg-violet-100 dark:bg-violet-950/40' },
-  { id: 'renderings', color: 'bg-purple-100 dark:bg-purple-950/40' },
-  { id: 'legal_permit', color: 'bg-cyan-100 dark:bg-cyan-950/40' },
-  { id: 'hoa_approval', color: 'bg-orange-100 dark:bg-orange-950/40' },
-  { id: 'construction_docs', color: 'bg-indigo-100 dark:bg-indigo-950/40' },
-  { id: 'engineering_docs', color: 'bg-pink-100 dark:bg-pink-950/40' },
+const DEFAULT_COLUMNS: Column[] = [
+  { id: 'not_started', color: 'muted' },
+  { id: 'briefing', color: 'blue' },
+  { id: 'layout', color: 'violet' },
+  { id: 'renderings', color: 'purple' },
+  { id: 'legal_permit', color: 'cyan' },
+  { id: 'hoa_approval', color: 'orange' },
+  { id: 'construction_docs', color: 'indigo' },
+  { id: 'engineering_docs', color: 'pink' },
   /*
     COR ESCOLHIDA AQUI, porque o original não tem esta coluna — é a única do
     quadro sem cor de lá. Teal é o único matiz da escala que ainda não estava em
@@ -192,9 +206,13 @@ const COLUMNS: Column[] = [
     "Aprovação Condomínio" neste mesmo quadro, e duas colunas da mesma cor tiram
     da cor a única função que ela tem aqui. Escolha reportada ao usuário.
   */
-  { id: 'under_construction', color: 'bg-teal-100 dark:bg-teal-950/40' },
-  { id: 'finished', color: 'bg-emerald-100 dark:bg-emerald-950/40' },
-]
+  { id: 'under_construction', color: 'teal' },
+  { id: 'finished', color: 'emerald' },
+].map((column) => ({
+  id: column.id as ProjectPhase,
+  label: labelOf(PROJECT_PHASE, column.id as ProjectPhase),
+  headerClass: columnHeaderClass(column.color),
+}))
 
 /*
   O STATUS OPERACIONAL NO CARTÃO: o crachá (TaskKanban.jsx:634-645 da versão
@@ -381,6 +399,26 @@ export default function TaskKanban({
   /* Chegada da busca global: `?focus=<id>` rola até a tarefa e a destaca. */
   const { registerFocusRef, focusClassName } = useFocusParam()
 
+  /*
+    AS COLUNAS VÊM DA CONFIGURAÇÃO DO ESCRITÓRIO (migration 0093), não mais de
+    uma lista fixa. Só as marcadas para aparecer, na ordem que Configurações
+    definiu, e só as que representam uma fase — coluna sem fase não teria como
+    receber tarefa nenhuma enquanto `tasks.phase` for o enum.
+
+    Sem configuração (carregando, ou leitura falhou) desenha o padrão. Ver
+    `DEFAULT_COLUMNS`.
+  */
+  const boardQuery = useKanbanBoard('project_flow')
+  const columns: Column[] = boardQuery.data
+    ? boardQuery.data.columns
+        .filter((column) => column.is_active && column.phase !== null)
+        .map((column) => ({
+          id: column.phase as ProjectPhase,
+          label: column.label,
+          headerClass: columnHeaderClass(column.color),
+        }))
+    : DEFAULT_COLUMNS
+
   const responsibles = operationalCandidates(collaborators)
 
   const handleDragEnd = (result: DropResult) => {
@@ -468,7 +506,7 @@ export default function TaskKanban({
             style={{ height: 'calc(100vh - 280px)', WebkitOverflowScrolling: 'touch' }}
           >
             <div className="flex gap-4 pb-4" style={{ width: 'max-content' }}>
-              {COLUMNS.map((column) => {
+              {columns.map((column) => {
                 const columnTasks = tasksInColumn(tasks, column.id)
 
                 return (
@@ -478,11 +516,11 @@ export default function TaskKanban({
                     style={{ height: 'calc(100vh - 300px)' }}
                   >
                     {/* Cabeçalho fixo da coluna */}
-                    <div className={`px-4 py-3 rounded-t-xl ${column.color} sticky top-0 z-10`}>
+                    <div
+                      className={`px-4 py-3 rounded-t-xl ${column.headerClass} sticky top-0 z-10`}
+                    >
                       <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-foreground">
-                          {labelOf(PROJECT_PHASE, column.id)}
-                        </h3>
+                        <h3 className="font-semibold text-foreground">{column.label}</h3>
                         <Badge variant="secondary" className="bg-card/50">
                           {columnTasks.length}
                         </Badge>
