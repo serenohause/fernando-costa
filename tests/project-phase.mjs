@@ -1,44 +1,46 @@
-// Toda fase que uma TAREFA pode ter precisa estar na escada de cálculo.
+// A fase do projeto sai das tarefas, e a escada agora vem do quadro.
 //
 // COMO RODAR
 //   npm run test:project-phase
 //
 // POR QUE ESTE ARQUIVO EXISTE
-//   `calculateProjectPhase` varre `ADVANCED_TO_INITIAL` da fase mais avançada
-//   para a mais inicial e, quando nenhuma casa, cai em `return 'finished'`.
-//   Fase que existe no enum e falta na lista não vira "fase desconhecida": vira
-//   PROJETO CONCLUÍDO. Um projeto com trabalho em andamento é calculado como
-//   terminado, some dos painéis de projetos ativos e entra na contagem de
-//   entregues.
+//   `calculateProjectPhase` varre a escada da etapa mais avançada para a mais
+//   inicial e, quando nenhuma casa, cai em `return 'finished'`. Etapa que existe
+//   e falta na escada não vira "etapa desconhecida": vira PROJETO CONCLUÍDO. Um
+//   projeto com trabalho em andamento é calculado como terminado, some dos
+//   painéis de projetos ativos e entra na contagem de entregues.
 //
-//   Já aconteceu duas vezes. A migration 0061 acrescentou `under_construction` e
-//   precisou de um parágrafo explicando esse mesmo estrago. A 0079 acrescentou
-//   `preliminary_study` e `preliminary_design` e repetiu o erro — 4 projetos do
-//   escritório, cujas únicas tarefas abertas estão em "Estudo preliminar",
-//   seriam calculados como concluídos. Duas vezes é padrão, não descuido.
+//   Já aconteceu duas vezes com a escada escrita à mão. A migration 0061
+//   acrescentou `under_construction` e precisou de um parágrafo explicando esse
+//   estrago. A 0079 acrescentou `preliminary_study` e `preliminary_design` e
+//   repetiu o erro — 4 projetos do escritório seriam calculados como concluídos.
 //
-//   Nada cobra isso: o TypeScript aceita uma lista incompleta de um union, o
-//   banco aceita a fase, e a tela não erra — só mostra o número errado.
+//   A MIGRATION 0094 MUDOU A NATUREZA DO RISCO. A escada deixou de ser uma lista
+//   no código e passou a ser a ordem do quadro (`display_order` de
+//   `kanban_columns`), recebida como argumento. A antiga pergunta — "alguém
+//   esqueceu de acrescentar a fase nova aqui?" — não pode mais ser respondida
+//   errado, porque não há mais lista para esquecer.
 //
-// AS QUATRO AUSÊNCIAS LEGÍTIMAS
+//   O risco que SOBROU é outro, e é o que este arquivo passa a vigiar: a escada
+//   chega de fora, então chegar VAZIA ou INCOMPLETA produz exatamente o mesmo
+//   estrago de antes, agora em silêncio e em tempo de execução. Os casos abaixo
+//   fixam o comportamento nos dois extremos.
+//
+// AS DUAS AUSÊNCIAS LEGÍTIMAS NA ESCADA
 //   `not_started`   fora de propósito: tarefa não iniciada não puxa o projeto de
 //                   volta para o começo (regra do original).
-//   `awaiting_client` tratada ANTES da varredura, e vence tudo — é bloqueio, não
-//                   degrau.
 //   `finished`      é o resultado da função, não entrada dela.
-//   `post_approval` `tasks_phase_no_post_approval_check` (0049) recusa o valor em
-//                   tarefa, então nenhuma tarefa chega nele.
+//   `awaiting_client` está na escada mas é tratada ANTES da varredura, e vence
+//                   tudo — é bloqueio, não degrau.
 
 /*
-  Só `enums.ts` é importado. `project-phase.ts` usa o alias `@/`, que o Vite
-  resolve e o Node não — importá-lo aqui exigiria um resolvedor só para o teste.
-  O que ele exporta e que interessa (`PHASE_ORDER`) é `Object.keys(PROJECT_PHASE)`,
-  reproduzido abaixo em uma linha.
+  O módulo é importado DE VERDADE, e não lido como texto: os dois imports dele
+  são `import type`, que o Node apaga ao interpretar TypeScript, então o alias
+  `@/` nunca chega a ser resolvido. É o que permite testar comportamento em vez
+  de conferir o formato de um array.
 */
+import { calculateProjectPhase, allTasksCompleted } from '../src/features/projects/project-phase.ts'
 import { PROJECT_PHASE } from '../src/lib/enums.ts'
-import { readFileSync } from 'node:fs'
-
-const PHASE_ORDER = Object.keys(PROJECT_PHASE)
 
 let passed = 0
 let failed = 0
@@ -53,53 +55,87 @@ function check(name, ok, detail) {
   }
 }
 
-console.log('\nEscada de fases do cálculo de fase do projeto\n')
-
-/*
-  A lista é lida do ARQUIVO, e não importada: `ADVANCED_TO_INITIAL` não é
-  exportada, e exportá-la só para o teste alargaria a superfície do módulo por
-  causa da ferramenta. O recorte entre colchetes é estável e o teste falha alto
-  se ele mudar de forma.
-*/
-const fonte = readFileSync(new URL('../src/features/projects/project-phase.ts', import.meta.url), 'utf8')
-const bloco = fonte.match(/const ADVANCED_TO_INITIAL: ProjectPhase\[\] = \[([\s\S]*?)\]/)
-if (!bloco) {
-  console.error('\n  ABORTADO: não achei ADVANCED_TO_INITIAL em project-phase.ts.')
-  console.error('  Sem ela este teste não afirma nada — e passar em silêncio seria pior.\n')
-  process.exit(1)
+function eq(name, esperado, observado) {
+  check(name, esperado === observado, `esperado=${esperado} observado=${observado}`)
 }
-const escada = [...bloco[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1])
 
-const FORA_DE_PROPOSITO = ['not_started', 'awaiting_client', 'finished', 'post_approval']
-const devemEstar = Object.keys(PROJECT_PHASE).filter((fase) => !FORA_DE_PROPOSITO.includes(fase))
+console.log('\nFase do projeto a partir das tarefas\n')
 
-const faltando = devemEstar.filter((fase) => !escada.includes(fase))
-check(
-  '1.1  toda fase de tarefa está na escada',
-  faltando.length === 0,
-  `fora da escada: ${faltando.join(', ')}. Projeto cuja única tarefa aberta ` +
-    'estiver numa delas será calculado como CONCLUÍDO.',
-)
+/* A escada padrão: a ordem que a migration 0093 semeia em todo escritório. */
+const ESCADA = Object.keys(PROJECT_PHASE).filter((fase) => fase !== 'post_approval')
 
-const sobrando = escada.filter((fase) => !devemEstar.includes(fase))
-check(
-  '1.2  a escada não inventa fase que o enum não tem',
-  sobrando.length === 0,
-  `na escada e fora do enum (ou fora de propósito): ${sobrando.join(', ')}`,
-)
+const t = (phase, status = 'in_progress') => ({ project_id: 'p1', phase, status })
+
+// 1. As quatro regras do original ------------------------------------------
+
+eq('1.1  projeto sem tarefa nenhuma está em "Não iniciado"', 'not_started',
+  calculateProjectPhase('p1', [], ESCADA))
+
+eq('1.2  a etapa é a mais avançada com tarefa aberta', 'renderings',
+  calculateProjectPhase('p1', [t('briefing'), t('renderings'), t('layout')], ESCADA))
+
+/* Regra 2 do original: esperar o cliente é bloqueio, não degrau — vence até
+   uma tarefa em obra, que é a etapa mais avançada que existe. */
+eq('1.3  "Aguardando Cliente" vence a etapa mais avançada', 'awaiting_client',
+  calculateProjectPhase('p1', [t('under_construction'), t('awaiting_client')], ESCADA))
+
+eq('1.4  mas só enquanto a tarefa não está concluída', 'under_construction',
+  calculateProjectPhase(
+    'p1',
+    [t('under_construction'), t('awaiting_client', 'completed')],
+    ESCADA,
+  ))
+
+eq('1.5  tudo concluído é "Finalizado"', 'finished',
+  calculateProjectPhase('p1', [t('layout', 'completed'), t('briefing', 'completed')], ESCADA))
+
+eq('1.6  tarefa NÃO iniciada não puxa o projeto de volta ao começo', 'layout',
+  calculateProjectPhase('p1', [t('not_started'), t('layout')], ESCADA))
+
+eq('1.7  tarefa de outro projeto não conta', 'not_started',
+  calculateProjectPhase('p1', [{ project_id: 'p2', phase: 'layout', status: 'in_progress' }], ESCADA))
+
+// 2. A ESCADA VEM DE FORA — o risco que a 0094 criou ------------------------
+
+/* A etapa criada pelo escritório funciona sem que ninguém edite código: é isso
+   que a migration 0094 comprou, e é o caso que prova que comprou mesmo. */
+eq('2.1  etapa criada pelo escritório entra na escada', 'aprovacao_cliente',
+  calculateProjectPhase('p1', [t('layout'), t('aprovacao_cliente')], [
+    'not_started', 'briefing', 'layout', 'aprovacao_cliente', 'finished',
+  ]))
+
+/* A ORDEM DO QUADRO decide quem vence, e não a ordem do enum. Aqui `briefing`
+   foi posto DEPOIS de `layout` pelo escritório — e passa a vencer. */
+eq('2.2  quem vence é a ordem do quadro, não a do enum', 'briefing',
+  calculateProjectPhase('p1', [t('briefing'), t('layout')], [
+    'not_started', 'layout', 'briefing', 'finished',
+  ]))
 
 /*
-  1.3 guarda a ORDEM, que é o que decide qual fase vence quando o projeto tem
-  tarefas abertas em duas. A escada precisa ser o enum de trás para frente: o
-  enum é escrito na ordem do fluxo, e a varredura vai da mais avançada para a
-  mais inicial.
+  O MODO DE FALHA NOVO, e a razão de `syncProjectFromTasks` abortar quando não
+  consegue ler o quadro: com a escada vazia, um projeto cheio de trabalho aberto
+  é calculado como CONCLUÍDO. A função não tem como saber que a lista chegou
+  vazia por engano — quem precisa recusar é quem a chama.
 */
-const esperada = PHASE_ORDER.filter((fase) => devemEstar.includes(fase)).reverse()
-check(
-  '1.3  a ordem é a do fluxo, invertida',
-  JSON.stringify(escada) === JSON.stringify(esperada),
-  `escada=${escada.join(' > ')}\n        esperada=${esperada.join(' > ')}`,
-)
+eq('2.3  escada VAZIA calcula projeto aberto como concluído (por isso quem chama aborta antes)',
+  'finished', calculateProjectPhase('p1', [t('layout'), t('renderings')], []))
+
+/* Mesmo estrago, versão parcial: a etapa que falta na escada é ignorada. */
+eq('2.4  etapa fora da escada é ignorada na varredura', 'briefing',
+  calculateProjectPhase('p1', [t('briefing'), t('renderings')], [
+    'not_started', 'briefing', 'finished',
+  ]))
+
+// 3. "Todas concluídas" -----------------------------------------------------
+
+check('3.1  projeto sem tarefa nenhuma NÃO conta como concluído',
+  allTasksCompleted('p1', []) === false, 'devolveu true')
+
+check('3.2  CONTROLE: com todas concluídas, conta',
+  allTasksCompleted('p1', [t('layout', 'completed')]) === true, 'devolveu false')
+
+check('3.3  uma aberta basta para não estar concluído',
+  allTasksCompleted('p1', [t('layout', 'completed'), t('briefing')]) === false, 'devolveu true')
 
 console.log(`\n${passed}/${passed + failed} casos passaram.`)
 if (failed > 0) process.exit(1)

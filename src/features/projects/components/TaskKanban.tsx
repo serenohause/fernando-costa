@@ -40,6 +40,7 @@ import { createPageUrl } from '@/lib/page-url'
 import type { Collaborator } from '@/features/team/types'
 import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
 import { useKanbanBoard } from '@/features/kanban/hooks'
+import { orderedPhaseKeys, phaseLabelIn } from '@/features/kanban/board'
 import { columnHeaderClass } from '@/features/kanban/types'
 import type { DiaryProject } from '@/features/diary/types'
 import {
@@ -49,6 +50,7 @@ import {
   TASK_PRIORITY,
   labelOf,
   type OperationalTag,
+  type PhaseKey,
   type ProjectPhase,
   type TaskPriority,
 } from '@/lib/enums'
@@ -115,7 +117,7 @@ import type {
   cada montagem do quadro e em todo mundo que abre a página, não é layout.
 */
 
-type Column = { id: ProjectPhase; label: string; headerClass: string }
+type Column = { id: PhaseKey; label: string; headerClass: string }
 
 /*
   O QUADRO PADRÃO — e desde a migration 0093 ele é só o PONTO DE PARTIDA.
@@ -209,7 +211,7 @@ const DEFAULT_COLUMNS: Column[] = [
   { id: 'under_construction', color: 'teal' },
   { id: 'finished', color: 'emerald' },
 ].map((column) => ({
-  id: column.id as ProjectPhase,
+  id: column.id as PhaseKey,
   label: labelOf(PROJECT_PHASE, column.id as ProjectPhase),
   headerClass: columnHeaderClass(column.color),
 }))
@@ -305,7 +307,7 @@ const SCROLLBAR_STYLES = `
   }
 `
 
-type BlockAlert = { fromPhase: ProjectPhase; toPhase: ProjectPhase; pending: string[] }
+type BlockAlert = { fromPhase: PhaseKey; toPhase: PhaseKey; pending: string[] }
 
 /*
   O QUE A GAVETA DO DIÁRIO PRECISA SABER DO PROJETO, montado a partir do que a
@@ -409,11 +411,22 @@ export default function TaskKanban({
     `DEFAULT_COLUMNS`.
   */
   const boardQuery = useKanbanBoard('project_flow')
+  const boardColumns = boardQuery.data?.columns ?? []
+
+  /*
+    A ORDEM E O RÓTULO SAEM DO QUADRO desde a migration 0094. A ordem inclui as
+    etapas ESCONDIDAS de propósito (ver `orderedPhaseKeys`): sem elas, sair de
+    uma etapa fora do quadro pareceria retrocesso e a trava de checklist não
+    valeria.
+  */
+  const orderedKeys = orderedPhaseKeys(boardColumns)
+  const phaseLabel = (phase: PhaseKey | null) => phaseLabelIn(boardColumns, phase)
+
   const columns: Column[] = boardQuery.data
     ? boardQuery.data.columns
-        .filter((column) => column.is_active && column.phase !== null)
+        .filter((column) => column.is_active)
         .map((column) => ({
-          id: column.phase as ProjectPhase,
+          id: column.key,
           label: column.label,
           headerClass: columnHeaderClass(column.color),
         }))
@@ -424,14 +437,14 @@ export default function TaskKanban({
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return
 
-    const fromPhase = result.source.droppableId as ProjectPhase
-    const toPhase = result.destination.droppableId as ProjectPhase
+    const fromPhase = result.source.droppableId as PhaseKey
+    const toPhase = result.destination.droppableId as PhaseKey
     if (fromPhase === toPhase) return
 
     const task = tasks.find((candidate) => candidate.id === result.draggableId)
     if (!task) return
 
-    const outcome: MoveOutcome = moveTaskToPhase(task, fromPhase, toPhase)
+    const outcome: MoveOutcome = moveTaskToPhase(task, fromPhase, toPhase, orderedKeys)
 
     if (outcome.kind === 'blocked') {
       setBlockAlert(outcome)
@@ -470,11 +483,11 @@ export default function TaskKanban({
             </div>
             <div className="flex-1">
               <h3 className="font-semibold text-rose-900 dark:text-rose-200 mb-1">
-                Não é possível avançar para "{labelOf(PROJECT_PHASE, blockAlert.toPhase)}"
+                Não é possível avançar para "{phaseLabel(blockAlert.toPhase)}"
               </h3>
               <p className="text-sm text-rose-700 dark:text-rose-300 mb-2">
                 Complete os itens obrigatórios da etapa "
-                {labelOf(PROJECT_PHASE, blockAlert.fromPhase)}" antes de avançar:
+                {phaseLabel(blockAlert.fromPhase)}" antes de avançar:
               </p>
               <pre className="text-xs text-rose-600 dark:text-rose-400 whitespace-pre-wrap font-medium">
                 {blockAlert.pending.map((title) => `• ${title}`).join('\n')}
@@ -827,7 +840,7 @@ export default function TaskKanban({
                                           variant="outline"
                                           className="bg-elevated text-soft border-border text-xs"
                                         >
-                                          {labelOf(PROJECT_PHASE, task.phase)}
+                                          {phaseLabel(task.phase)}
                                         </Badge>
                                         {/* O crachá do status operacional, depois
                                             da etapa, como na versão nova. */}

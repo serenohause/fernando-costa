@@ -485,6 +485,14 @@ $q$, (select project_waiting_a from ids)));
 --   b) A migration 0062 abriu excecao no completion_date x status para linha
 --      com legacy_id preenchido. Essa sim so vale para o que veio do base44.
 --
+-- O QUE MUDOU NA 0094: `tasks.phase` deixou de ser o enum e virou texto com
+-- chave estrangeira para `kanban_columns`. As duas recusas abaixo continuam de
+-- pe, mas 'post_approval' passou a ser recusado pela FK (23503) e nao mais por
+-- check (23514) - a etapa nao existe no quadro de escritorio nenhum, porque a
+-- 0093 a deixou de fora de proposito. 'finished' segue no check (23514): ela E
+-- uma etapa do quadro, entao a FK a aceitaria, e e o check que impede tarefa de
+-- parar numa coluna que so mostra concluidas.
+--
 -- Os casos 9.3 e 9.4 sao o que impede (a) de virar afrouxamento: acrescentar
 -- valor a um enum compartilhado nao pode abrir os recortes que cada tabela ja
 -- fazia, e os dois valores que tasks nunca aceitou continuam recusados INCLUSIVE
@@ -505,7 +513,7 @@ select pg_temp.chk('9.3', 'tarefa IMPORTADA em fase finished continua recusada',
   values (%L, 'b44-task-finished', 'Entrega final', 'finished')
 $q$, (select tenant_a from ids)));
 
-select pg_temp.chk('9.4', 'tarefa IMPORTADA em fase post_approval continua recusada', 'ERR:23514', format($q$
+select pg_temp.chk('9.4', 'tarefa IMPORTADA em fase post_approval continua recusada (agora pela FK)', 'ERR:23503', format($q$
   insert into public.tasks (tenant_id, legacy_id, title, phase)
   values (%L, 'b44-task-pos', 'Compra de acabamento', 'post_approval')
 $q$, (select tenant_a from ids)));

@@ -135,6 +135,10 @@ insert into public.collaborators (id, tenant_id, user_id, name, email, role, are
 
 insert into public.collaborator_permissions (tenant_id, collaborator_id, menu_key, can_view, can_edit) values
   ((select tenant_a from ids), (select col_arq_a from ids), 'projects', true, true),
+  /* Escrever em `tasks` é `can_edit_menu('project_flow')`, e NÃO o menu
+     Projetos: são recortes diferentes, e é essa diferença que o caso 4.2 usa
+     para provar que a etapa criada recebe tarefa de verdade. */
+  ((select tenant_a from ids), (select col_arq_a from ids), 'project_flow', true, true),
   ((select tenant_a from ids), (select col_arq_a from ids), 'settings', true, false),
   ((select tenant_a from ids), (select col_cfg_a from ids), 'settings', true, true);
 
@@ -178,20 +182,23 @@ from (values
    em silêncio. `post_approval` fica de fora porque tarefa não a aceita
    (`tasks_phase_no_post_approval_check`, 0049). Quem acrescentar valor ao enum
    project_phase quebra ESTE caso — que é o ponto. */
-select pg_temp.rec('1.16', 'toda fase de tarefa tem linha no quadro (menos post_approval)', '(nenhuma sobrando)',
+/* Toda fase que o enum oferecia continua tendo etapa, senão o histórico já
+   gravado ficaria sem rótulo e sem percentual. `post_approval` fica de fora
+   porque nunca foi fase de tarefa - é só do checklist de orçamento (0049). */
+select pg_temp.rec('1.16', 'toda fase do enum antigo virou etapa (menos post_approval)', '(nenhuma sobrando)',
   coalesce((
     select string_agg(f::text, ', ')
     from unnest(enum_range(null::public.project_phase)) f
     where f <> 'post_approval'
       and not exists (
         select 1 from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
-        where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow' and c.phase = f)
+        where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow' and c.key = f::text)
   ), '(nenhuma sobrando)'));
 
-select pg_temp.rec('1.17', 'post_approval NÃO vira coluna: nenhuma tarefa pode alcançá-la', '0',
+select pg_temp.rec('1.17', 'post_approval NÃO vira etapa: nenhuma tarefa pode alcançá-la', '0',
   (select count(*)::text from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
     where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow'
-      and c.phase = 'post_approval'));
+      and c.key = 'post_approval'));
 
 -- 2. O CAMPO É MESMO A FONTE ---------------------------------------------------
 --
@@ -271,45 +278,81 @@ select pg_temp.rec('3.8', 'Arquiteto sem o menu Configurações ainda vê o prog
   pg_temp.conta_as((select user_arq_a from ids), (select tenant_a from ids),
     $q$select phase_percent from public.project_progress where project_id = 'caaa0000-0000-4000-8000-00000000007a'$q$));
 
--- 4. Criar e apagar etapa NÃO existem nesta fatia -------------------------------
+-- 4. Criar e excluir etapa -------------------------------------------------------
 --
---    Não é lacuna: uma coluna com `phase` nulo seria coluna que nenhuma tarefa
---    pode alcançar enquanto `tasks.phase` for o enum, e apagar uma linha tiraria
---    a fase da escala em silêncio. Os dois chegam com a troca de tasks.phase por
---    FK. Estes casos existem para que a ausência seja DECLARADA — e para que
---    acrescentar a policy sem o resto acuse aqui.
+--    Passaram a existir na 0094, quando `tasks.phase` deixou de ser o enum. O
+--    que os torna seguros não é a policy: é a FK `tasks_phase_fkey` (restrict),
+--    que recusa apagar etapa com tarefa dentro, e o gatilho que protege as duas
+--    etapas estruturais.
 
-select pg_temp.rec('4.1', 'não há policy de INSERT em kanban_columns', '0',
-  (select count(*)::text from pg_policies
-    where schemaname='public' and tablename='kanban_columns' and cmd='INSERT'));
+select pg_temp.rec('4.1', 'a etapa criada pelo escritório recebe tarefa', '1',
+  pg_temp.exec_as((select user_cfg_a from ids), (select tenant_a from ids),
+    $q$insert into public.kanban_columns (tenant_id, board_id, key, label, color, display_order, progress_percent)
+       select b.tenant_id, b.id, 'aprovacao_cliente', 'Aprovação do Cliente', 'rose', 20, 60
+       from public.kanban_boards b
+       where b.key = 'project_flow' and b.tenant_id = 'caaa0000-0000-4000-8000-00000000000a'$q$));
 
-select pg_temp.rec('4.2', 'nem de DELETE', '0',
-  (select count(*)::text from pg_policies
-    where schemaname='public' and tablename='kanban_columns' and cmd='DELETE'));
+select pg_temp.rec('4.2', 'CONTROLE: e a tarefa realmente vai para ela', '1',
+  pg_temp.exec_as((select user_arq_a from ids), (select tenant_a from ids),
+    $q$update public.tasks set phase = 'aprovacao_cliente'
+       where id = 'caaa0000-0000-4000-8000-00000000008a'$q$));
 
-select pg_temp.rec('4.3', 'nem a Diretora cria etapa', 'ERR:42501',
+/* A PROVA DE QUE A ETAPA NOVA É ETAPA DE VERDADE: ela entra na escala de
+   progresso como qualquer outra. Sem isto, criar etapa daria uma coluna
+   decorativa que zera o progresso de quem entra nela. */
+select pg_temp.rec('4.3', 'a etapa criada entra na escala de progresso', '60', pg_temp.fase_pct());
+
+/* O gesto perigoso, barrado pelo BANCO e não pela tela. */
+select pg_temp.rec('4.4', 'não se exclui etapa com tarefa dentro', 'ERR:23503',
   pg_temp.exec_as((select user_dir_a from ids), (select tenant_a from ids),
+    $q$delete from public.kanban_columns where key = 'aprovacao_cliente'$q$));
+
+select pg_temp.rec('4.5', 'CONTROLE: movida a tarefa, a etapa é excluída', '1',
+  pg_temp.exec_as((select user_dir_a from ids), (select tenant_a from ids),
+    $q$with movidas as (
+         update public.tasks set phase = 'layout' where phase = 'aprovacao_cliente' returning 1)
+       delete from public.kanban_columns
+       where key = 'aprovacao_cliente' and (select count(*) from movidas) >= 0$q$));
+
+/* As duas etapas estruturais: são o que calculateProjectPhase grava sozinho em
+   projects.current_phase (projeto sem tarefas, projeto concluído). */
+select pg_temp.rec('4.6', '"Não iniciado" não pode ser excluída', 'ERR:P0001',
+  pg_temp.exec_as((select user_dir_a from ids), (select tenant_a from ids),
+    $q$delete from public.kanban_columns where key = 'not_started'$q$));
+
+select pg_temp.rec('4.7', '"Finalizado" também não', 'ERR:P0001',
+  pg_temp.exec_as((select user_dir_a from ids), (select tenant_a from ids),
+    $q$delete from public.kanban_columns where key = 'finished'$q$));
+
+select pg_temp.rec('4.8', 'Arquiteto SEM can_edit em settings não cria etapa', 'ERR:42501',
+  pg_temp.exec_as((select user_arq_a from ids), (select tenant_a from ids),
     $q$insert into public.kanban_columns (tenant_id, board_id, key, label, display_order)
-       select tenant_id, id, 'nova_etapa', 'Nova', 20 from public.kanban_boards where key = 'project_flow'$q$));
+       select b.tenant_id, b.id, 'invadida', 'Invadida', 30 from public.kanban_boards b
+       where b.key = 'project_flow' and b.tenant_id = 'caaa0000-0000-4000-8000-00000000000a'$q$));
 
-select pg_temp.rec('4.4', 'nem apaga', 'ERR:42501',
-  pg_temp.exec_as((select user_dir_a from ids), (select tenant_a from ids),
+select pg_temp.rec('4.9', 'nem exclui', '0',
+  pg_temp.exec_as((select user_arq_a from ids), (select tenant_a from ids),
     $q$delete from public.kanban_columns where key = 'revision'$q$));
 
-select pg_temp.rec('4.5', 'quadro não se apaga: sem policy de DELETE', '0',
+/* A ETAPA E DO ESCRITORIO, e a FK e por (tenant_id, key): a tarefa de A nao
+   pode apontar para uma etapa que so existe em B. */
+select pg_temp.rec('4.10', 'tarefa não aponta para etapa inexistente no escritório', 'ERR:23503',
+  pg_temp.exec_pg(
+    $q$update public.tasks set phase = 'etapa_que_nao_existe'
+       where id = 'caaa0000-0000-4000-8000-00000000008a'$q$));
+
+select pg_temp.rec('4.11', 'quadro não se apaga: sem policy de DELETE', '0',
   (select count(*)::text from pg_policies
     where schemaname='public' and tablename='kanban_boards' and cmd='DELETE'));
 
 -- 5. Invariantes de forma ------------------------------------------------------
 
-/* Duas colunas na mesma fase dividiriam as mesmas tarefas em dois lugares,
-   arrastar entre elas não mudaria nada — o cartão voltaria sozinho — e
-   `project_progress` somaria a mesma etapa duas vezes. Rodado como postgres:
-   não há policy de INSERT nesta fatia, e o que se prova aqui é a RESTRIÇÃO, que
-   nenhum privilégio contorna. */
-select pg_temp.rec('5.1', 'duas colunas na mesma fase são recusadas', 'ERR:23505',
+/* Duas etapas com a mesma chave dividiriam as mesmas tarefas em dois lugares, e
+   arrastar entre elas não mudaria nada — o cartão voltaria sozinho. Desde a 0094
+   esta unicidade é também o ALVO da chave estrangeira de `tasks`. */
+select pg_temp.rec('5.1', 'duas etapas com a mesma chave são recusadas', 'ERR:23505',
   pg_temp.exec_pg(
-    $q$update public.kanban_columns c set phase = 'briefing'
+    $q$update public.kanban_columns c set key = 'briefing'
        from public.kanban_boards b
        where b.id = c.board_id and b.key = 'project_flow'
          and c.tenant_id = 'caaa0000-0000-4000-8000-00000000000a' and c.key = 'layout'$q$));
@@ -359,11 +402,11 @@ select pg_temp.rec('6.2', 'e com as 10 desenhadas no quadro', '10',
 select pg_temp.rec('6.3', 'a escala do escritório novo é idêntica à do antigo', 'idênticas',
   case when (
     select count(*) from (
-      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active, c.phase
+      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active
       from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
       where c.tenant_id = (select tenant_b from ids) and b.key = 'project_flow' and c.key <> 'layout'
       except
-      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active, c.phase
+      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active
       from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
       where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow' and c.key <> 'layout') d) = 0
   then 'idênticas' else 'divergem' end);
@@ -382,8 +425,15 @@ select pg_temp.rec('7.2', 'CONTROLE: authenticated lê', 'true',
 select pg_temp.rec('7.3', 'authenticated tem o grant de UPDATE (a policy é que filtra)', 'true',
   has_table_privilege('authenticated', 'public.kanban_columns', 'update')::text);
 
-select pg_temp.rec('7.4', 'sem grant de INSERT: não há policy que o acompanhe', 'false',
+select pg_temp.rec('7.4', 'authenticated tem o grant de INSERT (a policy é que filtra)', 'true',
   has_table_privilege('authenticated', 'public.kanban_columns', 'insert')::text);
+
+select pg_temp.rec('7.6', 'tasks.phase é texto, e não mais o enum', 'text',
+  (select data_type from information_schema.columns
+    where table_schema='public' and table_name='tasks' and column_name='phase'));
+
+select pg_temp.rec('7.7', 'a chave estrangeira da etapa existe e é RESTRICT', 'r',
+  (select confdeltype::text from pg_constraint where conname = 'tasks_phase_fkey'));
 
 select pg_temp.rec('7.5', 'RLS ligada nas duas', 'true',
   ((select relrowsecurity from pg_class where oid = 'public.kanban_columns'::regclass)

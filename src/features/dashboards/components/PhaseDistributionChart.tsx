@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { ProjectPhase } from '@/lib/enums'
+import type { PhaseKey } from '@/lib/enums'
 import { AXIS_TICK_FILL } from '../chart-theme'
 import type { PhaseCount } from '../types'
 
@@ -47,7 +47,7 @@ export default function PhaseDistributionChart({
   onSelectPhase,
 }: {
   data: PhaseCount[]
-  onSelectPhase: (phase: ProjectPhase) => void
+  onSelectPhase: (phase: PhaseKey) => void
 }) {
   return (
     <div className="dark:[&_.recharts-default-tooltip]:!border-border dark:[&_.recharts-default-tooltip]:!bg-card">

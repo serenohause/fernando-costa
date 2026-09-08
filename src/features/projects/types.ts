@@ -1,6 +1,7 @@
 import type { Tables } from '@/lib/database.types'
 import type {
   ContractType,
+  PhaseKey,
   ProjectPhase,
   ProjectStatus,
   TaskPhase,
@@ -138,18 +139,18 @@ export type TaskInput = {
   due_date: string | null
   estimated_hours: number | null
   description: string | null
-  phase: TaskPhase
+  phase: PhaseKey
   status: WorkStatus
 }
 
 /* O que a mudança de coluna do kanban grava. Ver `useMoveTaskPhase`. */
 export type TaskPhaseMove = {
   id: string
-  phase: TaskPhase
+  phase: PhaseKey
   status: WorkStatus
   completion_date: string | null
   /* Itens do template da nova etapa que a tarefa ainda não tem. */
-  newChecklistItems: { title: string; phase: TaskPhase; is_required: boolean; display_order: number }[]
+  newChecklistItems: { title: string; phase: PhaseKey; is_required: boolean; display_order: number }[]
   /*
     O GESTO, e não a gravação — quem precisa destes três é o evento automático do
     diário (`phase_change`), que registra de ONDE para ONDE em coluna própria
@@ -163,8 +164,8 @@ export type TaskPhaseMove = {
     registra no diário (TaskKanban.jsx:220-227).
   */
   title: string
-  fromPhase: ProjectPhase
-  toPhase: ProjectPhase
+  fromPhase: PhaseKey
+  toPhase: PhaseKey
 }
 
-export type { ProjectPhase, TaskPhase }
+export type { PhaseKey, ProjectPhase, TaskPhase }

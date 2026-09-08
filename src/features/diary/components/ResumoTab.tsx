@@ -34,7 +34,7 @@ import { Input } from '@/components/ui/input'
 import ErrorState from '@/components/shared/ErrorState'
 import { AXIS_TICK_FILL } from '@/features/dashboards/chart-theme'
 import { formatDateBR } from '@/lib/format'
-import { PROJECT_PHASE, PROJECT_STATUS, labelOf } from '@/lib/enums'
+import { PROJECT_STATUS, labelOf } from '@/lib/enums'
 import { buildDiarySummary, hasPeriodFilter } from '../resumo'
 import RelatorioPDFModal from './RelatorioPDFModal'
 import { RESUMO_STAT_CARD, type ResumoStatColor } from './diary-styles'
@@ -45,6 +45,7 @@ import type {
   ProjectIssueRow,
   SiteVisitRow,
 } from '../types'
+import { usePhaseLabel } from '@/features/kanban/hooks'
 
 /*
   Porta de nova-versao/src/components/diary/resumo/ResumoTab.jsx.
@@ -158,6 +159,7 @@ export default function ResumoTab({
   canEdit: boolean
   onSwitchTab: (tab: 'timeline') => void
 }) {
+  const phaseLabel = usePhaseLabel()
   const [period, setPeriod] = useState<DiaryPeriod>({ from: '', to: '' })
   const [reportOpen, setReportOpen] = useState(false)
 
@@ -203,7 +205,7 @@ export default function ResumoTab({
       ) : null,
     ],
     ['Responsável', project.responsible?.name ?? null],
-    ['Etapa atual', project.current_phase ? labelOf(PROJECT_PHASE, project.current_phase) : null],
+    ['Etapa atual', project.current_phase ? phaseLabel(project.current_phase) : null],
     ['Data de início', project.start_date ? formatDateBR(project.start_date) : null],
     [
       'Entrada em Obra',

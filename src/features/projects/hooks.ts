@@ -18,7 +18,9 @@ import {
   recordDiaryEvent,
   type RecordedDiaryEvent,
 } from '@/features/diary/hooks'
-import type { OperationalTag } from '@/lib/enums'
+import type { OperationalTag, PhaseKey } from '@/lib/enums'
+import { useKanbanBoard } from '@/features/kanban/hooks'
+import { phaseLabelIn } from '@/features/kanban/board'
 import {
   phaseChangeText,
   phaseEventKey,
@@ -270,6 +272,29 @@ export function useTasks() {
      e uma falha no meio deixa a fase em "Finalizado" com o status por atualizar.
 */
 async function syncProjectFromTasks(projectId: string): Promise<void> {
+  /*
+    A ESCADA DE ETAPAS VEM DO QUADRO desde a migration 0094 — antes era a ordem
+    de declaração do enum. É uma consulta a mais por gesto, e ela é o preço de a
+    etapa ser configurável: sem a ordem certa, "a etapa mais avançada com tarefa
+    aberta" viraria outra coisa, e a fase do projeto passaria a mentir.
+
+    Falhar aqui interrompe o recálculo em vez de calcular com escada vazia: com
+    ela vazia, `calculateProjectPhase` não acharia etapa nenhuma e devolveria
+    'finished' — gravaria projeto CONCLUÍDO com trabalho em andamento, que é o
+    mesmo defeito que a 0079 causou por outro caminho.
+  */
+  const { data: columns, error: columnsError } = await supabase
+    .from('kanban_columns')
+    .select('key, display_order')
+    .order('display_order', { ascending: true })
+
+  if (columnsError || !columns || columns.length === 0) {
+    console.error('[projects] falha ao ler as etapas do quadro:', columnsError)
+    return
+  }
+
+  const orderedKeys = columns.map((column) => column.key)
+
   const { data, error } = await supabase
     .from('tasks')
     .select('project_id, phase, status')
@@ -282,7 +307,7 @@ async function syncProjectFromTasks(projectId: string): Promise<void> {
 
   const tasks = (data ?? []) as TaskPhaseSource[]
   const patch: { current_phase: ReturnType<typeof calculateProjectPhase>; status?: 'completed' } = {
-    current_phase: calculateProjectPhase(projectId, tasks),
+    current_phase: calculateProjectPhase(projectId, tasks, orderedKeys),
   }
   if (allTasksCompleted(projectId, tasks)) patch.status = 'completed'
 
@@ -679,6 +704,15 @@ type MoveTaskPhase = {
 export function useMoveTaskPhase() {
   const queryClient = useQueryClient()
   const tenantId = useTenantId()
+  /*
+    O texto que vai para o diário precisa do RÓTULO da etapa, e desde a 0094 o
+    rótulo mora no quadro do escritório — `PROJECT_PHASE` só conhece as quinze
+    embutidas. O texto fica gravado na linha do tempo: escrever a chave crua ali
+    seria escrevê-la para sempre.
+  */
+  const boardQuery = useKanbanBoard('project_flow')
+  const phaseLabel = (phase: PhaseKey | null) =>
+    phaseLabelIn(boardQuery.data?.columns ?? [], phase)
 
   const mutation = useMutation({
     mutationFn: async ({
@@ -720,7 +754,7 @@ export function useMoveTaskPhase() {
           systemEvent: 'phase_change',
           fromPhase: move.fromPhase,
           toPhase: move.toPhase,
-          ...phaseChangeText(move),
+          ...phaseChangeText(move, phaseLabel),
           eventKey: phaseEventKey(projectId, move),
           /* O original não registra responsável no evento de etapa: quem moveu o
              cartão não é necessariamente quem responde pela tarefa. */

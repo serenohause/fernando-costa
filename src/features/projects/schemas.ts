@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Constants } from '@/lib/database.types'
-import type { TaskPhase, TaskPriority } from '@/lib/enums'
+import type { TaskPriority } from '@/lib/enums'
 
 /*
   Segunda barreira antes de qualquer escrita em `projects` e `tasks`. A primeira
@@ -72,16 +72,22 @@ export const projectInputSchema = z.object({
 
 /* ── Tarefa ────────────────────────────────────────────────────────────── */
 
-/* O recorte do enum compartilhado, do lado do cliente. A lista sai do próprio
-   Constants para não haver duas verdades sobre quais fases existem. */
-/* DOIS recortes, e não um: `post_approval` entrou em `project_phase` na migration
-   0048 para o checklist de orçamento (módulo 8) e é barrado em `tasks` pelo check
-   `tasks_phase_no_post_approval_check` (0049). Sem tirá-lo daqui, o formulário de
-   tarefa passaria a oferecer uma fase que o banco recusa na gravação. */
-export const TASK_PHASE_VALUES = Constants.public.Enums.project_phase.filter(
-  (phase): phase is TaskPhase => phase !== 'finished' && phase !== 'post_approval',
-)
+/*
+  A ETAPA NÃO É MAIS UMA LISTA FECHADA NO CÓDIGO, e por isso este schema deixou
+  de ser `z.enum`.
 
+  Até a migration 0094 a fase era valor do enum `project_phase`, e validar contra
+  `Constants.public.Enums.project_phase` era o jeito de não haver duas verdades.
+  Agora a etapa é uma linha de `kanban_columns` criada pelo escritório: uma lista
+  fechada aqui recusaria, no formulário, exatamente a etapa que a pessoa acabou
+  de criar na tela ao lado.
+
+  QUEM VALIDA AGORA É O BANCO, e valida melhor do que esta lista validava: a
+  chave estrangeira `tasks_phase_fkey` só aceita etapa que exista no quadro
+  DAQUELE escritório — coisa que o enum, sendo global, nunca soube conferir. O
+  que sobra aqui é o que o banco não diz com clareza: que a etapa é obrigatória,
+  e que "Finalizado" não é etapa de tarefa (`tasks_phase_not_finished_check`).
+*/
 export const TASK_PRIORITY_VALUES = Constants.public.Enums.priority_level.filter(
   (priority): priority is TaskPriority => priority !== 'urgent',
 )
@@ -98,9 +104,13 @@ export const taskInputSchema = z
 
     task_type: nullIfBlank(z.enum(Constants.public.Enums.task_type).nullable()),
     priority: z.enum(TASK_PRIORITY_VALUES),
-    phase: z.enum(TASK_PHASE_VALUES, {
-      error: 'Tarefa não pode estar na fase Finalizado — essa fase é do projeto.',
-    }),
+    phase: z
+      .string()
+      .trim()
+      .min(1, 'Informe a etapa da tarefa.')
+      .refine((phase) => phase !== 'finished', {
+        error: 'Tarefa não pode estar na etapa Finalizado — essa etapa é do projeto.',
+      }),
     status: z.enum(Constants.public.Enums.work_status),
 
     start_date: isoDate('Data de início inválida.'),

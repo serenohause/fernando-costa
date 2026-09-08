@@ -1672,7 +1672,6 @@ export type Database = {
           is_active: boolean
           key: string
           label: string
-          phase: Database["public"]["Enums"]["project_phase"] | null
           progress_percent: number | null
           tenant_id: string
           updated_at: string
@@ -1686,7 +1685,6 @@ export type Database = {
           is_active?: boolean
           key: string
           label: string
-          phase?: Database["public"]["Enums"]["project_phase"] | null
           progress_percent?: number | null
           tenant_id: string
           updated_at?: string
@@ -1700,7 +1698,6 @@ export type Database = {
           is_active?: boolean
           key?: string
           label?: string
-          phase?: Database["public"]["Enums"]["project_phase"] | null
           progress_percent?: number | null
           tenant_id?: string
           updated_at?: string
@@ -2143,7 +2140,7 @@ export type Database = {
           display_order: number | null
           id: string
           is_completed: boolean
-          phase: Database["public"]["Enums"]["project_phase"] | null
+          phase: string | null
           project_id: string
           tenant_id: string
           title: string
@@ -2155,7 +2152,7 @@ export type Database = {
           display_order?: number | null
           id?: string
           is_completed?: boolean
-          phase?: Database["public"]["Enums"]["project_phase"] | null
+          phase?: string | null
           project_id: string
           tenant_id: string
           title: string
@@ -2167,7 +2164,7 @@ export type Database = {
           display_order?: number | null
           id?: string
           is_completed?: boolean
-          phase?: Database["public"]["Enums"]["project_phase"] | null
+          phase?: string | null
           project_id?: string
           tenant_id?: string
           title?: string
@@ -2204,7 +2201,7 @@ export type Database = {
           description: string | null
           entry_type: Database["public"]["Enums"]["diary_entry_type"]
           event_key: string | null
-          from_phase: Database["public"]["Enums"]["project_phase"] | null
+          from_phase: string | null
           id: string
           is_automatic: boolean
           legacy_id: string | null
@@ -2217,7 +2214,7 @@ export type Database = {
           system_event: Database["public"]["Enums"]["diary_system_event"] | null
           tenant_id: string
           title: string
-          to_phase: Database["public"]["Enums"]["project_phase"] | null
+          to_phase: string | null
           updated_at: string
           updated_by_id: string | null
           visibility: Database["public"]["Enums"]["diary_visibility"]
@@ -2228,7 +2225,7 @@ export type Database = {
           description?: string | null
           entry_type: Database["public"]["Enums"]["diary_entry_type"]
           event_key?: string | null
-          from_phase?: Database["public"]["Enums"]["project_phase"] | null
+          from_phase?: string | null
           id?: string
           is_automatic?: boolean
           legacy_id?: string | null
@@ -2245,7 +2242,7 @@ export type Database = {
             | null
           tenant_id: string
           title: string
-          to_phase?: Database["public"]["Enums"]["project_phase"] | null
+          to_phase?: string | null
           updated_at?: string
           updated_by_id?: string | null
           visibility?: Database["public"]["Enums"]["diary_visibility"]
@@ -2256,7 +2253,7 @@ export type Database = {
           description?: string | null
           entry_type?: Database["public"]["Enums"]["diary_entry_type"]
           event_key?: string | null
-          from_phase?: Database["public"]["Enums"]["project_phase"] | null
+          from_phase?: string | null
           id?: string
           is_automatic?: boolean
           legacy_id?: string | null
@@ -2273,7 +2270,7 @@ export type Database = {
             | null
           tenant_id?: string
           title?: string
-          to_phase?: Database["public"]["Enums"]["project_phase"] | null
+          to_phase?: string | null
           updated_at?: string
           updated_by_id?: string | null
           visibility?: Database["public"]["Enums"]["diary_visibility"]
@@ -2780,7 +2777,7 @@ export type Database = {
           construction_docs_days: number | null
           contract_id: string | null
           created_at: string
-          current_phase: Database["public"]["Enums"]["project_phase"]
+          current_phase: string
           display_order: number | null
           engineering_docs_days: number | null
           id: string
@@ -2822,7 +2819,7 @@ export type Database = {
           construction_docs_days?: number | null
           contract_id?: string | null
           created_at?: string
-          current_phase?: Database["public"]["Enums"]["project_phase"]
+          current_phase?: string
           display_order?: number | null
           engineering_docs_days?: number | null
           id?: string
@@ -2864,7 +2861,7 @@ export type Database = {
           construction_docs_days?: number | null
           contract_id?: string | null
           created_at?: string
-          current_phase?: Database["public"]["Enums"]["project_phase"]
+          current_phase?: string
           display_order?: number | null
           engineering_docs_days?: number | null
           id?: string
@@ -3173,7 +3170,7 @@ export type Database = {
           id: string
           is_completed: boolean
           is_required: boolean
-          phase: Database["public"]["Enums"]["project_phase"] | null
+          phase: string | null
           task_id: string
           tenant_id: string
           title: string
@@ -3186,7 +3183,7 @@ export type Database = {
           id?: string
           is_completed?: boolean
           is_required?: boolean
-          phase?: Database["public"]["Enums"]["project_phase"] | null
+          phase?: string | null
           task_id: string
           tenant_id: string
           title: string
@@ -3199,7 +3196,7 @@ export type Database = {
           id?: string
           is_completed?: boolean
           is_required?: boolean
-          phase?: Database["public"]["Enums"]["project_phase"] | null
+          phase?: string | null
           task_id?: string
           tenant_id?: string
           title?: string
@@ -3232,7 +3229,7 @@ export type Database = {
           id: string
           legacy_id: string | null
           operational_tag: Database["public"]["Enums"]["operational_tag"] | null
-          phase: Database["public"]["Enums"]["project_phase"]
+          phase: string
           priority: Database["public"]["Enums"]["priority_level"]
           project_id: string | null
           responsible_id: string | null
@@ -3255,7 +3252,7 @@ export type Database = {
           operational_tag?:
             | Database["public"]["Enums"]["operational_tag"]
             | null
-          phase?: Database["public"]["Enums"]["project_phase"]
+          phase?: string
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null
           responsible_id?: string | null
@@ -3278,7 +3275,7 @@ export type Database = {
           operational_tag?:
             | Database["public"]["Enums"]["operational_tag"]
             | null
-          phase?: Database["public"]["Enums"]["project_phase"]
+          phase?: string
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null
           responsible_id?: string | null
@@ -3291,6 +3288,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_phase_fkey"
+            columns: ["tenant_id", "phase"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["tenant_id", "key"]
+          },
           {
             foreignKeyName: "tasks_project_id_fkey"
             columns: ["project_id", "tenant_id"]
@@ -3873,7 +3877,7 @@ export type Database = {
         Args: {
           p_description?: string
           p_event_key?: string
-          p_from_phase?: Database["public"]["Enums"]["project_phase"]
+          p_from_phase?: string
           p_occurrence_date?: string
           p_occurrence_time?: string
           p_operational_tag?: Database["public"]["Enums"]["operational_tag"]
@@ -3881,7 +3885,7 @@ export type Database = {
           p_responsible_id?: string
           p_system_event: Database["public"]["Enums"]["diary_system_event"]
           p_title: string
-          p_to_phase?: Database["public"]["Enums"]["project_phase"]
+          p_to_phase?: string
         }
         Returns: Json
       }

@@ -6,6 +6,7 @@ import {
   WriteError,
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
+import { phaseKeyFrom, phaseLabelIn } from './board'
 import type { KanbanBoard, KanbanColumnRow } from './types'
 
 /*
@@ -27,6 +28,15 @@ const KANBAN_ERROR_MESSAGES: DatabaseErrorMessages = {
   kanban_columns_label_not_blank_check: 'Dê um nome à etapa.',
   kanban_columns_label_length_check: 'O nome da etapa é longo demais (máximo de 40 caracteres).',
   kanban_columns_progress_range_check: 'O percentual da etapa precisa estar entre 0 e 100.',
+  kanban_columns_tenant_id_key_key:
+    'Já existe uma etapa com esse nome neste escritório. Se ela foi escondida, mostre-a em vez de criar outra.',
+  kanban_columns_board_id_key_key:
+    'Já existe uma etapa com esse nome neste quadro. Se ela foi escondida, mostre-a em vez de criar outra.',
+  tasks_phase_fkey:
+    'Esta etapa ainda tem tarefas dentro. Escolha para onde movê-las antes de excluir.',
+  '23503': 'Esta etapa ainda tem tarefas dentro. Escolha para onde movê-las antes de excluir.',
+  etapa_estrutural_nao_pode_ser_excluida:
+    '“Não iniciado” e “Finalizado” não podem ser excluídas: são as etapas que o sistema usa para projeto sem tarefas e para projeto concluído. Esconda em vez de excluir.',
   kanban_boards_name_not_blank_check: 'Dê um nome ao quadro.',
   kanban_boards_name_length_check: 'O nome do quadro é longo demais (máximo de 60 caracteres).',
   /*
@@ -115,6 +125,25 @@ export function useOpenTaskCountByPhase() {
   })
 }
 
+/*
+  O ROTULO DE UMA ETAPA, para quem só precisa exibir.
+
+  Existe porque desde a migration 0094 a etapa pode ter um nome que o escritório
+  inventou, e `labelOf(PROJECT_PHASE, ...)` só conhece as quinze embutidas — ele
+  cairia no `?? value` e mostraria a chave crua ("aprovacao_cliente") no painel,
+  no diário e na lista de atividades.
+
+  Devolve uma FUNÇÃO, e não um mapa, para o degrau de fallback ficar num lugar
+  só: quadro, depois rótulo embutido, depois a própria chave (ver `phaseLabelIn`).
+  Enquanto a consulta não chega, o fallback embutido já responde certo para as
+  quinze de sempre — a tela não pisca com traço no lugar do nome.
+*/
+export function usePhaseLabel() {
+  const { data } = useKanbanBoard('project_flow')
+  const columns = data?.columns ?? []
+  return (phase: string | null | undefined) => phaseLabelIn(columns, phase)
+}
+
 export function useUpdateKanbanColumn(boardKey: string) {
   const queryClient = useQueryClient()
 
@@ -153,6 +182,133 @@ export function useUpdateKanbanColumn(boardKey: string) {
       /* O progresso de cada projeto sai da escala que acabou de mudar
          (`project_progress` lê `kanban_columns` desde a migration 0093): sem
          isto, a barra do projeto continuaria no número antigo. */
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
+/*
+  CRIAR ETAPA. Existe a partir da migration 0094 — antes dela, uma etapa nova não
+  teria como receber tarefa nenhuma, porque `tasks.phase` era o enum.
+
+  A CHAVE SAI DO NOME (`phaseKeyFrom`), como em `serviceKeyFrom` (0084): pedir
+  nome E chave ao escritório seria pedir que ele entendesse a diferença entre o
+  que aparece na tela e o que fica gravado na tarefa. Colisão não é resolvida
+  aqui — `unique (tenant_id, key)` recusa e a mensagem diz o que fazer; inventar
+  `layout_2` criaria em silêncio uma segunda etapa com o mesmo nome visível.
+
+  ENTRA NO FIM DA LISTA, e não no meio: ordem é decisão de quem configura, e o
+  lugar previsível para um item novo é o fim. Reordenar é um gesto à parte.
+*/
+export function useCreateKanbanColumn() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: {
+      boardId: string
+      tenantId: string
+      label: string
+      color: string
+      progressPercent: number | null
+      lastOrder: number
+    }) => {
+      const label = input.label.trim()
+      const key = phaseKeyFrom(label)
+      if (!key) {
+        throw new WriteError('O nome da etapa precisa ter ao menos uma letra ou número.')
+      }
+
+      const { data, error } = await supabase
+        .from('kanban_columns')
+        .insert({
+          tenant_id: input.tenantId,
+          board_id: input.boardId,
+          key,
+          label,
+          color: input.color,
+          display_order: input.lastOrder + 1,
+          progress_percent: input.progressPercent,
+          is_active: true,
+        })
+        .select('id')
+        .single()
+
+      if (error) throw error
+      return data.id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: kanbanKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
+/*
+  EXCLUIR ETAPA, movendo antes o que está dentro dela.
+
+  Duas coisas do banco governam este gesto, e nenhuma delas está aqui:
+  `tasks_phase_fkey` é `on delete restrict` — o banco RECUSA apagar etapa com
+  tarefa dentro —, e um gatilho protege "Não iniciado" e "Finalizado", que são
+  os dois valores que o sistema grava sozinho em `projects.current_phase`.
+
+  Então a ordem importa: mover primeiro, apagar depois. Se o UPDATE das tarefas
+  falhar, o DELETE nem é tentado — e a etapa continua lá, com o trabalho dentro,
+  que é o estado seguro.
+
+  QUEM MOVE PRECISA DE OUTRA PERMISSÃO: escrever em `tasks` é
+  `can_edit_menu('project_flow')`, e configurar o quadro é
+  `can_edit_menu('settings')`. Não são o mesmo recorte. Sem a primeira, o UPDATE
+  alcança zero linhas SEM ERRO e o DELETE cairia na chave estrangeira com uma
+  mensagem que não explica nada — por isso a conferência explícita abaixo.
+*/
+export function useDeleteKanbanColumn() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      column,
+      moveToKey,
+      openTaskCount,
+    }: {
+      column: KanbanColumnRow
+      moveToKey: string | null
+      openTaskCount: number
+    }) => {
+      if (openTaskCount > 0) {
+        if (!moveToKey) {
+          throw new WriteError('Escolha para qual etapa as tarefas devem ir.')
+        }
+
+        const { data: movidas, error: moveError } = await supabase
+          .from('tasks')
+          .update({ phase: moveToKey })
+          .eq('phase', column.key)
+          .select('id')
+
+        if (moveError) throw moveError
+        assertRowAffected(
+          movidas,
+          'As tarefas não foram movidas, então a etapa não foi excluída. Mover tarefa exige permissão de edição em Fluxo do Projeto.',
+        )
+      }
+
+      const { data, error } = await supabase
+        .from('kanban_columns')
+        .delete()
+        .eq('id', column.id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A etapa não foi excluída. É preciso permissão de edição em Configurações.',
+      )
+      return column.id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: kanbanKeys.all })
+      /* As tarefas mudaram de etapa e o progresso sai da escala: as duas telas
+         precisam relê-las sem recarregar a página. */
       void queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })

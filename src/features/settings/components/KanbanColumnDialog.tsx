@@ -51,10 +51,18 @@ export default function KanbanColumnDialog({
   const [percent, setPercent] = useState('')
 
   useEffect(() => {
-    if (!open || !editing) return
-    setLabel(editing.label)
-    setColor(editing.color)
-    setPercent(editing.progress_percent === null ? '' : String(editing.progress_percent))
+    if (!open) return
+    if (editing) {
+      setLabel(editing.label)
+      setColor(editing.color)
+      setPercent(editing.progress_percent === null ? '' : String(editing.progress_percent))
+      return
+    }
+    /* Etapa nova entra em branco e sem percentual — vazio é "fora da conta", que
+       é o padrão honesto para quem ainda não decidiu quanto ela vale. */
+    setLabel('')
+    setColor('slate')
+    setPercent('')
   }, [open, editing])
 
   const percentTrimmed = percent.trim()
@@ -73,10 +81,11 @@ export default function KanbanColumnDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Editar etapa</DialogTitle>
+          <DialogTitle>{editing ? 'Editar etapa' : 'Nova etapa'}</DialogTitle>
           <DialogDescription>
-            O nome e a cor valem para o quadro do Fluxo do Projeto. As tarefas já
-            gravadas nesta etapa continuam nela.
+            {editing
+              ? 'O nome e a cor valem para o quadro do Fluxo do Projeto. As tarefas já gravadas nesta etapa continuam nela.'
+              : 'A etapa entra no fim do quadro e já pode receber tarefas. A ordem se ajusta depois, com as setas.'}
           </DialogDescription>
         </DialogHeader>
 

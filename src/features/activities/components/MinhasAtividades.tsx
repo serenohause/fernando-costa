@@ -23,7 +23,6 @@ import { useProjectProgress, useProjects, useTasks } from '@/features/projects/h
 import type { ProjectRow, TaskRow } from '@/features/projects/types'
 import {
   PRIORITY_LEVEL,
-  PROJECT_PHASE,
   PROJECT_STATUS,
   WORK_STATUS,
   labelOf,
@@ -34,6 +33,7 @@ import { isOverdue, sortMyActivities } from '../list'
 import { useMyActivities } from '../hooks'
 import { PRIORITY_TEXT } from './priority-styles'
 import type { ActivityRow } from '../types'
+import { usePhaseLabel } from '@/features/kanban/hooks'
 
 /*
   Porta de projeto-original/src/pages/MinhasAtividades.jsx.
@@ -75,6 +75,7 @@ type MyProject = ProjectRow & {
 }
 
 export default function MinhasAtividades() {
+  const phaseLabel = usePhaseLabel()
   const [selectedProject, setSelectedProject] = useState<MyProject | null>(null)
 
   const collaboratorQuery = useCurrentCollaborator()
@@ -340,7 +341,7 @@ export default function MinhasAtividades() {
                       variant="outline"
                       className="text-xs bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900"
                     >
-                      📍 {labelOf(PROJECT_PHASE, project.current_phase)}
+                      📍 {phaseLabel(project.current_phase)}
                     </Badge>
 
                     {project.nextDelivery && (
@@ -410,7 +411,7 @@ export default function MinhasAtividades() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Fase Atual</p>
                   <Badge className="bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900">
-                    {labelOf(PROJECT_PHASE, selectedProject.current_phase)}
+                    {phaseLabel(selectedProject.current_phase)}
                   </Badge>
                 </div>
                 <div>

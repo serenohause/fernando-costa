@@ -1,14 +1,12 @@
 import { format } from 'date-fns'
 import {
   OPERATIONAL_TAG,
-  PROJECT_PHASE,
-  labelOf,
   type OperationalTag,
-  type ProjectPhase,
+  type PhaseKey,
   type TaskPhase,
 } from '@/lib/enums'
 import { missingChecklistItems } from './checklist-templates'
-import { phaseIndex } from './project-phase'
+import { phaseIndexIn } from '@/features/kanban/board'
 import type { TaskChecklistItem, TaskPhaseMove, TaskRow } from './types'
 
 /*
@@ -22,7 +20,7 @@ import type { TaskChecklistItem, TaskPhaseMove, TaskRow } from './types'
 
 export type MoveOutcome =
   /* Item obrigatório da etapa ATUAL por concluir. A tarefa não sai do lugar. */
-  | { kind: 'blocked'; fromPhase: ProjectPhase; toPhase: ProjectPhase; pending: string[] }
+  | { kind: 'blocked'; fromPhase: PhaseKey; toPhase: PhaseKey; pending: string[] }
   | { kind: 'move'; move: TaskPhaseMove }
 
 /*
@@ -34,7 +32,7 @@ export type MoveOutcome =
   simplesmente não traz o valor. Por isso a coluna junta as concluídas de todas
   as fases, e as demais colunas escondem as concluídas.
 */
-export function tasksInColumn(tasks: TaskRow[], column: ProjectPhase): TaskRow[] {
+export function tasksInColumn(tasks: TaskRow[], column: PhaseKey): TaskRow[] {
   if (column === 'finished') return tasks.filter((task) => task.status === 'completed')
   return tasks.filter((task) => task.phase === column && task.status !== 'completed')
 }
@@ -60,17 +58,17 @@ export function tasksInColumn(tasks: TaskRow[], column: ProjectPhase): TaskRow[]
   decisão de quadro se lê num arquivo só, e o componente desenha o que ela
   devolve.
 */
-const COLUMNS_WITH_BOTH_TAGS: readonly ProjectPhase[] = ['layout', 'renderings']
-const COLUMNS_REVIEW_ONLY: readonly ProjectPhase[] = ['legal_permit', 'construction_docs']
+const COLUMNS_WITH_BOTH_TAGS: readonly PhaseKey[] = ['layout', 'renderings']
+const COLUMNS_REVIEW_ONLY: readonly PhaseKey[] = ['legal_permit', 'construction_docs']
 
-export function operationalTagOptions(column: ProjectPhase): OperationalTag[] {
+export function operationalTagOptions(column: PhaseKey): OperationalTag[] {
   if (COLUMNS_WITH_BOTH_TAGS.includes(column)) return ['in_review', 'awaiting_client']
   if (COLUMNS_REVIEW_ONLY.includes(column)) return ['in_review']
   return []
 }
 
 /* Itens obrigatórios da etapa de origem que ainda não foram concluídos. */
-function pendingRequired(checklist: TaskChecklistItem[], fromPhase: ProjectPhase): string[] {
+function pendingRequired(checklist: TaskChecklistItem[], fromPhase: PhaseKey): string[] {
   return checklist
     .filter((item) => item.is_required && item.phase === fromPhase && !item.is_completed)
     .map((item) => item.title)
@@ -78,14 +76,22 @@ function pendingRequired(checklist: TaskChecklistItem[], fromPhase: ProjectPhase
 
 export function moveTaskToPhase(
   task: TaskRow,
-  fromPhase: ProjectPhase,
-  toPhase: ProjectPhase,
+  fromPhase: PhaseKey,
+  toPhase: PhaseKey,
+  /*
+    A ORDEM DO QUADRO, e não mais a ordem de declaração do enum: desde a
+    migration 0094 a etapa é uma linha do escritório, e a posição dela é a
+    `display_order` que Configurações define. Vem de fora para esta decisão
+    continuar sendo uma função pura — e para a tela e a trava não lerem a ordem
+    de dois lugares diferentes.
+  */
+  orderedKeys: string[],
 ): MoveOutcome {
   /*
     A trava vale só ao AVANÇAR, como no original: voltar uma tarefa para uma
     etapa anterior nunca é bloqueado por checklist pendente.
   */
-  if (phaseIndex(toPhase) > phaseIndex(fromPhase)) {
+  if (phaseIndexIn(orderedKeys, toPhase) > phaseIndexIn(orderedKeys, fromPhase)) {
     const pending = pendingRequired(task.checklist, fromPhase)
     if (pending.length > 0) return { kind: 'blocked', fromPhase, toPhase, pending }
   }
@@ -225,9 +231,18 @@ export const tagEventKey = (
   desenha; a diferença é que "Histórico de Revisões" e "Tempo por Etapa" deixam de
   precisar reler esse texto para saber o que aconteceu — o defeito 10 do plano.
 */
-export function phaseChangeText(move: TaskPhaseMove): { title: string; description: string } {
-  const from = labelOf(PROJECT_PHASE, move.fromPhase)
-  const to = labelOf(PROJECT_PHASE, move.toPhase)
+export function phaseChangeText(
+  move: TaskPhaseMove,
+  /*
+    O RÓTULO VEM DO QUADRO, e é por isso que ele entra como argumento: desde a
+    0094 a etapa pode ter um nome que o escritório inventou, e `PROJECT_PHASE`
+    só conhece as quinze embutidas. O texto vai para o diário e fica gravado —
+    escrever "custom_3" ali seria escrever isso para sempre.
+  */
+  phaseLabel: (phase: PhaseKey | null) => string,
+): { title: string; description: string } {
+  const from = phaseLabel(move.fromPhase)
+  const to = phaseLabel(move.toPhase)
 
   return {
     title: `Projeto movido de ${from} → ${to}`,

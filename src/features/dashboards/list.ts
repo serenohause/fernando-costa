@@ -5,6 +5,7 @@ import {
   type CollaboratorArea,
   type CollaboratorRole,
   type FunnelStage,
+  type PhaseKey,
   type ProjectPhase,
 } from '@/lib/enums'
 import { redirectTargetFor } from '@/features/auth/access'
@@ -530,13 +531,20 @@ export function activityMetrics(counts: ActivityCounts): ActivityMetrics {
   `under_construction` (migration 0061) são doze, e a barra "Em Obra" apareceu
   sozinha justamente porque a lista é derivada.
 
-  DERIVADA do enum em vez de escrita à mão: `finished` fica de fora porque
-  projeto finalizado não é projeto ativo, e `post_approval` porque só existe para
-  o checklist de orçamento (migration 0048) e nenhum projeto pode estar nela.
-  Escrever a lista à mão faria uma fase nova no enum não aparecer no gráfico sem
-  nada acusar.
+  DERIVADA, e nunca escrita à mão: uma etapa que exista e não esteja aqui não
+  vira "barra faltando" — vira projeto contado em barra NENHUMA, e o gráfico
+  passa a somar menos do que o total de projetos sem nada acusar.
+
+  A FONTE MUDOU NA MIGRATION 0094. Era o enum `project_phase`; agora é o quadro
+  do escritório (`kanban_columns`), porque a etapa passou a ser uma linha que o
+  escritório cria. Com o enum como fonte, um projeto na etapa criada hoje de
+  manhã sumiria da distribuição.
+
+  `finished` fica de fora porque projeto finalizado não é projeto ativo. O
+  fallback embutido cobre o instante em que a configuração ainda não chegou —
+  são as mesmas etapas que a 0093 semeia em todo escritório.
 */
-export const EXECUTIVE_PHASES: ProjectPhase[] = (
+export const EXECUTIVE_PHASES_FALLBACK: PhaseKey[] = (
   Object.keys(PROJECT_PHASE) as ProjectPhase[]
 ).filter((phase) => phase !== 'finished' && phase !== 'post_approval')
 
@@ -564,13 +572,17 @@ export function operationalMetrics(
   scopedProjects: ProjectRow[],
   progressByProject: Map<string, ProjectProgress>,
   atRiskIds: Set<string>,
+  /* As etapas do quadro, na ordem dele, já sem "Finalizado". Ver
+     `EXECUTIVE_PHASES_FALLBACK` para o que acontece antes de a configuração
+     chegar. */
+  phases: { key: PhaseKey; label: string }[],
 ): OperationalMetrics {
   return {
     totalProjects: scopedProjects.length,
-    byPhase: EXECUTIVE_PHASES.map((phase) => ({
-      phase,
-      label: PROJECT_PHASE[phase],
-      count: scopedProjects.filter((project) => project.current_phase === phase).length,
+    byPhase: phases.map((phase) => ({
+      phase: phase.key,
+      label: phase.label,
+      count: scopedProjects.filter((project) => project.current_phase === phase.key).length,
     })),
     awaitingClient: scopedProjects.filter((project) => project.current_phase === 'awaiting_client')
       .length,

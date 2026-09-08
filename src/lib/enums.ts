@@ -311,6 +311,27 @@ export type ProjectPhase = keyof typeof PROJECT_PHASE
    `tasks_phase_no_post_approval_check` (0049) cobram do banco. */
 export type TaskPhase = Exclude<ProjectPhase, 'finished' | 'post_approval'>
 
+/*
+  A ETAPA GRAVADA NUMA TAREFA, num projeto ou numa entrada de diário.
+
+  Não é `ProjectPhase`, e a diferença é a migration 0094: a etapa deixou de ser
+  valor do enum e virou linha de `kanban_columns`, criada pelo próprio
+  escritório. O banco guarda texto, e a integridade vem da chave estrangeira
+  `tasks_phase_fkey` — não mais de uma lista fechada no código.
+
+  `ProjectPhase | (string & {})` em vez de `string` puro: a união preserva o
+  autocompletar das quinze etapas embutidas (que continuam sendo as que todo
+  escritório recebe ao nascer) sem recusar a etapa que alguém criou hoje de
+  manhã. `string & {}` é o truque que impede o TypeScript de reduzir a união
+  inteira a `string` e perder as sugestões.
+
+  `PROJECT_PHASE` continua sendo o mapa de rótulos das embutidas — e continua
+  sendo o dono do domínio de `budget_checklists.project_phase`, que NÃO virou
+  texto (ver o cabeçalho da 0094). Para exibir a etapa de uma tarefa, o rótulo
+  certo vem do quadro: `phaseLabelIn` (src/features/kanban/board.ts).
+*/
+export type PhaseKey = ProjectPhase | (string & {})
+
 // ── Tarefas ─────────────────────────────────────────────────────────────
 
 /*
