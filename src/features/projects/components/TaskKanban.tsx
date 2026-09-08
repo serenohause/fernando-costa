@@ -133,7 +133,7 @@ type Column = { id: PhaseKey; label: string; headerClass: string }
      saberia se o escritório não tem etapas ou se a página quebrou.
 
   A CONSEQUÊNCIA DO ITEM 2 vale declarar: se a leitura falhar DEPOIS de o
-  escritório ter escondido uma etapa, ela reaparece nesta lista de emergência. O
+  escritório ter ocultado uma etapa, ela reaparece nesta lista de emergência. O
   quadro continua funcionando (as fases são as mesmas), mas exibe o desenho
   padrão em vez do configurado. É o custo de não deixar a tela em branco.
 
@@ -415,7 +415,7 @@ export default function TaskKanban({
 
   /*
     A ORDEM E O RÓTULO SAEM DO QUADRO desde a migration 0094. A ordem inclui as
-    etapas ESCONDIDAS de propósito (ver `orderedPhaseKeys`): sem elas, sair de
+    etapas OCULTAS de propósito (ver `orderedPhaseKeys`): sem elas, sair de
     uma etapa fora do quadro pareceria retrocesso e a trava de checklist não
     valeria.
   */

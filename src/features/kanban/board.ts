@@ -23,7 +23,7 @@ export function activeColumns(columns: KanbanColumnRow[]): KanbanColumnRow[] {
 }
 
 /*
-  A ESCADA DE ETAPAS INCLUI AS ESCONDIDAS, e isso não é descuido.
+  A ESCADA DE ETAPAS INCLUI AS OCULTAS, e isso não é descuido.
 
   Uma tarefa pode estar numa etapa que o escritório tirou do quadro (é o que
   acontece hoje com Revisão e Alvará de Construção). Se a escada só conhecesse as

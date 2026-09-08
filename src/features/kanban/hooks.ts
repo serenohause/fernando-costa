@@ -29,14 +29,14 @@ const KANBAN_ERROR_MESSAGES: DatabaseErrorMessages = {
   kanban_columns_label_length_check: 'O nome da etapa é longo demais (máximo de 40 caracteres).',
   kanban_columns_progress_range_check: 'O percentual da etapa precisa estar entre 0 e 100.',
   kanban_columns_tenant_id_key_key:
-    'Já existe uma etapa com esse nome neste escritório. Se ela foi escondida, mostre-a em vez de criar outra.',
+    'Já existe uma etapa com esse nome neste escritório. Se ela foi ocultada, mostre-a em vez de criar outra.',
   kanban_columns_board_id_key_key:
-    'Já existe uma etapa com esse nome neste quadro. Se ela foi escondida, mostre-a em vez de criar outra.',
+    'Já existe uma etapa com esse nome neste quadro. Se ela foi ocultada, mostre-a em vez de criar outra.',
   tasks_phase_fkey:
     'Esta etapa ainda tem tarefas dentro. Escolha para onde movê-las antes de excluir.',
   '23503': 'Esta etapa ainda tem tarefas dentro. Escolha para onde movê-las antes de excluir.',
   etapa_estrutural_nao_pode_ser_excluida:
-    '“Não iniciado” e “Finalizado” não podem ser excluídas: são as etapas que o sistema usa para projeto sem tarefas e para projeto concluído. Esconda em vez de excluir.',
+    '“Não iniciado” e “Finalizado” não podem ser excluídas: são as etapas que o sistema usa para projeto sem tarefas e para projeto concluído. Oculte em vez de excluir.',
   kanban_boards_name_not_blank_check: 'Dê um nome ao quadro.',
   kanban_boards_name_length_check: 'O nome do quadro é longo demais (máximo de 60 caracteres).',
   /*
@@ -55,7 +55,7 @@ export function describeDatabaseError(error: unknown): string {
 
 /*
   Traz o quadro e TODAS as etapas dele, inclusive as inativas: Configurações
-  precisa mostrar o que está escondido para poder reexibir, e o Fluxo do Projeto
+  precisa mostrar o que está oculto para poder reexibir, e o Fluxo do Projeto
   filtra por `is_active` na hora de desenhar. Quinze linhas — dois recortes
   seriam duas listas capazes de discordar na tela, como já se decidiu em
   `useServiceTypes`.
@@ -94,14 +94,14 @@ export function useKanbanBoard(boardKey: string) {
 
 /*
   QUANTAS TAREFAS ABERTAS EM CADA ETAPA — e isto existe por causa de um gesto
-  perigoso: esconder uma etapa que tem trabalho dentro faz as tarefas dela
+  perigoso: ocultar uma etapa que tem trabalho dentro faz as tarefas dela
   SUMIREM do quadro sem aviso. Elas não são apagadas, mas quem as procura não as
   encontra mais, e nada na tela explica para onde foram.
 
   Com a contagem ao lado, Configurações consegue avisar antes. Só as ABERTAS
   contam: tarefa concluída já é desenhada na coluna "Finalizado", qualquer que
   seja a etapa dela (`tasksInColumn`, src/features/projects/flow.ts), então
-  esconder a etapa não a tira da vista.
+  ocultar a etapa não a tira da vista.
 */
 export function useOpenTaskCountByPhase() {
   return useQuery({

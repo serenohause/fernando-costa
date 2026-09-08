@@ -103,7 +103,7 @@ export default function KanbanDeleteDialog({
                   {destinos.map((candidate) => (
                     <SelectItem key={candidate.id} value={candidate.key}>
                       {candidate.label}
-                      {!candidate.is_active && ' (escondida)'}
+                      {!candidate.is_active && ' (oculta)'}
                     </SelectItem>
                   ))}
                 </SelectContent>

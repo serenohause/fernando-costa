@@ -34,9 +34,9 @@ const BOARD_KEY = 'project_flow'
   chegam com a troca de `tasks.phase` por chave estrangeira; o banco também não
   as aceita hoje (a migration 0093 não criou policy de INSERT nem de DELETE).
 
-  ESCONDER É O GESTO QUE EXISTE NO LUGAR DE EXCLUIR, e é reversível — as cinco
+  OCULTAR É O GESTO QUE EXISTE NO LUGAR DE EXCLUIR, e é reversível — as cinco
   etapas que hoje não aparecem no quadro (Revisão, Alvará de Construção,
-  Aguardando Cliente, Estudo preliminar e Anteprojeto) estão aqui, desligadas, e
+  Aguardando Cliente, Estudo preliminar e Anteprojeto) estão aqui, ocultas, e
   podem voltar.
 */
 export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
@@ -95,7 +95,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   }
 
   /*
-    ESCONDER ETAPA COM TAREFA ABERTA DENTRO É O GESTO PERIGOSO DESTA TELA: as
+    OCULTAR ETAPA COM TAREFA ABERTA DENTRO É O GESTO PERIGOSO DESTA TELA: as
     tarefas não somem do banco, mas somem do quadro, e quem for procurá-las não
     vai achar. Avisar com o número na mão é o que transforma isso numa decisão
     em vez de uma surpresa.
@@ -106,8 +106,8 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
     if (column.is_active && abertas > 0) {
       const confirmado = window.confirm(
         `“${column.label}” tem ${abertas} ${abertas === 1 ? 'tarefa aberta' : 'tarefas abertas'}. ` +
-          'Escondendo a etapa, essas tarefas deixam de aparecer no quadro — elas não são apagadas, ' +
-          'e voltam a aparecer se a etapa for reexibida.\n\nEsconder mesmo assim?',
+          'Ocultando a etapa, essas tarefas deixam de aparecer no quadro — elas não são apagadas, ' +
+          'e voltam a aparecer se a etapa for reexibida.\n\nOcultar mesmo assim?',
       )
       if (!confirmado) return
     }
@@ -301,7 +301,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                   </p>
                   {!column.is_active && (
                     <Badge variant="outline" className="text-muted-foreground border-border">
-                      Escondida
+                      Oculta
                     </Badge>
                   )}
                   <Badge variant="outline" className="text-muted-foreground border-border">
@@ -352,7 +352,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                     "Não iniciado" e "Finalizado" não têm botão de excluir: são as
                     duas etapas que o sistema grava sozinho em `current_phase`
                     (projeto sem tarefas, projeto concluído), e um gatilho do
-                    banco recusa apagá-las. Esconder as duas continua permitido.
+                    banco recusa apagá-las. Ocultar as duas continua permitido.
                   */}
                   {column.key !== 'not_started' && column.key !== 'finished' && (
                     <Button
@@ -372,11 +372,11 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                 <Switch
                   checked={column.is_active}
                   disabled={!canEdit || updateColumn.isPending}
-                  aria-label={`${column.is_active ? 'Esconder' : 'Mostrar'} ${column.label}`}
+                  aria-label={`${column.is_active ? 'Ocultar' : 'Mostrar'} ${column.label}`}
                   onCheckedChange={() => handleToggleActive(column)}
                 />
                 <span className="text-xs text-muted-foreground w-20">
-                  {column.is_active ? 'No quadro' : 'Escondida'}
+                  {column.is_active ? 'No quadro' : 'Oculta'}
                 </span>
               </div>
             </div>
@@ -385,7 +385,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
       </div>
 
       <p className="text-xs text-faint mt-3">
-        Esconder tira a etapa do quadro sem perder nada e pode ser desfeito. Excluir é definitivo, e
+        Ocultar tira a etapa do quadro sem perder nada e pode ser desfeito. Excluir é definitivo, e
         o sistema pergunta para onde vão as tarefas antes.
       </p>
 

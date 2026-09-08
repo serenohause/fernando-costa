@@ -46,7 +46,7 @@ export type TaskPhaseSource = Pick<Task, 'project_id' | 'phase' | 'status'>
 /*
   A CHAVE QUE O ORIGINAL TRATA COMO BLOQUEIO, e não como degrau. Continua sendo
   um literal porque a regra é do domínio, não do desenho do quadro: um escritório
-  que esconda ou renomeie "Aguardando Cliente" não muda o fato de que esperar o
+  que oculte ou renomeie "Aguardando Cliente" não muda o fato de que esperar o
   cliente pausa o projeto. Se a etapa for apagada, nenhuma tarefa poderá estar
   nela (a chave estrangeira garante), e a regra deixa de ter o que fazer sozinha.
 */
@@ -56,7 +56,7 @@ export function calculateProjectPhase(
   projectId: string,
   allTasks: TaskPhaseSource[],
   /* As chaves das etapas do quadro, na ordem em que ele as desenha. Inclui as
-     escondidas: tarefa numa etapa fora do quadro ainda é trabalho aberto. */
+     ocultas: tarefa numa etapa fora do quadro ainda é trabalho aberto. */
   orderedKeys: string[],
 ): PhaseKey {
   const projectTasks = allTasks.filter((task) => task.project_id === projectId)

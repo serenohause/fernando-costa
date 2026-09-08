@@ -643,7 +643,7 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
     menos que o total, sem nada acusar.
 
     "Finalizado" fica de fora porque projeto finalizado não é projeto ativo. As
-    escondidas entram: o projeto continua nelas, e não mostrar a barra é o mesmo
+    ocultas entram: o projeto continua nelas, e não mostrar a barra é o mesmo
     buraco de contagem.
   */
   const kanbanBoard = useKanbanBoard('project_flow')
