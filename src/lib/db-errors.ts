@@ -77,6 +77,27 @@ export function describeDatabaseError(
   const issue = firstIssueMessage(error)
   if (issue) return issue
 
+  /*
+    `WriteError` JÁ É A FRASE DE TELA — e esquecer isto aqui apagava todas elas.
+
+    Diferente de um erro do Postgres, o `WriteError` não tem código nem nome de
+    constraint: a mensagem dele foi escrita por nós, em português, para ser lida.
+    Sem este degrau ele atravessava a função inteira sem casar com nada e caía no
+    último recurso, então a pessoa via "Não foi possível concluir a operação" no
+    lugar do motivo real.
+
+    O ESTRAGO ERA GERAL, não de uma tela: são 125 pontos que lançam `WriteError`,
+    entre `assertRowAffected` (a linha não foi alcançada pela RLS) e as traduções
+    de erro de função — `total_value_not_positive`, `installment_plan_missing`,
+    `not_authorized` e as outras de `generate_contract_installments`. Todas
+    escritas com cuidado, todas descartadas na última linha.
+
+    Foi assim que "Gerar Parcelas" do contrato 0730 (valor total R$ 0,00) disse
+    apenas "avise o suporte", quando o banco tinha respondido exatamente o que
+    fazer: o valor total precisa ser maior que zero.
+  */
+  if (error instanceof WriteError) return error.message
+
   const constraint = constraintNameOf(error)
   if (constraint && messages[constraint]) return messages[constraint]
 
