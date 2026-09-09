@@ -1172,7 +1172,16 @@ const INSTALLMENT_ERRORS: Record<string, string> = {
   contract_not_found: 'Contrato não encontrado neste escritório.',
   installment_plan_missing:
     'O contrato não tem plano de parcelamento. Preencha número de parcelas, primeiro vencimento e periodicidade no contrato.',
-  total_value_not_positive: 'O valor total do contrato precisa ser maior que zero.',
+  total_value_not_positive:
+    'O valor total do contrato precisa ser maior que zero. Se o serviço foi entregue sem cobrança, marque "Bonificação" no diálogo de gerar parcelas.',
+  /*
+    O contrário do anterior, e a guarda contra o clique errado: marcar
+    bonificação num contrato que TEM valor geraria todas as parcelas valendo
+    zero e ligaria `installments_generated`, apagando a cobrança inteira sem
+    erro nenhum e sem deixar tentar de novo (migration 0095).
+  */
+  complimentary_requires_zero_total:
+    'Só é possível marcar bonificação em contrato com valor total zero. Este contrato tem valor — se a intenção é não cobrar, zere o valor total no contrato antes.',
   installment_value_too_small:
     'O valor do contrato é pequeno demais para esse número de parcelas.',
   installments_already_generated:
@@ -1203,9 +1212,22 @@ export function useGenerateContractInstallments() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (contractId: string): Promise<GeneratedInstallments> => {
+    /*
+      `complimentary` é BONIFICAÇÃO: serviço entregue sem cobrança (migration
+      0095). Vai como argumento explícito e nunca é inferido do valor zero — a
+      função exige total zero para aceitá-lo, mas quem decide que aquele zero é
+      deliberado é a pessoa na tela, não o número.
+    */
+    mutationFn: async ({
+      contractId,
+      complimentary = false,
+    }: {
+      contractId: string
+      complimentary?: boolean
+    }): Promise<GeneratedInstallments> => {
       const { data, error } = await supabase.rpc('generate_contract_installments', {
         p_contract_id: contractId,
+        p_complimentary: complimentary,
       })
 
       if (error) {

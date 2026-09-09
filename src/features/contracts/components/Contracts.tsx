@@ -22,6 +22,7 @@ import { useFocusParam } from '@/components/shared/useFocusParam'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -181,6 +182,12 @@ export default function Contracts() {
      os mesmos valores iniciais do original (Contracts.jsx:49-50). */
   const [installmentsCount, setInstallmentsCount] = useState(4)
   const [firstDueDate, setFirstDueDate] = useState('')
+  /*
+    BONIFICAÇÃO: serviço entregue sem cobrança (migration 0095). Só aparece
+    quando o contrato vale zero — é a única situação em que o banco a aceita, e
+    oferecê-la fora dela seria oferecer um caminho que sempre falha.
+  */
+  const [complimentary, setComplimentary] = useState(false)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -356,12 +363,16 @@ export default function Contracts() {
   const openInstallmentsDialog = (contract: ContractRow) => {
     setInstallmentsCount(4)
     setFirstDueDate('')
+    setComplimentary(false)
     setInstallmentsDialog({ open: true, contract })
   }
 
   const closeInstallmentsDialog = () => {
     setInstallmentsCount(4)
     setFirstDueDate('')
+    /* Some junto com o diálogo, e isso não é higiene: bonificação marcada que
+       sobrevivesse ao fechamento seria aplicada ao PRÓXIMO contrato aberto. */
+    setComplimentary(false)
     setInstallmentsDialog({ open: false, contract: null })
   }
 
@@ -384,7 +395,7 @@ export default function Contracts() {
     o contrato mudou.
   */
   const generateInstallments = (contract: ContractRow, planWasJustSaved: boolean) => {
-    generateInstallmentsMutation.mutate(contract.id, {
+    generateInstallmentsMutation.mutate({ contractId: contract.id, complimentary }, {
       onSuccess: (result) => {
         closeInstallmentsDialog()
         toast.success(`${result.installmentCount} parcelas geradas com sucesso!`)
@@ -506,6 +517,10 @@ export default function Contracts() {
 
   /* As duas prévias fazem a conta do BANCO, e não a divisão simples do original.
      O porquê está em src/features/financial/installments.ts. */
+  /* Zero EXATO, e não "valor faltando": contrato sem valor preenchido chega
+     como nulo e continua caindo na recusa de sempre, com a frase de sempre. */
+  const isZeroValueContract = Number(installmentsContract?.total_value) === 0
+
   const savedPlanSplit = splitInstallments(installmentsContract?.total_value, installmentCount)
   const typedPlanSplit = splitInstallments(installmentsContract?.total_value, installmentsCount)
 
@@ -795,6 +810,44 @@ export default function Contracts() {
               Valor total: <strong>{formatCurrencyBRL(installmentsContract?.total_value)}</strong>
             </p>
 
+            {/*
+              O CHECKBOX SÓ EXISTE NO CONTRATO DE VALOR ZERO, e a razão é a
+              mesma pela qual o banco recusa o contrário: bonificação num
+              contrato COM valor geraria todas as parcelas valendo zero e
+              ligaria a bandeira de "geradas", apagando a cobrança inteira sem
+              erro nenhum. A guarda de verdade é `complimentary_requires_zero_total`
+              (migration 0095); aqui a tela só evita oferecer o gesto.
+
+              E o inverso também: contrato de valor zero SEM esta marca continua
+              recusado, porque zero por esquecimento e zero por decisão precisam
+              ser coisas diferentes.
+            */}
+            {isZeroValueContract && (
+              <div className="rounded-lg border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-2">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="installments_complimentary"
+                    checked={complimentary}
+                    onCheckedChange={(checked) => setComplimentary(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <Label
+                      htmlFor="installments_complimentary"
+                      className="text-sm font-medium text-amber-800 dark:text-amber-300"
+                    >
+                      Bonificação
+                    </Label>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                      Este contrato vale R$ 0,00. Marque para registrar que o serviço foi entregue
+                      sem cobrança — a parcela entra zerada e já quitada, e não vai para a lista de
+                      atrasados.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {hasInstallmentPlan ? (
               <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 rounded-lg">
                 <p className="text-sm text-emerald-800 dark:text-emerald-300 font-medium mb-1">
@@ -868,11 +921,18 @@ export default function Contracts() {
                 gravar o plano é a primeira delas. */}
             <Button
               onClick={confirmGenerateInstallments}
-              disabled={updateMutation.isPending || generateInstallmentsMutation.isPending}
+              /* Contrato de valor zero sem a marca é recusado pelo banco. Barrar
+                 aqui troca uma mensagem de erro por um caminho que se explica
+                 sozinho — o texto do checkbox está logo acima. */
+              disabled={
+                updateMutation.isPending ||
+                generateInstallmentsMutation.isPending ||
+                (isZeroValueContract && !complimentary)
+              }
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Gerar Parcelas
+              {complimentary ? 'Registrar Bonificação' : 'Gerar Parcelas'}
             </Button>
           </DialogFooter>
         </DialogContent>

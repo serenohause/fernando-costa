@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -233,6 +238,7 @@ export type Database = {
           id: string
           installment_number: number | null
           installment_total: number | null
+          is_complimentary: boolean
           issue_date: string | null
           legacy_id: string | null
           payment_date: string | null
@@ -252,6 +258,7 @@ export type Database = {
           id?: string
           installment_number?: number | null
           installment_total?: number | null
+          is_complimentary?: boolean
           issue_date?: string | null
           legacy_id?: string | null
           payment_date?: string | null
@@ -271,6 +278,7 @@ export type Database = {
           id?: string
           installment_number?: number | null
           installment_total?: number | null
+          is_complimentary?: boolean
           issue_date?: string | null
           legacy_id?: string | null
           payment_date?: string | null
@@ -3451,6 +3459,7 @@ export type Database = {
       accounts_receivable_status: {
         Row: {
           client_id: string | null
+          client_name: string | null
           contract_id: string | null
           created_at: string | null
           description: string | null
@@ -3468,46 +3477,6 @@ export type Database = {
           tenant_id: string | null
           updated_at: string | null
           value: number | null
-        }
-        Insert: {
-          client_id?: string | null
-          contract_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string | null
-          installment_number?: number | null
-          installment_total?: number | null
-          is_overdue?: never
-          issue_date?: string | null
-          legacy_id?: string | null
-          payment_date?: string | null
-          payment_method?: Database["public"]["Enums"]["payment_method"] | null
-          project_id?: string | null
-          status?: Database["public"]["Enums"]["financial_status"] | null
-          tenant_id?: string | null
-          updated_at?: string | null
-          value?: number | null
-        }
-        Update: {
-          client_id?: string | null
-          contract_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string | null
-          installment_number?: number | null
-          installment_total?: number | null
-          is_overdue?: never
-          issue_date?: string | null
-          legacy_id?: string | null
-          payment_date?: string | null
-          payment_method?: Database["public"]["Enums"]["payment_method"] | null
-          project_id?: string | null
-          status?: Database["public"]["Enums"]["financial_status"] | null
-          tenant_id?: string | null
-          updated_at?: string | null
-          value?: number | null
         }
         Relationships: [
           {
@@ -3691,7 +3660,7 @@ export type Database = {
         Returns: Json
       }
       generate_contract_installments: {
-        Args: { p_contract_id: string }
+        Args: { p_complimentary?: boolean; p_contract_id: string }
         Returns: Json
       }
       google_calendar_connect: {
@@ -4111,12 +4080,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4140,11 +4109,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4165,11 +4134,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4190,11 +4159,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4207,11 +4176,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4504,4 +4473,3 @@ export const Constants = {
     },
   },
 } as const
-
