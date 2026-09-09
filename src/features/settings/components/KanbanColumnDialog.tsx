@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -20,6 +21,8 @@ export type KanbanColumnFormValues = {
   label: string
   color: string
   progress_percent: number | null
+  allows_in_review: boolean
+  allows_awaiting_client: boolean
 }
 
 /*
@@ -49,6 +52,8 @@ export default function KanbanColumnDialog({
   const [label, setLabel] = useState('')
   const [color, setColor] = useState<string>('slate')
   const [percent, setPercent] = useState('')
+  const [allowsInReview, setAllowsInReview] = useState(false)
+  const [allowsAwaitingClient, setAllowsAwaitingClient] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -56,6 +61,8 @@ export default function KanbanColumnDialog({
       setLabel(editing.label)
       setColor(editing.color)
       setPercent(editing.progress_percent === null ? '' : String(editing.progress_percent))
+      setAllowsInReview(editing.allows_in_review)
+      setAllowsAwaitingClient(editing.allows_awaiting_client)
       return
     }
     /* Etapa nova entra em branco e sem percentual — vazio é "fora da conta", que
@@ -63,6 +70,11 @@ export default function KanbanColumnDialog({
     setLabel('')
     setColor('slate')
     setPercent('')
+    /* Etapa nova nasce SEM status operacional, que é o que dez das quinze etapas
+       padrão fazem. Ligar por padrão poria um submenu no cartão que ninguém
+       pediu. */
+    setAllowsInReview(false)
+    setAllowsAwaitingClient(false)
   }, [open, editing])
 
   const percentTrimmed = percent.trim()
@@ -74,7 +86,13 @@ export default function KanbanColumnDialog({
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (percentInvalid || label.trim() === '') return
-    onSubmit({ label: label.trim(), color, progress_percent: percentNumber })
+    onSubmit({
+      label: label.trim(),
+      color,
+      progress_percent: percentNumber,
+      allows_in_review: allowsInReview,
+      allows_awaiting_client: allowsAwaitingClient,
+    })
   }
 
   return (
@@ -144,6 +162,46 @@ export default function KanbanColumnDialog({
             {percentInvalid && (
               <p className="text-xs text-destructive">Informe um número entre 0 e 100.</p>
             )}
+          </div>
+
+          {/*
+            O STATUS OPERACIONAL É POR ETAPA, e as duas tags são marcas
+            separadas porque o recorte que existe hoje tem quatro estados — um
+            deles é "só Em Revisão", em Projeto Legal e Projeto Executivo. Um
+            interruptor único não saberia representá-lo.
+
+            É OFERTA DE MENU, e não trava: a tarefa pode ter qualquer tag em
+            qualquer etapa (migration 0074). Desmarcar aqui tira o submenu do
+            cartão; não apaga tag nenhuma que já esteja gravada.
+          */}
+          <div className="space-y-3">
+            <Label>Status operacional</Label>
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="kanban-column-in-review"
+                checked={allowsInReview}
+                onCheckedChange={(checked) => setAllowsInReview(checked === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="kanban-column-in-review" className="font-normal">
+                Oferecer “Em Revisão”
+              </Label>
+            </div>
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="kanban-column-awaiting-client"
+                checked={allowsAwaitingClient}
+                onCheckedChange={(checked) => setAllowsAwaitingClient(checked === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="kanban-column-awaiting-client" className="font-normal">
+                Oferecer “Aguardando Cliente”
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A tag pausa o prazo do cartão: some a data de vencimento e a borda de atraso enquanto
+              ela estiver marcada. Sem nenhuma das duas, o cartão desta etapa não mostra o submenu.
+            </p>
           </div>
 
           <DialogFooter>

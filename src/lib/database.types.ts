@@ -1667,6 +1667,8 @@ export type Database = {
       }
       kanban_columns: {
         Row: {
+          allows_awaiting_client: boolean
+          allows_in_review: boolean
           board_id: string
           color: string
           created_at: string
@@ -1680,6 +1682,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allows_awaiting_client?: boolean
+          allows_in_review?: boolean
           board_id: string
           color?: string
           created_at?: string
@@ -1693,6 +1697,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allows_awaiting_client?: boolean
+          allows_in_review?: boolean
           board_id?: string
           color?: string
           created_at?: string

@@ -38,33 +38,47 @@ export function tasksInColumn(tasks: TaskRow[], column: PhaseKey): TaskRow[] {
 }
 
 /*
-  QUAL TAG CADA COLUNA OFERECE — e é OFERTA DE TELA, não regra de domínio.
+  QUAL TAG CADA ETAPA OFERECE — e é OFERTA DE TELA, não regra de domínio.
 
   Porta de `COLUNAS_COM_TAGS` e `COLUNAS_SO_REVISAO` (TaskKanban.jsx:42-44 da
-  versão nova): "Layout" e "Perspectivas" oferecem as duas tags, "Projeto Legal"
-  e "Projeto Executivo" oferecem só "Em Revisão", e o submenu não aparece nas
-  demais colunas.
+  versão nova). Eram duas listas escritas à mão aqui; desde a migration 0096 são
+  dois campos da etapa, editáveis em Configurações → Quadros. O recorte semeado
+  é o mesmo que estava no código — "Layout" e "Perspectivas" com as duas tags,
+  "Projeto Legal" e "Projeto Executivo" só com "Em Revisão" —, e a diferença é
+  que agora a etapa que o escritório cria também pode ter as suas.
+
+  A LISTA FIXA TINHA UM BURACO que só apareceu depois da 0094: etapa criada pelo
+  escritório não constava de lista nenhuma, então nascia sem status operacional e
+  sem caminho para ganhar um.
 
   O BANCO NÃO REPETE ESTE RECORTE, DE PROPÓSITO — a migration 0074 explica por
   quê e a decisão está no COMMENT da coluna: `tasks.operational_tag` aceita
-  qualquer tag em qualquer fase. Virar check faria um arraste legítimo virar erro
-  de banco no dia em que esta lista e o check discordassem, e quem arrasta um
-  cartão COM tag para fora do recorte está fazendo exatamente o gesto que esta
-  fatia desenha (a tag é limpa no mesmo UPDATE da mudança de fase). Ou seja: isto
-  aqui é o que o menu MOSTRA, e nada além disso — não é validação e não deve
-  virar uma.
+  qualquer tag em qualquer etapa. Virar check faria um arraste legítimo virar
+  erro de banco no dia em que a configuração da tela e o check discordassem — e,
+  agora que a configuração muda sem deploy, esse dia ficou mais provável, não
+  menos. Quem arrasta um cartão COM tag para fora do recorte está fazendo
+  exatamente o gesto que esta fatia desenha: a tag é limpa no mesmo UPDATE da
+  mudança de etapa.
 
   Fica em `flow.ts` e não no JSX pelo mesmo motivo de `moveTaskToPhase`: a
   decisão de quadro se lê num arquivo só, e o componente desenha o que ela
   devolve.
-*/
-const COLUMNS_WITH_BOTH_TAGS: readonly PhaseKey[] = ['layout', 'renderings']
-const COLUMNS_REVIEW_ONLY: readonly PhaseKey[] = ['legal_permit', 'construction_docs']
 
-export function operationalTagOptions(column: PhaseKey): OperationalTag[] {
-  if (COLUMNS_WITH_BOTH_TAGS.includes(column)) return ['in_review', 'awaiting_client']
-  if (COLUMNS_REVIEW_ONLY.includes(column)) return ['in_review']
-  return []
+  A ORDEM DO RETORNO é a do menu, e não a dos campos: "Em Revisão" antes de
+  "Aguardando Cliente", como na versão nova.
+*/
+export type OperationalTagOffer = {
+  allows_in_review: boolean
+  allows_awaiting_client: boolean
+}
+
+export function operationalTagOptions(column: OperationalTagOffer | null | undefined): OperationalTag[] {
+  if (!column) return []
+
+  const tags: OperationalTag[] = []
+  if (column.allows_in_review) tags.push('in_review')
+  if (column.allows_awaiting_client) tags.push('awaiting_client')
+  return tags
 }
 
 /* Itens obrigatórios da etapa de origem que ainda não foram concluídos. */

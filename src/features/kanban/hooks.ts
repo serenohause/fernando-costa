@@ -157,6 +157,8 @@ export function useUpdateKanbanColumn(boardKey: string) {
       color?: string
       is_active?: boolean
       progress_percent?: number | null
+      allows_in_review?: boolean
+      allows_awaiting_client?: boolean
     }) => {
       const { data, error } = await supabase
         .from('kanban_columns')
@@ -210,6 +212,8 @@ export function useCreateKanbanColumn() {
       label: string
       color: string
       progressPercent: number | null
+      allowsInReview: boolean
+      allowsAwaitingClient: boolean
       lastOrder: number
     }) => {
       const label = input.label.trim()
@@ -229,6 +233,8 @@ export function useCreateKanbanColumn() {
           display_order: input.lastOrder + 1,
           progress_percent: input.progressPercent,
           is_active: true,
+          allows_in_review: input.allowsInReview,
+          allows_awaiting_client: input.allowsAwaitingClient,
         })
         .select('id')
         .single()

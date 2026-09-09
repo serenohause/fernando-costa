@@ -117,7 +117,15 @@ import type {
   cada montagem do quadro e em todo mundo que abre a página, não é layout.
 */
 
-type Column = { id: PhaseKey; label: string; headerClass: string }
+type Column = {
+  id: PhaseKey
+  label: string
+  headerClass: string
+  /* Quais tags o menu do cartão oferece nesta etapa — configuração da etapa
+     desde a migration 0096, e não mais uma lista fixa em `flow.ts`. */
+  allows_in_review: boolean
+  allows_awaiting_client: boolean
+}
 
 /*
   O QUADRO PADRÃO — e desde a migration 0093 ele é só o PONTO DE PARTIDA.
@@ -214,6 +222,12 @@ const DEFAULT_COLUMNS: Column[] = [
   id: column.id as PhaseKey,
   label: labelOf(PROJECT_PHASE, column.id as ProjectPhase),
   headerClass: columnHeaderClass(column.color),
+  /* O mesmo recorte que a 0096 semeia, para o quadro de emergência oferecer as
+     tags que o quadro de verdade oferece. */
+  allows_in_review: ['layout', 'renderings', 'legal_permit', 'construction_docs'].includes(
+    column.id,
+  ),
+  allows_awaiting_client: ['layout', 'renderings'].includes(column.id),
 }))
 
 /*
@@ -429,6 +443,8 @@ export default function TaskKanban({
           id: column.key,
           label: column.label,
           headerClass: columnHeaderClass(column.color),
+          allows_in_review: column.allows_in_review,
+          allows_awaiting_client: column.allows_awaiting_client,
         }))
     : DEFAULT_COLUMNS
 
@@ -584,7 +600,7 @@ export default function TaskKanban({
                                 : null
                               const showDueDate = !activeTag
                               const showOverdueBorder = !activeTag && isOverdue(task)
-                              const tagOptions = operationalTagOptions(column.id)
+                              const tagOptions = operationalTagOptions(column)
 
                               return (
                                 <Draggable

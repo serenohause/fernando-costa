@@ -68,6 +68,8 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
           label: values.label,
           color: values.color,
           progressPercent: values.progress_percent,
+          allowsInReview: values.allows_in_review,
+          allowsAwaitingClient: values.allows_awaiting_client,
           lastOrder: columns.reduce((maior, column) => Math.max(maior, column.display_order), 0),
         },
         {
@@ -309,6 +311,19 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                       ? 'Fora do progresso'
                       : `${column.progress_percent}%`}
                   </Badge>
+                  {/* Só aparece quando a etapa oferece alguma: dez das quinze
+                      padrão não oferecem nenhuma, e um crachá "sem status" em
+                      todas elas seria ruído. */}
+                  {(column.allows_in_review || column.allows_awaiting_client) && (
+                    <Badge variant="outline" className="text-muted-foreground border-border">
+                      {[
+                        column.allows_in_review ? 'Em Revisão' : null,
+                        column.allows_awaiting_client ? 'Aguardando Cliente' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-faint mt-0.5">
                   {abertas === 0

@@ -402,14 +402,55 @@ select pg_temp.rec('6.2', 'e com as 10 desenhadas no quadro', '10',
 select pg_temp.rec('6.3', 'a escala do escritório novo é idêntica à do antigo', 'idênticas',
   case when (
     select count(*) from (
-      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active
+      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active,
+             c.allows_in_review, c.allows_awaiting_client
       from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
       where c.tenant_id = (select tenant_b from ids) and b.key = 'project_flow' and c.key <> 'layout'
       except
-      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active
+      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active,
+             c.allows_in_review, c.allows_awaiting_client
       from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
       where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow' and c.key <> 'layout') d) = 0
   then 'idênticas' else 'divergem' end);
+
+-- 6bis. O status operacional por etapa (0096) --------------------------------------
+--
+--    Eram duas listas escritas a mao em flow.ts. A semeadura tem de repetir o
+--    recorte que estava no codigo, senao o submenu do cartao muda de lugar no dia
+--    em que a migration entra — e ninguem associaria uma coisa a outra.
+
+select pg_temp.rec('6.4', 'o recorte de tags é o que estava em flow.ts',
+  'construction_docs:R, layout:RA, legal_permit:R, renderings:RA',
+  (select string_agg(
+     c.key || ':' || case when c.allows_in_review then 'R' else '' end
+                  || case when c.allows_awaiting_client then 'A' else '' end,
+     ', ' order by c.key)
+   from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
+   where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow'
+     and (c.allows_in_review or c.allows_awaiting_client)));
+
+select pg_temp.rec('6.5', 'as demais onze etapas não oferecem tag nenhuma', '11',
+  (select count(*)::text from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
+    where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow'
+      and not c.allows_in_review and not c.allows_awaiting_client));
+
+/* Editavel: e o pedido do usuario. Quem edita e o mesmo portao das outras
+   colunas — can_edit_menu('settings'). */
+select pg_temp.rec('6.6', 'quem configura liga a tag numa etapa que não a tinha', '1',
+  pg_temp.exec_as((select user_cfg_a from ids), (select tenant_a from ids),
+    $q$update public.kanban_columns set allows_in_review = true where key = 'briefing'$q$));
+
+select pg_temp.rec('6.7', 'Arquiteto SEM can_edit em settings não liga', '0',
+  pg_temp.exec_as((select user_arq_a from ids), (select tenant_a from ids),
+    $q$update public.kanban_columns set allows_awaiting_client = true where key = 'hoa_approval'$q$));
+
+/* NAO E TRAVA, e este caso guarda a decisao da 0074: a tarefa aceita qualquer
+   tag em qualquer etapa. Desmarcar no quadro tira o submenu do cartao e nada
+   mais — o banco continua aceitando a tag ja gravada. */
+select pg_temp.rec('6.8', 'o banco aceita tag em etapa que não a oferece', '1',
+  pg_temp.exec_as((select user_arq_a from ids), (select tenant_a from ids),
+    $q$update public.tasks set operational_tag = 'awaiting_client'
+       where id = 'caaa0000-0000-4000-8000-00000000008a'$q$));
 
 -- 7. Quem alcança as tabelas ---------------------------------------------------
 
