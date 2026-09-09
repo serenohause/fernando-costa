@@ -43,6 +43,7 @@
     "test:forged": "node supabase/tests/forged-token.mjs",
     "create-tenant": "node scripts/create-tenant.mjs",
     "test:errors": "node supabase/tests/error-messages.mjs",
+    "test:db-errors": "node tests/db-errors.mjs",
     "test:masks": "node tests/masks.mjs",
     "test:notify": "node tests/query-notify.mjs",
     "test:phone-dedup": "supabase/tests/run-sql.sh supabase/tests/client-phone-dedup.sql",
