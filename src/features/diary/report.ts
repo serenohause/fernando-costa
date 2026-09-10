@@ -4,10 +4,8 @@ import {
   DIARY_ENTRY_TYPE,
   PROJECT_ISSUE_CATEGORY,
   PROJECT_ISSUE_STATUS,
-  PROJECT_PHASE,
   SITE_VISIT_STATUS,
   SITE_VISIT_TYPE,
-  labelOf,
 } from '@/lib/enums'
 import { isRevisionEntry } from './resumo'
 import type {
@@ -269,6 +267,7 @@ export function buildReportHTML({
   visits,
   issues,
   authorName,
+  phaseLabel,
   officeName,
   options,
   photos,
@@ -279,6 +278,14 @@ export function buildReportHTML({
   visits: SiteVisitRow[]
   issues: ProjectIssueRow[]
   authorName: string
+  /*
+    O ROTULO DA ETAPA TAMBEM VEM DE FORA, e pela mesma familia de razao que o
+    nome do escritorio: desde a migration 0094 a etapa e uma linha do quadro
+    daquele escritorio, e `PROJECT_PHASE` so conhece as quinze embutidas. Um
+    relatorio ENTREGUE AO CLIENTE com "aprovacao_cliente" escrito no lugar do
+    nome da etapa e o mesmo tipo de defeito que o nome fixo era.
+  */
+  phaseLabel: (phase: string | null | undefined) => string
   /*
     O NOME DO ESCRITORIO VEM DE FORA, e nao escrito aqui.
 
@@ -365,7 +372,7 @@ export function buildReportHTML({
     }
     parts.push(
       `<div class="info-row"><span class="info-label">Etapa atual</span><span class="info-value">${h(
-        labelOf(PROJECT_PHASE, project.current_phase),
+        phaseLabel(project.current_phase),
       )}</span></div>`,
     )
     parts.push(

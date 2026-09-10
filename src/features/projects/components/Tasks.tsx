@@ -42,7 +42,6 @@ import {
   useUpdateTask,
 } from '../hooks'
 import type { RecordedDiaryEvent } from '@/features/diary/hooks'
-import type { OperationalTag } from '@/lib/enums'
 import TaskKanban from './TaskKanban'
 import TaskForm, { toFormValues, type TaskFormValues } from './TaskForm'
 import type { TaskChecklistItem, TaskInput, TaskPhase, TaskRow } from '../types'
@@ -265,7 +264,7 @@ export default function Tasks() {
     quem autoriza a escrita é a RLS do Fluxo do Projeto. Repetir o recorte aqui
     seria uma terceira cópia da mesma lista.
   */
-  const handleSetOperationalTag = (task: TaskRow, tag: OperationalTag | null) => {
+  const handleSetOperationalTag = (task: TaskRow, tag: string | null) => {
     setOperationalTag(
       { task, tag },
       {

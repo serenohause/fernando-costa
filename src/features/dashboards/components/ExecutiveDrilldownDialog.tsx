@@ -1,9 +1,9 @@
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { PROJECT_PHASE, labelOf } from '@/lib/enums'
 import { formatDateBR } from '@/lib/format'
 import type { ProjectProgress, ProjectRow } from '@/features/projects/types'
 import type { ProjectResponsible } from '../types'
+import { usePhaseLabel } from '@/features/kanban/hooks'
 
 /*
   Porta da "gaveta de drill-down geral" (DashboardExecutivo.jsx:970-1027): a
@@ -34,6 +34,7 @@ export default function ExecutiveDrilldownDialog({
   responsibleByProject: Map<string, ProjectResponsible>
   onClose: () => void
 }) {
+  const phaseLabel = usePhaseLabel()
   const projects = data?.projects ?? []
 
   return (
@@ -83,7 +84,7 @@ export default function ExecutiveDrilldownDialog({
                       variant="outline"
                       className="text-xs bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900"
                     >
-                      📍 {labelOf(PROJECT_PHASE, project.current_phase)}
+                      📍 {phaseLabel(project.current_phase)}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
                       👤 {responsible?.name ?? 'Sem responsável definido no Fluxo do Projeto'}

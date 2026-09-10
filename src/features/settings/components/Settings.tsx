@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Plug, Wrench } from 'lucide-react'
+import { Columns3, Plug, Tag, Wrench } from 'lucide-react'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import ServiceTypesSection from './ServiceTypesSection'
 import IntegrationsSection from './IntegrationsSection'
+import KanbanSection from './KanbanSection'
+import OperationalTagsSection from './OperationalTagsSection'
 
 /*
   MÓDULO NOVO, SEM ORIGINAL DE REFERÊNCIA.
@@ -21,6 +23,18 @@ const SECTIONS = [
     label: 'Tipos de Serviço',
     description: 'Opções de serviço do Pipeline',
     icon: Wrench,
+  },
+  {
+    key: 'kanban',
+    label: 'Quadros',
+    description: 'Etapas do Fluxo do Projeto',
+    icon: Columns3,
+  },
+  {
+    key: 'operational_tags',
+    label: 'Status Operacional',
+    description: 'Crachás do cartão do quadro',
+    icon: Tag,
   },
   {
     key: 'integrations',
@@ -76,6 +90,8 @@ export default function Settings() {
 
         <div className="flex-1 min-w-0">
           {section === 'service_types' && <ServiceTypesSection canEdit={canEdit} />}
+          {section === 'kanban' && <KanbanSection canEdit={canEdit} />}
+          {section === 'operational_tags' && <OperationalTagsSection canEdit={canEdit} />}
           {section === 'integrations' && <IntegrationsSection canEdit={canEdit} />}
         </div>
       </div>

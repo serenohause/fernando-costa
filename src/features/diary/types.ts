@@ -5,7 +5,7 @@ import type {
   DiaryVisibility,
   ProjectIssueCategory,
   ProjectIssueStatus,
-  ProjectPhase,
+  PhaseKey,
   ProjectStatus,
   SiteVisitStatus,
   SiteVisitType,
@@ -110,7 +110,7 @@ export type DiaryProject = {
   name: string
   client: NamedRef | null
   responsible: NamedRef | null
-  current_phase: ProjectPhase | null
+  current_phase: PhaseKey | null
   start_date: string | null
   /*
     A SITUAÇÃO DO PROJETO, e ela é OPCIONAL por um motivo que não é de desenho.

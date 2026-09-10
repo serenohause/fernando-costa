@@ -18,7 +18,9 @@ import {
   recordDiaryEvent,
   type RecordedDiaryEvent,
 } from '@/features/diary/hooks'
-import type { OperationalTag } from '@/lib/enums'
+import { OPERATIONAL_TAG, type PhaseKey } from '@/lib/enums'
+import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
+import { phaseLabelIn } from '@/features/kanban/board'
 import {
   phaseChangeText,
   phaseEventKey,
@@ -270,6 +272,29 @@ export function useTasks() {
      e uma falha no meio deixa a fase em "Finalizado" com o status por atualizar.
 */
 async function syncProjectFromTasks(projectId: string): Promise<void> {
+  /*
+    A ESCADA DE ETAPAS VEM DO QUADRO desde a migration 0094 — antes era a ordem
+    de declaração do enum. É uma consulta a mais por gesto, e ela é o preço de a
+    etapa ser configurável: sem a ordem certa, "a etapa mais avançada com tarefa
+    aberta" viraria outra coisa, e a fase do projeto passaria a mentir.
+
+    Falhar aqui interrompe o recálculo em vez de calcular com escada vazia: com
+    ela vazia, `calculateProjectPhase` não acharia etapa nenhuma e devolveria
+    'finished' — gravaria projeto CONCLUÍDO com trabalho em andamento, que é o
+    mesmo defeito que a 0079 causou por outro caminho.
+  */
+  const { data: columns, error: columnsError } = await supabase
+    .from('kanban_columns')
+    .select('key, display_order')
+    .order('display_order', { ascending: true })
+
+  if (columnsError || !columns || columns.length === 0) {
+    console.error('[projects] falha ao ler as etapas do quadro:', columnsError)
+    return
+  }
+
+  const orderedKeys = columns.map((column) => column.key)
+
   const { data, error } = await supabase
     .from('tasks')
     .select('project_id, phase, status')
@@ -282,7 +307,7 @@ async function syncProjectFromTasks(projectId: string): Promise<void> {
 
   const tasks = (data ?? []) as TaskPhaseSource[]
   const patch: { current_phase: ReturnType<typeof calculateProjectPhase>; status?: 'completed' } = {
-    current_phase: calculateProjectPhase(projectId, tasks),
+    current_phase: calculateProjectPhase(projectId, tasks, orderedKeys),
   }
   if (allTasksCompleted(projectId, tasks)) patch.status = 'completed'
 
@@ -679,6 +704,15 @@ type MoveTaskPhase = {
 export function useMoveTaskPhase() {
   const queryClient = useQueryClient()
   const tenantId = useTenantId()
+  /*
+    O texto que vai para o diário precisa do RÓTULO da etapa, e desde a 0094 o
+    rótulo mora no quadro do escritório — `PROJECT_PHASE` só conhece as quinze
+    embutidas. O texto fica gravado na linha do tempo: escrever a chave crua ali
+    seria escrevê-la para sempre.
+  */
+  const boardQuery = useKanbanBoard('project_flow')
+  const phaseLabel = (phase: PhaseKey | null) =>
+    phaseLabelIn(boardQuery.data?.columns ?? [], phase)
 
   const mutation = useMutation({
     mutationFn: async ({
@@ -720,7 +754,7 @@ export function useMoveTaskPhase() {
           systemEvent: 'phase_change',
           fromPhase: move.fromPhase,
           toPhase: move.toPhase,
-          ...phaseChangeText(move),
+          ...phaseChangeText(move, phaseLabel),
           eventKey: phaseEventKey(projectId, move),
           /* O original não registra responsável no evento de etapa: quem moveu o
              cartão não é necessariamente quem responde pela tarefa. */
@@ -996,9 +1030,19 @@ export function useChangeTaskResponsible() {
 */
 export function useSetTaskOperationalTag() {
   const queryClient = useQueryClient()
+  /*
+    O rótulo do status vai para o TEXTO da linha do tempo e fica gravado. Desde a
+    0097 ele mora em `operational_tags`; o mapa embutido cobre só os dois de
+    fábrica, e é o fallback para o histórico de um status já apagado.
+  */
+  const { data: tags } = useOperationalTags()
+  const tagLabel = (key: string) =>
+    tags?.find((tag) => tag.key === key)?.label ??
+    (OPERATIONAL_TAG as Record<string, string>)[key] ??
+    key
 
   const mutation = useMutation({
-    mutationFn: async ({ task, tag }: { task: TaskRow; tag: OperationalTag | null }) => {
+    mutationFn: async ({ task, tag }: { task: TaskRow; tag: string | null }) => {
       const previous = task.operational_tag
 
       const { data, error } = await supabase
@@ -1015,13 +1059,13 @@ export function useSetTaskOperationalTag() {
 
       let event: TaskDiaryEvent = null
       if (task.project_id && (tag ?? previous)) {
-        const changed = tag ?? (previous as OperationalTag)
+        const changed = tag ?? (previous as string)
 
         event = await recordDiaryEvent({
           projectId: task.project_id,
           systemEvent: tag ? 'tag_on' : 'tag_off',
           operationalTag: changed,
-          ...tagEventText(task.title, changed, tag !== null),
+          ...tagEventText(task.title, tagLabel(changed), tag !== null),
           eventKey: tagEventKey(task.project_id, task.id, changed, tag !== null),
           responsibleId: null,
         })
@@ -1041,7 +1085,7 @@ export function useSetTaskOperationalTag() {
   return optimisticTaskWrite(
     queryClient,
     mutation,
-    (tasks, { task, tag }: { task: TaskRow; tag: OperationalTag | null }) =>
+    (tasks, { task, tag }: { task: TaskRow; tag: string | null }) =>
       tasks.map((candidate) =>
         candidate.id === task.id ? { ...candidate, operational_tag: tag } : candidate,
       ),

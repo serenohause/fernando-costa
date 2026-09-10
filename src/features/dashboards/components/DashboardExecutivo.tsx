@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { COLLABORATOR_ROLE, PROJECT_PHASE, labelOf, type ProjectPhase } from '@/lib/enums'
+import { COLLABORATOR_ROLE, labelOf, type PhaseKey } from '@/lib/enums'
 import { useActivityReadScope } from '@/features/activities/hooks'
 import {
   atRiskProjects,
@@ -29,6 +29,7 @@ import type { CollaboratorLoad, ExecutiveFilters, ExecutivePeriod } from '../typ
 import CollaboratorProjectsDialog from './CollaboratorProjectsDialog'
 import ExecutiveDrilldownDialog, { type ExecutiveDrilldown } from './ExecutiveDrilldownDialog'
 import PhaseDistributionChart from './PhaseDistributionChart'
+import { usePhaseLabel } from '@/features/kanban/hooks'
 
 /*
   Porta de projeto-original/src/pages/DashboardExecutivo.jsx — o "Painel
@@ -148,6 +149,7 @@ const ROW_TONE = {
 } as const
 
 export default function DashboardExecutivo() {
+  const phaseLabel = usePhaseLabel()
   const queryClient = useQueryClient()
 
   const [period, setPeriod] = useState<ExecutivePeriod>('mes')
@@ -563,9 +565,9 @@ export default function DashboardExecutivo() {
               <CardContent>
                 <PhaseDistributionChart
                   data={operational.byPhase}
-                  onSelectPhase={(phase: ProjectPhase) =>
+                  onSelectPhase={(phase: PhaseKey) =>
                     setDrilldown({
-                      title: `Projetos na fase: ${labelOf(PROJECT_PHASE, phase)}`,
+                      title: `Projetos na fase: ${phaseLabel(phase)}`,
                       projects: projectsInPhase(projects, phase),
                     })
                   }
@@ -793,7 +795,7 @@ export default function DashboardExecutivo() {
                               </div>
                               <div className="flex items-center gap-3 mt-1 flex-wrap">
                                 <span className="text-xs text-muted-foreground">
-                                  📍 {labelOf(PROJECT_PHASE, row.project.current_phase)}
+                                  📍 {phaseLabel(row.project.current_phase)}
                                 </span>
                                 {/* O responsável tem CRITÉRIO agora: a coluna
                                     `operational_responsible_id` do projeto e, na

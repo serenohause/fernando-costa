@@ -48,7 +48,6 @@ import {
   DIARY_ENTRY_STATUS,
   DIARY_ENTRY_TYPE,
   MANUAL_DIARY_ENTRY_TYPES,
-  PROJECT_PHASE,
   labelOf,
 } from '@/lib/enums'
 import {
@@ -78,6 +77,7 @@ import type {
   PhotoCaption,
   PhotoLightboxState,
 } from '../types'
+import { usePhaseLabel } from '@/features/kanban/hooks'
 
 /*
   Porta de nova-versao/src/components/diary/ProjectDiaryDrawer.jsx — o cabeçalho
@@ -168,6 +168,7 @@ export default function ProjectDiaryDrawer({
   */
   underConstruction?: boolean
 }) {
+  const phaseLabel = usePhaseLabel()
   /* Abre em Resumo, como a versão nova (ProjectDiaryDrawer.jsx:70). */
   const [activeTab, setActiveTab] = useState<TabId>('resumo')
   const [formOpen, setFormOpen] = useState(false)
@@ -349,7 +350,7 @@ export default function ProjectDiaryDrawer({
                     }`}
                   >
                     {isEmObra && '🏗️ '}
-                    {labelOf(PROJECT_PHASE, project.current_phase)}
+                    {phaseLabel(project.current_phase)}
                   </Badge>
                 </div>
               )}

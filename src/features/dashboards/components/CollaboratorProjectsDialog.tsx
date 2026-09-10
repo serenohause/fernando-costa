@@ -11,12 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { COLLABORATOR_ROLE, PROJECT_PHASE, labelOf } from '@/lib/enums'
+import { COLLABORATOR_ROLE, labelOf } from '@/lib/enums'
 import { formatDateBR } from '@/lib/format'
 import { createPageUrl } from '@/lib/page-url'
 import type { ProjectProgress } from '@/features/projects/types'
 import { searchAndSortProjects, type ProjectSortKey } from '../executive-projects'
 import type { CollaboratorLoad, ProjectResponsible } from '../types'
+import { usePhaseLabel } from '@/features/kanban/hooks'
 
 /*
   Porta da gaveta "Projetos de <colaborador>" (DashboardExecutivo.jsx:815-967),
@@ -43,10 +44,11 @@ export default function CollaboratorProjectsDialog({
   responsibleByProject: Map<string, ProjectResponsible>
   onClose: () => void
 }) {
+  const phaseLabel = usePhaseLabel()
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<ProjectSortKey>('name')
 
-  const projects = searchAndSortProjects(load?.projects ?? [], search, sortBy, progressByProject)
+  const projects = searchAndSortProjects(load?.projects ?? [], search, sortBy, progressByProject, phaseLabel)
 
   return (
     <Dialog
@@ -177,7 +179,7 @@ export default function CollaboratorProjectsDialog({
                       variant="outline"
                       className="text-xs bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900"
                     >
-                      📍 {labelOf(PROJECT_PHASE, project.current_phase)}
+                      📍 {phaseLabel(project.current_phase)}
                     </Badge>
                     {project.start_date && (
                       <span className="text-xs text-muted-foreground">

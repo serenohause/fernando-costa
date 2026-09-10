@@ -18,7 +18,7 @@ import {
   TASK_TYPE,
   labelOf,
   optionsOf,
-  type TaskPhase,
+  type PhaseKey,
   type TaskPriority,
   type TaskType,
   type WorkStatus,
@@ -54,7 +54,7 @@ export type TaskFormValues = {
   description: string
 
   /* Sem campo na tela, como no original. */
-  phase: TaskPhase
+  phase: PhaseKey
   status: WorkStatus
   estimated_hours: string
 }
@@ -94,7 +94,7 @@ export function toFormValues(task: TaskRow): TaskFormValues {
     description: text(task.description),
 
     /* Idem para `finished` em `phase` (`tasks_phase_not_finished_check`). */
-    phase: task.phase as TaskPhase,
+    phase: task.phase,
     status: task.status,
     estimated_hours: task.estimated_hours == null ? '' : String(task.estimated_hours),
   }

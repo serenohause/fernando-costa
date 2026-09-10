@@ -1,14 +1,10 @@
 import { format } from 'date-fns'
 import {
-  OPERATIONAL_TAG,
-  PROJECT_PHASE,
-  labelOf,
-  type OperationalTag,
-  type ProjectPhase,
+  type PhaseKey,
   type TaskPhase,
 } from '@/lib/enums'
 import { missingChecklistItems } from './checklist-templates'
-import { phaseIndex } from './project-phase'
+import { phaseIndexIn } from '@/features/kanban/board'
 import type { TaskChecklistItem, TaskPhaseMove, TaskRow } from './types'
 
 /*
@@ -22,7 +18,7 @@ import type { TaskChecklistItem, TaskPhaseMove, TaskRow } from './types'
 
 export type MoveOutcome =
   /* Item obrigatório da etapa ATUAL por concluir. A tarefa não sai do lugar. */
-  | { kind: 'blocked'; fromPhase: ProjectPhase; toPhase: ProjectPhase; pending: string[] }
+  | { kind: 'blocked'; fromPhase: PhaseKey; toPhase: PhaseKey; pending: string[] }
   | { kind: 'move'; move: TaskPhaseMove }
 
 /*
@@ -34,43 +30,50 @@ export type MoveOutcome =
   simplesmente não traz o valor. Por isso a coluna junta as concluídas de todas
   as fases, e as demais colunas escondem as concluídas.
 */
-export function tasksInColumn(tasks: TaskRow[], column: ProjectPhase): TaskRow[] {
+export function tasksInColumn(tasks: TaskRow[], column: PhaseKey): TaskRow[] {
   if (column === 'finished') return tasks.filter((task) => task.status === 'completed')
   return tasks.filter((task) => task.phase === column && task.status !== 'completed')
 }
 
 /*
-  QUAL TAG CADA COLUNA OFERECE — e é OFERTA DE TELA, não regra de domínio.
+  QUAL TAG CADA ETAPA OFERECE — e é OFERTA DE TELA, não regra de domínio.
 
   Porta de `COLUNAS_COM_TAGS` e `COLUNAS_SO_REVISAO` (TaskKanban.jsx:42-44 da
-  versão nova): "Layout" e "Perspectivas" oferecem as duas tags, "Projeto Legal"
-  e "Projeto Executivo" oferecem só "Em Revisão", e o submenu não aparece nas
-  demais colunas.
+  versão nova). Eram duas listas escritas à mão aqui; viraram dois campos da
+  etapa na 0096 e, na 0097, uma tabela de ligação — porque o próprio status
+  deixou de ser valor do sistema e virou cadastro do escritório, e booleano que
+  carrega o NOME de um valor não sobrevive a isso. O recorte semeado é o mesmo
+  que estava no código, migração após migração.
+
+  A ORDEM DO RETORNO é a que a ligação devolve, ordenada por `display_order` do
+  status na consulta do quadro.
+
+  A LISTA FIXA TINHA UM BURACO que só apareceu depois da 0094: etapa criada pelo
+  escritório não constava de lista nenhuma, então nascia sem status operacional e
+  sem caminho para ganhar um.
 
   O BANCO NÃO REPETE ESTE RECORTE, DE PROPÓSITO — a migration 0074 explica por
   quê e a decisão está no COMMENT da coluna: `tasks.operational_tag` aceita
-  qualquer tag em qualquer fase. Virar check faria um arraste legítimo virar erro
-  de banco no dia em que esta lista e o check discordassem, e quem arrasta um
-  cartão COM tag para fora do recorte está fazendo exatamente o gesto que esta
-  fatia desenha (a tag é limpa no mesmo UPDATE da mudança de fase). Ou seja: isto
-  aqui é o que o menu MOSTRA, e nada além disso — não é validação e não deve
-  virar uma.
+  qualquer tag em qualquer etapa. Virar check faria um arraste legítimo virar
+  erro de banco no dia em que a configuração da tela e o check discordassem — e,
+  agora que a configuração muda sem deploy, esse dia ficou mais provável, não
+  menos. Quem arrasta um cartão COM tag para fora do recorte está fazendo
+  exatamente o gesto que esta fatia desenha: a tag é limpa no mesmo UPDATE da
+  mudança de etapa.
 
   Fica em `flow.ts` e não no JSX pelo mesmo motivo de `moveTaskToPhase`: a
   decisão de quadro se lê num arquivo só, e o componente desenha o que ela
   devolve.
-*/
-const COLUMNS_WITH_BOTH_TAGS: readonly ProjectPhase[] = ['layout', 'renderings']
-const COLUMNS_REVIEW_ONLY: readonly ProjectPhase[] = ['legal_permit', 'construction_docs']
 
-export function operationalTagOptions(column: ProjectPhase): OperationalTag[] {
-  if (COLUMNS_WITH_BOTH_TAGS.includes(column)) return ['in_review', 'awaiting_client']
-  if (COLUMNS_REVIEW_ONLY.includes(column)) return ['in_review']
-  return []
+*/
+export type OperationalTagOffer = { tagKeys: string[] }
+
+export function operationalTagOptions(column: OperationalTagOffer | null | undefined): string[] {
+  return column?.tagKeys ?? []
 }
 
 /* Itens obrigatórios da etapa de origem que ainda não foram concluídos. */
-function pendingRequired(checklist: TaskChecklistItem[], fromPhase: ProjectPhase): string[] {
+function pendingRequired(checklist: TaskChecklistItem[], fromPhase: PhaseKey): string[] {
   return checklist
     .filter((item) => item.is_required && item.phase === fromPhase && !item.is_completed)
     .map((item) => item.title)
@@ -78,14 +81,22 @@ function pendingRequired(checklist: TaskChecklistItem[], fromPhase: ProjectPhase
 
 export function moveTaskToPhase(
   task: TaskRow,
-  fromPhase: ProjectPhase,
-  toPhase: ProjectPhase,
+  fromPhase: PhaseKey,
+  toPhase: PhaseKey,
+  /*
+    A ORDEM DO QUADRO, e não mais a ordem de declaração do enum: desde a
+    migration 0094 a etapa é uma linha do escritório, e a posição dela é a
+    `display_order` que Configurações define. Vem de fora para esta decisão
+    continuar sendo uma função pura — e para a tela e a trava não lerem a ordem
+    de dois lugares diferentes.
+  */
+  orderedKeys: string[],
 ): MoveOutcome {
   /*
     A trava vale só ao AVANÇAR, como no original: voltar uma tarefa para uma
     etapa anterior nunca é bloqueado por checklist pendente.
   */
-  if (phaseIndex(toPhase) > phaseIndex(fromPhase)) {
+  if (phaseIndexIn(orderedKeys, toPhase) > phaseIndexIn(orderedKeys, fromPhase)) {
     const pending = pendingRequired(task.checklist, fromPhase)
     if (pending.length > 0) return { kind: 'blocked', fromPhase, toPhase, pending }
   }
@@ -206,7 +217,7 @@ export const responsibleEventKey = (projectId: string, taskId: string, responsib
 export const tagEventKey = (
   projectId: string,
   taskId: string,
-  tag: OperationalTag,
+  tag: string,
   on: boolean,
 ) => `${on ? 'tag-on' : 'tag-off'}:${projectId}:${taskId}:${tag}`
 
@@ -225,9 +236,18 @@ export const tagEventKey = (
   desenha; a diferença é que "Histórico de Revisões" e "Tempo por Etapa" deixam de
   precisar reler esse texto para saber o que aconteceu — o defeito 10 do plano.
 */
-export function phaseChangeText(move: TaskPhaseMove): { title: string; description: string } {
-  const from = labelOf(PROJECT_PHASE, move.fromPhase)
-  const to = labelOf(PROJECT_PHASE, move.toPhase)
+export function phaseChangeText(
+  move: TaskPhaseMove,
+  /*
+    O RÓTULO VEM DO QUADRO, e é por isso que ele entra como argumento: desde a
+    0094 a etapa pode ter um nome que o escritório inventou, e `PROJECT_PHASE`
+    só conhece as quinze embutidas. O texto vai para o diário e fica gravado —
+    escrever "custom_3" ali seria escrever isso para sempre.
+  */
+  phaseLabel: (phase: PhaseKey | null) => string,
+): { title: string; description: string } {
+  const from = phaseLabel(move.fromPhase)
+  const to = phaseLabel(move.toPhase)
 
   return {
     title: `Projeto movido de ${from} → ${to}`,
@@ -247,10 +267,15 @@ export function responsibleChangeText(
 
 export function tagEventText(
   taskTitle: string,
-  tag: OperationalTag,
+  /*
+    O RÓTULO ENTRA PRONTO, e não é buscado num mapa: desde a migration 0097 o
+    status é cadastro do escritório, e `OPERATIONAL_TAG` só conhece os dois
+    embutidos — um status criado hoje daria `undefined` no texto que fica
+    GRAVADO na linha do tempo, para sempre.
+  */
+  label: string,
   on: boolean,
 ): { title: string; description: string } {
-  const label = OPERATIONAL_TAG[tag]
 
   return {
     title: on ? `Marcado como ${label}` : `Retirado de ${label}`,

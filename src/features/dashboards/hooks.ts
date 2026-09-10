@@ -8,6 +8,8 @@ import { useContracts } from '@/features/contracts/hooks'
 import { useNegotiations } from '@/features/pipeline/hooks'
 import { useProjectProgress, useProjects, useTasks } from '@/features/projects/hooks'
 import { usePayables, useReceivables } from '@/features/financial/hooks'
+import { useKanbanBoard } from '@/features/kanban/hooks'
+import { PROJECT_PHASE, type PhaseKey } from '@/lib/enums'
 import type { MonthYear } from '@/features/financial/types'
 import {
   activeFlowProjects,
@@ -15,6 +17,7 @@ import {
   closedContractsIn,
   closingMetrics,
   countProjectStages,
+  EXECUTIVE_PHASES_FALLBACK,
   flowTasks,
   funnelMetrics,
   funnelStageTotals,
@@ -633,9 +636,35 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
     () => activityMetrics(activityCountsQuery.data ?? EMPTY_ACTIVITY_COUNTS),
     [activityCountsQuery.data],
   )
+  /*
+    AS BARRAS DO GRÁFICO SÃO AS ETAPAS DO QUADRO desde a migration 0094. Antes
+    saíam do enum, e com a etapa passando a ser uma linha do escritório isso
+    deixaria um projeto na etapa nova fora de TODA barra — o gráfico somaria
+    menos que o total, sem nada acusar.
+
+    "Finalizado" fica de fora porque projeto finalizado não é projeto ativo. As
+    ocultas entram: o projeto continua nelas, e não mostrar a barra é o mesmo
+    buraco de contagem.
+  */
+  const kanbanBoard = useKanbanBoard('project_flow')
+
+  const phaseOptions = useMemo(() => {
+    const columns = kanbanBoard.data?.columns ?? []
+    if (columns.length === 0) {
+      return EXECUTIVE_PHASES_FALLBACK.map((key) => ({
+        key,
+        label: (PROJECT_PHASE as Record<string, string>)[key] ?? key,
+      }))
+    }
+    return columns
+      .filter((column) => column.key !== 'finished')
+      .sort((a, b) => a.display_order - b.display_order)
+      .map((column) => ({ key: column.key as PhaseKey, label: column.label }))
+  }, [kanbanBoard.data])
+
   const operational = useMemo(
-    () => operationalMetrics(projects, progressByProject, atRiskIds),
-    [projects, progressByProject, atRiskIds],
+    () => operationalMetrics(projects, progressByProject, atRiskIds, phaseOptions),
+    [projects, progressByProject, atRiskIds, phaseOptions],
   )
   const team = useMemo(
     () => teamMetrics(collaborators, projects, responsibleByProject),

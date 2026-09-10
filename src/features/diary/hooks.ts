@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { usePhaseLabel } from '@/features/kanban/hooks'
 import {
   assertRowAffected,
   describeDatabaseError as describeError,
@@ -13,8 +14,7 @@ import {
   SITE_VISIT_STATUS,
   SITE_VISIT_TYPE,
   type DiaryFileKind,
-  type OperationalTag,
-  type ProjectPhase,
+  type PhaseKey,
 } from '@/lib/enums'
 import {
   diaryEntryInputSchema,
@@ -502,8 +502,8 @@ export type DiaryEventFact =
         | 'responsible_change'
         | 'report_generated'
     }
-  | { systemEvent: 'phase_change'; fromPhase: ProjectPhase | null; toPhase: ProjectPhase }
-  | { systemEvent: 'tag_on' | 'tag_off'; operationalTag: OperationalTag }
+  | { systemEvent: 'phase_change'; fromPhase: PhaseKey | null; toPhase: PhaseKey }
+  | { systemEvent: 'tag_on' | 'tag_off'; operationalTag: string }
 
 export async function recordDiaryEvent(
   params: {
@@ -1298,6 +1298,9 @@ export function useResolveProjectIssue() {
 */
 export function useGenerateDiaryReport() {
   const queryClient = useQueryClient()
+  /* O relatório é entregue ao cliente: o nome da etapa tem de ser o do quadro,
+     e não a chave crua (ver o parâmetro `phaseLabel` de `buildReportHTML`). */
+  const phaseLabel = usePhaseLabel()
   const { data: collaborator } = useCurrentCollaborator()
   /* A capa e o rodape do relatorio levam o nome do ESCRITORIO, lido do tenant —
      ver o comentario de `officeName` em report.ts. */
@@ -1323,6 +1326,7 @@ export function useGenerateDiaryReport() {
 
       const html = buildReportHTML({
         officeName: tenant?.name ?? '',
+        phaseLabel,
         project,
         entries,
         visits,

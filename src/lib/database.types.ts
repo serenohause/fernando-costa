@@ -1635,6 +1635,141 @@ export type Database = {
           },
         ]
       }
+      kanban_boards: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_boards_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kanban_column_operational_tags: {
+        Row: {
+          column_id: string
+          created_at: string
+          tag_id: string
+          tenant_id: string
+        }
+        Insert: {
+          column_id: string
+          created_at?: string
+          tag_id: string
+          tenant_id: string
+        }
+        Update: {
+          column_id?: string
+          created_at?: string
+          tag_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_column_operational_tags_column_fkey"
+            columns: ["column_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_operational_tags_tag_fkey"
+            columns: ["tag_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "operational_tags"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_operational_tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kanban_columns: {
+        Row: {
+          board_id: string
+          color: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          progress_percent: number | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          board_id: string
+          color?: string
+          created_at?: string
+          display_order: number
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          progress_percent?: number | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          board_id?: string
+          color?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          progress_percent?: number | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_columns_board_fkey"
+            columns: ["board_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_boards"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_columns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       map_properties: {
         Row: {
           address: string | null
@@ -2049,6 +2184,50 @@ export type Database = {
           },
         ]
       }
+      operational_tags: {
+        Row: {
+          color: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          display_order: number
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operational_tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_checklist_items: {
         Row: {
           completed_at: string | null
@@ -2056,7 +2235,7 @@ export type Database = {
           display_order: number | null
           id: string
           is_completed: boolean
-          phase: Database["public"]["Enums"]["project_phase"] | null
+          phase: string | null
           project_id: string
           tenant_id: string
           title: string
@@ -2068,7 +2247,7 @@ export type Database = {
           display_order?: number | null
           id?: string
           is_completed?: boolean
-          phase?: Database["public"]["Enums"]["project_phase"] | null
+          phase?: string | null
           project_id: string
           tenant_id: string
           title: string
@@ -2080,7 +2259,7 @@ export type Database = {
           display_order?: number | null
           id?: string
           is_completed?: boolean
-          phase?: Database["public"]["Enums"]["project_phase"] | null
+          phase?: string | null
           project_id?: string
           tenant_id?: string
           title?: string
@@ -2117,20 +2296,20 @@ export type Database = {
           description: string | null
           entry_type: Database["public"]["Enums"]["diary_entry_type"]
           event_key: string | null
-          from_phase: Database["public"]["Enums"]["project_phase"] | null
+          from_phase: string | null
           id: string
           is_automatic: boolean
           legacy_id: string | null
           occurrence_date: string
           occurrence_time: string | null
-          operational_tag: Database["public"]["Enums"]["operational_tag"] | null
+          operational_tag: string | null
           project_id: string
           responsible_id: string | null
           status: Database["public"]["Enums"]["diary_entry_status"]
           system_event: Database["public"]["Enums"]["diary_system_event"] | null
           tenant_id: string
           title: string
-          to_phase: Database["public"]["Enums"]["project_phase"] | null
+          to_phase: string | null
           updated_at: string
           updated_by_id: string | null
           visibility: Database["public"]["Enums"]["diary_visibility"]
@@ -2141,15 +2320,13 @@ export type Database = {
           description?: string | null
           entry_type: Database["public"]["Enums"]["diary_entry_type"]
           event_key?: string | null
-          from_phase?: Database["public"]["Enums"]["project_phase"] | null
+          from_phase?: string | null
           id?: string
           is_automatic?: boolean
           legacy_id?: string | null
           occurrence_date: string
           occurrence_time?: string | null
-          operational_tag?:
-            | Database["public"]["Enums"]["operational_tag"]
-            | null
+          operational_tag?: string | null
           project_id: string
           responsible_id?: string | null
           status?: Database["public"]["Enums"]["diary_entry_status"]
@@ -2158,7 +2335,7 @@ export type Database = {
             | null
           tenant_id: string
           title: string
-          to_phase?: Database["public"]["Enums"]["project_phase"] | null
+          to_phase?: string | null
           updated_at?: string
           updated_by_id?: string | null
           visibility?: Database["public"]["Enums"]["diary_visibility"]
@@ -2169,15 +2346,13 @@ export type Database = {
           description?: string | null
           entry_type?: Database["public"]["Enums"]["diary_entry_type"]
           event_key?: string | null
-          from_phase?: Database["public"]["Enums"]["project_phase"] | null
+          from_phase?: string | null
           id?: string
           is_automatic?: boolean
           legacy_id?: string | null
           occurrence_date?: string
           occurrence_time?: string | null
-          operational_tag?:
-            | Database["public"]["Enums"]["operational_tag"]
-            | null
+          operational_tag?: string | null
           project_id?: string
           responsible_id?: string | null
           status?: Database["public"]["Enums"]["diary_entry_status"]
@@ -2186,7 +2361,7 @@ export type Database = {
             | null
           tenant_id?: string
           title?: string
-          to_phase?: Database["public"]["Enums"]["project_phase"] | null
+          to_phase?: string | null
           updated_at?: string
           updated_by_id?: string | null
           visibility?: Database["public"]["Enums"]["diary_visibility"]
@@ -2693,7 +2868,7 @@ export type Database = {
           construction_docs_days: number | null
           contract_id: string | null
           created_at: string
-          current_phase: Database["public"]["Enums"]["project_phase"]
+          current_phase: string
           display_order: number | null
           engineering_docs_days: number | null
           id: string
@@ -2735,7 +2910,7 @@ export type Database = {
           construction_docs_days?: number | null
           contract_id?: string | null
           created_at?: string
-          current_phase?: Database["public"]["Enums"]["project_phase"]
+          current_phase?: string
           display_order?: number | null
           engineering_docs_days?: number | null
           id?: string
@@ -2777,7 +2952,7 @@ export type Database = {
           construction_docs_days?: number | null
           contract_id?: string | null
           created_at?: string
-          current_phase?: Database["public"]["Enums"]["project_phase"]
+          current_phase?: string
           display_order?: number | null
           engineering_docs_days?: number | null
           id?: string
@@ -3086,7 +3261,7 @@ export type Database = {
           id: string
           is_completed: boolean
           is_required: boolean
-          phase: Database["public"]["Enums"]["project_phase"] | null
+          phase: string | null
           task_id: string
           tenant_id: string
           title: string
@@ -3099,7 +3274,7 @@ export type Database = {
           id?: string
           is_completed?: boolean
           is_required?: boolean
-          phase?: Database["public"]["Enums"]["project_phase"] | null
+          phase?: string | null
           task_id: string
           tenant_id: string
           title: string
@@ -3112,7 +3287,7 @@ export type Database = {
           id?: string
           is_completed?: boolean
           is_required?: boolean
-          phase?: Database["public"]["Enums"]["project_phase"] | null
+          phase?: string | null
           task_id?: string
           tenant_id?: string
           title?: string
@@ -3144,8 +3319,8 @@ export type Database = {
           estimated_hours: number | null
           id: string
           legacy_id: string | null
-          operational_tag: Database["public"]["Enums"]["operational_tag"] | null
-          phase: Database["public"]["Enums"]["project_phase"]
+          operational_tag: string | null
+          phase: string
           priority: Database["public"]["Enums"]["priority_level"]
           project_id: string | null
           responsible_id: string | null
@@ -3165,10 +3340,8 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           legacy_id?: string | null
-          operational_tag?:
-            | Database["public"]["Enums"]["operational_tag"]
-            | null
-          phase?: Database["public"]["Enums"]["project_phase"]
+          operational_tag?: string | null
+          phase?: string
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null
           responsible_id?: string | null
@@ -3188,10 +3361,8 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           legacy_id?: string | null
-          operational_tag?:
-            | Database["public"]["Enums"]["operational_tag"]
-            | null
-          phase?: Database["public"]["Enums"]["project_phase"]
+          operational_tag?: string | null
+          phase?: string
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null
           responsible_id?: string | null
@@ -3204,6 +3375,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_operational_tag_fkey"
+            columns: ["tenant_id", "operational_tag"]
+            isOneToOne: false
+            referencedRelation: "operational_tags"
+            referencedColumns: ["tenant_id", "key"]
+          },
+          {
+            foreignKeyName: "tasks_phase_fkey"
+            columns: ["tenant_id", "phase"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["tenant_id", "key"]
+          },
           {
             foreignKeyName: "tasks_project_id_fkey"
             columns: ["project_id", "tenant_id"]
@@ -3747,15 +3932,15 @@ export type Database = {
         Args: {
           p_description?: string
           p_event_key?: string
-          p_from_phase?: Database["public"]["Enums"]["project_phase"]
+          p_from_phase?: string
           p_occurrence_date?: string
           p_occurrence_time?: string
-          p_operational_tag?: Database["public"]["Enums"]["operational_tag"]
+          p_operational_tag?: string
           p_project_id: string
           p_responsible_id?: string
           p_system_event: Database["public"]["Enums"]["diary_system_event"]
           p_title: string
-          p_to_phase?: Database["public"]["Enums"]["project_phase"]
+          p_to_phase?: string
         }
         Returns: Json
       }

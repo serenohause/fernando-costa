@@ -1,4 +1,4 @@
-import { PROJECT_PHASE, labelOf, type ProjectPhase } from '@/lib/enums'
+import type { PhaseKey } from '@/lib/enums'
 import { normalizeText } from '@/lib/format'
 import type { ProjectProgress, ProjectRow } from '@/features/projects/types'
 import { isProjectBlocked } from './list'
@@ -28,7 +28,7 @@ export function awaitingClientProjects(projects: ProjectRow[]): ProjectRow[] {
 }
 
 /* Uma barra do gráfico "Distribuição por Fase" (DashboardExecutivo.jsx:697). */
-export function projectsInPhase(projects: ProjectRow[], phase: ProjectPhase): ProjectRow[] {
+export function projectsInPhase(projects: ProjectRow[], phase: PhaseKey): ProjectRow[] {
   return projects.filter((project) => project.current_phase === phase)
 }
 
@@ -110,12 +110,18 @@ export type ProjectSortKey = 'name' | 'progress-asc' | 'progress-desc' | 'phase'
     e é ele que vai para o `localeCompare`; aqui a coluna guarda `awaiting_client`
     / `briefing`, cuja ordem alfabética é OUTRA. Comparar o rótulo é o que
     mantém a lista na ordem que a tela do cliente tem hoje.
+
+    O RÓTULO ENTRA COMO ARGUMENTO desde a migration 0094: a etapa virou linha do
+    quadro do escritório e pode ter nome que `PROJECT_PHASE` não conhece. Com o
+    mapa embutido, uma etapa criada hoje ordenaria pela chave — no meio de uma
+    lista ordenada por nome, sem nada indicar por quê.
 */
 export function searchAndSortProjects(
   projects: ProjectRow[],
   search: string,
   sortBy: ProjectSortKey,
   progressByProject: Map<string, ProjectProgress>,
+  phaseLabel: (phase: string | null | undefined) => string,
 ): ProjectRow[] {
   const needle = normalizeText(search)
   const filtered = needle
@@ -134,9 +140,7 @@ export function searchAndSortProjects(
     if (sortBy === 'progress-asc') return progressOf(a) - progressOf(b)
     if (sortBy === 'progress-desc') return progressOf(b) - progressOf(a)
     if (sortBy === 'phase') {
-      return labelOf(PROJECT_PHASE, a.current_phase).localeCompare(
-        labelOf(PROJECT_PHASE, b.current_phase),
-      )
+      return phaseLabel(a.current_phase).localeCompare(phaseLabel(b.current_phase))
     }
     /* `date`: sem data vai para o fim, como no original (linhas 880-883). */
     if (!a.start_date && !b.start_date) return 0

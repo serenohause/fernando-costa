@@ -135,6 +135,20 @@ const NAO_ALCANCAVEL = {
     'o caminho do objeto é montado com uuid pelo hook de upload, nunca digitado — mesma razão de budget_item_approval_files',
   project_issues_project_id_issue_number_key:
     'o número da pendência é alocado pelo trigger project_issues_assign_number sob advisory lock por projeto, e nenhuma tela oferece o campo; a unicidade existe para barrar número passado a mão pela API, caminho que não existe no frontend',
+  kanban_boards_tenant_id_key_key:
+    'a chave do quadro é do sistema (`project_flow`), escrita pela migration 0093 e pelo gatilho de escritório novo; nenhuma tela oferece o campo, e o que se renomeia é o `name`',
+  kanban_columns_board_id_key_key:
+    'mesma razão: a chave da etapa nasce com o quadro e não é editável — Configurações renomeia o `label`, e é isso que separa "renomear a etapa" de "reescrever o que já foi gravado nas tarefas"',
+  kanban_columns_board_phase_key:
+    'duas colunas na mesma fase seria bug nosso, não gesto de quem usa: a tela não oferece escolher a fase de uma etapa, e nesta fatia nem sequer há policy de INSERT em kanban_columns',
+  operational_tags_key_format_check:
+    'a chave do status nasce derivada do nome (phaseKeyFrom) e nao e editavel: a tela oferece o rotulo, e e o rotulo que se renomeia',
+  operational_tags_color_format_check:
+    'a cor sai de uma paleta fechada na tela (TAG_COLORS), nunca digitada; o check existe para barrar classe do Tailwind vinda pela API, que nao entraria no CSS gerado e sumiria sem erro',
+  kanban_boards_key_format_check:
+    'a chave do quadro não é digitada em lugar nenhum — ver kanban_boards_tenant_id_key_key',
+  kanban_columns_key_format_check:
+    'idem para a etapa: a chave vem da semeadura, e o campo que a tela oferece é o rótulo',
   project_site_visits_tenant_id_diary_entry_id_key:
     'o vínculo visita↔entrada de diário é gravado pelo hook que cria as duas juntas, nunca escolhido na tela; duas visitas reivindicarem a mesma entrada seria bug nosso, não gesto de quem usa',
 }

@@ -1,5 +1,5 @@
 import type { Tables } from '@/lib/database.types'
-import type { CollaboratorRole, FunnelStage, ProjectPhase } from '@/lib/enums'
+import type { CollaboratorRole, FunnelStage, PhaseKey } from '@/lib/enums'
 import type { NegotiationRow } from '@/features/pipeline/types'
 import type { ProjectRow, TaskRow } from '@/features/projects/types'
 import type { ReportPeriod } from '@/features/activities/productivity'
@@ -158,7 +158,7 @@ export type ActivityMetrics = {
 }
 
 /* Uma barra do gráfico "Distribuição por Fase". */
-export type PhaseCount = { phase: ProjectPhase; label: string; count: number }
+export type PhaseCount = { phase: PhaseKey; label: string; count: number }
 
 export type OperationalMetrics = {
   totalProjects: number

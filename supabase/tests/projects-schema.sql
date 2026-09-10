@@ -485,6 +485,14 @@ $q$, (select project_waiting_a from ids)));
 --   b) A migration 0062 abriu excecao no completion_date x status para linha
 --      com legacy_id preenchido. Essa sim so vale para o que veio do base44.
 --
+-- O QUE MUDOU NA 0094: `tasks.phase` deixou de ser o enum e virou texto com
+-- chave estrangeira para `kanban_columns`. As duas recusas abaixo continuam de
+-- pe, mas 'post_approval' passou a ser recusado pela FK (23503) e nao mais por
+-- check (23514) - a etapa nao existe no quadro de escritorio nenhum, porque a
+-- 0093 a deixou de fora de proposito. 'finished' segue no check (23514): ela E
+-- uma etapa do quadro, entao a FK a aceitaria, e e o check que impede tarefa de
+-- parar numa coluna que so mostra concluidas.
+--
 -- Os casos 9.3 e 9.4 sao o que impede (a) de virar afrouxamento: acrescentar
 -- valor a um enum compartilhado nao pode abrir os recortes que cada tabela ja
 -- fazia, e os dois valores que tasks nunca aceitou continuam recusados INCLUSIVE
@@ -505,7 +513,7 @@ select pg_temp.chk('9.3', 'tarefa IMPORTADA em fase finished continua recusada',
   values (%L, 'b44-task-finished', 'Entrega final', 'finished')
 $q$, (select tenant_a from ids)));
 
-select pg_temp.chk('9.4', 'tarefa IMPORTADA em fase post_approval continua recusada', 'ERR:23514', format($q$
+select pg_temp.chk('9.4', 'tarefa IMPORTADA em fase post_approval continua recusada (agora pela FK)', 'ERR:23503', format($q$
   insert into public.tasks (tenant_id, legacy_id, title, phase)
   values (%L, 'b44-task-pos', 'Compra de acabamento', 'post_approval')
 $q$, (select tenant_a from ids)));
@@ -603,14 +611,19 @@ select pg_temp.chk('10.3', 'CONTROLE: tarefa SEM tag entra (nulo e o caso normal
   values (%L, 'Tarefa sem status operacional', 'briefing')
 $q$, (select tenant_a from ids)));
 
-select pg_temp.chk('10.4', 'valor inventado fora do enum e recusado', 'ERR:22P02', format($q$
+-- O QUE MUDOU NA 0097: operational_tag deixou de ser enum e virou texto com
+-- chave estrangeira para operational_tags. A recusa continua de pe nos dois
+-- casos abaixo, mas quem recusa agora e a FK (23503) e nao o tipo (22P02) - e a
+-- FK recusa MAIS: o enum aceitaria o valor em qualquer escritorio, e a chave
+-- estrangeira so aceita status cadastrado NESTE.
+select pg_temp.chk('10.4', 'valor inventado fora do cadastro e recusado', 'ERR:23503', format($q$
   insert into public.tasks (tenant_id, title, operational_tag)
   values (%L, 'Tarefa pausada', 'pausada')
 $q$, (select tenant_a from ids)));
 
 -- O rotulo EXATO que o CSV do base44 traz em tag_operacional. Ele nao entra: o
 -- de/para acontece na importacao e na UI, e o banco guarda so a chave.
-select pg_temp.chk('10.5', 'o rotulo em portugues do base44 e recusado', 'ERR:22P02', format($q$
+select pg_temp.chk('10.5', 'o rotulo em portugues do base44 e recusado', 'ERR:23503', format($q$
   insert into public.tasks (tenant_id, title, operational_tag)
   values (%L, 'Revisao do layout', 'Em Revisão')
 $q$, (select tenant_a from ids)));
