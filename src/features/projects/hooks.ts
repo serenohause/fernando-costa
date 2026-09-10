@@ -18,8 +18,8 @@ import {
   recordDiaryEvent,
   type RecordedDiaryEvent,
 } from '@/features/diary/hooks'
-import type { OperationalTag, PhaseKey } from '@/lib/enums'
-import { useKanbanBoard } from '@/features/kanban/hooks'
+import { OPERATIONAL_TAG, type PhaseKey } from '@/lib/enums'
+import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
 import { phaseLabelIn } from '@/features/kanban/board'
 import {
   phaseChangeText,
@@ -1030,9 +1030,19 @@ export function useChangeTaskResponsible() {
 */
 export function useSetTaskOperationalTag() {
   const queryClient = useQueryClient()
+  /*
+    O rótulo do status vai para o TEXTO da linha do tempo e fica gravado. Desde a
+    0097 ele mora em `operational_tags`; o mapa embutido cobre só os dois de
+    fábrica, e é o fallback para o histórico de um status já apagado.
+  */
+  const { data: tags } = useOperationalTags()
+  const tagLabel = (key: string) =>
+    tags?.find((tag) => tag.key === key)?.label ??
+    (OPERATIONAL_TAG as Record<string, string>)[key] ??
+    key
 
   const mutation = useMutation({
-    mutationFn: async ({ task, tag }: { task: TaskRow; tag: OperationalTag | null }) => {
+    mutationFn: async ({ task, tag }: { task: TaskRow; tag: string | null }) => {
       const previous = task.operational_tag
 
       const { data, error } = await supabase
@@ -1049,13 +1059,13 @@ export function useSetTaskOperationalTag() {
 
       let event: TaskDiaryEvent = null
       if (task.project_id && (tag ?? previous)) {
-        const changed = tag ?? (previous as OperationalTag)
+        const changed = tag ?? (previous as string)
 
         event = await recordDiaryEvent({
           projectId: task.project_id,
           systemEvent: tag ? 'tag_on' : 'tag_off',
           operationalTag: changed,
-          ...tagEventText(task.title, changed, tag !== null),
+          ...tagEventText(task.title, tagLabel(changed), tag !== null),
           eventKey: tagEventKey(task.project_id, task.id, changed, tag !== null),
           responsibleId: null,
         })
@@ -1075,7 +1085,7 @@ export function useSetTaskOperationalTag() {
   return optimisticTaskWrite(
     queryClient,
     mutation,
-    (tasks, { task, tag }: { task: TaskRow; tag: OperationalTag | null }) =>
+    (tasks, { task, tag }: { task: TaskRow; tag: string | null }) =>
       tasks.map((candidate) =>
         candidate.id === task.id ? { ...candidate, operational_tag: tag } : candidate,
       ),

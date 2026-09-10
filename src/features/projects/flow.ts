@@ -1,7 +1,5 @@
 import { format } from 'date-fns'
 import {
-  OPERATIONAL_TAG,
-  type OperationalTag,
   type PhaseKey,
   type TaskPhase,
 } from '@/lib/enums'
@@ -41,11 +39,14 @@ export function tasksInColumn(tasks: TaskRow[], column: PhaseKey): TaskRow[] {
   QUAL TAG CADA ETAPA OFERECE — e é OFERTA DE TELA, não regra de domínio.
 
   Porta de `COLUNAS_COM_TAGS` e `COLUNAS_SO_REVISAO` (TaskKanban.jsx:42-44 da
-  versão nova). Eram duas listas escritas à mão aqui; desde a migration 0096 são
-  dois campos da etapa, editáveis em Configurações → Quadros. O recorte semeado
-  é o mesmo que estava no código — "Layout" e "Perspectivas" com as duas tags,
-  "Projeto Legal" e "Projeto Executivo" só com "Em Revisão" —, e a diferença é
-  que agora a etapa que o escritório cria também pode ter as suas.
+  versão nova). Eram duas listas escritas à mão aqui; viraram dois campos da
+  etapa na 0096 e, na 0097, uma tabela de ligação — porque o próprio status
+  deixou de ser valor do sistema e virou cadastro do escritório, e booleano que
+  carrega o NOME de um valor não sobrevive a isso. O recorte semeado é o mesmo
+  que estava no código, migração após migração.
+
+  A ORDEM DO RETORNO é a que a ligação devolve, ordenada por `display_order` do
+  status na consulta do quadro.
 
   A LISTA FIXA TINHA UM BURACO que só apareceu depois da 0094: etapa criada pelo
   escritório não constava de lista nenhuma, então nascia sem status operacional e
@@ -64,21 +65,11 @@ export function tasksInColumn(tasks: TaskRow[], column: PhaseKey): TaskRow[] {
   decisão de quadro se lê num arquivo só, e o componente desenha o que ela
   devolve.
 
-  A ORDEM DO RETORNO é a do menu, e não a dos campos: "Em Revisão" antes de
-  "Aguardando Cliente", como na versão nova.
 */
-export type OperationalTagOffer = {
-  allows_in_review: boolean
-  allows_awaiting_client: boolean
-}
+export type OperationalTagOffer = { tagKeys: string[] }
 
-export function operationalTagOptions(column: OperationalTagOffer | null | undefined): OperationalTag[] {
-  if (!column) return []
-
-  const tags: OperationalTag[] = []
-  if (column.allows_in_review) tags.push('in_review')
-  if (column.allows_awaiting_client) tags.push('awaiting_client')
-  return tags
+export function operationalTagOptions(column: OperationalTagOffer | null | undefined): string[] {
+  return column?.tagKeys ?? []
 }
 
 /* Itens obrigatórios da etapa de origem que ainda não foram concluídos. */
@@ -226,7 +217,7 @@ export const responsibleEventKey = (projectId: string, taskId: string, responsib
 export const tagEventKey = (
   projectId: string,
   taskId: string,
-  tag: OperationalTag,
+  tag: string,
   on: boolean,
 ) => `${on ? 'tag-on' : 'tag-off'}:${projectId}:${taskId}:${tag}`
 
@@ -276,10 +267,15 @@ export function responsibleChangeText(
 
 export function tagEventText(
   taskTitle: string,
-  tag: OperationalTag,
+  /*
+    O RÓTULO ENTRA PRONTO, e não é buscado num mapa: desde a migration 0097 o
+    status é cadastro do escritório, e `OPERATIONAL_TAG` só conhece os dois
+    embutidos — um status criado hoje daria `undefined` no texto que fica
+    GRAVADO na linha do tempo, para sempre.
+  */
+  label: string,
   on: boolean,
 ): { title: string; description: string } {
-  const label = OPERATIONAL_TAG[tag]
 
   return {
     title: on ? `Marcado como ${label}` : `Retirado de ${label}`,

@@ -402,55 +402,107 @@ select pg_temp.rec('6.2', 'e com as 10 desenhadas no quadro', '10',
 select pg_temp.rec('6.3', 'a escala do escritório novo é idêntica à do antigo', 'idênticas',
   case when (
     select count(*) from (
-      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active,
-             c.allows_in_review, c.allows_awaiting_client
+      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active
       from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
       where c.tenant_id = (select tenant_b from ids) and b.key = 'project_flow' and c.key <> 'layout'
       except
-      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active,
-             c.allows_in_review, c.allows_awaiting_client
+      select c.key, c.label, c.color, c.display_order, c.progress_percent, c.is_active
       from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
       where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow' and c.key <> 'layout') d) = 0
   then 'idênticas' else 'divergem' end);
 
--- 6bis. O status operacional por etapa (0096) --------------------------------------
+-- 6bis. O status operacional (0097) -------------------------------------------------
 --
---    Eram duas listas escritas a mao em flow.ts. A semeadura tem de repetir o
---    recorte que estava no codigo, senao o submenu do cartao muda de lugar no dia
---    em que a migration entra — e ninguem associaria uma coisa a outra.
+--    Eram duas listas em flow.ts, viraram dois booleanos na 0096 e agora sao
+--    CADASTRO: o escritorio escolhe nome e cor de cada status, e uma tabela de
+--    ligacao diz quais etapas oferecem quais.
+--
+--    A semeadura tem de repetir, de novo, o recorte que estava no codigo — senao
+--    o submenu do cartao muda de lugar no dia em que a migration entra.
 
-select pg_temp.rec('6.4', 'o recorte de tags é o que estava em flow.ts',
-  'construction_docs:R, layout:RA, legal_permit:R, renderings:RA',
-  (select string_agg(
-     c.key || ':' || case when c.allows_in_review then 'R' else '' end
-                  || case when c.allows_awaiting_client then 'A' else '' end,
-     ', ' order by c.key)
-   from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
-   where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow'
-     and (c.allows_in_review or c.allows_awaiting_client)));
+select pg_temp.rec('6.4', 'os dois status de fábrica, com rótulo e cor do código',
+  'awaiting_client=Aguardando Cliente/cyan, in_review=Em Revisão/amber',
+  (select string_agg(t.key || '=' || t.label || '/' || t.color, ', ' order by t.key)
+   from public.operational_tags t
+   where t.tenant_id = (select tenant_a from ids)));
 
-select pg_temp.rec('6.5', 'as demais onze etapas não oferecem tag nenhuma', '11',
+select pg_temp.rec('6.5', 'o recorte por etapa é o que estava em flow.ts',
+  'construction_docs:in_review, layout:awaiting_client, layout:in_review, legal_permit:in_review, renderings:awaiting_client, renderings:in_review',
+  (select string_agg(c.key || ':' || t.key, ', ' order by c.key, t.key)
+   from public.kanban_column_operational_tags j
+   join public.kanban_columns c on c.id = j.column_id
+   join public.operational_tags t on t.id = j.tag_id
+   where j.tenant_id = (select tenant_a from ids)));
+
+select pg_temp.rec('6.6', 'as demais onze etapas não oferecem status nenhum', '11',
   (select count(*)::text from public.kanban_columns c join public.kanban_boards b on b.id = c.board_id
     where c.tenant_id = (select tenant_a from ids) and b.key = 'project_flow'
-      and not c.allows_in_review and not c.allows_awaiting_client));
+      and not exists (select 1 from public.kanban_column_operational_tags j where j.column_id = c.id)));
 
-/* Editavel: e o pedido do usuario. Quem edita e o mesmo portao das outras
-   colunas — can_edit_menu('settings'). */
-select pg_temp.rec('6.6', 'quem configura liga a tag numa etapa que não a tinha', '1',
+/* O pedido: nome e cor editaveis. */
+select pg_temp.rec('6.7', 'quem configura renomeia o status e troca a cor', '1',
   pg_temp.exec_as((select user_cfg_a from ids), (select tenant_a from ids),
-    $q$update public.kanban_columns set allows_in_review = true where key = 'briefing'$q$));
+    $q$update public.operational_tags set label = 'Em Análise', color = 'violet'
+       where key = 'in_review'$q$));
 
-select pg_temp.rec('6.7', 'Arquiteto SEM can_edit em settings não liga', '0',
+select pg_temp.rec('6.8', 'e cria um status novo', '1',
+  pg_temp.exec_as((select user_cfg_a from ids), (select tenant_a from ids),
+    $q$insert into public.operational_tags (tenant_id, key, label, color, display_order)
+       values ('caaa0000-0000-4000-8000-00000000000a', 'aguardando_prefeitura',
+               'Aguardando Prefeitura', 'orange', 3)$q$));
+
+select pg_temp.rec('6.9', 'Arquiteto SEM can_edit em settings não cria', 'ERR:42501',
   pg_temp.exec_as((select user_arq_a from ids), (select tenant_a from ids),
-    $q$update public.kanban_columns set allows_awaiting_client = true where key = 'hoa_approval'$q$));
+    $q$insert into public.operational_tags (tenant_id, key, label, display_order)
+       values ('caaa0000-0000-4000-8000-00000000000a', 'invadido', 'Invadido', 9)$q$));
 
-/* NAO E TRAVA, e este caso guarda a decisao da 0074: a tarefa aceita qualquer
-   tag em qualquer etapa. Desmarcar no quadro tira o submenu do cartao e nada
-   mais — o banco continua aceitando a tag ja gravada. */
-select pg_temp.rec('6.8', 'o banco aceita tag em etapa que não a oferece', '1',
+/* A etapa passa a oferecer o status novo — e o gesto e o par, nao um booleano. */
+select pg_temp.rec('6.10', 'a etapa passa a oferecer o status novo', '1',
+  pg_temp.exec_as((select user_cfg_a from ids), (select tenant_a from ids),
+    $q$insert into public.kanban_column_operational_tags (tenant_id, column_id, tag_id)
+       select c.tenant_id, c.id, t.id
+       from public.kanban_columns c, public.operational_tags t
+       where c.key = 'briefing' and t.key = 'aguardando_prefeitura'
+         and c.tenant_id = t.tenant_id$q$));
+
+/*
+  NAO E TRAVA, e este caso guarda a decisao da 0074: a tarefa aceita qualquer
+  status em qualquer etapa. Desmarcar no quadro tira o submenu do cartao e nada
+  mais.
+*/
+select pg_temp.rec('6.11', 'o banco aceita status em etapa que não o oferece', '1',
   pg_temp.exec_as((select user_arq_a from ids), (select tenant_a from ids),
     $q$update public.tasks set operational_tag = 'awaiting_client'
        where id = 'caaa0000-0000-4000-8000-00000000008a'$q$));
+
+/* A FK que impede apagar trabalho: a tarefa acima esta marcada. */
+select pg_temp.rec('6.12', 'não se exclui status marcado em alguma tarefa', 'ERR:23503',
+  pg_temp.exec_as((select user_dir_a from ids), (select tenant_a from ids),
+    $q$delete from public.operational_tags where key = 'awaiting_client'$q$));
+
+select pg_temp.rec('6.13', 'CONTROLE: tirada a marca, o status é excluído', '1',
+  pg_temp.exec_as((select user_dir_a from ids), (select tenant_a from ids),
+    $q$with limpas as (
+         update public.tasks set operational_tag = null
+          where operational_tag = 'awaiting_client' returning 1)
+       delete from public.operational_tags
+       where key = 'awaiting_client' and (select count(*) from limpas) >= 0$q$));
+
+/* Excluir o status leva a OFERTA junto, e isso e o desejado: a oferta nao e
+   trabalho de ninguem. */
+select pg_temp.rec('6.14', 'excluir o status tira a oferta das etapas, por cascade', '0',
+  (select count(*)::text from public.kanban_column_operational_tags j
+   join public.kanban_columns c on c.id = j.column_id
+   where j.tenant_id = (select tenant_a from ids) and c.key = 'layout'
+     and j.tag_id not in (select id from public.operational_tags)));
+
+select pg_temp.rec('6.15', 'escritório novo nasce com os dois status', '2',
+  (select count(*)::text from public.operational_tags
+    where tenant_id = (select tenant_b from ids)));
+
+select pg_temp.rec('6.16', 'tasks.operational_tag é texto, e não mais o enum', 'text',
+  (select data_type from information_schema.columns
+    where table_schema='public' and table_name='tasks' and column_name='operational_tag'));
 
 -- 7. Quem alcança as tabelas ---------------------------------------------------
 

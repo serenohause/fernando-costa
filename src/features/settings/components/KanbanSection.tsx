@@ -10,13 +10,15 @@ import {
   describeDatabaseError,
   useCreateKanbanColumn,
   useDeleteKanbanColumn,
+  useOperationalTags,
+  useSetColumnOperationalTags,
   useKanbanBoard,
   useOpenTaskCountByPhase,
   useRenameKanbanBoard,
   useReorderKanbanColumns,
   useUpdateKanbanColumn,
 } from '@/features/kanban/hooks'
-import { columnSwatchClass, type KanbanColumnRow } from '@/features/kanban/types'
+import { columnSwatchClass, type KanbanColumnWithTags } from '@/features/kanban/types'
 import KanbanColumnDialog, { type KanbanColumnFormValues } from './KanbanColumnDialog'
 import KanbanDeleteDialog from './KanbanDeleteDialog'
 
@@ -46,17 +48,20 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   const renameBoard = useRenameKanbanBoard(BOARD_KEY)
   const reorder = useReorderKanbanColumns(BOARD_KEY)
   const createColumn = useCreateKanbanColumn()
+  const setColumnTags = useSetColumnOperationalTags(BOARD_KEY)
+  const tagsQuery = useOperationalTags()
   const deleteColumn = useDeleteKanbanColumn()
 
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editing, setEditing] = useState<KanbanColumnRow | null>(null)
+  const [editing, setEditing] = useState<KanbanColumnWithTags | null>(null)
   const [editingName, setEditingName] = useState(false)
   const [boardName, setBoardName] = useState('')
-  const [deleting, setDeleting] = useState<KanbanColumnRow | null>(null)
+  const [deleting, setDeleting] = useState<KanbanColumnWithTags | null>(null)
 
   const board = boardQuery.data ?? null
   const columns = board?.columns ?? []
   const counts = countsQuery.data ?? {}
+  const tags = tagsQuery.data ?? []
 
   const handleSubmit = (values: KanbanColumnFormValues) => {
     if (!editing) {
@@ -68,12 +73,19 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
           label: values.label,
           color: values.color,
           progressPercent: values.progress_percent,
-          allowsInReview: values.allows_in_review,
-          allowsAwaitingClient: values.allows_awaiting_client,
           lastOrder: columns.reduce((maior, column) => Math.max(maior, column.display_order), 0),
         },
         {
-          onSuccess: () => {
+          onSuccess: (novaEtapaId) => {
+            /* A etapa e a oferta de status são duas escritas: a linha da ligação
+               precisa do id que só existe depois do INSERT. */
+            if (values.tagIds.length > 0 && board) {
+              setColumnTags.mutate({
+                columnId: novaEtapaId,
+                tenantId: board.tenant_id,
+                tagIds: values.tagIds,
+              })
+            }
             setDialogOpen(false)
             toast.success('Etapa criada')
           },
@@ -83,10 +95,18 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
       return
     }
 
+    const { tagIds, ...colunas } = values
     updateColumn.mutate(
-      { id: editing.id, ...values },
+      { id: editing.id, ...colunas },
       {
         onSuccess: () => {
+          if (board) {
+            setColumnTags.mutate({
+              columnId: editing.id,
+              tenantId: board.tenant_id,
+              tagIds,
+            })
+          }
           setDialogOpen(false)
           setEditing(null)
           toast.success('Etapa atualizada')
@@ -102,7 +122,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
     vai achar. Avisar com o número na mão é o que transforma isso numa decisão
     em vez de uma surpresa.
   */
-  const handleToggleActive = (column: KanbanColumnRow) => {
+  const handleToggleActive = (column: KanbanColumnWithTags) => {
     const abertas = counts[column.key] ?? 0
 
     if (column.is_active && abertas > 0) {
@@ -314,13 +334,10 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                   {/* Só aparece quando a etapa oferece alguma: dez das quinze
                       padrão não oferecem nenhuma, e um crachá "sem status" em
                       todas elas seria ruído. */}
-                  {(column.allows_in_review || column.allows_awaiting_client) && (
+                  {column.tagKeys.length > 0 && (
                     <Badge variant="outline" className="text-muted-foreground border-border">
-                      {[
-                        column.allows_in_review ? 'Em Revisão' : null,
-                        column.allows_awaiting_client ? 'Aguardando Cliente' : null,
-                      ]
-                        .filter(Boolean)
+                      {column.tagKeys
+                        .map((key) => tags.find((tag) => tag.key === key)?.label ?? key)
                         .join(' · ')}
                     </Badge>
                   )}
@@ -411,8 +428,9 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
           if (!open) setEditing(null)
         }}
         editing={editing}
+        tags={tags}
         onSubmit={handleSubmit}
-        isPending={updateColumn.isPending || createColumn.isPending}
+        isPending={updateColumn.isPending || createColumn.isPending || setColumnTags.isPending}
       />
 
       <KanbanDeleteDialog

@@ -7,7 +7,7 @@ import {
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
 import { phaseKeyFrom, phaseLabelIn } from './board'
-import type { KanbanBoard, KanbanColumnRow } from './types'
+import type { KanbanBoard, KanbanColumnRow, OperationalTagRow } from './types'
 
 /*
   O QUADRO CONFIGURÁVEL, lido por duas telas com papéis opostos: o Fluxo do
@@ -28,6 +28,12 @@ const KANBAN_ERROR_MESSAGES: DatabaseErrorMessages = {
   kanban_columns_label_not_blank_check: 'Dê um nome à etapa.',
   kanban_columns_label_length_check: 'O nome da etapa é longo demais (máximo de 40 caracteres).',
   kanban_columns_progress_range_check: 'O percentual da etapa precisa estar entre 0 e 100.',
+  operational_tags_tenant_id_key_key:
+    'Já existe um status com esse nome neste escritório. Se ele foi desativado, reative em vez de criar outro.',
+  operational_tags_label_not_blank_check: 'Dê um nome ao status.',
+  operational_tags_label_length_check: 'O nome do status é longo demais (máximo de 40 caracteres).',
+  tasks_operational_tag_fkey:
+    'Este status ainda está marcado em alguma tarefa. Tire a marca das tarefas antes de excluí-lo.',
   kanban_columns_tenant_id_key_key:
     'Já existe uma etapa com esse nome neste escritório. Se ela foi ocultada, mostre-a em vez de criar outra.',
   kanban_columns_board_id_key_key:
@@ -80,7 +86,35 @@ export function useKanbanBoard(boardKey: string) {
         .order('display_order', { ascending: true })
 
       if (columnsError) throw columnsError
-      return { ...board, columns: columns ?? [] }
+
+      /*
+        QUAIS STATUS CADA ETAPA OFERECE — uma consulta a mais, e não um join
+        aninhado, porque o PostgREST devolveria a linha da etapa repetida por
+        status e a contagem de etapas passaria a depender de quantos status cada
+        uma tem. São dezenas de pares no pior caso.
+      */
+      const { data: links, error: linksError } = await supabase
+        .from('kanban_column_operational_tags')
+        .select('column_id, operational_tags(key)')
+
+      if (linksError) throw linksError
+
+      const porColuna = new Map<string, string[]>()
+      for (const link of links ?? []) {
+        const key = (link.operational_tags as { key: string } | null)?.key
+        if (!key) continue
+        const atual = porColuna.get(link.column_id) ?? []
+        atual.push(key)
+        porColuna.set(link.column_id, atual)
+      }
+
+      return {
+        ...board,
+        columns: (columns ?? []).map((column) => ({
+          ...column,
+          tagKeys: porColuna.get(column.id) ?? [],
+        })),
+      }
     },
     /*
       A configuração do quadro muda algumas vezes por ano, e é lida a cada
@@ -144,6 +178,183 @@ export function usePhaseLabel() {
   return (phase: string | null | undefined) => phaseLabelIn(columns, phase)
 }
 
+/* ── Status operacional ──────────────────────────────────────────────────── */
+
+/*
+  OS STATUS DO ESCRITÓRIO (migration 0097). Eram dois valores de enum com rótulo
+  e cor cravados no código; viraram cadastro porque o escritório pediu para
+  escolher nome e cor de cada um.
+
+  Traz também os INATIVOS: Configurações precisa listá-los para reativar, e o
+  cartão de uma tarefa que já está marcada com um status desativado ainda precisa
+  do rótulo dele. Quem filtra é quem desenha.
+*/
+export function useOperationalTags() {
+  return useQuery({
+    queryKey: [...kanbanKeys.all, 'operational-tags'] as const,
+    queryFn: async (): Promise<OperationalTagRow[]> => {
+      const { data, error } = await supabase
+        .from('operational_tags')
+        .select('*')
+        .order('display_order', { ascending: true })
+
+      if (error) throw error
+      return data ?? []
+    },
+    staleTime: 5 * 60_000,
+  })
+}
+
+export function useCreateOperationalTag() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: {
+      tenantId: string
+      label: string
+      color: string
+      lastOrder: number
+    }) => {
+      const label = input.label.trim()
+      /* A chave sai do nome, como em `phaseKeyFrom` e `serviceKeyFrom`: pedir os
+         dois seria pedir que o escritório entendesse a diferença entre o que
+         aparece na tela e o que fica gravado na tarefa. */
+      const key = phaseKeyFrom(label)
+      if (!key) {
+        throw new WriteError('O nome do status precisa ter ao menos uma letra ou número.')
+      }
+
+      const { data, error } = await supabase
+        .from('operational_tags')
+        .insert({
+          tenant_id: input.tenantId,
+          key,
+          label,
+          color: input.color,
+          display_order: input.lastOrder + 1,
+        })
+        .select('id')
+        .single()
+
+      if (error) throw error
+      return data.id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: kanbanKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
+export function useUpdateOperationalTag() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...columns
+    }: {
+      id: string
+      label?: string
+      color?: string
+      is_active?: boolean
+      display_order?: number
+    }) => {
+      const { data, error } = await supabase
+        .from('operational_tags')
+        .update(columns)
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O status não foi alterado. É preciso permissão de edição em Configurações.',
+      )
+      return id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: kanbanKeys.all })
+      /* O crachá do cartão desenha o rótulo e a cor daqui: renomear precisa
+         aparecer no quadro sem recarregar a página. */
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
+/*
+  EXCLUIR STATUS. Quem barra o estrago é o banco, não esta função: a chave
+  estrangeira `tasks_operational_tag_fkey` é `restrict` e recusa enquanto houver
+  tarefa marcada com ele. A oferta nas etapas cai junto por cascade, e isso é o
+  desejado — a oferta não é trabalho de ninguém.
+*/
+export function useDeleteOperationalTag() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase
+        .from('operational_tags')
+        .delete()
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O status não foi excluído. É preciso permissão de edição em Configurações.',
+      )
+      return id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: kanbanKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
+/*
+  QUAIS STATUS UMA ETAPA OFERECE. A troca é apagar os pares e gravar os
+  escolhidos, e não um diff: a linha da ligação é só um par de chaves, não tem
+  nada dentro que se possa preservar, e por isso a tabela nem tem policy de
+  UPDATE (migration 0097).
+*/
+export function useSetColumnOperationalTags(boardKey: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      columnId,
+      tenantId,
+      tagIds,
+    }: {
+      columnId: string
+      tenantId: string
+      tagIds: string[]
+    }) => {
+      const { error: deleteError } = await supabase
+        .from('kanban_column_operational_tags')
+        .delete()
+        .eq('column_id', columnId)
+
+      if (deleteError) throw deleteError
+
+      if (tagIds.length === 0) return 0
+
+      const { error: insertError } = await supabase
+        .from('kanban_column_operational_tags')
+        .insert(tagIds.map((tagId) => ({ tenant_id: tenantId, column_id: columnId, tag_id: tagId })))
+
+      if (insertError) throw insertError
+      return tagIds.length
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: kanbanKeys.board(boardKey) })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
 export function useUpdateKanbanColumn(boardKey: string) {
   const queryClient = useQueryClient()
 
@@ -157,8 +368,6 @@ export function useUpdateKanbanColumn(boardKey: string) {
       color?: string
       is_active?: boolean
       progress_percent?: number | null
-      allows_in_review?: boolean
-      allows_awaiting_client?: boolean
     }) => {
       const { data, error } = await supabase
         .from('kanban_columns')
@@ -212,8 +421,6 @@ export function useCreateKanbanColumn() {
       label: string
       color: string
       progressPercent: number | null
-      allowsInReview: boolean
-      allowsAwaitingClient: boolean
       lastOrder: number
     }) => {
       const label = input.label.trim()
@@ -233,8 +440,6 @@ export function useCreateKanbanColumn() {
           display_order: input.lastOrder + 1,
           progress_percent: input.progressPercent,
           is_active: true,
-          allows_in_review: input.allowsInReview,
-          allows_awaiting_client: input.allowsAwaitingClient,
         })
         .select('id')
         .single()

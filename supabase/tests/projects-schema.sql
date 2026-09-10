@@ -611,14 +611,19 @@ select pg_temp.chk('10.3', 'CONTROLE: tarefa SEM tag entra (nulo e o caso normal
   values (%L, 'Tarefa sem status operacional', 'briefing')
 $q$, (select tenant_a from ids)));
 
-select pg_temp.chk('10.4', 'valor inventado fora do enum e recusado', 'ERR:22P02', format($q$
+-- O QUE MUDOU NA 0097: operational_tag deixou de ser enum e virou texto com
+-- chave estrangeira para operational_tags. A recusa continua de pe nos dois
+-- casos abaixo, mas quem recusa agora e a FK (23503) e nao o tipo (22P02) - e a
+-- FK recusa MAIS: o enum aceitaria o valor em qualquer escritorio, e a chave
+-- estrangeira so aceita status cadastrado NESTE.
+select pg_temp.chk('10.4', 'valor inventado fora do cadastro e recusado', 'ERR:23503', format($q$
   insert into public.tasks (tenant_id, title, operational_tag)
   values (%L, 'Tarefa pausada', 'pausada')
 $q$, (select tenant_a from ids)));
 
 -- O rotulo EXATO que o CSV do base44 traz em tag_operacional. Ele nao entra: o
 -- de/para acontece na importacao e na UI, e o banco guarda so a chave.
-select pg_temp.chk('10.5', 'o rotulo em portugues do base44 e recusado', 'ERR:22P02', format($q$
+select pg_temp.chk('10.5', 'o rotulo em portugues do base44 e recusado', 'ERR:23503', format($q$
   insert into public.tasks (tenant_id, title, operational_tag)
   values (%L, 'Revisao do layout', 'Em Revisão')
 $q$, (select tenant_a from ids)));

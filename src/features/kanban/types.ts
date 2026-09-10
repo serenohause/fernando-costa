@@ -3,7 +3,18 @@ import type { Database } from '@/lib/database.types'
 export type KanbanBoardRow = Database['public']['Tables']['kanban_boards']['Row']
 export type KanbanColumnRow = Database['public']['Tables']['kanban_columns']['Row']
 
-export type KanbanBoard = KanbanBoardRow & { columns: KanbanColumnRow[] }
+export type OperationalTagRow = Database['public']['Tables']['operational_tags']['Row']
+
+/*
+  A coluna do quadro carrega as CHAVES dos status que ela oferece — vindas da
+  tabela de ligação `kanban_column_operational_tags` (migration 0097). Eram dois
+  booleanos até a 0096; deixaram de servir quando o status virou cadastro, porque
+  booleano que carrega o NOME de um valor não sobrevive a uma lista que o
+  escritório cria.
+*/
+export type KanbanColumnWithTags = KanbanColumnRow & { tagKeys: string[] }
+
+export type KanbanBoard = KanbanBoardRow & { columns: KanbanColumnWithTags[] }
 
 /*
   A COR DA COLUNA É UM NOME NO BANCO E UMA CLASSE AQUI — e a separação não é
@@ -89,4 +100,86 @@ export function columnHeaderClass(color: string): string {
 
 export function columnSwatchClass(color: string): string {
   return (COLUMN_COLORS[color as ColumnColor] ?? COLUMN_COLORS.muted).swatch
+}
+
+/*
+  A COR DO STATUS OPERACIONAL, pelos mesmos motivos de `COLUMN_COLORS` — e com
+  uma diferença que importa: aqui a cor pinta TEXTO e BORDA, não só o fundo. Um
+  crachá precisa de contraste com o que está escrito dentro dele, então cada cor
+  traz o conjunto inteiro em vez de uma classe só.
+
+  As duas primeiras são exatamente as que estavam cravadas em
+  `OPERATIONAL_TAG_STYLES` (TaskKanban.tsx): âmbar para "Em Revisão", ciano para
+  "Aguardando Cliente". O resto da paleta existe para o status que o escritório
+  criar ter escolha real.
+
+  O PONTO do menu não ganha variante escura: `bg-amber-400` é cor cheia, não
+  fundo de contraste, e se lê igual nos dois temas.
+*/
+export const TAG_COLORS = {
+  slate: {
+    label: 'Cinza',
+    badge:
+      'bg-slate-50 dark:bg-slate-950/40 text-slate-700 dark:text-slate-400 border-slate-300 dark:border-slate-900',
+    dot: 'bg-slate-400',
+    menuActive: 'bg-slate-50 dark:bg-slate-950/40 font-medium',
+  },
+  amber: {
+    label: 'Âmbar',
+    badge:
+      'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-900',
+    dot: 'bg-amber-400',
+    menuActive: 'bg-amber-50 dark:bg-amber-950/40 font-medium',
+  },
+  cyan: {
+    label: 'Ciano',
+    badge:
+      'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400 border-cyan-300 dark:border-cyan-900',
+    dot: 'bg-cyan-400',
+    menuActive: 'bg-cyan-50 dark:bg-cyan-950/40 font-medium',
+  },
+  rose: {
+    label: 'Rosa',
+    badge:
+      'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-900',
+    dot: 'bg-rose-400',
+    menuActive: 'bg-rose-50 dark:bg-rose-950/40 font-medium',
+  },
+  violet: {
+    label: 'Violeta',
+    badge:
+      'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border-violet-300 dark:border-violet-900',
+    dot: 'bg-violet-400',
+    menuActive: 'bg-violet-50 dark:bg-violet-950/40 font-medium',
+  },
+  emerald: {
+    label: 'Verde',
+    badge:
+      'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-900',
+    dot: 'bg-emerald-400',
+    menuActive: 'bg-emerald-50 dark:bg-emerald-950/40 font-medium',
+  },
+  sky: {
+    label: 'Azul',
+    badge:
+      'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border-sky-300 dark:border-sky-900',
+    dot: 'bg-sky-400',
+    menuActive: 'bg-sky-50 dark:bg-sky-950/40 font-medium',
+  },
+  orange: {
+    label: 'Laranja',
+    badge:
+      'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-900',
+    dot: 'bg-orange-400',
+    menuActive: 'bg-orange-50 dark:bg-orange-950/40 font-medium',
+  },
+} as const
+
+export type TagColor = keyof typeof TAG_COLORS
+export const TAG_COLOR_VALUES = Object.keys(TAG_COLORS) as TagColor[]
+
+/* Cor desconhecida cai no neutro, e não em nada: o check do banco aceita
+   qualquer palavra minúscula, e um crachá sem classe ficaria invisível. */
+export function tagStyleOf(color: string) {
+  return TAG_COLORS[color as TagColor] ?? TAG_COLORS.slate
 }

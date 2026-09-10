@@ -141,6 +141,10 @@ const NAO_ALCANCAVEL = {
     'mesma razão: a chave da etapa nasce com o quadro e não é editável — Configurações renomeia o `label`, e é isso que separa "renomear a etapa" de "reescrever o que já foi gravado nas tarefas"',
   kanban_columns_board_phase_key:
     'duas colunas na mesma fase seria bug nosso, não gesto de quem usa: a tela não oferece escolher a fase de uma etapa, e nesta fatia nem sequer há policy de INSERT em kanban_columns',
+  operational_tags_key_format_check:
+    'a chave do status nasce derivada do nome (phaseKeyFrom) e nao e editavel: a tela oferece o rotulo, e e o rotulo que se renomeia',
+  operational_tags_color_format_check:
+    'a cor sai de uma paleta fechada na tela (TAG_COLORS), nunca digitada; o check existe para barrar classe do Tailwind vinda pela API, que nao entraria no CSS gerado e sumiria sem erro',
   kanban_boards_key_format_check:
     'a chave do quadro não é digitada em lugar nenhum — ver kanban_boards_tenant_id_key_key',
   kanban_columns_key_format_check:

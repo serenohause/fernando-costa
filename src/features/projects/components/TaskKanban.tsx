@@ -11,6 +11,7 @@ import {
   Clock,
   Hourglass,
   MoreVertical,
+  Tag,
   Pencil,
   RotateCcw,
   Trash2,
@@ -39,9 +40,9 @@ import { useMenuPermissions } from '@/features/auth/hooks'
 import { createPageUrl } from '@/lib/page-url'
 import type { Collaborator } from '@/features/team/types'
 import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
-import { useKanbanBoard } from '@/features/kanban/hooks'
+import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
 import { orderedPhaseKeys, phaseLabelIn } from '@/features/kanban/board'
-import { columnHeaderClass } from '@/features/kanban/types'
+import { columnHeaderClass, tagStyleOf } from '@/features/kanban/types'
 import type { DiaryProject } from '@/features/diary/types'
 import {
   COLLABORATOR_ROLE,
@@ -49,7 +50,6 @@ import {
   PROJECT_PHASE,
   TASK_PRIORITY,
   labelOf,
-  type OperationalTag,
   type PhaseKey,
   type ProjectPhase,
   type TaskPriority,
@@ -121,10 +121,9 @@ type Column = {
   id: PhaseKey
   label: string
   headerClass: string
-  /* Quais tags o menu do cartão oferece nesta etapa — configuração da etapa
-     desde a migration 0096, e não mais uma lista fixa em `flow.ts`. */
-  allows_in_review: boolean
-  allows_awaiting_client: boolean
+  /* As chaves dos status que o menu do cartão oferece nesta etapa — tabela de
+     ligação desde a migration 0097, e não mais lista fixa em `flow.ts`. */
+  tagKeys: string[]
 }
 
 /*
@@ -222,12 +221,13 @@ const DEFAULT_COLUMNS: Column[] = [
   id: column.id as PhaseKey,
   label: labelOf(PROJECT_PHASE, column.id as ProjectPhase),
   headerClass: columnHeaderClass(column.color),
-  /* O mesmo recorte que a 0096 semeia, para o quadro de emergência oferecer as
-     tags que o quadro de verdade oferece. */
-  allows_in_review: ['layout', 'renderings', 'legal_permit', 'construction_docs'].includes(
-    column.id,
-  ),
-  allows_awaiting_client: ['layout', 'renderings'].includes(column.id),
+  /* O mesmo recorte que a 0097 semeia, para o quadro de emergência oferecer os
+     status que o quadro de verdade oferece. */
+  tagKeys: ['layout', 'renderings'].includes(column.id)
+    ? ['in_review', 'awaiting_client']
+    : ['legal_permit', 'construction_docs'].includes(column.id)
+      ? ['in_review']
+      : [],
 }))
 
 /*
@@ -243,25 +243,21 @@ const DEFAULT_COLUMNS: Column[] = [
   O ponto do menu NÃO ganha variante: `bg-amber-400` e `bg-cyan-400` são cor
   cheia, não fundo de contraste, e se leem igual nos dois temas.
 */
-const OPERATIONAL_TAG_STYLES: Record<
-  OperationalTag,
-  { badge: string; dot: string; menuActive: string; icon: LucideIcon }
-> = {
-  in_review: {
-    badge:
-      'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-900 text-xs font-medium',
-    dot: 'bg-amber-400',
-    menuActive: 'bg-amber-50 dark:bg-amber-950/40 font-medium',
-    icon: RotateCcw,
-  },
-  awaiting_client: {
-    badge:
-      'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400 border-cyan-300 dark:border-cyan-900 text-xs font-medium',
-    dot: 'bg-cyan-400',
-    menuActive: 'bg-cyan-50 dark:bg-cyan-950/40 font-medium',
-    icon: Hourglass,
-  },
+/*
+  O ÍCONE DE CADA STATUS continua no código, e é a única parte dele que continua.
+  Nome e cor viraram cadastro na migration 0097; ícone não, porque escolher um
+  ícone numa lista de centenas é uma tela inteira, e o pedido foi nome e cor.
+
+  Os dois de fábrica mantêm os ícones da versão nova. O status que o escritório
+  criar recebe `Tag` — genérico de propósito: um ícone emprestado de outro status
+  diria uma coisa errada sobre ele.
+*/
+const TAG_ICONS: Record<string, LucideIcon> = {
+  in_review: RotateCcw,
+  awaiting_client: Hourglass,
 }
+
+const tagIconOf = (key: string): LucideIcon => TAG_ICONS[key] ?? Tag
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
   high: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900',
@@ -395,7 +391,7 @@ export default function TaskKanban({
   onChangeResponsible: (task: TaskRow, collaboratorId: string) => void
   /* `null` é "Sem status" — a ausência de tag é o caso normal (migration 0074),
      e não um terceiro valor. */
-  onSetOperationalTag: (task: TaskRow, tag: OperationalTag | null) => void
+  onSetOperationalTag: (task: TaskRow, tag: string | null) => void
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [blockAlert, setBlockAlert] = useState<BlockAlert | null>(null)
@@ -433,6 +429,19 @@ export default function TaskKanban({
     uma etapa fora do quadro pareceria retrocesso e a trava de checklist não
     valeria.
   */
+  /*
+    O CADASTRO DE STATUS (0097). Nome e cor do crachá saem daqui; o mapa embutido
+    de `enums.ts` é o degrau seguinte, e cobre o status que já foi apagado mas
+    continua marcado numa tarefa antiga.
+  */
+  const { data: operationalTags } = useOperationalTags()
+  const tagLabelOf = (key: string) =>
+    operationalTags?.find((tag) => tag.key === key)?.label ??
+    (OPERATIONAL_TAG as Record<string, string>)[key] ??
+    key
+  const tagColorOf = (key: string) =>
+    operationalTags?.find((tag) => tag.key === key)?.color ?? 'slate'
+
   const orderedKeys = orderedPhaseKeys(boardColumns)
   const phaseLabel = (phase: PhaseKey | null) => phaseLabelIn(boardColumns, phase)
 
@@ -443,8 +452,7 @@ export default function TaskKanban({
           id: column.key,
           label: column.label,
           headerClass: columnHeaderClass(column.color),
-          allows_in_review: column.allows_in_review,
-          allows_awaiting_client: column.allows_awaiting_client,
+          tagKeys: column.tagKeys,
         }))
     : DEFAULT_COLUMNS
 
@@ -595,9 +603,8 @@ export default function TaskKanban({
                                 só do cartão.
                               */
                               const activeTag = task.operational_tag
-                              const tagStyle = activeTag
-                                ? OPERATIONAL_TAG_STYLES[activeTag]
-                                : null
+                              const tagStyle = activeTag ? tagStyleOf(tagColorOf(activeTag)) : null
+                              const TagIcon = activeTag ? tagIconOf(activeTag) : null
                               const showDueDate = !activeTag
                               const showOverdueBorder = !activeTag && isOverdue(task)
                               const tagOptions = operationalTagOptions(column)
@@ -747,15 +754,15 @@ export default function TaskKanban({
                                                           }
                                                           className={
                                                             activeTag === tag
-                                                              ? OPERATIONAL_TAG_STYLES[tag]
+                                                              ? tagStyleOf(tagColorOf(tag))
                                                                   .menuActive
                                                               : ''
                                                           }
                                                         >
                                                           <span
-                                                            className={`w-2 h-2 rounded-full mr-2 inline-block ${OPERATIONAL_TAG_STYLES[tag].dot}`}
+                                                            className={`w-2 h-2 rounded-full mr-2 inline-block ${tagStyleOf(tagColorOf(tag)).dot}`}
                                                           />
-                                                          {labelOf(OPERATIONAL_TAG, tag)}
+                                                          {tagLabelOf(tag)}
                                                         </DropdownMenuItem>
                                                       ))}
                                                     </DropdownMenuSubContent>
@@ -860,10 +867,13 @@ export default function TaskKanban({
                                         </Badge>
                                         {/* O crachá do status operacional, depois
                                             da etapa, como na versão nova. */}
-                                        {activeTag && tagStyle && (
-                                          <Badge variant="outline" className={tagStyle.badge}>
-                                            <tagStyle.icon className="w-3 h-3 mr-1" />
-                                            {labelOf(OPERATIONAL_TAG, activeTag)}
+                                        {activeTag && tagStyle && TagIcon && (
+                                          <Badge
+                                            variant="outline"
+                                            className={`${tagStyle.badge} text-xs font-medium`}
+                                          >
+                                            <TagIcon className="w-3 h-3 mr-1" />
+                                            {tagLabelOf(activeTag)}
                                           </Badge>
                                         )}
                                       </div>

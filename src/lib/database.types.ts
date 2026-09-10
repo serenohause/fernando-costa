@@ -1665,10 +1665,51 @@ export type Database = {
           },
         ]
       }
+      kanban_column_operational_tags: {
+        Row: {
+          column_id: string
+          created_at: string
+          tag_id: string
+          tenant_id: string
+        }
+        Insert: {
+          column_id: string
+          created_at?: string
+          tag_id: string
+          tenant_id: string
+        }
+        Update: {
+          column_id?: string
+          created_at?: string
+          tag_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_column_operational_tags_column_fkey"
+            columns: ["column_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_operational_tags_tag_fkey"
+            columns: ["tag_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "operational_tags"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_operational_tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kanban_columns: {
         Row: {
-          allows_awaiting_client: boolean
-          allows_in_review: boolean
           board_id: string
           color: string
           created_at: string
@@ -1682,8 +1723,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          allows_awaiting_client?: boolean
-          allows_in_review?: boolean
           board_id: string
           color?: string
           created_at?: string
@@ -1697,8 +1736,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          allows_awaiting_client?: boolean
-          allows_in_review?: boolean
           board_id?: string
           color?: string
           created_at?: string
@@ -2142,6 +2179,50 @@ export type Database = {
           },
         ]
       }
+      operational_tags: {
+        Row: {
+          color: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          display_order: number
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operational_tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_checklist_items: {
         Row: {
           completed_at: string | null
@@ -2216,7 +2297,7 @@ export type Database = {
           legacy_id: string | null
           occurrence_date: string
           occurrence_time: string | null
-          operational_tag: Database["public"]["Enums"]["operational_tag"] | null
+          operational_tag: string | null
           project_id: string
           responsible_id: string | null
           status: Database["public"]["Enums"]["diary_entry_status"]
@@ -2240,9 +2321,7 @@ export type Database = {
           legacy_id?: string | null
           occurrence_date: string
           occurrence_time?: string | null
-          operational_tag?:
-            | Database["public"]["Enums"]["operational_tag"]
-            | null
+          operational_tag?: string | null
           project_id: string
           responsible_id?: string | null
           status?: Database["public"]["Enums"]["diary_entry_status"]
@@ -2268,9 +2347,7 @@ export type Database = {
           legacy_id?: string | null
           occurrence_date?: string
           occurrence_time?: string | null
-          operational_tag?:
-            | Database["public"]["Enums"]["operational_tag"]
-            | null
+          operational_tag?: string | null
           project_id?: string
           responsible_id?: string | null
           status?: Database["public"]["Enums"]["diary_entry_status"]
@@ -3237,7 +3314,7 @@ export type Database = {
           estimated_hours: number | null
           id: string
           legacy_id: string | null
-          operational_tag: Database["public"]["Enums"]["operational_tag"] | null
+          operational_tag: string | null
           phase: string
           priority: Database["public"]["Enums"]["priority_level"]
           project_id: string | null
@@ -3258,9 +3335,7 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           legacy_id?: string | null
-          operational_tag?:
-            | Database["public"]["Enums"]["operational_tag"]
-            | null
+          operational_tag?: string | null
           phase?: string
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null
@@ -3281,9 +3356,7 @@ export type Database = {
           estimated_hours?: number | null
           id?: string
           legacy_id?: string | null
-          operational_tag?:
-            | Database["public"]["Enums"]["operational_tag"]
-            | null
+          operational_tag?: string | null
           phase?: string
           priority?: Database["public"]["Enums"]["priority_level"]
           project_id?: string | null
@@ -3297,6 +3370,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_operational_tag_fkey"
+            columns: ["tenant_id", "operational_tag"]
+            isOneToOne: false
+            referencedRelation: "operational_tags"
+            referencedColumns: ["tenant_id", "key"]
+          },
           {
             foreignKeyName: "tasks_phase_fkey"
             columns: ["tenant_id", "phase"]
@@ -3889,7 +3969,7 @@ export type Database = {
           p_from_phase?: string
           p_occurrence_date?: string
           p_occurrence_time?: string
-          p_operational_tag?: Database["public"]["Enums"]["operational_tag"]
+          p_operational_tag?: string
           p_project_id: string
           p_responsible_id?: string
           p_system_event: Database["public"]["Enums"]["diary_system_event"]

@@ -14,7 +14,6 @@ import {
   SITE_VISIT_STATUS,
   SITE_VISIT_TYPE,
   type DiaryFileKind,
-  type OperationalTag,
   type PhaseKey,
 } from '@/lib/enums'
 import {
@@ -504,7 +503,7 @@ export type DiaryEventFact =
         | 'report_generated'
     }
   | { systemEvent: 'phase_change'; fromPhase: PhaseKey | null; toPhase: PhaseKey }
-  | { systemEvent: 'tag_on' | 'tag_off'; operationalTag: OperationalTag }
+  | { systemEvent: 'tag_on' | 'tag_off'; operationalTag: string }
 
 export async function recordDiaryEvent(
   params: {

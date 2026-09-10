@@ -14,15 +14,18 @@ import { Label } from '@/components/ui/label'
 import {
   COLUMN_COLORS,
   COLUMN_COLOR_VALUES,
-  type KanbanColumnRow,
+  tagStyleOf,
+  type KanbanColumnWithTags,
+  type OperationalTagRow,
 } from '@/features/kanban/types'
 
 export type KanbanColumnFormValues = {
   label: string
   color: string
   progress_percent: number | null
-  allows_in_review: boolean
-  allows_awaiting_client: boolean
+  /* Os IDs dos status que esta etapa oferece. Ids e não chaves porque é o que a
+     tabela de ligação guarda (migration 0097). */
+  tagIds: string[]
 }
 
 /*
@@ -40,20 +43,21 @@ export default function KanbanColumnDialog({
   open,
   onOpenChange,
   editing,
+  tags,
   onSubmit,
   isPending,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  editing: KanbanColumnRow | null
+  editing: KanbanColumnWithTags | null
+  tags: OperationalTagRow[]
   onSubmit: (values: KanbanColumnFormValues) => void
   isPending: boolean
 }) {
   const [label, setLabel] = useState('')
   const [color, setColor] = useState<string>('slate')
   const [percent, setPercent] = useState('')
-  const [allowsInReview, setAllowsInReview] = useState(false)
-  const [allowsAwaitingClient, setAllowsAwaitingClient] = useState(false)
+  const [tagIds, setTagIds] = useState<string[]>([])
 
   useEffect(() => {
     if (!open) return
@@ -61,8 +65,7 @@ export default function KanbanColumnDialog({
       setLabel(editing.label)
       setColor(editing.color)
       setPercent(editing.progress_percent === null ? '' : String(editing.progress_percent))
-      setAllowsInReview(editing.allows_in_review)
-      setAllowsAwaitingClient(editing.allows_awaiting_client)
+      setTagIds(tags.filter((tag) => editing.tagKeys.includes(tag.key)).map((tag) => tag.id))
       return
     }
     /* Etapa nova entra em branco e sem percentual — vazio é "fora da conta", que
@@ -73,9 +76,8 @@ export default function KanbanColumnDialog({
     /* Etapa nova nasce SEM status operacional, que é o que dez das quinze etapas
        padrão fazem. Ligar por padrão poria um submenu no cartão que ninguém
        pediu. */
-    setAllowsInReview(false)
-    setAllowsAwaitingClient(false)
-  }, [open, editing])
+    setTagIds([])
+  }, [open, editing, tags])
 
   const percentTrimmed = percent.trim()
   const percentNumber = percentTrimmed === '' ? null : Number(percentTrimmed)
@@ -90,8 +92,7 @@ export default function KanbanColumnDialog({
       label: label.trim(),
       color,
       progress_percent: percentNumber,
-      allows_in_review: allowsInReview,
-      allows_awaiting_client: allowsAwaitingClient,
+      tagIds,
     })
   }
 
@@ -165,42 +166,55 @@ export default function KanbanColumnDialog({
           </div>
 
           {/*
-            O STATUS OPERACIONAL É POR ETAPA, e as duas tags são marcas
-            separadas porque o recorte que existe hoje tem quatro estados — um
-            deles é "só Em Revisão", em Projeto Legal e Projeto Executivo. Um
-            interruptor único não saberia representá-lo.
+            OS STATUS QUE ESTA ETAPA OFERECE. A lista vem do cadastro
+            (migration 0097), e não de dois checkboxes fixos: o escritório cria
+            os status que quiser, com nome e cor próprios.
 
-            É OFERTA DE MENU, e não trava: a tarefa pode ter qualquer tag em
+            É OFERTA DE MENU, e não trava: a tarefa pode ter qualquer status em
             qualquer etapa (migration 0074). Desmarcar aqui tira o submenu do
-            cartão; não apaga tag nenhuma que já esteja gravada.
+            cartão; não apaga marca nenhuma que já esteja gravada.
           */}
           <div className="space-y-3">
             <Label>Status operacional</Label>
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="kanban-column-in-review"
-                checked={allowsInReview}
-                onCheckedChange={(checked) => setAllowsInReview(checked === true)}
-                className="mt-0.5"
-              />
-              <Label htmlFor="kanban-column-in-review" className="font-normal">
-                Oferecer “Em Revisão”
-              </Label>
-            </div>
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="kanban-column-awaiting-client"
-                checked={allowsAwaitingClient}
-                onCheckedChange={(checked) => setAllowsAwaitingClient(checked === true)}
-                className="mt-0.5"
-              />
-              <Label htmlFor="kanban-column-awaiting-client" className="font-normal">
-                Oferecer “Aguardando Cliente”
-              </Label>
-            </div>
+
+            {tags.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Nenhum status cadastrado. Crie um em Configurações → Status operacional.
+              </p>
+            ) : (
+              tags.map((tag) => {
+                const marcado = tagIds.includes(tag.id)
+                return (
+                  <div key={tag.id} className="flex items-center gap-3">
+                    <Checkbox
+                      id={`kanban-column-tag-${tag.id}`}
+                      checked={marcado}
+                      onCheckedChange={(checked) =>
+                        setTagIds((atual) =>
+                          checked === true
+                            ? [...atual, tag.id]
+                            : atual.filter((id) => id !== tag.id),
+                        )
+                      }
+                    />
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${tagStyleOf(tag.color).dot}`}
+                      aria-hidden
+                    />
+                    <Label htmlFor={`kanban-column-tag-${tag.id}`} className="font-normal">
+                      {tag.label}
+                      {!tag.is_active && (
+                        <span className="text-muted-foreground"> (desativado)</span>
+                      )}
+                    </Label>
+                  </div>
+                )
+              })
+            )}
+
             <p className="text-xs text-muted-foreground">
-              A tag pausa o prazo do cartão: some a data de vencimento e a borda de atraso enquanto
-              ela estiver marcada. Sem nenhuma das duas, o cartão desta etapa não mostra o submenu.
+              O status pausa o prazo do cartão: some a data de vencimento e a borda de atraso
+              enquanto ele estiver marcado. Sem nenhum, o cartão desta etapa não mostra o submenu.
             </p>
           </div>
 

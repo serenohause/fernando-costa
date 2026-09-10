@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { KanbanColumnRow } from '@/features/kanban/types'
+import type { KanbanColumnWithTags } from '@/features/kanban/types'
 
 /*
   EXCLUIR ETAPA PERGUNTA PARA ONDE VAI O TRABALHO — decisão do usuário, e é ela
@@ -43,8 +43,8 @@ export default function KanbanDeleteDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  column: KanbanColumnRow | null
-  columns: KanbanColumnRow[]
+  column: KanbanColumnWithTags | null
+  columns: KanbanColumnWithTags[]
   openTaskCount: number
   onConfirm: (moveToKey: string | null) => void
   isPending: boolean
