@@ -159,6 +159,18 @@
   */
   --text-soft: 215.3 19.3% 34.5%; /* slate-600/700 — texto de apoio com peso */
   --text-faint: 215 20.2% 65.1%; /* slate-400 — ícone, placeholder, terciário */
+
+  /*
+    O PAINEL DA TELA DE ENTRADA. Carvão quase neutro, tirado dos próprios tons
+    escuros deste tema (a família 222 com saturação baixa do `.dark`), e não o
+    slate-900 de --primary: aquele é azul-marinho, e o painel pede uma
+    superfície calma, que não dispute com a marca no centro dele.
+
+    Token próprio, e não --primary, também por outro motivo: no escuro
+    --primary vira quase branco, e o painel ficaria branco.
+  */
+  --auth-panel: 222 10% 14%;
+  --auth-panel-foreground: 210 14% 96%;
 }
 
 .dark {
@@ -249,9 +261,18 @@
      escuro. A distância entre os três é mantida. */
   --text-soft: 215 11% 81%;
   --text-faint: 215 8% 55%;
+
+  /* Acima de tudo que o tema escuro tem (cartão 8%, elevado 12%): a página da
+     tela de entrada é um degradê que chega a 13% justamente no canto vizinho ao
+     painel, e com 11% os dois se fundiam — o painel precisa ler como superfície
+     levantada, e não como continuação do fundo. */
+  --auth-panel: 222 9% 16%;
+  --auth-panel-foreground: 210 14% 96%;
 }
 
 @theme inline {
+  --color-auth-panel: hsl(var(--auth-panel));
+  --color-auth-panel-foreground: hsl(var(--auth-panel-foreground));
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
