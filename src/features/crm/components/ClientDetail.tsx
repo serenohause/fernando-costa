@@ -21,6 +21,7 @@ import ClientForm, { toFormValues } from './ClientForm'
 import ClientHistory from './ClientHistory'
 import { DuplicateClientError, describeDatabaseError, useClient, useUpdateClient } from '../hooks'
 import type { Client, ClientInput } from '../types'
+import { formatAddress } from '../address'
 
 /*
   Porta de projeto-original/src/pages/ClientDetail.jsx. Mesma leitura por
@@ -118,32 +119,31 @@ export default function ClientDetail() {
     )
   }
 
-  /* Mesma composição do original: logradouro e número juntos quando os dois
-     existem, e o resto na ordem bairro, cidade, estado, CEP, país. */
-  const location = [
-    client.address_street && client.address_number
-      ? `${client.address_street}, ${client.address_number}`
-      : client.address_street,
-    client.address_district,
-    client.address_city,
-    client.address_state,
-    client.address_zipcode,
-    client.address_country,
-  ]
-    .filter(Boolean)
-    .join(', ')
+  /*
+    A composição do original (logradouro e número juntos, depois bairro, cidade,
+    estado, CEP e país), agora COM o complemento logo depois do número — ver
+    src/features/crm/address.ts.
+  */
+  const location = formatAddress({
+    street: client.address_street,
+    number: client.address_number,
+    complement: client.address_complement,
+    district: client.address_district,
+    city: client.address_city,
+    state: client.address_state,
+    zipcode: client.address_zipcode,
+    country: client.address_country,
+  })
 
-  const siteLocation = [
-    client.site_street && client.site_number
-      ? `${client.site_street}, ${client.site_number}`
-      : client.site_street,
-    client.site_district,
-    client.site_city,
-    client.site_state,
-    client.site_zipcode,
-  ]
-    .filter(Boolean)
-    .join(', ')
+  const siteLocation = formatAddress({
+    street: client.site_street,
+    number: client.site_number,
+    complement: client.site_complement,
+    district: client.site_district,
+    city: client.site_city,
+    state: client.site_state,
+    zipcode: client.site_zipcode,
+  })
 
   return (
     <div className="space-y-6">
@@ -296,23 +296,31 @@ export default function ClientDetail() {
             </div>
           )}
 
-          {/* Localização */}
-          {(client.address_city || client.address_state || client.address_country) && (
+          {/*
+            APARECE QUANDO HÁ QUALQUER PARTE DO ENDEREÇO, e não só com cidade ou
+            estado. A condição antiga escondia o bloco inteiro do cliente que
+            tinha rua, número e complemento mas não tinha cidade — o endereço
+            existia no cadastro e sumia da ficha.
+          */}
+          {location && (
             <div className="col-span-full">
               <p className="text-xs text-muted-foreground mb-1">Localização</p>
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-faint" />
+              {/* `items-start` e o ícone descido meio ponto: com o complemento
+                  a linha quebra em duas, e o ícone centralizado ficaria no meio
+                  do texto em vez de ao lado da primeira linha. */}
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-faint mt-0.5 shrink-0" />
                 <span className="text-sm text-foreground">{location}</span>
               </div>
             </div>
           )}
 
-          {/* Endereço da Obra */}
-          {(client.site_city || client.site_state) && (
+          {/* Endereço da Obra — mesma condição, pelo mesmo motivo. */}
+          {siteLocation && (
             <div className="col-span-full">
               <p className="text-xs text-muted-foreground mb-1">Endereço da Obra</p>
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-faint" />
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-faint mt-0.5 shrink-0" />
                 <span className="text-sm text-foreground">{siteLocation}</span>
               </div>
             </div>
