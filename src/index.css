@@ -159,6 +159,19 @@
   */
   --text-soft: 215.3 19.3% 34.5%; /* slate-600/700 — texto de apoio com peso */
   --text-faint: 215 20.2% 65.1%; /* slate-400 — ícone, placeholder, terciário */
+
+  /*
+    O PAINEL DA TELA DE ENTRADA, e por que ele não usa --primary.
+
+    O painel é a superfície "de imagem" da tela de login: escuro, com a textura
+    de prancheta desenhada por cima. No claro ele coincide com --primary
+    (slate-900) — e é por isso que o botão "Entrar" conversa com ele. Mas no
+    escuro --primary vira quase branco (é o botão invertido do tema), e o painel
+    ficaria BRANCO se usasse o mesmo token. Então ele ganha o seu, escuro nos
+    dois temas.
+  */
+  --auth-panel: 222.2 47.4% 11.2%;
+  --auth-panel-foreground: 210 40% 98%;
 }
 
 .dark {
@@ -249,9 +262,17 @@
      escuro. A distância entre os três é mantida. */
   --text-soft: 215 11% 81%;
   --text-faint: 215 8% 55%;
+
+  /* Um degrau acima do cartão (8%) e com um fio de azul: no escuro o painel
+     precisa se destacar de uma página que já é escura, senão vira um buraco
+     no layout em vez de uma superfície. */
+  --auth-panel: 222 22% 11%;
+  --auth-panel-foreground: 210 40% 98%;
 }
 
 @theme inline {
+  --color-auth-panel: hsl(var(--auth-panel));
+  --color-auth-panel-foreground: hsl(var(--auth-panel-foreground));
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
