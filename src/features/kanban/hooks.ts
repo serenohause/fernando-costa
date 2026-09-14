@@ -6,6 +6,7 @@ import {
   WriteError,
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
+import { changedOrder, withRenumberedOrder } from '@/lib/reorder'
 import { phaseKeyFrom, phaseLabelIn } from './board'
 import type { KanbanBoard, KanbanColumnRow, OperationalTagRow } from './types'
 
@@ -550,27 +551,27 @@ export function useRenameKanbanBoard(boardKey: string) {
 }
 
 /*
-  REORDENAR É UMA ESCRITA POR LINHA, e o motivo de não ser uma só está no banco:
-  não há policy de INSERT em `kanban_columns` nesta fatia, então `upsert` — que
-  o PostgREST manda como INSERT ... ON CONFLICT — seria recusado com 42501 mesmo
-  para quem tem permissão de sobra. São quinze linhas, e só as que realmente
-  mudaram de posição são enviadas.
+  REORDENAR AS ETAPAS DO QUADRO — por arrastar e soltar desde que as setas saíram
+  de Configurações.
 
-  A ORDEM É REESCRITA INTEIRA (1..n) em vez de trocar duas posições: a lista
-  chega já na ordem desejada, e renumerar tudo impede que empates e buracos
-  deixados por edições anteriores decidam o desenho do quadro.
+  UMA ESCRITA POR LINHA, e o motivo de não ser uma só está no banco: `upsert` o
+  PostgREST manda como INSERT ... ON CONFLICT, e isso passaria pela policy de
+  INSERT em vez da de UPDATE. Só as linhas que mudaram de posição são enviadas
+  (`changedOrder`), com a ordem reescrita inteira de 1 a n.
+
+  OTIMISTA: o quadro inteiro (Configurações e o próprio Fluxo do Projeto, que lê
+  a mesma chave) mostra a ordem nova ao soltar, e volta se o banco recusar.
+
+  A primeira linha recusada interrompe o resto — deixar seguir faria as demais
+  escritas falharem também, e a tela diria "reordenado" sobre um quadro que não
+  mudou.
 */
 export function useReorderKanbanColumns(boardKey: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (ordered: KanbanColumnRow[]) => {
-      const mudaram = ordered
-        .map((column, index) => ({ id: column.id, display_order: index + 1 }))
-        .filter((novo, index) => ordered[index].display_order !== novo.display_order)
-
-      if (mudaram.length === 0) return 0
-
+      const mudaram = changedOrder(ordered)
       for (const { id, display_order } of mudaram) {
         const { data, error } = await supabase
           .from('kanban_columns')
@@ -579,22 +580,81 @@ export function useReorderKanbanColumns(boardKey: string) {
           .select('id')
 
         if (error) throw error
-        /*
-          A primeira linha recusada interrompe o resto, e a ordem fica pela
-          metade. É pior deixar seguir: as demais escritas também falhariam, e a
-          tela diria "reordenado" sobre um quadro que não mudou. Quem chega aqui
-          sem permissão é barrado na primeira, antes de qualquer estrago.
-        */
         assertRowAffected(
           data,
           'A ordem não foi salva. É preciso permissão de edição em Configurações.',
         )
       }
-
       return mudaram.length
     },
-    onSuccess: () => {
+    onMutate: async (ordered) => {
+      const chave = kanbanKeys.board(boardKey)
+      await queryClient.cancelQueries({ queryKey: chave })
+      const previous = queryClient.getQueryData<KanbanBoard | null>(chave)
+      if (previous) {
+        const porId = new Map(ordered.map((column, index) => [column.id, index + 1]))
+        const next: KanbanBoard = {
+          ...previous,
+          columns: previous.columns
+            .map((column) => ({ ...column, display_order: porId.get(column.id) ?? column.display_order }))
+            .sort((a, b) => a.display_order - b.display_order),
+        }
+        queryClient.setQueryData(chave, next)
+      }
+      return { previous }
+    },
+    onError: (_error, _ordered, resultado) => {
+      if (resultado?.previous) {
+        queryClient.setQueryData(kanbanKeys.board(boardKey), resultado.previous)
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: kanbanKeys.board(boardKey) })
+    },
+  })
+}
+
+/*
+  REORDENAR OS STATUS OPERACIONAIS por arrastar e soltar. A ordem é a do submenu
+  "Status operacional" do cartão e a da lista de status ao editar uma etapa.
+
+  Mesmo desenho das etapas: renumera, grava só o que mudou, uma linha por vez, e
+  mostra a ordem nova na hora.
+*/
+export function useReorderOperationalTags() {
+  const queryClient = useQueryClient()
+  const chave = [...kanbanKeys.all, 'operational-tags'] as const
+
+  return useMutation({
+    mutationFn: async (ordered: OperationalTagRow[]) => {
+      const mudaram = changedOrder(ordered)
+      for (const { id, display_order } of mudaram) {
+        const { data, error } = await supabase
+          .from('operational_tags')
+          .update({ display_order })
+          .eq('id', id)
+          .select('id')
+
+        if (error) throw error
+        assertRowAffected(
+          data,
+          'A ordem não foi salva. É preciso permissão de edição em Configurações.',
+        )
+      }
+      return mudaram.length
+    },
+    onMutate: async (ordered) => {
+      await queryClient.cancelQueries({ queryKey: chave })
+      const previous = queryClient.getQueryData<OperationalTagRow[]>(chave)
+      queryClient.setQueryData(chave, withRenumberedOrder(ordered))
+      return { previous }
+    },
+    onError: (_error, _ordered, resultado) => {
+      if (resultado?.previous) queryClient.setQueryData(chave, resultado.previous)
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: kanbanKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 }

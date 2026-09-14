@@ -7,6 +7,7 @@ import {
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
 import { useCurrentCollaborator } from '@/features/auth/hooks'
+import { changedOrder, withRenumberedOrder } from '@/lib/reorder'
 import type { ServiceContractGroup, ServiceTypeRow } from './types'
 
 export const settingsKeys = {
@@ -173,6 +174,60 @@ export function useUpdateServiceType() {
       void queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       /* O Pipeline desenha os checkboxes com esta lista: renomear um tipo aqui
          precisa aparecer lá sem recarregar a página. */
+      void queryClient.invalidateQueries({ queryKey: ['pipeline'] })
+    },
+  })
+}
+
+/*
+  REORDENAR OS TIPOS DE SERVIÇO por arrastar e soltar — a ordem é a dos
+  checkboxes do formulário de negociação no Pipeline.
+
+  Substitui a troca com o vizinho das setas: renumera a lista inteira e grava só
+  as linhas que mudaram (`changedOrder`).
+
+  OTIMISTA: a lista nova aparece ao soltar e volta à anterior se o banco recusar.
+  Sem isso o item voltaria ao lugar antigo durante a ida ao banco e pularia de
+  novo na volta — num gesto de arrastar, parece que não funcionou.
+
+  Uma escrita por linha, e a primeira recusa interrompe as demais: quem não tem
+  permissão é barrado na primeira, antes de sobrar ordem pela metade.
+*/
+export function useReorderServiceTypes() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (ordered: ServiceTypeRow[]) => {
+      const mudaram = changedOrder(ordered)
+      for (const { id, display_order } of mudaram) {
+        const { data, error } = await supabase
+          .from('service_types')
+          .update({ display_order })
+          .eq('id', id)
+          .select('id')
+
+        if (error) throw error
+        assertRowAffected(
+          data,
+          'A ordem não foi salva. É preciso permissão de edição em Configurações.',
+        )
+      }
+      return mudaram.length
+    },
+    onMutate: async (ordered) => {
+      await queryClient.cancelQueries({ queryKey: settingsKeys.serviceTypes() })
+      const previous = queryClient.getQueryData<ServiceTypeRow[]>(settingsKeys.serviceTypes())
+      queryClient.setQueryData(settingsKeys.serviceTypes(), withRenumberedOrder(ordered))
+      return { previous }
+    },
+    onError: (_error, _ordered, resultado) => {
+      if (resultado?.previous) {
+        queryClient.setQueryData(settingsKeys.serviceTypes(), resultado.previous)
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: settingsKeys.all })
+      /* O Pipeline desenha os checkboxes nesta ordem. */
       void queryClient.invalidateQueries({ queryKey: ['pipeline'] })
     },
   })

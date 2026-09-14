@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Check, Columns3, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Check, Columns3, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import ErrorState from '@/components/shared/ErrorState'
+import SortableList from '@/components/shared/SortableList'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -141,15 +142,8 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   }
 
   /* A lista chega na ordem desejada e o hook renumera de 1 a n. */
-  const handleMove = (index: number, direction: -1 | 1) => {
-    const destino = index + direction
-    if (destino < 0 || destino >= columns.length) return
-
-    const reordenadas = [...columns]
-    const [movida] = reordenadas.splice(index, 1)
-    reordenadas.splice(destino, 0, movida)
-
-    reorder.mutate(reordenadas, {
+  const handleReorder = (ordered: KanbanColumnWithTags[]) => {
+    reorder.mutate(ordered, {
       onError: (error) => toast.error('Erro ao reordenar: ' + describeDatabaseError(error)),
     })
   }
@@ -300,11 +294,17 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
         )}
       </div>
 
-      <div className="bg-card rounded-xl border border-border divide-y divide-border">
-        {columns.map((column, index) => {
+      <SortableList
+        items={columns}
+        disabled={!canEdit}
+        onReorder={handleReorder}
+        className="bg-card rounded-xl border border-border divide-y divide-border"
+        handleLabel={(column) => `Arrastar ${column.label} para reordenar`}
+        renderItem={(column, handle) => {
           const abertas = counts[column.key] ?? 0
           return (
-            <div key={column.id} className="flex items-center gap-3 px-4 py-3">
+            <div className="flex items-center gap-3 px-4 py-3">
+              {handle}
               <span
                 className={`w-3 h-3 rounded-full shrink-0 ${columnSwatchClass(column.color)}`}
                 aria-hidden
@@ -354,24 +354,6 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={`Subir ${column.label}`}
-                    disabled={index === 0 || reorder.isPending}
-                    onClick={() => handleMove(index, -1)}
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Descer ${column.label}`}
-                    disabled={index === columns.length - 1 || reorder.isPending}
-                    onClick={() => handleMove(index, 1)}
-                  >
-                    <ArrowDown className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
                     aria-label={`Editar ${column.label}`}
                     onClick={() => {
                       setEditing(column)
@@ -413,8 +395,8 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
               </div>
             </div>
           )
-        })}
-      </div>
+        }}
+      />
 
       <p className="text-xs text-faint mt-3">
         Ocultar tira a etapa do quadro sem perder nada e pode ser desfeito. Excluir é definitivo, e

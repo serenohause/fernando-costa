@@ -45,6 +45,7 @@
     "test:errors": "node supabase/tests/error-messages.mjs",
     "test:db-errors": "node tests/db-errors.mjs",
     "test:client-address": "node tests/client-address.mjs",
+    "test:reorder": "node tests/reorder.mjs",
     "test:masks": "node tests/masks.mjs",
     "test:notify": "node tests/query-notify.mjs",
     "test:phone-dedup": "supabase/tests/run-sql.sh supabase/tests/client-phone-dedup.sql",
