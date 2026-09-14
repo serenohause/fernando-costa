@@ -3255,9 +3255,11 @@ export type Database = {
       }
       task_checklist_items: {
         Row: {
+          assignee_id: string | null
           completed_at: string | null
           created_at: string
           display_order: number | null
+          due_date: string | null
           id: string
           is_completed: boolean
           is_required: boolean
@@ -3268,9 +3270,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
           display_order?: number | null
+          due_date?: string | null
           id?: string
           is_completed?: boolean
           is_required?: boolean
@@ -3281,9 +3285,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
           display_order?: number | null
+          due_date?: string | null
           id?: string
           is_completed?: boolean
           is_required?: boolean
@@ -3294,6 +3300,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_checklist_items_assignee_id_fkey"
+            columns: ["assignee_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
           {
             foreignKeyName: "task_checklist_items_task_id_fkey"
             columns: ["task_id", "tenant_id"]

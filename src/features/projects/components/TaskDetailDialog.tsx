@@ -8,12 +8,14 @@ import {
   Check,
   CheckSquare,
   ClipboardList,
+  Clock,
   FolderOpen,
   Plus,
   SlidersHorizontal,
   Tag,
   Trash2,
   User,
+  UserPlus,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -33,6 +35,7 @@ import {
   describeTaskError,
   useAddChecklistItem,
   useDeleteChecklistItem,
+  useUpdateChecklistItem,
   useUpdateTaskFields,
 } from '../hooks'
 import { initialsOf } from '../initials'
@@ -121,6 +124,20 @@ function OpenCard({
   const updateFields = useUpdateTaskFields()
   const addItem = useAddChecklistItem()
   const deleteItem = useDeleteChecklistItem()
+  const updateItem = useUpdateChecklistItem()
+
+  /* Responsável e prazo de um objetivo (migration 0098). Nulo remove. */
+  const salvarItem = (
+    item: TaskChecklistItem,
+    patch: { assignee_id?: string | null; due_date?: string | null },
+  ) =>
+    updateItem(
+      { id: item.id, patch },
+      {
+        onError: (error) =>
+          toast.error('Não foi possível alterar o objetivo: ' + describeTaskError(error)),
+      },
+    )
   const activityQuery = useTaskActivity(task.project_id, task.id)
 
   const [adding, setAdding] = useState(false)
@@ -301,52 +318,24 @@ function OpenCard({
 
               <div className="space-y-0.5 -mx-2">
                 {checklist.map((item) => (
-                  <div
+                  <ObjectiveRow
                     key={item.id}
-                    className="group flex items-start gap-3 px-2 py-1.5 rounded-md hover:bg-elevated"
-                  >
-                    <Checkbox
-                      checked={item.is_completed}
-                      disabled={!canEdit}
-                      onCheckedChange={() => onToggleChecklistItem(item)}
-                      className="mt-0.5"
-                      aria-label={`Marcar ${item.title}`}
-                    />
-                    <span
-                      className={`text-sm flex-1 ${
-                        item.is_completed ? 'line-through text-faint' : 'text-foreground'
-                      }`}
-                    >
-                      {item.title}
-                      {/* Obrigatório é o que trava o avanço de etapa — vale saber
-                          qual é antes de arrastar o cartão. */}
-                      {item.is_required && (
-                        <span className="ml-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                          obrigatório
-                        </span>
-                      )}
-                    </span>
-                    {/* Obrigatório não tem "x": removê-lo seria pular a trava sem
-                        cumprir nada. O hook recusa também, mas a tela não oferece. */}
-                    {canEdit && !item.is_required && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          deleteItem(
-                            { id: item.id, isRequired: item.is_required },
-                            {
-                              onError: (error) =>
-                                toast.error('Não foi possível remover: ' + describeTaskError(error)),
-                            },
-                          )
-                        }
-                        aria-label={`Remover ${item.title}`}
-                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
+                    item={item}
+                    canEdit={canEdit}
+                    responsibles={responsibles}
+                    onToggle={() => onToggleChecklistItem(item)}
+                    onAssign={(assigneeId) => salvarItem(item, { assignee_id: assigneeId })}
+                    onDue={(due) => salvarItem(item, { due_date: due })}
+                    onRemove={() =>
+                      deleteItem(
+                        { id: item.id, isRequired: item.is_required },
+                        {
+                          onError: (error) =>
+                            toast.error('Não foi possível remover: ' + describeTaskError(error)),
+                        },
+                      )
+                    }
+                  />
                 ))}
               </div>
 
@@ -558,10 +547,12 @@ function MetaBlock({ label, children }: { label: string; children: ReactNode }) 
   )
 }
 
-function Avatar({ name }: { name: string }) {
+function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
   return (
     <span
-      className="w-7 h-7 rounded-full bg-elevated border border-border text-[11px] font-semibold text-soft flex items-center justify-center shrink-0"
+      className={`${
+        size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-7 h-7 text-[11px]'
+      } rounded-full bg-elevated border border-border font-semibold text-soft flex items-center justify-center shrink-0`}
       title={name}
     >
       {initialsOf(name)}
@@ -784,6 +775,237 @@ function InlineDescription({
     </button>
   ) : (
     <p className="text-sm text-muted-foreground">Sem descrição.</p>
+  )
+}
+
+/*
+  UM OBJETIVO, com os botões de responsável e prazo ao lado — o item do checklist
+  do Trello.
+
+  DINÂMICO nos dois sentidos pedidos:
+  - SEM responsável ou prazo, os botões (pessoa e relógio) só aparecem ao passar o
+    mouse, para a lista não virar uma fileira de ícones vazios. No celular não há
+    "passar o mouse", então lá eles ficam sempre visíveis.
+  - COM responsável ou prazo, o botão dá lugar ao valor — o avatar e a data — e é
+    o próprio valor que se clica para trocar ou remover.
+
+  O PRAZO DO OBJETIVO É SÓ DELE: vermelho quando venceu e o objetivo não foi
+  cumprido, verde quando foi cumprido, neutro no resto. A tarefa não fica
+  atrasada por causa dele (ver a migration 0098).
+*/
+function ObjectiveRow({
+  item,
+  canEdit,
+  responsibles,
+  onToggle,
+  onAssign,
+  onDue,
+  onRemove,
+}: {
+  item: TaskChecklistItem
+  canEdit: boolean
+  responsibles: Collaborator[]
+  onToggle: () => void
+  onAssign: (assigneeId: string | null) => void
+  onDue: (due: string | null) => void
+  onRemove: () => void
+}) {
+  const assignee = item.assignee_id
+    ? (responsibles.find((collaborator) => collaborator.id === item.assignee_id) ?? null)
+    : null
+  const hoje = format(new Date(), 'yyyy-MM-dd')
+  const vencido = Boolean(item.due_date && item.due_date < hoje && !item.is_completed)
+
+  /* Botão vazio: some até o hover no desktop, fica visível no celular e enquanto
+     o popover dele estiver aberto. */
+  const vazio =
+    'md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100'
+
+  return (
+    <div className="group flex items-start gap-3 px-2 py-1.5 rounded-md hover:bg-elevated">
+      <Checkbox
+        checked={item.is_completed}
+        disabled={!canEdit}
+        onCheckedChange={onToggle}
+        className="mt-0.5"
+        aria-label={`Marcar ${item.title}`}
+      />
+      <span
+        className={`text-sm flex-1 min-w-0 ${
+          item.is_completed ? 'line-through text-faint' : 'text-foreground'
+        }`}
+      >
+        {item.title}
+        {/* Obrigatório é o que trava o avanço de etapa — vale saber qual é antes
+            de arrastar o cartão. */}
+        {item.is_required && (
+          <span className="ml-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+            obrigatório
+          </span>
+        )}
+      </span>
+
+      <div className="flex items-center gap-1 shrink-0">
+        {/* ── Prazo ── */}
+        {(item.due_date || canEdit) && (
+          <ObjectivePopover
+            label="Prazo do objetivo"
+            disabled={!canEdit}
+            trigger={
+              item.due_date ? (
+                <span
+                  className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded tabular-nums ${
+                    item.is_completed
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400'
+                      : vencido
+                        ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 font-medium'
+                        : 'bg-elevated text-soft border border-border'
+                  }`}
+                  title={vencido ? 'Prazo do objetivo vencido' : 'Prazo do objetivo'}
+                >
+                  <Clock className="w-3 h-3" />
+                  {format(parseISO(item.due_date), 'dd/MM')}
+                </span>
+              ) : (
+                <span
+                  className={`flex items-center justify-center w-6 h-6 rounded text-muted-foreground hover:text-foreground hover:bg-muted ${vazio}`}
+                  title="Definir prazo"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                </span>
+              )
+            }
+          >
+            {(fechar) => (
+              <DuePicker
+                value={item.due_date}
+                onSave={(due) => {
+                  onDue(due)
+                  fechar()
+                }}
+              />
+            )}
+          </ObjectivePopover>
+        )}
+
+        {/* ── Responsável ── */}
+        {(item.assignee_id || canEdit) && (
+          <ObjectivePopover
+            label="Responsável pelo objetivo"
+            disabled={!canEdit}
+            trigger={
+              item.assignee_id ? (
+                assignee ? (
+                  <Avatar name={assignee.name} size="sm" />
+                ) : (
+                  /* Colaborador fora da lista de responsáveis (desativado, por
+                     exemplo): o objetivo continua com dono, só não há nome ativo
+                     para mostrar. */
+                  <span
+                    className="w-6 h-6 rounded-full bg-elevated border border-border flex items-center justify-center text-muted-foreground"
+                    title="Colaborador inativo"
+                  >
+                    <User className="w-3 h-3" />
+                  </span>
+                )
+              ) : (
+                <span
+                  className={`flex items-center justify-center w-6 h-6 rounded text-muted-foreground hover:text-foreground hover:bg-muted ${vazio}`}
+                  title="Atribuir responsável"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                </span>
+              )
+            }
+          >
+            {(fechar) => (
+              <div className="max-h-64 overflow-y-auto -m-1">
+                {responsibles.map((collaborator) => (
+                  <button
+                    key={collaborator.id}
+                    type="button"
+                    onClick={() => {
+                      onAssign(collaborator.id)
+                      fechar()
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-elevated"
+                  >
+                    <Avatar name={collaborator.name} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate text-foreground">{collaborator.name}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {labelOf(COLLABORATOR_ROLE, collaborator.role)}
+                      </span>
+                    </span>
+                    {item.assignee_id === collaborator.id && (
+                      <Check className="w-4 h-4 text-foreground" />
+                    )}
+                  </button>
+                ))}
+                {item.assignee_id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onAssign(null)
+                      fechar()
+                    }}
+                    className="w-full mt-1 pt-2 border-t border-border px-2 py-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground hover:bg-elevated"
+                  >
+                    Remover responsável
+                  </button>
+                )}
+              </div>
+            )}
+          </ObjectivePopover>
+        )}
+
+        {/* Obrigatório não tem "x": removê-lo seria pular a trava sem cumprir
+            nada. O hook recusa também, mas a tela não oferece. */}
+        {canEdit && !item.is_required && (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`Remover ${item.title}`}
+            className={`flex items-center justify-center w-6 h-6 rounded text-muted-foreground hover:text-foreground hover:bg-muted ${vazio}`}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ObjectivePopover({
+  label,
+  trigger,
+  disabled,
+  children,
+}: {
+  label: string
+  trigger: ReactNode
+  disabled: boolean
+  children: (fechar: () => void) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+
+  /* Quem só lê vê o avatar e a data, mas não abre nada. */
+  if (disabled) return <>{trigger}</>
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label={label} className="rounded focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring">
+          {trigger}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-2">
+        <p className="text-xs font-medium text-muted-foreground px-1 pb-2 mb-1 border-b border-border text-center">
+          {label}
+        </p>
+        {children(() => setOpen(false))}
+      </PopoverContent>
+    </Popover>
   )
 }
 

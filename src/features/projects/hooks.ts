@@ -1071,6 +1071,61 @@ export function useDeleteChecklistItem() {
 }
 
 /*
+  RESPONSÁVEL E PRAZO DE UM OBJETIVO — os dois botões ao lado de cada item no
+  detalhe da tarefa, como no Trello (migration 0098).
+
+  Otimista: o avatar e a data aparecem no item na hora, e voltam ao que eram se o
+  banco recusar. Nulo em qualquer dos dois é "remover".
+
+  Não recalcula nada da tarefa. O prazo do objetivo não mexe no prazo da tarefa
+  nem na regra de atraso do quadro — ver o cabeçalho da 0098.
+*/
+export type ChecklistItemPatch = {
+  assignee_id?: string | null
+  due_date?: string | null
+}
+
+export function useUpdateChecklistItem() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: ChecklistItemPatch }) => {
+      const { data, error } = await supabase
+        .from('task_checklist_items')
+        .update(patch)
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O objetivo não foi alterado. É preciso permissão de edição no Fluxo do Projeto.',
+      )
+      return id
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+    },
+  })
+
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (tasks, { id, patch }: { id: string; patch: ChecklistItemPatch }) =>
+      tasks.map((task) =>
+        task.checklist.some((item) => item.id === id)
+          ? {
+              ...task,
+              checklist: task.checklist.map((item) =>
+                item.id === id ? { ...item, ...patch } : item,
+              ),
+            }
+          : task,
+      ),
+  )
+}
+
+/*
   Os itens do template que a tarefa ainda não tem, criados de uma vez.
 
   No original isso acontece DENTRO do render (`getTasksByPhase` chama
