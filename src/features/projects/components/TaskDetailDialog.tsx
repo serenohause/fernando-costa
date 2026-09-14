@@ -1,74 +1,70 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { format, parseISO } from 'date-fns'
-import { BookOpen, Calendar, CheckSquare, Clock, FolderOpen, Pencil, Trash2, type LucideIcon } from 'lucide-react'
+import {
+  Activity,
+  AlignLeft,
+  BookOpen,
+  Calendar,
+  Check,
+  CheckSquare,
+  ClipboardList,
+  FolderOpen,
+  Plus,
+  SlidersHorizontal,
+  Tag,
+  Trash2,
+  User,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Progress } from '@/components/ui/progress'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { useTaskActivity } from '@/features/diary/hooks'
 import type { Collaborator } from '@/features/team/types'
-import { COLLABORATOR_ROLE, TASK_TYPE, labelOf, type TaskType } from '@/lib/enums'
+import { COLLABORATOR_ROLE, labelOf } from '@/lib/enums'
+import {
+  describeTaskError,
+  useAddChecklistItem,
+  useDeleteChecklistItem,
+  useUpdateTaskFields,
+} from '../hooks'
+import { initialsOf } from '../initials'
 import type { TaskChecklistItem, TaskRow } from '../types'
 
 /*
-  O DETALHE DA TAREFA, aberto pelo clique no cartão do Fluxo do Projeto.
+  O CARTÃO ABERTO — no formato do Trello, a pedido do usuário: "não é um modal de
+  editar tarefas que eu quero, é um modal estilo Trello, com os objetivos da
+  tarefa e mais detalhes".
 
-  Existe para o cartão poder ser pequeno — pedido do usuário: "o card na
-  visualização do kanban o menos poluído possível". Tudo o que saiu do cartão
-  (prioridade por extenso, etapa, horas, progresso do projeto, o checklist
-  inteiro) mora aqui, junto com as ações que antes só existiam no menu ⋮.
+  A diferença para um formulário é o que manda na tela. Aqui o conteúdo é o
+  assunto: título grande, descrição, os OBJETIVOS (o checklist) e a ATIVIDADE; os
+  dados de controle (responsável, etiquetas, prazo) são chips no topo; e as
+  ações moram numa coluna lateral estreita. E nada "abre edição" — cada coisa se
+  muda no lugar: clica no título e escreve, clica na descrição e escreve, marca e
+  adiciona objetivo ali mesmo.
 
-  É APRESENTAÇÃO: o TaskKanban calcula rótulo, cor e oferta de status e entrega
-  pronto. As regras de quadro continuam num lugar só (flow.ts, board.ts e o
-  próprio TaskKanban) e este arquivo não ganha uma segunda cópia delas.
+  AS REGRAS DE QUADRO NÃO MORAM AQUI. Rótulo de etapa, cor de status, quais status
+  a etapa oferece e o que é atraso vêm prontos do TaskKanban. Este arquivo decide
+  só o desenho, e os gestos novos (título, descrição, prazo e objetivos) passam
+  pelos hooks de `../hooks`.
 
-  SEM DropdownMenu AQUI DENTRO, e não é gosto: o conteúdo do dropdown abre em
-  z-index 10000 e este diálogo fica em 50001, então o menu abriria POR BAIXO do
-  modal, invisível. Responsável é um Select (99999) e status operacional são
-  botões.
+  SEM DropdownMenu AQUI DENTRO: ele abre em z-index 10000 e o diálogo fica em
+  50001, então abriria por baixo, invisível. As listas da coluna lateral são
+  Popover (99999).
 */
 
 export type TagOffer = { key: string; label: string; dotClass: string; activeClass: string }
 
-export default function TaskDetailDialog({
-  task,
-  onOpenChange,
-  phaseLabel,
-  priorityLabel,
-  priorityClass,
-  progress,
-  checklist,
-  tag,
-  tagOptions,
-  responsibles,
-  isOverdue,
-  canEdit,
-  canDelete,
-  canViewProjects,
-  onEdit,
-  onDelete,
-  onToggleChecklistItem,
-  onChangeResponsible,
-  onSetOperationalTag,
-  onOpenDiary,
-  onOpenProject,
-}: {
-  /* Nulo fecha o diálogo. A tarefa vem do array vivo do quadro, e não de uma
-     cópia guardada no clique: marcar um item atualiza o cache na hora (o toggle
-     é otimista), e uma cópia congelada mostraria o item desmarcado. */
+type Props = {
+  /* A tarefa vem do array vivo do quadro: o toggle do checklist e a edição no
+     lugar são otimistas, e uma cópia congelada no clique mostraria o antes. */
   task: TaskRow | null
   onOpenChange: (open: boolean) => void
   phaseLabel: string
@@ -90,277 +86,801 @@ export default function TaskDetailDialog({
   onSetOperationalTag: (tag: string | null) => void
   onOpenDiary: () => void
   onOpenProject: () => void
-}) {
-  if (!task) {
-    return <Dialog open={false} onOpenChange={onOpenChange} />
-  }
+}
+
+export default function TaskDetailDialog(props: Props) {
+  /* O cartão é um componente à parte para os hooks dele rodarem sempre com uma
+     tarefa de verdade — com a tarefa nula não há o que consultar. */
+  if (!props.task) return <Dialog open={false} onOpenChange={props.onOpenChange} />
+  return <OpenCard {...props} task={props.task} />
+}
+
+function OpenCard({
+  task,
+  onOpenChange,
+  phaseLabel,
+  priorityLabel,
+  priorityClass,
+  progress,
+  checklist,
+  tag,
+  tagOptions,
+  responsibles,
+  isOverdue,
+  canEdit,
+  canDelete,
+  canViewProjects,
+  onEdit,
+  onDelete,
+  onToggleChecklistItem,
+  onChangeResponsible,
+  onSetOperationalTag,
+  onOpenDiary,
+  onOpenProject,
+}: Props & { task: TaskRow }) {
+  const updateFields = useUpdateTaskFields()
+  const addItem = useAddChecklistItem()
+  const deleteItem = useDeleteChecklistItem()
+  const activityQuery = useTaskActivity(task.project_id, task.id)
+
+  const [adding, setAdding] = useState(false)
+  const addInputRef = useRef<HTMLInputElement>(null)
 
   const done = checklist.filter((item) => item.is_completed).length
-  const dueText = task.due_date ? format(parseISO(task.due_date), 'dd/MM/yyyy') : '—'
-  const startText = task.start_date ? format(parseISO(task.start_date), 'dd/MM/yyyy') : '—'
+  const percent = checklist.length === 0 ? 0 : Math.round((done / checklist.length) * 100)
+
+  const salvar = (patch: Parameters<typeof updateFields>[0]['patch'], sucesso?: string) =>
+    updateFields(
+      { id: task.id, patch },
+      {
+        onSuccess: () => sucesso && toast.success(sucesso),
+        onError: (error) => toast.error('Não foi possível salvar: ' + describeTaskError(error)),
+      },
+    )
+
+  const abrirAdicionar = () => {
+    setAdding(true)
+    /* Espera o input existir antes de focar. */
+    setTimeout(() => addInputRef.current?.focus(), 0)
+  }
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      {/*
-        SEM FOCO AUTOMÁTICO no primeiro elemento. O Radix foca o primeiro item
-        clicável ao abrir, e aqui ele é o link do projeto — que abria com o
-        contorno de foco desenhado em volta, parecendo selecionado. O foco vai
-        para o próprio diálogo; Tab continua levando aos controles, e Esc fecha.
-      */}
+      {/* Sem foco automático: o Radix focaria o primeiro botão (o título), que
+          abriria com contorno de seleção e reagiria ao Enter que abriu o cartão. */}
       <DialogContent
-        className="sm:max-w-xl"
+        className="sm:max-w-3xl p-0 gap-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
+        /*
+          ESC DENTRO DE UM CAMPO EM EDIÇÃO FECHA SÓ O CAMPO. O Radix escuta o Esc
+          no `document`, então o `stopPropagation` do onKeyDown do React não o
+          segura — o teste pegou: apertar Esc no "adicionar objetivo" fechava o
+          cartão inteiro e jogava fora o que estava sendo escrito. Os campos de
+          edição no lugar levam `data-inline-edit`, e o Esc nascido neles é
+          deixado para o próprio campo tratar.
+        */
+        onEscapeKeyDown={(event) => {
+          const alvo = event.target as HTMLElement | null
+          if (alvo?.closest('[data-inline-edit]')) event.preventDefault()
+        }}
       >
-        <DialogHeader className="pr-6 text-left">
-          <DialogTitle className="text-lg leading-snug">{task.title}</DialogTitle>
-          <DialogDescription asChild>
-            <div className="flex items-center gap-1.5 text-sm">
-              <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-              {task.project ? (
-                canViewProjects ? (
-                  <button
-                    type="button"
-                    onClick={onOpenProject}
-                    className="truncate text-foreground underline-offset-2 hover:underline"
-                  >
-                    {task.project.name}
-                  </button>
+        {/* ── Cabeçalho ─────────────────────────────────────────────────── */}
+        <div className="flex gap-3 px-6 pt-6 pb-4 pr-12">
+          <ClipboardList className="w-5 h-5 mt-1 text-muted-foreground shrink-0" />
+          <div className="min-w-0 flex-1">
+            {/*
+              O título do diálogo para leitor de tela fica à parte, escondido: o
+              título visível é um botão que vira campo, e `asChild` sobre ele
+              perderia o `id` que liga o diálogo ao seu nome.
+            */}
+            <DialogTitle className="sr-only">{task.title}</DialogTitle>
+            <InlineTitle
+              value={task.title}
+              canEdit={canEdit}
+              onSave={(title) => salvar({ title })}
+            />
+            <DialogDescription asChild>
+              <p className="mt-1 text-sm text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>
+                  na etapa <span className="font-medium text-foreground">{phaseLabel}</span>
+                </span>
+                {task.project && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span className="flex items-center gap-1 min-w-0">
+                      <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                      {canViewProjects ? (
+                        <button
+                          type="button"
+                          onClick={onOpenProject}
+                          className="truncate text-foreground underline-offset-2 hover:underline"
+                        >
+                          {task.project.name}
+                        </button>
+                      ) : (
+                        <span className="truncate">{task.project.name}</span>
+                      )}
+                    </span>
+                  </>
+                )}
+              </p>
+            </DialogDescription>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-[1fr_12rem] gap-6 px-6 pb-6">
+          {/* ── Conteúdo ────────────────────────────────────────────────── */}
+          <div className="min-w-0 space-y-7">
+            {/* Chips de controle, como os "Membros / Etiquetas / Datas" do Trello. */}
+            <div className="flex flex-wrap gap-x-6 gap-y-4 pl-8">
+              <MetaBlock label="Responsável">
+                {task.responsible ? (
+                  <span className="flex items-center gap-2 text-sm text-foreground">
+                    <Avatar name={task.responsible.name} />
+                    {task.responsible.name}
+                  </span>
                 ) : (
-                  <span className="truncate">{task.project.name}</span>
-                )
-              ) : (
-                <span>Sem projeto</span>
-              )}
-            </div>
-          </DialogDescription>
-        </DialogHeader>
+                  <span className="text-sm text-muted-foreground">Sem responsável</span>
+                )}
+              </MetaBlock>
 
-        <div className="flex flex-wrap gap-1.5">
-          <Badge variant="outline" className="bg-elevated text-soft border-border">
-            {phaseLabel}
-          </Badge>
-          <Badge variant="outline" className={priorityClass}>
-            {priorityLabel}
-          </Badge>
-          {task.task_type && (
-            <Badge variant="outline" className="bg-elevated text-soft border-border">
-              {labelOf(TASK_TYPE, task.task_type as TaskType)}
-            </Badge>
-          )}
-          {tag && (
-            <Badge variant="outline" className={`${tag.badgeClass} font-medium`}>
-              <tag.Icon className="w-3 h-3 mr-1" />
-              {tag.label}
-            </Badge>
-          )}
-        </div>
+              <MetaBlock label="Etiquetas">
+                <span className="flex flex-wrap gap-1.5">
+                  <Badge variant="outline" className={priorityClass}>
+                    {priorityLabel}
+                  </Badge>
+                  {tag && (
+                    <Badge variant="outline" className={`${tag.badgeClass} font-medium`}>
+                      <tag.Icon className="w-3 h-3 mr-1" />
+                      {tag.label}
+                    </Badge>
+                  )}
+                </span>
+              </MetaBlock>
 
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
-          <div className="col-span-2 sm:col-span-1">
-            <p className="text-xs text-muted-foreground mb-1">Responsável</p>
-            {canEdit ? (
-              <Select
-                value={task.responsible_id ?? undefined}
-                onValueChange={(value) => onChangeResponsible(value)}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Sem responsável" />
-                </SelectTrigger>
-                <SelectContent>
-                  {responsibles.map((collaborator) => (
-                    <SelectItem key={collaborator.id} value={collaborator.id}>
-                      {collaborator.name} — {labelOf(COLLABORATOR_ROLE, collaborator.role)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="text-foreground">{task.responsible?.name ?? '—'}</p>
-            )}
-          </div>
-
-          <div className="col-span-2 sm:col-span-1">
-            <p className="text-xs text-muted-foreground mb-1">Progresso do projeto</p>
-            {progress == null ? (
-              <p className="text-foreground">—</p>
-            ) : (
-              <div className="flex items-center gap-3 h-9">
-                <Progress value={progress} className="h-1.5" />
-                <span className="text-foreground font-medium tabular-nums">{progress}%</span>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Prazo</p>
-            <p
-              className={`flex items-center gap-1.5 ${
-                isOverdue && !tag ? 'text-rose-600 dark:text-rose-400 font-medium' : 'text-foreground'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5 shrink-0" />
-              {dueText}
-            </p>
-            {/* A tag pausa o prazo no cartão (ver TaskKanban). Aqui a data
-                continua visível — é o detalhe —, mas diz por que não conta. */}
-            {tag && task.due_date && (
-              <p className="text-xs text-muted-foreground mt-0.5">Pausado pelo status operacional</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Início</p>
-            <p className="flex items-center gap-1.5 text-foreground">
-              <Calendar className="w-3.5 h-3.5 shrink-0" />
-              {startText}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Horas</p>
-            <p className="flex items-center gap-1.5 text-foreground">
-              <Clock className="w-3.5 h-3.5 shrink-0" />
-              {task.spent_hours ?? 0}h
-              {task.estimated_hours != null && (
-                <span className="text-muted-foreground">de {task.estimated_hours}h estimadas</span>
-              )}
-            </p>
-          </div>
-        </div>
-
-        {task.description && (
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Descrição</p>
-            <p className="text-sm text-soft whitespace-pre-line">{task.description}</p>
-          </div>
-        )}
-
-        {/*
-          STATUS OPERACIONAL: só as tags que a ETAPA desta tarefa oferece
-          (configuração do quadro), e só para quem edita — a mesma oferta do
-          submenu do cartão, calculada pelo TaskKanban.
-        */}
-        {canEdit && tagOptions.length > 0 && (
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">Status operacional</p>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => onSetOperationalTag(null)}
-                aria-pressed={!task.operational_tag}
-                className={`px-3 py-1 rounded-full border text-xs transition-colors ${
-                  !task.operational_tag
-                    ? 'bg-elevated border-foreground/30 font-medium text-foreground'
-                    : 'border-border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Sem status
-              </button>
-              {tagOptions.map((option) => {
-                const ativo = task.operational_tag === option.key
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => onSetOperationalTag(option.key)}
-                    aria-pressed={ativo}
-                    className={`px-3 py-1 rounded-full border text-xs flex items-center gap-1.5 transition-colors ${
-                      ativo
-                        ? `${option.activeClass} border-foreground/30 text-foreground`
-                        : 'border-border text-muted-foreground hover:text-foreground'
+              <MetaBlock label="Prazo">
+                {task.due_date ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-sm px-2 py-0.5 rounded-md ${
+                      isOverdue && !tag
+                        ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 font-medium'
+                        : 'bg-elevated text-foreground'
                     }`}
                   >
-                    <span className={`w-2 h-2 rounded-full ${option.dotClass}`} />
-                    {option.label}
-                  </button>
-                )
-              })}
+                    <Calendar className="w-3.5 h-3.5" />
+                    {format(parseISO(task.due_date), 'dd/MM/yyyy')}
+                    {isOverdue && !tag && <span className="text-xs">· atrasada</span>}
+                    {/* A tag pausa o prazo no quadro; aqui a data aparece, mas diz por quê não conta. */}
+                    {tag && <span className="text-xs text-muted-foreground">· pausado</span>}
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Sem prazo</span>
+                )}
+              </MetaBlock>
+
+              {progress != null && (
+                <MetaBlock label="Progresso do projeto">
+                  <span className="flex items-center gap-2 w-36">
+                    <Progress value={progress} className="h-1.5" />
+                    <span className="text-sm font-medium text-foreground tabular-nums">{progress}%</span>
+                  </span>
+                </MetaBlock>
+              )}
             </div>
-          </div>
-        )}
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <CheckSquare className="w-3.5 h-3.5" />
-              Checklist da etapa
-            </p>
-            {checklist.length > 0 && (
-              <span className="text-xs font-medium text-soft tabular-nums">
-                {done}/{checklist.length}
-              </span>
-            )}
-          </div>
+            {/* ── Descrição ─────────────────────────────────────────────── */}
+            <Section icon={AlignLeft} title="Descrição">
+              <InlineDescription
+                value={task.description}
+                canEdit={canEdit}
+                onSave={(description) => salvar({ description })}
+              />
+            </Section>
 
-          {checklist.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Esta etapa não tem itens de checklist.</p>
-          ) : (
-            <>
-              <Progress value={(done / checklist.length) * 100} className="h-1.5 mb-3" />
-              <div className="space-y-1 max-h-64 overflow-y-auto -mx-1.5">
+            {/* ── Objetivos ─────────────────────────────────────────────── */}
+            <Section
+              icon={CheckSquare}
+              title="Objetivos"
+              aside={
+                checklist.length > 0 ? (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {done} de {checklist.length}
+                  </span>
+                ) : null
+              }
+            >
+              {checklist.length > 0 && (
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-xs text-muted-foreground w-9 tabular-nums">{percent}%</span>
+                  <Progress
+                    value={percent}
+                    className={`h-2 ${percent === 100 ? '[&>div]:bg-emerald-500' : ''}`}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-0.5 -mx-2">
                 {checklist.map((item) => (
-                  <label
+                  <div
                     key={item.id}
-                    className={`flex items-start gap-2.5 px-1.5 py-1.5 rounded ${
-                      canEdit ? 'cursor-pointer hover:bg-elevated' : ''
-                    }`}
+                    className="group flex items-start gap-3 px-2 py-1.5 rounded-md hover:bg-elevated"
                   >
                     <Checkbox
                       checked={item.is_completed}
                       disabled={!canEdit}
                       onCheckedChange={() => onToggleChecklistItem(item)}
                       className="mt-0.5"
+                      aria-label={`Marcar ${item.title}`}
                     />
                     <span
                       className={`text-sm flex-1 ${
-                        item.is_completed ? 'line-through text-faint' : 'text-soft'
+                        item.is_completed ? 'line-through text-faint' : 'text-foreground'
                       }`}
                     >
                       {item.title}
-                      {/* Obrigatório é o que trava o avanço de etapa
-                          (moveTaskToPhase) — vale saber qual é antes de arrastar. */}
-                      {item.is_required && !item.is_completed && (
-                        <span className="ml-1.5 text-xs text-rose-600 dark:text-rose-400">
+                      {/* Obrigatório é o que trava o avanço de etapa — vale saber
+                          qual é antes de arrastar o cartão. */}
+                      {item.is_required && (
+                        <span className="ml-2 text-[11px] uppercase tracking-wide text-muted-foreground">
                           obrigatório
                         </span>
                       )}
                     </span>
-                  </label>
+                    {/* Obrigatório não tem "x": removê-lo seria pular a trava sem
+                        cumprir nada. O hook recusa também, mas a tela não oferece. */}
+                    {canEdit && !item.is_required && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          deleteItem(
+                            { id: item.id, isRequired: item.is_required },
+                            {
+                              onError: (error) =>
+                                toast.error('Não foi possível remover: ' + describeTaskError(error)),
+                            },
+                          )
+                        }
+                        aria-label={`Remover ${item.title}`}
+                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
-            </>
-          )}
-        </div>
 
-        <DialogFooter className="gap-2 sm:justify-between">
-          {task.project_id ? (
-            <Button variant="outline" onClick={onOpenDiary}>
-              <BookOpen className="w-4 h-4 mr-2" />
-              Diário do Projeto
-            </Button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2 justify-end">
-            {canDelete && (
-              <Button
-                variant="ghost"
-                onClick={onDelete}
-                className="text-rose-600 dark:text-rose-400 hover:text-rose-700"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Excluir
-              </Button>
-            )}
-            {canEdit && (
-              <Button onClick={onEdit}>
-                <Pencil className="w-4 h-4 mr-2" />
-                Editar
-              </Button>
-            )}
+              {checklist.length === 0 && !adding && (
+                <p className="text-sm text-muted-foreground">Nenhum objetivo nesta etapa ainda.</p>
+              )}
+
+              {canEdit &&
+                (adding ? (
+                  <form
+                    className="mt-2 space-y-2"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      const input = addInputRef.current
+                      if (!input || !input.value.trim()) return
+                      const titulo = input.value
+                      addItem.mutate(
+                        {
+                          taskId: task.id,
+                          phase: task.phase,
+                          title: titulo,
+                          displayOrder:
+                            checklist.reduce((maior, item) => Math.max(maior, item.display_order ?? 0), 0) + 1,
+                        },
+                        {
+                          /* Como no Trello: o campo fica aberto e vazio para o
+                             próximo objetivo. */
+                          onSuccess: () => {
+                            input.value = ''
+                            input.focus()
+                          },
+                          onError: (error) =>
+                            toast.error('Não foi possível adicionar: ' + describeTaskError(error)),
+                        },
+                      )
+                    }}
+                  >
+                    <Input
+                      ref={addInputRef}
+                      data-inline-edit
+                      placeholder="Descreva o objetivo"
+                      maxLength={300}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          /* Esc fecha só o campo, e não o cartão inteiro. */
+                          event.stopPropagation()
+                          setAdding(false)
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button type="submit" size="sm" disabled={addItem.isPending}>
+                        Adicionar
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <Button variant="secondary" size="sm" className="mt-2" onClick={abrirAdicionar}>
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Adicionar um objetivo
+                  </Button>
+                ))}
+            </Section>
+
+            {/* ── Atividade ─────────────────────────────────────────────── */}
+            <Section icon={Activity} title="Atividade">
+              <ActivityFeed
+                hasProject={Boolean(task.project_id)}
+                isLoading={activityQuery.isLoading}
+                isError={activityQuery.isError}
+                entries={activityQuery.data ?? []}
+              />
+            </Section>
           </div>
-        </DialogFooter>
+
+          {/* ── Coluna lateral ──────────────────────────────────────────── */}
+          <aside className="space-y-5">
+            {canEdit && (
+              <SideGroup title="Adicionar ao cartão">
+                <PickerPopover icon={User} label="Responsável">
+                  {(fechar) => (
+                    <div className="max-h-64 overflow-y-auto -m-1">
+                      {responsibles.map((collaborator) => (
+                        <button
+                          key={collaborator.id}
+                          type="button"
+                          onClick={() => {
+                            onChangeResponsible(collaborator.id)
+                            fechar()
+                          }}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-elevated"
+                        >
+                          <Avatar name={collaborator.name} />
+                          <span className="flex-1 min-w-0">
+                            <span className="block truncate text-foreground">{collaborator.name}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {labelOf(COLLABORATOR_ROLE, collaborator.role)}
+                            </span>
+                          </span>
+                          {task.responsible_id === collaborator.id && (
+                            <Check className="w-4 h-4 text-foreground" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </PickerPopover>
+
+                {/* Status só existe onde a ETAPA oferece — a mesma oferta do ⋮. */}
+                {tagOptions.length > 0 && (
+                  <PickerPopover icon={Tag} label="Status">
+                    {(fechar) => (
+                      <div className="-m-1">
+                        {[{ key: null as string | null, label: 'Sem status', dotClass: 'bg-transparent border border-border', activeClass: '' }, ...tagOptions].map(
+                          (option) => (
+                            <button
+                              key={option.key ?? 'nenhum'}
+                              type="button"
+                              onClick={() => {
+                                onSetOperationalTag(option.key)
+                                fechar()
+                              }}
+                              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-elevated"
+                            >
+                              <span className={`w-2.5 h-2.5 rounded-full ${option.dotClass}`} />
+                              <span className="flex-1 text-foreground">{option.label}</span>
+                              {task.operational_tag === option.key && (
+                                <Check className="w-4 h-4 text-foreground" />
+                              )}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </PickerPopover>
+                )}
+
+                <PickerPopover icon={Calendar} label="Prazo">
+                  {(fechar) => (
+                    <DuePicker
+                      value={task.due_date}
+                      onSave={(due) => {
+                        salvar({ due_date: due }, due ? 'Prazo atualizado' : 'Prazo removido')
+                        fechar()
+                      }}
+                    />
+                  )}
+                </PickerPopover>
+
+                <SideButton icon={CheckSquare} label="Objetivo" onClick={abrirAdicionar} />
+              </SideGroup>
+            )}
+
+            <SideGroup title="Ações">
+              {task.project_id && (
+                <SideButton icon={BookOpen} label="Diário do Projeto" onClick={onOpenDiary} />
+              )}
+              {/* Tipo, prioridade, datas e horas continuam no formulário completo:
+                  são dados de planejamento, não o dia a dia do cartão. */}
+              {canEdit && (
+                <SideButton icon={SlidersHorizontal} label="Todos os campos" onClick={onEdit} />
+              )}
+              {canDelete && (
+                <SideButton icon={Trash2} label="Excluir" onClick={onDelete} destructive />
+              )}
+            </SideGroup>
+          </aside>
+        </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/* ── Peças ────────────────────────────────────────────────────────────── */
+
+function Section({
+  icon: Icon,
+  title,
+  aside,
+  children,
+}: {
+  icon: LucideIcon
+  title: string
+  aside?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section>
+      <div className="flex items-center gap-3 mb-2">
+        <Icon className="w-5 h-5 text-muted-foreground shrink-0" />
+        <h3 className="text-sm font-semibold text-foreground flex-1">{title}</h3>
+        {aside}
+      </div>
+      {/* O recuo alinha o conteúdo com o título da seção, e não com o ícone. */}
+      <div className="pl-8">{children}</div>
+    </section>
+  )
+}
+
+function MetaBlock({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground mb-1.5">{label}</p>
+      {children}
+    </div>
+  )
+}
+
+function Avatar({ name }: { name: string }) {
+  return (
+    <span
+      className="w-7 h-7 rounded-full bg-elevated border border-border text-[11px] font-semibold text-soft flex items-center justify-center shrink-0"
+      title={name}
+    >
+      {initialsOf(name)}
+    </span>
+  )
+}
+
+function SideGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground mb-2">{title}</p>
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  )
+}
+
+function SideButton({
+  icon: Icon,
+  label,
+  onClick,
+  destructive,
+}: {
+  icon: LucideIcon
+  label: string
+  onClick?: () => void
+  destructive?: boolean
+}) {
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      onClick={onClick}
+      className={`w-full justify-start ${destructive ? 'text-rose-600 dark:text-rose-400' : ''}`}
+    >
+      <Icon className="w-4 h-4 mr-2" />
+      {label}
+    </Button>
+  )
+}
+
+function PickerPopover({
+  icon,
+  label,
+  children,
+}: {
+  icon: LucideIcon
+  label: string
+  children: (fechar: () => void) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div>
+          <SideButton icon={icon} label={label} />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-2">
+        <p className="text-xs font-medium text-muted-foreground px-1 pb-2 mb-1 border-b border-border text-center">
+          {label}
+        </p>
+        {children(() => setOpen(false))}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/*
+  O TÍTULO EDITÁVEL NO LUGAR. Clica e vira campo; Enter ou sair do campo grava,
+  Esc desfaz. Título vazio não grava — volta ao que era, em vez de mandar ao
+  banco uma recusa que o próprio campo já sabe que viria.
+*/
+function InlineTitle({
+  value,
+  canEdit,
+  onSave,
+}: {
+  value: string
+  canEdit: boolean
+  onSave: (title: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  useEffect(() => {
+    if (!editing) setDraft(value)
+  }, [value, editing])
+
+  const concluir = () => {
+    setEditing(false)
+    const novo = draft.trim()
+    if (!novo || novo === value) {
+      setDraft(value)
+      return
+    }
+    onSave(novo)
+  }
+
+  if (!canEdit) {
+    return <h2 className="text-xl font-semibold text-foreground leading-snug wrap-break-word">{value}</h2>
+  }
+
+  if (editing) {
+    return (
+      <Textarea
+        autoFocus
+        data-inline-edit
+        value={draft}
+        rows={2}
+        maxLength={300}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={concluir}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            concluir()
+          }
+          if (event.key === 'Escape') {
+            event.stopPropagation()
+            setDraft(value)
+            setEditing(false)
+          }
+        }}
+        className="text-xl font-semibold leading-snug resize-none -mx-2 px-2"
+      />
+    )
+  }
+
+  return (
+    <h2>
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="text-left text-xl font-semibold text-foreground leading-snug wrap-break-word rounded -mx-1 px-1 hover:bg-elevated"
+      >
+        {value}
+      </button>
+    </h2>
+  )
+}
+
+/*
+  A DESCRIÇÃO EDITÁVEL NO LUGAR — com botão de salvar, e não gravação ao sair do
+  campo: descrição é texto longo, e sair sem querer (um clique fora) perderia um
+  parágrafo ou gravaria um rascunho.
+*/
+function InlineDescription({
+  value,
+  canEdit,
+  onSave,
+}: {
+  value: string | null
+  canEdit: boolean
+  onSave: (description: string | null) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value ?? '')
+
+  useEffect(() => {
+    if (!editing) setDraft(value ?? '')
+  }, [value, editing])
+
+  if (editing) {
+    return (
+      <div className="space-y-2">
+        <Textarea
+          autoFocus
+          data-inline-edit
+          rows={5}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              setEditing(false)
+            }
+          }}
+          placeholder="Adicione uma descrição mais detalhada…"
+        />
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              onSave(draft.trim() ? draft : null)
+              setEditing(false)
+            }}
+          >
+            Salvar
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (value) {
+    return canEdit ? (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="w-full text-left text-sm text-soft whitespace-pre-line rounded-md -mx-2 px-2 py-1 hover:bg-elevated"
+      >
+        {value}
+      </button>
+    ) : (
+      <p className="text-sm text-soft whitespace-pre-line">{value}</p>
+    )
+  }
+
+  return canEdit ? (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="w-full text-left text-sm text-muted-foreground bg-elevated hover:bg-muted rounded-md px-3 py-3 transition-colors"
+    >
+      Adicione uma descrição mais detalhada…
+    </button>
+  ) : (
+    <p className="text-sm text-muted-foreground">Sem descrição.</p>
+  )
+}
+
+function DuePicker({
+  value,
+  onSave,
+}: {
+  value: string | null
+  onSave: (due: string | null) => void
+}) {
+  const [draft, setDraft] = useState(value ?? '')
+  return (
+    <div className="space-y-2 p-1">
+      <Input type="date" value={draft} onChange={(event) => setDraft(event.target.value)} />
+      <div className="flex gap-2">
+        <Button size="sm" className="flex-1" disabled={!draft} onClick={() => onSave(draft)}>
+          Salvar
+        </Button>
+        {value && (
+          <Button size="sm" variant="ghost" onClick={() => onSave(null)}>
+            Remover
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/*
+  O FEED DE ATIVIDADE: os eventos que o sistema já grava no Diário do Projeto
+  para esta tarefa — mudança de etapa, troca de responsável, status ligado e
+  desligado (ver `useTaskActivity`).
+*/
+function ActivityFeed({
+  hasProject,
+  isLoading,
+  isError,
+  entries,
+}: {
+  hasProject: boolean
+  isLoading: boolean
+  isError: boolean
+  entries: {
+    id: string
+    title: string
+    created_at: string
+    created_by: { id: string; name: string } | null
+  }[]
+}) {
+  /* Os eventos são gravados no diário DO PROJETO; tarefa solta não tem onde. */
+  if (!hasProject) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Tarefa sem projeto não registra atividade.
+      </p>
+    )
+  }
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2].map((index) => (
+          <div key={index} className="h-9 bg-muted rounded-md animate-pulse" />
+        ))}
+      </div>
+    )
+  }
+  if (isError) {
+    return <p className="text-sm text-destructive">Não foi possível carregar a atividade agora.</p>
+  }
+  if (entries.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Nenhuma atividade ainda. Mudanças de etapa, responsável e status aparecem aqui.
+      </p>
+    )
+  }
+
+  return (
+    <ol className="space-y-3">
+      {entries.map((entry) => (
+        <li key={entry.id} className="flex items-start gap-3">
+          {entry.created_by ? (
+            <Avatar name={entry.created_by.name} />
+          ) : (
+            <span className="w-7 h-7 rounded-full bg-elevated border border-border shrink-0" />
+          )}
+          <div className="min-w-0">
+            <p className="text-sm text-foreground">
+              {entry.created_by && <span className="font-semibold">{entry.created_by.name} </span>}
+              {entry.title}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {format(parseISO(entry.created_at), "dd/MM/yyyy 'às' HH:mm")}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ol>
   )
 }

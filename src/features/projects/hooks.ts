@@ -101,6 +101,13 @@ const PROJECTS_ERROR_MESSAGES: DatabaseErrorMessages = {
 const TASKS_ERROR_MESSAGES: DatabaseErrorMessages = {
   task_checklist_items_task_id_title_key:
     'Esta tarefa já tem um item de checklist com este título. Renomeie um dos dois para eles não se confundirem na conferência.',
+  /* As três abaixo existem desde que o detalhe da tarefa passou a editar no
+     lugar (TaskDetailDialog): título, prazo e objetivo são gravados campo a
+     campo, sem passar pelo schema do formulário que barrava antes. */
+  task_checklist_items_title_not_blank_check: 'Escreva o objetivo antes de adicionar.',
+  tasks_title_not_blank_check: 'Dê um título à tarefa.',
+  tasks_due_date_not_before_start_check:
+    'O prazo não pode ser antes da data de início da tarefa.',
   ...PROJECTS_ERROR_MESSAGES,
   '23502': 'Falta um campo obrigatório: título da tarefa.',
   /*
@@ -896,6 +903,170 @@ export function useToggleChecklistItem() {
             }
           : task,
       ),
+  )
+}
+
+/*
+  EDIÇÃO NO LUGAR, campo a campo — o gesto do detalhe da tarefa, que funciona como
+  o cartão do Trello: clica no título, muda, sai; clica na descrição, escreve,
+  salva. Sem abrir o formulário inteiro.
+
+  NÃO PASSA PELO `taskInputSchema` de propósito: aquele schema valida o
+  formulário COMPLETO e exige todos os campos, e aqui chega um só. As regras que
+  importam continuam valendo onde sempre valeram — o banco recusa título em
+  branco (`tasks_title_not_blank_check`) e prazo antes do início
+  (`tasks_due_date_not_before_start_check`), e as duas têm frase própria.
+
+  Otimista, como o checklist: o título novo aparece no cartão e no detalhe na
+  hora, e volta ao anterior se o banco recusar.
+*/
+export type TaskFieldsPatch = {
+  title?: string
+  description?: string | null
+  due_date?: string | null
+}
+
+export function useUpdateTaskFields() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: TaskFieldsPatch }) => {
+      const limpo: TaskFieldsPatch = { ...patch }
+      if (limpo.title !== undefined) {
+        limpo.title = limpo.title.trim()
+        if (!limpo.title) throw new WriteError('Dê um título à tarefa.')
+      }
+      /* Descrição apagada vira nulo, e não string vazia: é o que o formulário
+         grava, e as duas formas de "sem descrição" não devem coexistir. */
+      if (limpo.description !== undefined) limpo.description = limpo.description?.trim() || null
+      if (limpo.due_date !== undefined) limpo.due_date = limpo.due_date || null
+
+      const { data, error } = await supabase.from('tasks').update(limpo).eq('id', id).select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A tarefa não foi alterada. É preciso permissão de edição no Fluxo do Projeto.',
+      )
+      return id
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all })
+    },
+  })
+
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (tasks, { id, patch }: { id: string; patch: TaskFieldsPatch }) =>
+      tasks.map((task) => (task.id === id ? { ...task, ...patch } : task)),
+  )
+}
+
+/*
+  ADICIONAR UM OBJETIVO ao checklist da tarefa, direto no detalhe.
+
+  O item nasce na ETAPA ATUAL da tarefa (`phase`), e isso não é detalhe: o
+  checklist mostrado é o da etapa (`currentChecklist`), então um item sem etapa
+  seria gravado e não apareceria em lugar nenhum.
+
+  NASCE NÃO OBRIGATÓRIO. Obrigatório é o item que TRAVA o avanço de etapa
+  (`moveTaskToPhase`), e esses vêm dos modelos de checklist da etapa; deixar
+  qualquer objetivo digitado no cartão travar o fluxo seria dar a quem escreve um
+  poder que hoje só o modelo tem.
+
+  Não é otimista: a linha precisa do id que só o banco dá, e um item fantasma
+  sem id não teria como ser marcado ou removido até a volta.
+*/
+export function useAddChecklistItem() {
+  const queryClient = useQueryClient()
+  const tenantId = useTenantId()
+
+  return useMutation({
+    mutationFn: async ({
+      taskId,
+      phase,
+      title,
+      displayOrder,
+    }: {
+      taskId: string
+      phase: string
+      title: string
+      displayOrder: number
+    }) => {
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+      const titulo = title.trim()
+      if (!titulo) throw new WriteError('Escreva o objetivo antes de adicionar.')
+
+      const { error } = await supabase.from('task_checklist_items').insert({
+        tenant_id: tenantId,
+        task_id: taskId,
+        phase,
+        title: titulo,
+        is_required: false,
+        display_order: displayOrder,
+      })
+
+      if (error) throw error
+      return titulo
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+    },
+  })
+}
+
+/*
+  REMOVER UM OBJETIVO. Otimista: some da lista na hora e volta se o banco recusar.
+
+  ITEM OBRIGATÓRIO NÃO SE REMOVE POR AQUI, e a recusa é deste hook, não do banco
+  (a RLS permite o DELETE a quem edita o fluxo). O motivo: obrigatório é o que
+  segura a tarefa na etapa até ser cumprido. Um "x" no cartão que apagasse o
+  item seria o jeito mais curto de pular a trava sem cumprir nada — o mesmo que
+  marcar concluído sem ter feito, só que sem deixar rastro.
+*/
+export function useDeleteChecklistItem() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async ({ id, isRequired }: { id: string; isRequired: boolean }) => {
+      if (isRequired) {
+        throw new WriteError(
+          'Item obrigatório não pode ser removido: ele é o que libera a tarefa para a próxima etapa.',
+        )
+      }
+
+      const { data, error } = await supabase
+        .from('task_checklist_items')
+        .delete()
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O objetivo não foi removido. É preciso permissão de edição no Fluxo do Projeto.',
+      )
+      return id
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+    },
+  })
+
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (tasks, { id, isRequired }: { id: string; isRequired: boolean }) =>
+      /* O obrigatório nem sai do cache: a recusa vem logo em seguida, e tirar
+         para pôr de volta faria o item piscar. */
+      isRequired
+        ? tasks
+        : tasks.map((task) =>
+            task.checklist.some((item) => item.id === id)
+              ? { ...task, checklist: task.checklist.filter((item) => item.id !== id) }
+              : task,
+          ),
   )
 }
 

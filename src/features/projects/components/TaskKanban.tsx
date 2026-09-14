@@ -36,6 +36,7 @@ import { createPageUrl } from '@/lib/page-url'
 import type { Collaborator } from '@/features/team/types'
 import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
 import TaskDetailDialog from './TaskDetailDialog'
+import { initialsOf } from '../initials'
 import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
 import { orderedPhaseKeys, phaseLabelIn } from '@/features/kanban/board'
 import { columnHeaderClass, tagStyleOf } from '@/features/kanban/types'
@@ -260,18 +261,8 @@ const TAG_ICONS: Record<string, LucideIcon> = {
 
 const tagIconOf = (key: string): LucideIcon => TAG_ICONS[key] ?? Tag
 
-/* As iniciais do responsável no rodapé do cartão: o nome inteiro está no
-   `title` e no detalhe. Duas letras bastam para distinguir quem é quem numa
-   equipe do tamanho de um escritório. */
-const initialsOf = (name: string) =>
-  name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((parte, i, partes) => (i === 0 || i === partes.length - 1 ? parte[0] : ''))
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
+/* As iniciais do responsável no rodapé do cartão vêm de `../initials`, que o
+   detalhe da tarefa também usa. */
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
   high: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900',
