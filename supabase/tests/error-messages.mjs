@@ -145,6 +145,10 @@ const NAO_ALCANCAVEL = {
     'estrutural: existe só para a FK composta do objetivo apontar para a seção da MESMA etapa (0099); ninguém digita uuid',
   task_checklist_items_section_not_blank_check:
     'o nome da seção no item da tarefa é copiado do modelo por missingChecklistItems, e o modelo já recusa seção sem nome (kanban_column_objective_sections_name_not_blank_check, que tem frase); nenhuma tela digita este campo',
+  task_checklist_items_task_id_phase_room_id_key:
+    'o objetivo de ambiente é criado por missingChecklistItems só quando falta o par (etapa, ambiente) na tarefa; nenhuma tela digita room_id (0100)',
+  task_checklist_items_room_requires_phase_check:
+    'o objetivo de ambiente nasce sempre com a etapa em que a tarefa está (missingChecklistItems); nenhuma tela grava room_id sem etapa (0100)',
   operational_tags_key_format_check:
     'a chave do status nasce derivada do nome (phaseKeyFrom) e nao e editavel: a tela oferece o rotulo, e e o rotulo que se renomeia',
   operational_tags_color_format_check:

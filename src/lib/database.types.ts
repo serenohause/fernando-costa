@@ -1827,6 +1827,7 @@ export type Database = {
           key: string
           label: string
           progress_percent: number | null
+          shows_project_rooms: boolean
           tenant_id: string
           updated_at: string
         }
@@ -1840,6 +1841,7 @@ export type Database = {
           key: string
           label: string
           progress_percent?: number | null
+          shows_project_rooms?: boolean
           tenant_id: string
           updated_at?: string
         }
@@ -1853,6 +1855,7 @@ export type Database = {
           key?: string
           label?: string
           progress_percent?: number | null
+          shows_project_rooms?: boolean
           tenant_id?: string
           updated_at?: string
         }
@@ -2963,6 +2966,51 @@ export type Database = {
           },
         ]
       }
+      project_rooms: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+          project_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          project_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+          project_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_rooms_project_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_rooms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           city: string | null
@@ -3367,6 +3415,7 @@ export type Database = {
           is_completed: boolean
           is_required: boolean
           phase: string | null
+          room_id: string | null
           section: string | null
           task_id: string
           tenant_id: string
@@ -3383,6 +3432,7 @@ export type Database = {
           is_completed?: boolean
           is_required?: boolean
           phase?: string | null
+          room_id?: string | null
           section?: string | null
           task_id: string
           tenant_id: string
@@ -3399,6 +3449,7 @@ export type Database = {
           is_completed?: boolean
           is_required?: boolean
           phase?: string | null
+          room_id?: string | null
           section?: string | null
           task_id?: string
           tenant_id?: string
@@ -3406,6 +3457,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_checklist_items_room_fkey"
+            columns: ["room_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_rooms"
+            referencedColumns: ["id", "tenant_id"]
+          },
           {
             foreignKeyName: "task_checklist_items_assignee_id_fkey"
             columns: ["assignee_id", "tenant_id"]
