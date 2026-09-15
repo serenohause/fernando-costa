@@ -1,18 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
-  Activity,
-  AlignLeft,
   BookOpen,
   Calendar,
   Check,
-  CheckSquare,
-  ClipboardList,
   Clock,
   FolderOpen,
   Plus,
   SlidersHorizontal,
-  Tag,
   Trash2,
   User,
   UserPlus,
@@ -48,8 +43,8 @@ import type { TaskChecklistItem, TaskRow } from '../types'
 
   A diferença para um formulário é o que manda na tela. Aqui o conteúdo é o
   assunto: título grande, descrição, os OBJETIVOS (o checklist) e a ATIVIDADE; os
-  dados de controle (responsável, etiquetas, prazo) são chips no topo; e as
-  ações moram numa coluna lateral estreita. E nada "abre edição" — cada coisa se
+  dados de controle (responsável, status, prazo, prioridade) são linhas numa
+  coluna lateral de detalhes, com as ações discretas no pé dela. E nada "abre edição" — cada coisa se
   muda no lugar: clica no título e escreve, clica na descrição e escreve, marca e
   adiciona objetivo ali mesmo.
 
@@ -161,12 +156,21 @@ function OpenCard({
     setTimeout(() => addInputRef.current?.focus(), 0)
   }
 
+  const pickerItem =
+    'w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-elevated'
+
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      {/* Sem foco automático: o Radix focaria o primeiro botão (o título), que
-          abriria com contorno de seleção e reagiria ao Enter que abriu o cartão. */}
+      {/*
+        GRANDE NO DESKTOP, e com as duas colunas rolando cada uma por si: a lista de
+        objetivos e a atividade crescem, e os detalhes da lateral não podem sumir
+        rolando junto. No celular o cartão inteiro rola como uma coluna só.
+
+        Sem foco automático: o Radix focaria o primeiro botão (o título), que
+        abriria com contorno de seleção e reagiria ao Enter que abriu o cartão.
+      */}
       <DialogContent
-        className="sm:max-w-3xl p-0 gap-0"
+        className="sm:max-w-5xl p-0 sm:p-0 gap-0 flex flex-col overflow-y-auto md:overflow-hidden md:h-[min(88dvh,54rem)] focus:outline-hidden"
         onOpenAutoFocus={(event) => event.preventDefault()}
         /*
           ESC DENTRO DE UM CAMPO EM EDIÇÃO FECHA SÓ O CAMPO. O Radix escuta o Esc
@@ -182,111 +186,43 @@ function OpenCard({
         }}
       >
         {/* ── Cabeçalho ─────────────────────────────────────────────────── */}
-        <div className="flex gap-3 px-6 pt-6 pb-4 pr-12">
-          <ClipboardList className="w-5 h-5 mt-1 text-muted-foreground shrink-0" />
-          <div className="min-w-0 flex-1">
-            {/*
-              O título do diálogo para leitor de tela fica à parte, escondido: o
-              título visível é um botão que vira campo, e `asChild` sobre ele
-              perderia o `id` que liga o diálogo ao seu nome.
-            */}
-            <DialogTitle className="sr-only">{task.title}</DialogTitle>
-            <InlineTitle
-              value={task.title}
-              canEdit={canEdit}
-              onSave={(title) => salvar({ title })}
-            />
-            <DialogDescription asChild>
-              <p className="mt-1 text-sm text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span>
-                  na etapa <span className="font-medium text-foreground">{phaseLabel}</span>
-                </span>
-                {task.project && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span className="flex items-center gap-1 min-w-0">
-                      <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-                      {canViewProjects ? (
-                        <button
-                          type="button"
-                          onClick={onOpenProject}
-                          className="truncate text-foreground underline-offset-2 hover:underline"
-                        >
-                          {task.project.name}
-                        </button>
-                      ) : (
-                        <span className="truncate">{task.project.name}</span>
-                      )}
-                    </span>
-                  </>
-                )}
-              </p>
-            </DialogDescription>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-[1fr_12rem] gap-6 px-6 pb-6">
-          {/* ── Conteúdo ────────────────────────────────────────────────── */}
-          <div className="min-w-0 space-y-7">
-            {/* Chips de controle, como os "Membros / Etiquetas / Datas" do Trello. */}
-            <div className="flex flex-wrap gap-x-6 gap-y-4 pl-8">
-              <MetaBlock label="Responsável">
-                {task.responsible ? (
-                  <span className="flex items-center gap-2 text-sm text-foreground">
-                    <Avatar name={task.responsible.name} />
-                    {task.responsible.name}
-                  </span>
-                ) : (
-                  <span className="text-sm text-muted-foreground">Sem responsável</span>
-                )}
-              </MetaBlock>
-
-              <MetaBlock label="Etiquetas">
-                <span className="flex flex-wrap gap-1.5">
-                  <Badge variant="outline" className={priorityClass}>
-                    {priorityLabel}
-                  </Badge>
-                  {tag && (
-                    <Badge variant="outline" className={`${tag.badgeClass} font-medium`}>
-                      <tag.Icon className="w-3 h-3 mr-1" />
-                      {tag.label}
-                    </Badge>
+        <header className="shrink-0 px-6 md:px-8 pt-6 pb-5 pr-14 border-b border-border">
+          <DialogDescription asChild>
+            <p className="mb-2 text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 font-medium text-soft">
+                {phaseLabel}
+              </span>
+              {task.project && (
+                <span className="flex items-center gap-1 min-w-0">
+                  <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                  {canViewProjects ? (
+                    <button
+                      type="button"
+                      onClick={onOpenProject}
+                      className="truncate hover:text-foreground underline-offset-2 hover:underline"
+                    >
+                      {task.project.name}
+                    </button>
+                  ) : (
+                    <span className="truncate">{task.project.name}</span>
                   )}
                 </span>
-              </MetaBlock>
-
-              <MetaBlock label="Prazo">
-                {task.due_date ? (
-                  <span
-                    className={`inline-flex items-center gap-1.5 text-sm px-2 py-0.5 rounded-md ${
-                      isOverdue && !tag
-                        ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 font-medium'
-                        : 'bg-elevated text-foreground'
-                    }`}
-                  >
-                    <Calendar className="w-3.5 h-3.5" />
-                    {format(parseISO(task.due_date), 'dd/MM/yyyy')}
-                    {isOverdue && !tag && <span className="text-xs">· atrasada</span>}
-                    {/* A tag pausa o prazo no quadro; aqui a data aparece, mas diz por quê não conta. */}
-                    {tag && <span className="text-xs text-muted-foreground">· pausado</span>}
-                  </span>
-                ) : (
-                  <span className="text-sm text-muted-foreground">Sem prazo</span>
-                )}
-              </MetaBlock>
-
-              {progress != null && (
-                <MetaBlock label="Progresso do projeto">
-                  <span className="flex items-center gap-2 w-36">
-                    <Progress value={progress} className="h-1.5" />
-                    <span className="text-sm font-medium text-foreground tabular-nums">{progress}%</span>
-                  </span>
-                </MetaBlock>
               )}
-            </div>
+            </p>
+          </DialogDescription>
+          {/*
+            O título do diálogo para leitor de tela fica à parte, escondido: o
+            título visível é um botão que vira campo, e `asChild` sobre ele
+            perderia o `id` que liga o diálogo ao seu nome.
+          */}
+          <DialogTitle className="sr-only">{task.title}</DialogTitle>
+          <InlineTitle value={task.title} canEdit={canEdit} onSave={(title) => salvar({ title })} />
+        </header>
 
-            {/* ── Descrição ─────────────────────────────────────────────── */}
-            <Section icon={AlignLeft} title="Descrição">
+        <div className="flex flex-col md:flex-1 md:min-h-0 md:grid md:grid-cols-[minmax(0,1fr)_19rem]">
+          {/* ── Conteúdo ────────────────────────────────────────────────── */}
+          <div className="min-w-0 md:overflow-y-auto px-6 md:px-8 py-6 space-y-8">
+            <Section title="Descrição">
               <InlineDescription
                 value={task.description}
                 canEdit={canEdit}
@@ -294,28 +230,22 @@ function OpenCard({
               />
             </Section>
 
-            {/* ── Objetivos ─────────────────────────────────────────────── */}
             <Section
-              icon={CheckSquare}
               title="Objetivos"
               aside={
                 checklist.length > 0 ? (
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {done} de {checklist.length}
+                  <span className="flex items-center gap-2">
+                    <Progress
+                      value={percent}
+                      className={`h-1 w-20 ${percent === 100 ? '[&>div]:bg-emerald-500' : ''}`}
+                    />
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {done}/{checklist.length}
+                    </span>
                   </span>
                 ) : null
               }
             >
-              {checklist.length > 0 && (
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-xs text-muted-foreground w-9 tabular-nums">{percent}%</span>
-                  <Progress
-                    value={percent}
-                    className={`h-2 ${percent === 100 ? '[&>div]:bg-emerald-500' : ''}`}
-                  />
-                </div>
-              )}
-
               <div className="space-y-0.5 -mx-2">
                 {checklist.map((item) => (
                   <ObjectiveRow
@@ -338,6 +268,12 @@ function OpenCard({
                   />
                 ))}
               </div>
+
+              {/* A palavra "obrigatório" em cada linha virava ruído — quase todo
+                  objetivo padrão é. Fica um asterisco e esta legenda. */}
+              {checklist.some((item) => item.is_required) && (
+                <p className="mt-2 text-xs text-faint">* obrigatório para avançar de etapa</p>
+              )}
 
               {checklist.length === 0 && !adding && (
                 <p className="text-sm text-muted-foreground">Nenhum objetivo nesta etapa ainda.</p>
@@ -396,115 +332,175 @@ function OpenCard({
                     </div>
                   </form>
                 ) : (
-                  <Button variant="secondary" size="sm" className="mt-2" onClick={abrirAdicionar}>
-                    <Plus className="w-4 h-4 mr-1.5" />
-                    Adicionar um objetivo
-                  </Button>
+                  <button
+                    type="button"
+                    onClick={abrirAdicionar}
+                    className="mt-1 -mx-2 flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-elevated"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Adicionar objetivo
+                  </button>
                 ))}
             </Section>
 
-            {/* ── Atividade ─────────────────────────────────────────────── */}
-            <Section icon={Activity} title="Atividade">
-              <ActivityFeed
-                hasProject={Boolean(task.project_id)}
-                isLoading={activityQuery.isLoading}
-                isError={activityQuery.isError}
-                entries={activityQuery.data ?? []}
-              />
-            </Section>
+            <div className="border-t border-border pt-8">
+              <Section title="Atividade">
+                <ActivityFeed
+                  hasProject={Boolean(task.project_id)}
+                  isLoading={activityQuery.isLoading}
+                  isError={activityQuery.isError}
+                  entries={activityQuery.data ?? []}
+                />
+              </Section>
+            </div>
           </div>
 
-          {/* ── Coluna lateral ──────────────────────────────────────────── */}
-          <aside className="space-y-5">
-            {canEdit && (
-              <SideGroup title="Adicionar ao cartão">
-                <PickerPopover icon={User} label="Responsável">
-                  {(fechar) => (
-                    <div className="max-h-64 overflow-y-auto -m-1">
-                      {responsibles.map((collaborator) => (
-                        <button
-                          key={collaborator.id}
-                          type="button"
-                          onClick={() => {
-                            onChangeResponsible(collaborator.id)
-                            fechar()
-                          }}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-elevated"
-                        >
-                          <Avatar name={collaborator.name} />
-                          <span className="flex-1 min-w-0">
-                            <span className="block truncate text-foreground">{collaborator.name}</span>
-                            <span className="block text-xs text-muted-foreground">
-                              {labelOf(COLLABORATOR_ROLE, collaborator.role)}
-                            </span>
+          {/*
+            ── Detalhes ──────────────────────────────────────────────────────
+            UM LUGAR SÓ PARA CADA DADO. Antes o responsável, o status e o prazo
+            apareciam duas vezes: como chips no topo e como botões "Adicionar ao
+            cartão" na lateral. Agora cada um é uma linha, e é a própria linha que
+            se clica para trocar.
+          */}
+          {/* No celular os detalhes vêm antes da lista: depois de quinze objetivos
+              ninguém rolaria até eles. */}
+          <aside className="order-first md:order-none border-b md:border-b-0 md:border-l border-border bg-elevated/40 md:overflow-y-auto px-6 py-5 md:py-6 flex flex-col gap-6">
+            <div className="space-y-3">
+              <DetailRow label="Responsável" canEdit={canEdit} value={
+                task.responsible ? (
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Avatar name={task.responsible.name} size="sm" />
+                    <span className="truncate">{task.responsible.name}</span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Sem responsável</span>
+                )
+              }>
+                {(fechar) => (
+                  <div className="max-h-64 overflow-y-auto -m-1">
+                    {responsibles.map((collaborator) => (
+                      <button
+                        key={collaborator.id}
+                        type="button"
+                        onClick={() => {
+                          onChangeResponsible(collaborator.id)
+                          fechar()
+                        }}
+                        className={pickerItem}
+                      >
+                        <Avatar name={collaborator.name} />
+                        <span className="flex-1 min-w-0">
+                          <span className="block truncate text-foreground">{collaborator.name}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {labelOf(COLLABORATOR_ROLE, collaborator.role)}
                           </span>
-                          {task.responsible_id === collaborator.id && (
-                            <Check className="w-4 h-4 text-foreground" />
-                          )}
-                        </button>
-                      ))}
+                        </span>
+                        {task.responsible_id === collaborator.id && (
+                          <Check className="w-4 h-4 text-foreground" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </DetailRow>
+
+              {/* Status só existe onde a ETAPA oferece — a mesma oferta do ⋮. Um
+                  status já marcado continua visível mesmo que a etapa deixe de
+                  oferecê-lo. */}
+              {(tagOptions.length > 0 || tag) && (
+                <DetailRow label="Status" canEdit={canEdit && tagOptions.length > 0} value={
+                  tag ? (
+                    <Badge variant="outline" className={`${tag.badgeClass} font-medium`}>
+                      <tag.Icon className="w-3 h-3 mr-1" />
+                      {tag.label}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">Nenhum</span>
+                  )
+                }>
+                  {(fechar) => (
+                    <div className="-m-1">
+                      {[{ key: null as string | null, label: 'Sem status', dotClass: 'bg-transparent border border-border', activeClass: '' }, ...tagOptions].map(
+                        (option) => (
+                          <button
+                            key={option.key ?? 'nenhum'}
+                            type="button"
+                            onClick={() => {
+                              onSetOperationalTag(option.key)
+                              fechar()
+                            }}
+                            className={pickerItem}
+                          >
+                            <span className={`w-2.5 h-2.5 rounded-full ${option.dotClass}`} />
+                            <span className="flex-1 text-foreground">{option.label}</span>
+                            {task.operational_tag === option.key && (
+                              <Check className="w-4 h-4 text-foreground" />
+                            )}
+                          </button>
+                        ),
+                      )}
                     </div>
                   )}
-                </PickerPopover>
-
-                {/* Status só existe onde a ETAPA oferece — a mesma oferta do ⋮. */}
-                {tagOptions.length > 0 && (
-                  <PickerPopover icon={Tag} label="Status">
-                    {(fechar) => (
-                      <div className="-m-1">
-                        {[{ key: null as string | null, label: 'Sem status', dotClass: 'bg-transparent border border-border', activeClass: '' }, ...tagOptions].map(
-                          (option) => (
-                            <button
-                              key={option.key ?? 'nenhum'}
-                              type="button"
-                              onClick={() => {
-                                onSetOperationalTag(option.key)
-                                fechar()
-                              }}
-                              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-elevated"
-                            >
-                              <span className={`w-2.5 h-2.5 rounded-full ${option.dotClass}`} />
-                              <span className="flex-1 text-foreground">{option.label}</span>
-                              {task.operational_tag === option.key && (
-                                <Check className="w-4 h-4 text-foreground" />
-                              )}
-                            </button>
-                          ),
-                        )}
-                      </div>
-                    )}
-                  </PickerPopover>
-                )}
-
-                <PickerPopover icon={Calendar} label="Prazo">
-                  {(fechar) => (
-                    <DuePicker
-                      value={task.due_date}
-                      onSave={(due) => {
-                        salvar({ due_date: due }, due ? 'Prazo atualizado' : 'Prazo removido')
-                        fechar()
-                      }}
-                    />
-                  )}
-                </PickerPopover>
-
-                <SideButton icon={CheckSquare} label="Objetivo" onClick={abrirAdicionar} />
-              </SideGroup>
-            )}
-
-            <SideGroup title="Ações">
-              {task.project_id && (
-                <SideButton icon={BookOpen} label="Diário do Projeto" onClick={onOpenDiary} />
+                </DetailRow>
               )}
-              {/* Tipo, prioridade, datas e horas continuam no formulário completo:
-                  são dados de planejamento, não o dia a dia do cartão. */}
+
+              <DetailRow label="Prazo" canEdit={canEdit} value={
+                task.due_date ? (
+                  <span
+                    className={`flex flex-wrap items-center gap-x-1.5 ${
+                      isOverdue && !tag ? 'text-rose-600 dark:text-rose-400 font-medium' : ''
+                    }`}
+                  >
+                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                    {format(parseISO(task.due_date), 'dd/MM/yyyy')}
+                    {isOverdue && !tag && <span className="text-xs font-normal">· atrasada</span>}
+                    {/* A tag pausa o prazo no quadro; aqui a data aparece, mas diz por quê não conta. */}
+                    {tag && <span className="text-xs text-muted-foreground">· pausado</span>}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Sem prazo</span>
+                )
+              }>
+                {(fechar) => (
+                  <DuePicker
+                    value={task.due_date}
+                    onSave={(due) => {
+                      salvar({ due_date: due }, due ? 'Prazo atualizado' : 'Prazo removido')
+                      fechar()
+                    }}
+                  />
+                )}
+              </DetailRow>
+
+              {/* Prioridade se muda em "Todos os campos": é planejamento, não o dia
+                  a dia do cartão. */}
+              <DetailRow label="Prioridade" canEdit={false} value={
+                <Badge variant="outline" className={priorityClass}>
+                  {priorityLabel}
+                </Badge>
+              } />
+
+              {progress != null && (
+                <DetailRow label="Projeto" canEdit={false} value={
+                  <span className="flex items-center gap-2 w-full">
+                    <Progress value={progress} className="h-1 flex-1" />
+                    <span className="text-xs text-muted-foreground tabular-nums">{progress}%</span>
+                  </span>
+                } />
+              )}
+            </div>
+
+            <div className="md:mt-auto pt-4 border-t border-border space-y-0.5">
+              {task.project_id && (
+                <ActionButton icon={BookOpen} label="Diário do Projeto" onClick={onOpenDiary} />
+              )}
               {canEdit && (
-                <SideButton icon={SlidersHorizontal} label="Todos os campos" onClick={onEdit} />
+                <ActionButton icon={SlidersHorizontal} label="Todos os campos" onClick={onEdit} />
               )}
               {canDelete && (
-                <SideButton icon={Trash2} label="Excluir" onClick={onDelete} destructive />
+                <ActionButton icon={Trash2} label="Excluir tarefa" onClick={onDelete} destructive />
               )}
-            </SideGroup>
+            </div>
           </aside>
         </div>
       </DialogContent>
@@ -515,35 +511,100 @@ function OpenCard({
 /* ── Peças ────────────────────────────────────────────────────────────── */
 
 function Section({
-  icon: Icon,
   title,
   aside,
   children,
 }: {
-  icon: LucideIcon
   title: string
   aside?: ReactNode
   children: ReactNode
 }) {
   return (
     <section>
-      <div className="flex items-center gap-3 mb-2">
-        <Icon className="w-5 h-5 text-muted-foreground shrink-0" />
-        <h3 className="text-sm font-semibold text-foreground flex-1">{title}</h3>
+      <div className="flex items-center gap-3 mb-3">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex-1">
+          {title}
+        </h3>
         {aside}
       </div>
-      {/* O recuo alinha o conteúdo com o título da seção, e não com o ícone. */}
-      <div className="pl-8">{children}</div>
+      {children}
     </section>
   )
 }
 
-function MetaBlock({ label, children }: { label: string; children: ReactNode }) {
+/*
+  UMA LINHA DE DETALHE: rótulo pequeno em cima, valor embaixo — lado a lado não
+  cabia nome, status e prazo "pausado" numa lateral estreita. Quem pode editar
+  clica no valor e escolhe num Popover; quem só lê vê o mesmo valor, parado.
+*/
+function DetailRow({
+  label,
+  value,
+  canEdit,
+  children,
+}: {
+  label: string
+  value: ReactNode
+  canEdit: boolean
+  children?: (fechar: () => void) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const conteudo = (
+    <>
+      <span className="block text-xs text-muted-foreground mb-1">{label}</span>
+      <span className="flex min-w-0 min-h-6 items-center text-sm text-foreground">{value}</span>
+    </>
+  )
+
+  if (!canEdit || !children) {
+    return <div className="px-2 py-1 -mx-2">{conteudo}</div>
+  }
+
   return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground mb-1.5">{label}</p>
-      {children}
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Alterar ${label.toLowerCase()}`}
+          className="w-[calc(100%+1rem)] block px-2 py-1 -mx-2 rounded-md text-left hover:bg-muted data-[state=open]:bg-muted focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {conteudo}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-2">
+        <p className="text-xs font-medium text-muted-foreground px-1 pb-2 mb-1 border-b border-border text-center">
+          {label}
+        </p>
+        {children(() => setOpen(false))}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function ActionButton({
+  icon: Icon,
+  label,
+  onClick,
+  destructive,
+}: {
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+  destructive?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full flex items-center gap-2 px-2 -mx-2 py-1.5 rounded-md text-sm text-left hover:bg-muted ${
+        destructive
+          ? 'text-rose-600 dark:text-rose-400'
+          : 'text-muted-foreground hover:text-foreground'
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+      {label}
+    </button>
   )
 }
 
@@ -557,67 +618,6 @@ function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
     >
       {initialsOf(name)}
     </span>
-  )
-}
-
-function SideGroup({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground mb-2">{title}</p>
-      <div className="space-y-1.5">{children}</div>
-    </div>
-  )
-}
-
-function SideButton({
-  icon: Icon,
-  label,
-  onClick,
-  destructive,
-}: {
-  icon: LucideIcon
-  label: string
-  onClick?: () => void
-  destructive?: boolean
-}) {
-  return (
-    <Button
-      type="button"
-      variant="secondary"
-      size="sm"
-      onClick={onClick}
-      className={`w-full justify-start ${destructive ? 'text-rose-600 dark:text-rose-400' : ''}`}
-    >
-      <Icon className="w-4 h-4 mr-2" />
-      {label}
-    </Button>
-  )
-}
-
-function PickerPopover({
-  icon,
-  label,
-  children,
-}: {
-  icon: LucideIcon
-  label: string
-  children: (fechar: () => void) => ReactNode
-}) {
-  const [open, setOpen] = useState(false)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div>
-          <SideButton icon={icon} label={label} />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-2">
-        <p className="text-xs font-medium text-muted-foreground px-1 pb-2 mb-1 border-b border-border text-center">
-          {label}
-        </p>
-        {children(() => setOpen(false))}
-      </PopoverContent>
-    </Popover>
   )
 }
 
@@ -653,7 +653,7 @@ function InlineTitle({
   }
 
   if (!canEdit) {
-    return <h2 className="text-xl font-semibold text-foreground leading-snug wrap-break-word">{value}</h2>
+    return <h2 className="text-2xl font-semibold text-foreground leading-snug wrap-break-word">{value}</h2>
   }
 
   if (editing) {
@@ -677,7 +677,7 @@ function InlineTitle({
             setEditing(false)
           }
         }}
-        className="text-xl font-semibold leading-snug resize-none -mx-2 px-2"
+        className="text-2xl font-semibold leading-snug resize-none -mx-2 px-2"
       />
     )
   }
@@ -687,7 +687,7 @@ function InlineTitle({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="text-left text-xl font-semibold text-foreground leading-snug wrap-break-word rounded -mx-1 px-1 hover:bg-elevated"
+        className="text-left text-2xl font-semibold text-foreground leading-snug wrap-break-word rounded -mx-1 px-1 hover:bg-elevated"
       >
         {value}
       </button>
@@ -839,8 +839,8 @@ function ObjectiveRow({
         {/* Obrigatório é o que trava o avanço de etapa — vale saber qual é antes
             de arrastar o cartão. */}
         {item.is_required && (
-          <span className="ml-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-            obrigatório
+          <span className="ml-1 text-muted-foreground" title="Obrigatório para avançar de etapa">
+            *<span className="sr-only"> obrigatório</span>
           </span>
         )}
       </span>
