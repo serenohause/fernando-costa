@@ -312,7 +312,7 @@ export default function Tasks() {
       <PageHeader
         title="Fluxo do Projeto"
         subtitle="Acompanhe o andamento dos projetos"
-        actionLabel={canEdit ? 'Nova Tarefa' : undefined}
+        actionLabel={canEdit ? 'Novo Projeto' : undefined}
         onAction={
           canEdit
             ? () => {
