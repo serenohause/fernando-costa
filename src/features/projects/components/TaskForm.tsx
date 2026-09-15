@@ -23,6 +23,7 @@ import {
   type TaskType,
   type WorkStatus,
 } from '@/lib/enums'
+import { defaultTaskTitle } from '../task-title'
 import type { ProjectRow, TaskInput, TaskRow } from '../types'
 
 /*
@@ -156,10 +157,30 @@ export default function TaskForm({
   collaborators: Collaborator[]
 }) {
   const [values, setValues] = useState<TaskFormValues>(() => initialData ?? emptyValues())
+  /*
+    A ÚLTIMA SUGESTÃO DE TÍTULO que o formulário escreveu. Trocar de projeto
+    troca o título só enquanto ele ainda é a sugestão (ou está vazio): o que a
+    pessoa digitou não é apagado por escolher outro projeto.
+  */
+  const [sugestao, setSugestao] = useState<string | null>(null)
 
   useEffect(() => {
     setValues(initialData ?? emptyValues())
+    setSugestao(null)
   }, [initialData, open])
+
+  /* Só ao CRIAR: editar uma tarefa existente e trocar o projeto dela não mexe
+     no título que ela já tem. */
+  const escolherProjeto = (projectId: string) => {
+    const project = projects.find((candidate) => candidate.id === projectId)
+    const nova = project ? defaultTaskTitle(project) : ''
+    setValues((current) => {
+      const trocarTitulo =
+        !initialData && (current.title.trim() === '' || current.title === sugestao)
+      return { ...current, project_id: projectId, title: trocarTitulo ? nova : current.title }
+    })
+    if (!initialData) setSugestao(nova)
+  }
 
   const set = <K extends keyof TaskFormValues>(key: K, value: TaskFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }))
@@ -198,7 +219,7 @@ export default function TaskForm({
               <Label>Projeto</Label>
               <Select
                 value={values.project_id}
-                onValueChange={(value) => set('project_id', value)}
+                onValueChange={escolherProjeto}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />

@@ -46,6 +46,7 @@
     "test:db-errors": "node tests/db-errors.mjs",
     "test:client-address": "node tests/client-address.mjs",
     "test:reorder": "node tests/reorder.mjs",
+    "test:task-title": "node tests/task-title.mjs",
     "test:objectives": "node tests/objective-templates.mjs",
     "test:masks": "node tests/masks.mjs",
     "test:notify": "node tests/query-notify.mjs",
