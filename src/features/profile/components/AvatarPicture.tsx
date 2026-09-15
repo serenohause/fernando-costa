@@ -31,6 +31,7 @@ export default function AvatarPicture({
   className,
   shapeClassName = 'rounded-full bg-elevated border border-border',
   initialClassName = 'text-muted-foreground',
+  initials,
 }: {
   avatarPath: string | null | undefined
   name: string | null | undefined
@@ -45,9 +46,13 @@ export default function AvatarPicture({
   */
   shapeClassName?: string
   initialClassName?: string
+  /* Texto no lugar da foto quando não há foto. Sem ele, a primeira letra do
+     nome; o quadro usa duas letras ("LF") porque cartões lado a lado com a
+     mesma inicial não se distinguiam. */
+  initials?: string
 }) {
   const { data: url, isPending } = useAvatarUrl(avatarPath)
-  const initial = name?.trim()?.charAt(0)?.toUpperCase() ?? null
+  const initial = initials || (name?.trim()?.charAt(0)?.toUpperCase() ?? null)
 
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(false)

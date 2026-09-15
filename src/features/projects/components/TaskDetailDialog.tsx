@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { useTaskActivity } from '@/features/diary/hooks'
+import AvatarPicture from '@/features/profile/components/AvatarPicture'
 import type { Collaborator } from '@/features/team/types'
 import { COLLABORATOR_ROLE, labelOf } from '@/lib/enums'
 import {
@@ -369,7 +370,7 @@ function OpenCard({
               <DetailRow label="Responsável" canEdit={canEdit} value={
                 task.responsible ? (
                   <span className="flex items-center gap-2 min-w-0">
-                    <Avatar name={task.responsible.name} size="sm" />
+                    <Avatar name={task.responsible.name} avatarPath={task.responsible.avatar_path} size="sm" />
                     <span className="truncate">{task.responsible.name}</span>
                   </span>
                 ) : (
@@ -388,7 +389,7 @@ function OpenCard({
                         }}
                         className={pickerItem}
                       >
-                        <Avatar name={collaborator.name} />
+                        <Avatar name={collaborator.name} avatarPath={collaborator.avatar_path} />
                         <span className="flex-1 min-w-0">
                           <span className="block truncate text-foreground">{collaborator.name}</span>
                           <span className="block text-xs text-muted-foreground">
@@ -608,15 +609,25 @@ function ActionButton({
   )
 }
 
-function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
+/* A foto do colaborador quando ele tem uma; as iniciais quando não. */
+function Avatar({
+  name,
+  avatarPath,
+  size = 'md',
+}: {
+  name: string
+  avatarPath: string | null | undefined
+  size?: 'sm' | 'md'
+}) {
   return (
-    <span
-      className={`${
-        size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-7 h-7 text-[11px]'
-      } rounded-full bg-elevated border border-border font-semibold text-soft flex items-center justify-center shrink-0`}
-      title={name}
-    >
-      {initialsOf(name)}
+    <span title={name} className="inline-flex shrink-0">
+      <AvatarPicture
+        avatarPath={avatarPath}
+        name={name}
+        size={size === 'sm' ? 24 : 28}
+        initials={initialsOf(name)}
+        initialClassName="text-soft"
+      />
     </span>
   )
 }
@@ -896,7 +907,7 @@ function ObjectiveRow({
             trigger={
               item.assignee_id ? (
                 assignee ? (
-                  <Avatar name={assignee.name} size="sm" />
+                  <Avatar name={assignee.name} avatarPath={assignee.avatar_path} size="sm" />
                 ) : (
                   /* Colaborador fora da lista de responsáveis (desativado, por
                      exemplo): o objetivo continua com dono, só não há nome ativo
@@ -930,7 +941,7 @@ function ObjectiveRow({
                     }}
                     className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-elevated"
                   >
-                    <Avatar name={collaborator.name} />
+                    <Avatar name={collaborator.name} avatarPath={collaborator.avatar_path} />
                     <span className="flex-1 min-w-0">
                       <span className="block truncate text-foreground">{collaborator.name}</span>
                       <span className="block text-xs text-muted-foreground">
@@ -1052,7 +1063,7 @@ function ActivityFeed({
     id: string
     title: string
     created_at: string
-    created_by: { id: string; name: string } | null
+    created_by: { id: string; name: string; avatar_path: string | null } | null
   }[]
 }) {
   /* Os eventos são gravados no diário DO PROJETO; tarefa solta não tem onde. */
@@ -1088,7 +1099,7 @@ function ActivityFeed({
       {entries.map((entry) => (
         <li key={entry.id} className="flex items-start gap-3">
           {entry.created_by ? (
-            <Avatar name={entry.created_by.name} />
+            <Avatar name={entry.created_by.name} avatarPath={entry.created_by.avatar_path} />
           ) : (
             <span className="w-7 h-7 rounded-full bg-elevated border border-border shrink-0" />
           )}

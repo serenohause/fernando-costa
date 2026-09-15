@@ -36,6 +36,7 @@ import { createPageUrl } from '@/lib/page-url'
 import type { Collaborator } from '@/features/team/types'
 import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
 import TaskDetailDialog from './TaskDetailDialog'
+import AvatarPicture from '@/features/profile/components/AvatarPicture'
 import { initialsOf } from '../initials'
 import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
 import { orderedPhaseKeys, phaseLabelIn } from '@/features/kanban/board'
@@ -930,11 +931,14 @@ export default function TaskKanban({
                                             </span>
                                           )}
                                           {task.responsible && (
-                                            <span
-                                              className="w-6 h-6 rounded-full bg-elevated border border-border text-[10px] font-semibold text-soft flex items-center justify-center"
-                                              title={task.responsible.name}
-                                            >
-                                              {initialsOf(task.responsible.name)}
+                                            <span title={task.responsible.name} className="inline-flex">
+                                              <AvatarPicture
+                                                avatarPath={task.responsible.avatar_path}
+                                                name={task.responsible.name}
+                                                size={24}
+                                                initials={initialsOf(task.responsible.name)}
+                                                initialClassName="text-soft"
+                                              />
                                             </span>
                                           )}
                                         </div>

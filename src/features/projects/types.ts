@@ -73,9 +73,12 @@ export type ProjectRow = Project & {
   reordenada ou um item é removido. Agora é `task_checklist_items`, uma linha por
   item, com id próprio: marcar é UPDATE por id.
 */
+/* Pessoa com foto: onde há espaço para avatar, a foto aparece quando existe. */
+export type PersonWithAvatar = PersonRef & { avatar_path: string | null }
+
 export type TaskRow = Task & {
   project: PersonRef | null
-  responsible: PersonRef | null
+  responsible: PersonWithAvatar | null
   checklist: TaskChecklistItem[]
 }
 

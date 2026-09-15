@@ -246,7 +246,14 @@ export default function Tasks() {
     if (!collaborator) return
 
     changeTaskResponsible(
-      { task, responsible: { id: collaborator.id, name: collaborator.name } },
+      {
+        task,
+        responsible: {
+          id: collaborator.id,
+          name: collaborator.name,
+          avatar_path: collaborator.avatar_path,
+        },
+      },
       {
         onSuccess: (result) => {
           toast.success('Responsável alterado!')

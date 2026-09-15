@@ -299,7 +299,7 @@ export type TaskActivityEntry = {
   description: string | null
   system_event: string | null
   created_at: string
-  created_by: { id: string; name: string } | null
+  created_by: { id: string; name: string; avatar_path: string | null } | null
 }
 
 export function useTaskActivity(projectId: string | null, taskId: string | null) {
@@ -310,7 +310,7 @@ export function useTaskActivity(projectId: string | null, taskId: string | null)
       const { data, error } = await supabase
         .from('project_diary_entries')
         .select(
-          'id, title, description, system_event, created_at, created_by:collaborators!project_diary_entries_created_by_id_fkey(id, name)',
+          'id, title, description, system_event, created_at, created_by:collaborators!project_diary_entries_created_by_id_fkey(id, name, avatar_path)',
         )
         .eq('project_id', projectId as string)
         .like('event_key', `%:${taskId}:%`)

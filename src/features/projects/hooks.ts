@@ -234,7 +234,7 @@ export function useProjectProgress() {
 const TASKS_SELECT = `
   *,
   project:projects!tasks_project_id_fkey(id, name),
-  responsible:collaborators!tasks_responsible_id_fkey(id, name),
+  responsible:collaborators!tasks_responsible_id_fkey(id, name, avatar_path),
   checklist:task_checklist_items(*)
 `
 
@@ -1178,7 +1178,7 @@ export function useChangeTaskResponsible() {
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
-    mutationFn: async ({ task, responsible }: { task: TaskRow; responsible: PersonRef }) => {
+    mutationFn: async ({ task, responsible }: { task: TaskRow; responsible: PersonRef & { avatar_path?: string | null } }) => {
       const previousName = task.responsible?.name ?? null
 
       const { data, error } = await supabase
@@ -1223,10 +1223,16 @@ export function useChangeTaskResponsible() {
   return optimisticTaskWrite(
     queryClient,
     mutation,
-    (tasks, { task, responsible }: { task: TaskRow; responsible: PersonRef }) =>
+    (tasks, { task, responsible }: { task: TaskRow; responsible: PersonRef & { avatar_path?: string | null } }) =>
       tasks.map((candidate) =>
         candidate.id === task.id
-          ? { ...candidate, responsible_id: responsible.id, responsible }
+          ? {
+              ...candidate,
+              responsible_id: responsible.id,
+              /* A foto entra no palpite também: sem ela o avatar do cartão
+                 piscaria as iniciais até a volta da gravação. */
+              responsible: { ...responsible, avatar_path: responsible.avatar_path ?? null },
+            }
           : candidate,
       ),
   )
