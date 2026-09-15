@@ -1670,6 +1670,109 @@ export type Database = {
           },
         ]
       }
+      kanban_column_objective_sections: {
+        Row: {
+          column_id: string
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          column_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          column_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_column_objective_sections_column_fkey"
+            columns: ["column_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_objective_sections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kanban_column_objectives: {
+        Row: {
+          column_id: string
+          created_at: string
+          display_order: number
+          id: string
+          is_required: boolean
+          section_id: string | null
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          column_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_required?: boolean
+          section_id?: string | null
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          column_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_required?: boolean
+          section_id?: string | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_column_objectives_column_fkey"
+            columns: ["column_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_objectives_section_fkey"
+            columns: ["section_id", "column_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_column_objective_sections"
+            referencedColumns: ["id", "column_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_objectives_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kanban_column_operational_tags: {
         Row: {
           column_id: string
@@ -3264,6 +3367,7 @@ export type Database = {
           is_completed: boolean
           is_required: boolean
           phase: string | null
+          section: string | null
           task_id: string
           tenant_id: string
           title: string
@@ -3279,6 +3383,7 @@ export type Database = {
           is_completed?: boolean
           is_required?: boolean
           phase?: string | null
+          section?: string | null
           task_id: string
           tenant_id: string
           title: string
@@ -3294,6 +3399,7 @@ export type Database = {
           is_completed?: boolean
           is_required?: boolean
           phase?: string | null
+          section?: string | null
           task_id?: string
           tenant_id?: string
           title?: string
@@ -3956,6 +4062,10 @@ export type Database = {
           p_to_phase?: string
         }
         Returns: Json
+      }
+      replace_kanban_column_objectives: {
+        Args: { p_column_id: string; p_sections: Json }
+        Returns: number
       }
       resolve_integration_api_key: {
         Args: {

@@ -141,6 +141,10 @@ const NAO_ALCANCAVEL = {
     'mesma razão: a chave da etapa nasce com o quadro e não é editável — Configurações renomeia o `label`, e é isso que separa "renomear a etapa" de "reescrever o que já foi gravado nas tarefas"',
   kanban_columns_board_phase_key:
     'duas colunas na mesma fase seria bug nosso, não gesto de quem usa: a tela não oferece escolher a fase de uma etapa, e nesta fatia nem sequer há policy de INSERT em kanban_columns',
+  kanban_column_objective_sections_id_column_id_tenant_id_key:
+    'estrutural: existe só para a FK composta do objetivo apontar para a seção da MESMA etapa (0099); ninguém digita uuid',
+  task_checklist_items_section_not_blank_check:
+    'o nome da seção no item da tarefa é copiado do modelo por missingChecklistItems, e o modelo já recusa seção sem nome (kanban_column_objective_sections_name_not_blank_check, que tem frase); nenhuma tela digita este campo',
   operational_tags_key_format_check:
     'a chave do status nasce derivada do nome (phaseKeyFrom) e nao e editavel: a tela oferece o rotulo, e e o rotulo que se renomeia',
   operational_tags_color_format_check:
