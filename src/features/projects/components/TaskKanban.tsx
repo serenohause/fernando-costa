@@ -39,6 +39,7 @@ import TaskDetailDialog from './TaskDetailDialog'
 import AvatarPicture from '@/features/profile/components/AvatarPicture'
 import { initialsOf } from '../initials'
 import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
+import { objectiveTemplatesByKey } from '@/features/kanban/objectives'
 import { orderedPhaseKeys, phaseLabelIn } from '@/features/kanban/board'
 import { columnHeaderClass, tagStyleOf } from '@/features/kanban/types'
 import type { DiaryProject } from '@/features/diary/types'
@@ -480,7 +481,13 @@ export default function TaskKanban({
     const task = tasks.find((candidate) => candidate.id === result.draggableId)
     if (!task) return
 
-    const outcome: MoveOutcome = moveTaskToPhase(task, fromPhase, toPhase, orderedKeys)
+    const outcome: MoveOutcome = moveTaskToPhase(
+      task,
+      fromPhase,
+      toPhase,
+      orderedKeys,
+      objectiveTemplatesByKey(boardColumns),
+    )
 
     if (outcome.kind === 'blocked') {
       setBlockAlert(outcome)

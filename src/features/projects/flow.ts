@@ -3,6 +3,7 @@ import {
   type PhaseKey,
   type TaskPhase,
 } from '@/lib/enums'
+import type { ObjectiveTemplateGroup } from '@/features/kanban/objectives'
 import { missingChecklistItems } from './checklist-templates'
 import { phaseIndexIn } from '@/features/kanban/board'
 import type { TaskChecklistItem, TaskPhaseMove, TaskRow } from './types'
@@ -91,6 +92,12 @@ export function moveTaskToPhase(
     de dois lugares diferentes.
   */
   orderedKeys: string[],
+  /*
+    O MODELO DE OBJETIVOS de cada etapa, por chave. Até a 0099 era uma constante
+    importada aqui; agora é cadastro do escritório, e vem de fora pelo mesmo
+    motivo da ordem: esta decisão continua sendo função pura.
+  */
+  objectiveTemplates: ReadonlyMap<string, ObjectiveTemplateGroup[]>,
 ): MoveOutcome {
   /*
     A trava vale só ao AVANÇAR, como no original: voltar uma tarefa para uma
@@ -150,7 +157,7 @@ export function moveTaskToPhase(
         original — a diferença é que lá o array inteiro da tarefa é reescrito, e
         aqui entram só as linhas que faltam.
       */
-      newChecklistItems: missingChecklistItems(toPhase as TaskPhase, task.checklist),
+      newChecklistItems: missingChecklistItems(toPhase, objectiveTemplates.get(toPhase), task.checklist),
       title: task.title,
       fromPhase,
       toPhase,

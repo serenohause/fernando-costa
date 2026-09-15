@@ -153,7 +153,13 @@ export type TaskPhaseMove = {
   status: WorkStatus
   completion_date: string | null
   /* Itens do template da nova etapa que a tarefa ainda não tem. */
-  newChecklistItems: { title: string; phase: PhaseKey; is_required: boolean; display_order: number }[]
+  newChecklistItems: {
+    title: string
+    phase: PhaseKey
+    section: string | null
+    is_required: boolean
+    display_order: number
+  }[]
   /*
     O GESTO, e não a gravação — quem precisa destes três é o evento automático do
     diário (`phase_change`), que registra de ONDE para ONDE em coluna própria

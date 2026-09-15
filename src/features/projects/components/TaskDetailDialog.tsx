@@ -34,6 +34,7 @@ import {
   useUpdateChecklistItem,
   useUpdateTaskFields,
 } from '../hooks'
+import { groupChecklistBySection } from '../checklist-templates'
 import { initialsOf } from '../initials'
 import type { TaskChecklistItem, TaskRow } from '../types'
 
@@ -247,8 +248,24 @@ function OpenCard({
                 ) : null
               }
             >
-              <div className="space-y-0.5 -mx-2">
-                {checklist.map((item) => (
+              {/* Agrupado pela seção que o objetivo tinha no modelo quando nasceu
+                  na tarefa (0099). Tarefa sem seção nenhuma é um grupo só, sem
+                  cabeçalho — o cartão de antes. */}
+              <div className="space-y-4">
+                {groupChecklistBySection(checklist).map((grupo) => (
+                  <div key={grupo.name ?? 'sem-secao'}>
+                    {grupo.name !== null && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="flex-1 min-w-0 truncate text-sm font-medium text-foreground">
+                          {grupo.name}
+                        </p>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {grupo.items.filter((item) => item.is_completed).length}/{grupo.items.length}
+                        </span>
+                      </div>
+                    )}
+                    <div className="space-y-0.5 -mx-2">
+                      {grupo.items.map((item) => (
                   <ObjectiveRow
                     key={item.id}
                     item={item}
@@ -267,6 +284,9 @@ function OpenCard({
                       )
                     }
                   />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
 

@@ -16,9 +16,15 @@ import {
   useKanbanBoard,
   useOpenTaskCountByPhase,
   useRenameKanbanBoard,
+  useReplaceColumnObjectives,
   useReorderKanbanColumns,
   useUpdateKanbanColumn,
 } from '@/features/kanban/hooks'
+import {
+  countObjectives,
+  sameObjectiveGroups,
+  type ObjectiveTemplateGroup,
+} from '@/features/kanban/objectives'
 import { columnSwatchClass, type KanbanColumnWithTags } from '@/features/kanban/types'
 import KanbanColumnDialog, { type KanbanColumnFormValues } from './KanbanColumnDialog'
 import KanbanDeleteDialog from './KanbanDeleteDialog'
@@ -52,6 +58,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   const setColumnTags = useSetColumnOperationalTags(BOARD_KEY)
   const tagsQuery = useOperationalTags()
   const deleteColumn = useDeleteKanbanColumn()
+  const replaceObjectives = useReplaceColumnObjectives(BOARD_KEY)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<KanbanColumnWithTags | null>(null)
@@ -63,6 +70,26 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   const columns = board?.columns ?? []
   const counts = countsQuery.data ?? {}
   const tags = tagsQuery.data ?? []
+
+  /*
+    O MODELO DE OBJETIVOS é uma terceira escrita, depois da etapa e dos status:
+    a etapa nova só tem id depois do INSERT. Só vai ao banco se mudou — quem
+    abriu a etapa para trocar a cor não regrava o modelo.
+  */
+  const salvarObjetivos = (
+    columnId: string,
+    groups: ObjectiveTemplateGroup[],
+    anterior: ObjectiveTemplateGroup[],
+  ) => {
+    if (sameObjectiveGroups(groups, anterior)) return
+    replaceObjectives.mutate(
+      { columnId, groups },
+      {
+        onError: (error) =>
+          toast.error('A etapa foi salva, mas os objetivos padrão não: ' + describeDatabaseError(error)),
+      },
+    )
+  }
 
   const handleSubmit = (values: KanbanColumnFormValues) => {
     if (!editing) {
@@ -87,6 +114,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                 tagIds: values.tagIds,
               })
             }
+            salvarObjetivos(novaEtapaId, values.objectiveGroups, [])
             setDialogOpen(false)
             toast.success('Etapa criada')
           },
@@ -96,7 +124,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
       return
     }
 
-    const { tagIds, ...colunas } = values
+    const { tagIds, objectiveGroups, ...colunas } = values
     updateColumn.mutate(
       { id: editing.id, ...colunas },
       {
@@ -108,6 +136,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
               tagIds,
             })
           }
+          salvarObjetivos(editing.id, objectiveGroups, editing.objectiveGroups)
           setDialogOpen(false)
           setEditing(null)
           toast.success('Etapa atualizada')
@@ -346,6 +375,10 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                   {abertas === 0
                     ? 'Nenhuma tarefa aberta'
                     : `${abertas} ${abertas === 1 ? 'tarefa aberta' : 'tarefas abertas'}`}
+                  {countObjectives(column.objectiveGroups) > 0 &&
+                    ` · ${countObjectives(column.objectiveGroups)} ${
+                      countObjectives(column.objectiveGroups) === 1 ? 'objetivo padrão' : 'objetivos padrão'
+                    }`}
                 </p>
               </div>
 

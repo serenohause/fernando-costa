@@ -18,6 +18,12 @@ import {
   type KanbanColumnWithTags,
   type OperationalTagRow,
 } from '@/features/kanban/types'
+import { objectiveGroupsError, type ObjectiveTemplateGroup } from '@/features/kanban/objectives'
+import ObjectiveTemplateEditor, {
+  fromGroupDrafts,
+  toGroupDrafts,
+  type ObjectiveGroupDraft,
+} from './ObjectiveTemplateEditor'
 
 export type KanbanColumnFormValues = {
   label: string
@@ -26,6 +32,8 @@ export type KanbanColumnFormValues = {
   /* Os IDs dos status que esta etapa oferece. Ids e não chaves porque é o que a
      tabela de ligação guarda (migration 0097). */
   tagIds: string[]
+  /* O modelo de objetivos inteiro, como a tela o deixou (0099). */
+  objectiveGroups: ObjectiveTemplateGroup[]
 }
 
 /*
@@ -58,14 +66,20 @@ export default function KanbanColumnDialog({
   const [color, setColor] = useState<string>('slate')
   const [percent, setPercent] = useState('')
   const [tagIds, setTagIds] = useState<string[]>([])
+  const [drafts, setDrafts] = useState<ObjectiveGroupDraft[]>([])
+  /* O erro do modelo só aparece depois de tentar salvar: seção recém-criada
+     nasce sem nome, e acusar isso enquanto a pessoa digita seria ruído. */
+  const [tentouSalvar, setTentouSalvar] = useState(false)
 
   useEffect(() => {
     if (!open) return
+    setTentouSalvar(false)
     if (editing) {
       setLabel(editing.label)
       setColor(editing.color)
       setPercent(editing.progress_percent === null ? '' : String(editing.progress_percent))
       setTagIds(tags.filter((tag) => editing.tagKeys.includes(tag.key)).map((tag) => tag.id))
+      setDrafts(toGroupDrafts(editing.objectiveGroups))
       return
     }
     /* Etapa nova entra em branco e sem percentual — vazio é "fora da conta", que
@@ -77,6 +91,7 @@ export default function KanbanColumnDialog({
        padrão fazem. Ligar por padrão poria um submenu no cartão que ninguém
        pediu. */
     setTagIds([])
+    setDrafts(toGroupDrafts([]))
   }, [open, editing, tags])
 
   const percentTrimmed = percent.trim()
@@ -88,23 +103,29 @@ export default function KanbanColumnDialog({
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (percentInvalid || label.trim() === '') return
+    const objectiveGroups = fromGroupDrafts(drafts)
+    if (objectiveGroupsError(objectiveGroups)) {
+      setTentouSalvar(true)
+      return
+    }
     onSubmit({
       label: label.trim(),
       color,
       progress_percent: percentNumber,
       tagIds,
+      objectiveGroups,
     })
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing ? 'Editar etapa' : 'Nova etapa'}</DialogTitle>
           <DialogDescription>
             {editing
               ? 'O nome e a cor valem para o quadro do Fluxo do Projeto. As tarefas já gravadas nesta etapa continuam nela.'
-              : 'A etapa entra no fim do quadro e já pode receber tarefas. A ordem se ajusta depois, com as setas.'}
+              : 'A etapa entra no fim do quadro e já pode receber tarefas. A ordem se ajusta depois, arrastando na lista.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -217,6 +238,12 @@ export default function KanbanColumnDialog({
               enquanto ele estiver marcado. Sem nenhum, o cartão desta etapa não mostra o submenu.
             </p>
           </div>
+
+          <ObjectiveTemplateEditor
+            drafts={drafts}
+            onChange={setDrafts}
+            error={tentouSalvar ? objectiveGroupsError(fromGroupDrafts(drafts)) : null}
+          />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

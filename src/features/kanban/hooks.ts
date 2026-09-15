@@ -8,6 +8,12 @@ import {
 } from '@/lib/db-errors'
 import { changedOrder, withRenumberedOrder } from '@/lib/reorder'
 import { phaseKeyFrom, phaseLabelIn } from './board'
+import {
+  groupObjectivesByColumn,
+  normalizeObjectiveGroups,
+  objectiveGroupsError,
+  type ObjectiveTemplateGroup,
+} from './objectives'
 import type { KanbanBoard, KanbanColumnRow, OperationalTagRow } from './types'
 
 /*
@@ -54,6 +60,23 @@ const KANBAN_ERROR_MESSAGES: DatabaseErrorMessages = {
   kanban_columns_color_format_check:
     'Escolha uma cor da paleta. Nome de classe de estilo não é aceito aqui.',
   '42501': 'Sem permissão de edição em Configurações.',
+  /* Objetivos padrão da etapa (0099). A tela recusa as duas primeiras antes
+     (`objectiveGroupsError`), com o nome do que repetiu; estas são a rede. */
+  kanban_column_objectives_column_id_title_key:
+    'Há dois objetivos com o mesmo título nesta etapa. Cada título precisa ser único.',
+  kanban_column_objective_sections_column_id_name_key:
+    'Há duas seções com o mesmo nome nesta etapa. Use nomes diferentes.',
+  kanban_column_objectives_title_not_blank_check: 'Dê um título a cada objetivo.',
+  kanban_column_objectives_title_length_check:
+    'O título do objetivo é longo demais (máximo de 300 caracteres).',
+  kanban_column_objective_sections_name_not_blank_check: 'Dê um nome a cada seção.',
+  kanban_column_objective_sections_name_length_check:
+    'O nome da seção é longo demais (máximo de 60 caracteres).',
+  sem_permissao_configuracoes: 'Sem permissão de edição em Configurações.',
+  etapa_nao_encontrada:
+    'A etapa não foi encontrada. Ela pode ter sido excluída — recarregue a página.',
+  modelo_de_objetivos_invalido:
+    'Os objetivos padrão não puderam ser lidos. Recarregue a página e tente de novo.',
 }
 
 export function describeDatabaseError(error: unknown): string {
@@ -109,11 +132,34 @@ export function useKanbanBoard(boardKey: string) {
         porColuna.set(link.column_id, atual)
       }
 
+      /*
+        O MODELO DE OBJETIVOS de cada etapa (0099). Duas consultas em paralelo,
+        e não embed, pelo mesmo motivo dos status: o embed repetiria a etapa por
+        objetivo. São algumas dezenas de linhas por escritório.
+      */
+      const columnIds = (columns ?? []).map((column) => column.id)
+      const [secoes, objetivos] = await Promise.all([
+        supabase
+          .from('kanban_column_objective_sections')
+          .select('id, column_id, name, display_order')
+          .in('column_id', columnIds),
+        supabase
+          .from('kanban_column_objectives')
+          .select('column_id, section_id, title, is_required, display_order')
+          .in('column_id', columnIds),
+      ])
+
+      if (secoes.error) throw secoes.error
+      if (objetivos.error) throw objetivos.error
+
+      const modelos = groupObjectivesByColumn(secoes.data ?? [], objetivos.data ?? [])
+
       return {
         ...board,
         columns: (columns ?? []).map((column) => ({
           ...column,
           tagKeys: porColuna.get(column.id) ?? [],
+          objectiveGroups: modelos.get(column.id) ?? [],
         })),
       }
     },
@@ -660,3 +706,35 @@ export function useReorderOperationalTags() {
 }
 
 export { WriteError }
+
+/*
+  GRAVAR OS OBJETIVOS PADRÃO DE UMA ETAPA — o modelo inteiro de uma vez, pela
+  função `replace_kanban_column_objectives` (0099), que troca seções e objetivos
+  numa transação. Uma recusa no meio devolve o modelo anterior intacto.
+
+  O que JÁ FOI CRIADO nas tarefas não muda: o item da tarefa é uma cópia. A
+  tarefa aberta nesta etapa recebe só os títulos novos que ainda não tem, na
+  próxima vez que o Fluxo do Projeto for aberto.
+*/
+export function useReplaceColumnObjectives(boardKey: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ columnId, groups }: { columnId: string; groups: ObjectiveTemplateGroup[] }) => {
+      const recusa = objectiveGroupsError(groups)
+      if (recusa) throw new WriteError(recusa)
+
+      const { data, error } = await supabase.rpc('replace_kanban_column_objectives', {
+        p_column_id: columnId,
+        p_sections: normalizeObjectiveGroups(groups),
+      })
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: kanbanKeys.board(boardKey) })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}

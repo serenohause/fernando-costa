@@ -25,6 +25,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useMenuPermissions } from '@/features/auth/hooks'
+import { useKanbanBoard } from '@/features/kanban/hooks'
+import { objectiveTemplatesByKey } from '@/features/kanban/objectives'
 import { useCollaborators } from '@/features/team/hooks'
 import { missingChecklistItems } from '../checklist-templates'
 import {
@@ -44,7 +46,7 @@ import {
 import type { RecordedDiaryEvent } from '@/features/diary/hooks'
 import TaskKanban from './TaskKanban'
 import TaskForm, { toFormValues, type TaskFormValues } from './TaskForm'
-import type { TaskChecklistItem, TaskInput, TaskPhase, TaskRow } from '../types'
+import type { TaskChecklistItem, TaskInput, TaskRow } from '../types'
 
 /*
   Porta de projeto-original/src/pages/Tasks.jsx.
@@ -131,6 +133,9 @@ export default function Tasks() {
   const changeTaskResponsible = useChangeTaskResponsible()
   const setOperationalTag = useSetTaskOperationalTag()
   const seedMutation = useSeedTaskChecklist()
+  /* O modelo de objetivos de cada etapa vem do quadro (0099). A mesma chave de
+     cache do TaskKanban: é uma consulta só. */
+  const boardQuery = useKanbanBoard('project_flow')
 
   /*
     O checklist da etapa aparecendo sozinho — o mesmo efeito visível que o
@@ -143,13 +148,16 @@ export default function Tasks() {
   */
   const attempted = useRef(new Set<string>())
   useEffect(() => {
-    if (!canEdit) return
+    /* Sem o quadro carregado não há modelo — e "sem modelo" não é "etapa sem
+       objetivos". Espera, em vez de marcar a tarefa como tentada à toa. */
+    if (!canEdit || !boardQuery.data) return
+    const templates = objectiveTemplatesByKey(boardQuery.data.columns)
 
     for (const task of tasks) {
       if (task.status === 'completed') continue
       if (attempted.current.has(task.id)) continue
 
-      const items = missingChecklistItems(task.phase as TaskPhase, task.checklist)
+      const items = missingChecklistItems(task.phase, templates.get(task.phase), task.checklist)
       if (items.length === 0) continue
 
       attempted.current.add(task.id)
@@ -165,7 +173,7 @@ export default function Tasks() {
        objeto novo a cada render, e incluí-lo faria o efeito rodar em todo
        render. O `attempted` impediria a gravação repetida, mas o efeito não
        deve depender dele para não disparar. */
-  }, [tasks, canEdit])
+  }, [tasks, canEdit, boardQuery.data])
 
   const filteredTasks = useMemo(
     () =>
