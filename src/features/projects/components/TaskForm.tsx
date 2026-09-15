@@ -177,7 +177,7 @@ export default function TaskForm({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
-            {initialData ? 'Editar Tarefa' : 'Nova Tarefa'}
+            {initialData ? 'Editar Tarefa' : 'Novo Projeto'}
           </DialogTitle>
         </DialogHeader>
 
