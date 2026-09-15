@@ -39,6 +39,7 @@ import TaskDetailDialog from './TaskDetailDialog'
 import AvatarPicture from '@/features/profile/components/AvatarPicture'
 import { initialsOf } from '../initials'
 import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
+import KanbanColumnEditDialog from '@/features/settings/components/KanbanColumnEditDialog'
 import { objectiveTemplatesByKey } from '@/features/kanban/objectives'
 import { orderedPhaseKeys, phaseLabelIn } from '@/features/kanban/board'
 import { columnHeaderClass, tagStyleOf } from '@/features/kanban/types'
@@ -437,6 +438,19 @@ export default function TaskKanban({
   const boardColumns = boardQuery.data?.columns ?? []
 
   /*
+    EDITAR A ETAPA DIRETO DO QUADRO — o segundo caminho, além de Configurações →
+    Quadros. O lápis só aparece para quem EDITA Configurações, e não para quem
+    edita o Fluxo do Projeto: mudar a etapa muda o quadro de todo o escritório,
+    e é a permissão de Configurações que a RLS das tabelas do quadro cobra.
+
+    Guardada pela CHAVE, e não pelo objeto: depois de salvar, o quadro relido
+    traz a etapa nova, e o diálogo nunca mostra a cópia velha.
+  */
+  const { canEdit: canEditSettings } = useMenuPermissions('settings')
+  const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null)
+  const editingColumn = boardColumns.find((column) => column.key === editingColumnKey) ?? null
+
+  /*
     A ORDEM E O RÓTULO SAEM DO QUADRO desde a migration 0094. A ordem inclui as
     etapas OCULTAS de propósito (ver `orderedPhaseKeys`): sem elas, sair de
     uma etapa fora do quadro pareceria retrocesso e a trava de checklist não
@@ -596,11 +610,26 @@ export default function TaskKanban({
                     <div
                       className={`px-4 py-3 rounded-t-xl ${column.headerClass} sticky top-0 z-10`}
                     >
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-foreground">{column.label}</h3>
-                        <Badge variant="secondary" className="bg-card/50">
-                          {columnTasks.length}
-                        </Badge>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-semibold text-foreground truncate">{column.label}</h3>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Só com a configuração lida: o quadro de emergência
+                              (DEFAULT_COLUMNS) não tem etapa de banco para editar. */}
+                          {canEditSettings && boardQuery.data && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingColumnKey(column.id)}
+                              aria-label={`Editar etapa ${column.label}`}
+                              title="Editar etapa"
+                              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-card/60 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <Badge variant="secondary" className="bg-card/50">
+                            {columnTasks.length}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
 
@@ -968,6 +997,15 @@ export default function TaskKanban({
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-border to-transparent pointer-events-none md:hidden" />
         </div>
       </DragDropContext>
+
+      <KanbanColumnEditDialog
+        boardKey="project_flow"
+        open={editingColumn !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingColumnKey(null)
+        }}
+        editing={editingColumn}
+      />
 
       <TaskDetailDialog
         task={selectedTask}

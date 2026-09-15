@@ -9,24 +9,17 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import {
   describeDatabaseError,
-  useCreateKanbanColumn,
   useDeleteKanbanColumn,
   useOperationalTags,
-  useSetColumnOperationalTags,
   useKanbanBoard,
   useOpenTaskCountByPhase,
   useRenameKanbanBoard,
-  useReplaceColumnObjectives,
   useReorderKanbanColumns,
   useUpdateKanbanColumn,
 } from '@/features/kanban/hooks'
-import {
-  countObjectives,
-  sameObjectiveGroups,
-  type ObjectiveTemplateGroup,
-} from '@/features/kanban/objectives'
+import { countObjectives } from '@/features/kanban/objectives'
 import { columnSwatchClass, type KanbanColumnWithTags } from '@/features/kanban/types'
-import KanbanColumnDialog, { type KanbanColumnFormValues } from './KanbanColumnDialog'
+import KanbanColumnEditDialog from './KanbanColumnEditDialog'
 import KanbanDeleteDialog from './KanbanDeleteDialog'
 
 const BOARD_KEY = 'project_flow'
@@ -54,11 +47,8 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   const updateColumn = useUpdateKanbanColumn(BOARD_KEY)
   const renameBoard = useRenameKanbanBoard(BOARD_KEY)
   const reorder = useReorderKanbanColumns(BOARD_KEY)
-  const createColumn = useCreateKanbanColumn()
-  const setColumnTags = useSetColumnOperationalTags(BOARD_KEY)
   const tagsQuery = useOperationalTags()
   const deleteColumn = useDeleteKanbanColumn()
-  const replaceObjectives = useReplaceColumnObjectives(BOARD_KEY)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<KanbanColumnWithTags | null>(null)
@@ -70,81 +60,6 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   const columns = board?.columns ?? []
   const counts = countsQuery.data ?? {}
   const tags = tagsQuery.data ?? []
-
-  /*
-    O MODELO DE OBJETIVOS é uma terceira escrita, depois da etapa e dos status:
-    a etapa nova só tem id depois do INSERT. Só vai ao banco se mudou — quem
-    abriu a etapa para trocar a cor não regrava o modelo.
-  */
-  const salvarObjetivos = (
-    columnId: string,
-    groups: ObjectiveTemplateGroup[],
-    anterior: ObjectiveTemplateGroup[],
-  ) => {
-    if (sameObjectiveGroups(groups, anterior)) return
-    replaceObjectives.mutate(
-      { columnId, groups },
-      {
-        onError: (error) =>
-          toast.error('A etapa foi salva, mas os objetivos padrão não: ' + describeDatabaseError(error)),
-      },
-    )
-  }
-
-  const handleSubmit = (values: KanbanColumnFormValues) => {
-    if (!editing) {
-      if (!board) return
-      createColumn.mutate(
-        {
-          boardId: board.id,
-          tenantId: board.tenant_id,
-          label: values.label,
-          color: values.color,
-          progressPercent: values.progress_percent,
-          lastOrder: columns.reduce((maior, column) => Math.max(maior, column.display_order), 0),
-        },
-        {
-          onSuccess: (novaEtapaId) => {
-            /* A etapa e a oferta de status são duas escritas: a linha da ligação
-               precisa do id que só existe depois do INSERT. */
-            if (values.tagIds.length > 0 && board) {
-              setColumnTags.mutate({
-                columnId: novaEtapaId,
-                tenantId: board.tenant_id,
-                tagIds: values.tagIds,
-              })
-            }
-            salvarObjetivos(novaEtapaId, values.objectiveGroups, [])
-            setDialogOpen(false)
-            toast.success('Etapa criada')
-          },
-          onError: (error) => toast.error('Erro ao criar: ' + describeDatabaseError(error)),
-        },
-      )
-      return
-    }
-
-    const { tagIds, objectiveGroups, ...colunas } = values
-    updateColumn.mutate(
-      { id: editing.id, ...colunas },
-      {
-        onSuccess: () => {
-          if (board) {
-            setColumnTags.mutate({
-              columnId: editing.id,
-              tenantId: board.tenant_id,
-              tagIds,
-            })
-          }
-          salvarObjetivos(editing.id, objectiveGroups, editing.objectiveGroups)
-          setDialogOpen(false)
-          setEditing(null)
-          toast.success('Etapa atualizada')
-        },
-        onError: (error) => toast.error('Erro ao salvar: ' + describeDatabaseError(error)),
-      },
-    )
-  }
 
   /*
     OCULTAR ETAPA COM TAREFA ABERTA DENTRO É O GESTO PERIGOSO DESTA TELA: as
@@ -436,16 +351,16 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
         o sistema pergunta para onde vão as tarefas antes.
       </p>
 
-      <KanbanColumnDialog
+      {/* O mesmo diálogo que o lápis do cabeçalho da coluna abre no Fluxo do
+          Projeto: as escritas moram nele, e não aqui. */}
+      <KanbanColumnEditDialog
+        boardKey={BOARD_KEY}
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open)
           if (!open) setEditing(null)
         }}
         editing={editing}
-        tags={tags}
-        onSubmit={handleSubmit}
-        isPending={updateColumn.isPending || createColumn.isPending || setColumnTags.isPending}
       />
 
       <KanbanDeleteDialog
