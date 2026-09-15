@@ -29,6 +29,7 @@ import {
   tagEventKey,
   tagEventText,
 } from './flow'
+import { projectRoomsError, type RoomDraft } from './rooms'
 import { projectInputSchema, taskInputSchema } from './schemas'
 import { allTasksCompleted, calculateProjectPhase, type TaskPhaseSource } from './project-phase'
 import type {
@@ -39,6 +40,7 @@ import type {
   TaskInput,
   TaskPhaseMove,
   TaskRow,
+  ProjectRoomRef,
 } from './types'
 
 export const projectKeys = {
@@ -46,6 +48,7 @@ export const projectKeys = {
   list: () => [...projectKeys.all, 'list'] as const,
   progress: () => [...projectKeys.all, 'progress'] as const,
   tasks: () => [...projectKeys.all, 'tasks'] as const,
+  rooms: () => [...projectKeys.all, 'rooms'] as const,
 }
 
 /* `Project.list('-created_date')` e `Task.list('-created_date')` são como o
@@ -96,6 +99,20 @@ const PROJECTS_ERROR_MESSAGES: DatabaseErrorMessages = {
   */
   '23514':
     'Algum campo está fora do que o sistema aceita. Confira as datas, as áreas e os prazos.',
+}
+
+/* Ambientes do projeto (0100). A tela recusa o nome repetido antes
+   (`projectRoomsError`), dizendo qual; esta é a rede. */
+const ROOMS_ERROR_MESSAGES: DatabaseErrorMessages = {
+  project_rooms_project_id_name_key:
+    'Este projeto já tem um ambiente com esse nome. Use nomes diferentes, como “Quarto 1” e “Quarto 2”.',
+  project_rooms_name_not_blank_check: 'Dê um nome a cada ambiente.',
+  project_rooms_name_length_check: 'O nome do ambiente é longo demais (máximo de 60 caracteres).',
+  '42501': 'Sem permissão de edição em Projetos.',
+}
+
+export function describeRoomsError(error: unknown): string {
+  return describeError(error, { ...PROJECTS_ERROR_MESSAGES, ...ROOMS_ERROR_MESSAGES })
 }
 
 const TASKS_ERROR_MESSAGES: DatabaseErrorMessages = {
@@ -1322,4 +1339,101 @@ export function useSetTaskOperationalTag() {
         candidate.id === task.id ? { ...candidate, operational_tag: tag } : candidate,
       ),
   )
+}
+
+/* ── Ambientes do projeto (0100) ───────────────────────────────────────── */
+
+/*
+  TODOS OS AMBIENTES DO ESCRITÓRIO, numa consulta: o Fluxo do Projeto precisa dos
+  de cada projeto com tarefa no quadro, e o formulário de projeto recorta os do
+  projeto aberto. São poucas linhas por projeto.
+*/
+export function useProjectRooms() {
+  return useQuery({
+    queryKey: projectKeys.rooms(),
+    queryFn: async (): Promise<ProjectRoomRef[]> => {
+      const { data, error } = await supabase
+        .from('project_rooms')
+        .select('id, project_id, name, display_order')
+        .order('display_order', { ascending: true })
+
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+/*
+  GRAVAR OS AMBIENTES DE UM PROJETO a partir do que o formulário deixou: exclui
+  os que saíram, renomeia e reordena os que ficaram, cria os novos.
+
+  EXCLUIR PRIMEIRO, e é o que evita a recusa por nome repetido quando alguém
+  apaga "Quarto" e cria outro "Quarto" no mesmo gesto.
+
+  Renomear leva junto os objetivos das tarefas (gatilho da 0100), e excluir os
+  tira — por isso o formulário avisa antes de remover.
+*/
+export function useSaveProjectRooms() {
+  const queryClient = useQueryClient()
+  const tenantId = useTenantId()
+
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      drafts,
+      previous,
+    }: {
+      projectId: string
+      drafts: RoomDraft[]
+      previous: ProjectRoomRef[]
+    }) => {
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+      const recusa = projectRoomsError(drafts)
+      if (recusa) throw new WriteError(recusa)
+
+      const limpos = drafts
+        .map((draft) => ({ ...draft, name: draft.name.trim() }))
+        .filter((draft) => draft.name !== '')
+      const mantidos = new Set(limpos.flatMap((draft) => (draft.id ? [draft.id] : [])))
+      const removidos = previous.filter((room) => !mantidos.has(room.id)).map((room) => room.id)
+      const semPermissao = 'Os ambientes não foram salvos. É preciso permissão de edição em Projetos.'
+
+      if (removidos.length > 0) {
+        const { data, error } = await supabase
+          .from('project_rooms')
+          .delete()
+          .in('id', removidos)
+          .select('id')
+        if (error) throw error
+        assertRowAffected(data, semPermissao)
+      }
+
+      for (const [index, draft] of limpos.entries()) {
+        const ordem = index + 1
+        if (draft.id) {
+          const antes = previous.find((room) => room.id === draft.id)
+          if (antes && antes.name === draft.name && antes.display_order === ordem) continue
+          const { data, error } = await supabase
+            .from('project_rooms')
+            .update({ name: draft.name, display_order: ordem })
+            .eq('id', draft.id)
+            .select('id')
+          if (error) throw error
+          assertRowAffected(data, semPermissao)
+        } else {
+          const { error } = await supabase.from('project_rooms').insert({
+            tenant_id: tenantId,
+            project_id: projectId,
+            name: draft.name,
+            display_order: ordem,
+          })
+          if (error) throw error
+        }
+      }
+    },
+    onSettled: () => {
+      /* Ambientes e tarefas: renomear e excluir mudam os objetivos dos cartões. */
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all })
+    },
+  })
 }

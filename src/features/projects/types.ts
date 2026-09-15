@@ -157,6 +157,7 @@ export type TaskPhaseMove = {
     title: string
     phase: PhaseKey
     section: string | null
+    room_id: string | null
     is_required: boolean
     display_order: number
   }[]
@@ -178,3 +179,6 @@ export type TaskPhaseMove = {
 }
 
 export type { PhaseKey, ProjectPhase, TaskPhase }
+
+/* Um ambiente do projeto como o quadro e o formulário o leem (0100). */
+export type ProjectRoomRef = { id: string; project_id: string; name: string; display_order: number }

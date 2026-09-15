@@ -415,6 +415,7 @@ export function useUpdateKanbanColumn(boardKey: string) {
       color?: string
       is_active?: boolean
       progress_percent?: number | null
+      shows_project_rooms?: boolean
     }) => {
       const { data, error } = await supabase
         .from('kanban_columns')
@@ -469,6 +470,7 @@ export function useCreateKanbanColumn() {
       color: string
       progressPercent: number | null
       lastOrder: number
+      showsProjectRooms?: boolean
     }) => {
       const label = input.label.trim()
       const key = phaseKeyFrom(label)
@@ -486,6 +488,7 @@ export function useCreateKanbanColumn() {
           color: input.color,
           display_order: input.lastOrder + 1,
           progress_percent: input.progressPercent,
+          shows_project_rooms: input.showsProjectRooms ?? false,
           is_active: true,
         })
         .select('id')

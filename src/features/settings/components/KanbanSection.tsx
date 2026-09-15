@@ -294,6 +294,7 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                     ` · ${countObjectives(column.objectiveGroups)} ${
                       countObjectives(column.objectiveGroups) === 1 ? 'objetivo padrão' : 'objetivos padrão'
                     }`}
+                  {column.shows_project_rooms && ' · mostra ambientes'}
                 </p>
               </div>
 

@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -22,7 +23,8 @@ import {
   type ContractType,
   type ProjectStatus,
 } from '@/lib/enums'
-import type { ProjectInput, ProjectRow } from '../types'
+import { nextRoomName, projectRoomsError, ROOM_SUGGESTIONS, type RoomDraft } from '../rooms'
+import type { ProjectInput, ProjectRoomRef, ProjectRow } from '../types'
 
 /*
   Porta de projeto-original/src/components/forms/ProjectForm.jsx, ramo comum.
@@ -151,30 +153,76 @@ export default function ProjectForm({
   onSubmit,
   initialData,
   isLoading,
+  initialRooms,
   clients,
   collaborators,
 }: {
   open: boolean
   onClose: () => void
-  onSubmit: (input: ProjectInput) => void
+  /* Os ambientes vão junto, e quem grava é a tela: o projeto novo só tem id
+     depois do INSERT (0100). */
+  onSubmit: (input: ProjectInput, rooms: RoomDraft[]) => void
   initialData: ProjectFormValues | null
+  /* Os ambientes já gravados do projeto aberto; vazio ao criar. */
+  initialRooms: ProjectRoomRef[]
   isLoading: boolean
   clients: ClientListRow[]
   collaborators: Collaborator[]
 }) {
   const [values, setValues] = useState<ProjectFormValues>(() => initialData ?? emptyValues())
 
+  const [rooms, setRooms] = useState<RoomDraft[]>([])
+  /* O nome digitado livremente, antes de virar ambiente da lista. */
+  const [novoAmbiente, setNovoAmbiente] = useState('')
+  const campoNovoAmbiente = useRef<HTMLInputElement>(null)
+
   /* O original reinicia o formulário quando `initialData` ou `open` mudam. */
   useEffect(() => {
     setValues(initialData ?? emptyValues())
-  }, [initialData, open])
+    setRooms(
+      [...initialRooms]
+        .sort((a, b) => a.display_order - b.display_order)
+        .map((room) => ({ key: room.id, id: room.id, name: room.name })),
+    )
+    setNovoAmbiente('')
+  }, [initialData, initialRooms, open])
+
+  const adicionarAmbiente = (name: string) => {
+    setRooms((atual) => [...atual, { key: crypto.randomUUID(), id: null, name }])
+  }
+
+  /* O CAMINHO PRINCIPAL é digitar: qualquer ambiente, com o nome que o
+     escritório usa. As sugestões abaixo são só atalho. */
+  const adicionarDigitado = () => {
+    const nome = novoAmbiente.trim()
+    if (nome === '') return
+    adicionarAmbiente(nome)
+    setNovoAmbiente('')
+    campoNovoAmbiente.current?.focus()
+  }
+
+  /* Ambiente já gravado leva os objetivos junto ao sair: pergunta antes. */
+  const removerAmbiente = (room: RoomDraft) => {
+    if (
+      room.id &&
+      !window.confirm(
+        `Remover o ambiente “${room.name}”? Os objetivos dele saem das tarefas deste projeto ao salvar.`,
+      )
+    ) {
+      return
+    }
+    setRooms((atual) => atual.filter((candidate) => candidate.key !== room.key))
+  }
+
+  const erroAmbientes = projectRoomsError(rooms)
 
   const set = <K extends keyof ProjectFormValues>(key: K, value: ProjectFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }))
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    onSubmit(toInput(values))
+    if (erroAmbientes) return
+    onSubmit(toInput(values), rooms)
   }
 
   const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name))
@@ -324,6 +372,106 @@ export default function ProjectForm({
             </Select>
           </div>
 
+          {/*
+            AMBIENTES (0100). Viram objetivos a marcar nas etapas do Fluxo do
+            Projeto que exibem ambientes — o toggle é da etapa, em Configurações.
+            O nome é LIVRE: digita-se qualquer ambiente, e todo nome da lista
+            continua editável. As sugestões só preenchem o nome; "Quarto" duas
+            vezes vira "Quarto 2".
+          */}
+          <div className="space-y-2">
+            <Label>Ambientes</Label>
+            <p className="text-xs text-muted-foreground">
+              Digite qualquer ambiente ou use uma sugestão. Eles viram objetivos a marcar nas
+              etapas do Fluxo do Projeto que exibem ambientes.
+            </p>
+
+            <div className="flex items-center gap-2">
+              <Input
+                ref={campoNovoAmbiente}
+                value={novoAmbiente}
+                onChange={(e) => setNovoAmbiente(e.target.value)}
+                onKeyDown={(e) => {
+                  /* Enter adiciona o ambiente, em vez de enviar o projeto. */
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    adicionarDigitado()
+                  }
+                }}
+                placeholder="Digite um ambiente (ex.: Sala de TV, Ateliê, Adega)"
+                aria-label="Novo ambiente"
+                maxLength={60}
+                className="h-9"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 shrink-0"
+                disabled={novoAmbiente.trim() === ''}
+                onClick={adicionarDigitado}
+              >
+                <Plus className="w-4 h-4 mr-1.5" />
+                Adicionar
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground mr-1">Sugestões:</span>
+              {ROOM_SUGGESTIONS.map((sugestao) => (
+                <button
+                  key={sugestao}
+                  type="button"
+                  onClick={() => adicionarAmbiente(nextRoomName(sugestao, rooms))}
+                  className="px-2.5 py-1 rounded-full border border-border text-xs text-soft hover:bg-elevated hover:text-foreground"
+                >
+                  + {sugestao}
+                </button>
+              ))}
+            </div>
+
+            {rooms.length > 0 && (
+              <div className="space-y-1.5">
+                {rooms.map((room) => (
+                  <div key={room.key} className="flex items-center gap-2">
+                    <Input
+                      value={room.name}
+                      onChange={(e) =>
+                        setRooms((atual) =>
+                          atual.map((candidate) =>
+                            candidate.key === room.key ? { ...candidate, name: e.target.value } : candidate,
+                          ),
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        /* Enter volta ao campo de novo ambiente, em vez de enviar o projeto. */
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          campoNovoAmbiente.current?.focus()
+                        }
+                      }}
+                      placeholder="Nome do ambiente"
+                      aria-label="Nome do ambiente"
+                      maxLength={60}
+                      className="h-9"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 shrink-0 text-muted-foreground"
+                      aria-label={`Remover ambiente ${room.name || 'sem nome'}`}
+                      onClick={() => removerAmbiente(room)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {erroAmbientes && <p className="text-xs text-destructive">{erroAmbientes}</p>}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="notes">Observações</Label>
             <Textarea
@@ -341,7 +489,7 @@ export default function ProjectForm({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || Boolean(erroAmbientes)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {isLoading ? 'Salvando...' : initialData ? 'Salvar Alterações' : 'Criar Projeto'}

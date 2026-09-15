@@ -78,6 +78,7 @@ export default function KanbanColumnEditDialog({
           label: values.label,
           color: values.color,
           progressPercent: values.progress_percent,
+          showsProjectRooms: values.shows_project_rooms,
           lastOrder: columns.reduce((maior, column) => Math.max(maior, column.display_order), 0),
         },
         {

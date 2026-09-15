@@ -27,25 +27,94 @@ import type { TaskChecklistItem } from './types'
   O nome da seção vai junto, copiado: é texto no item da tarefa, e não chave,
   para renomear a seção do modelo não reescrever o que já foi entregue.
 */
+/* A seção em que os objetivos de ambiente aparecem no cartão. */
+export const ROOMS_SECTION = 'Ambientes'
+
+export type RoomRef = { id: string; name: string }
+
 export function missingChecklistItems(
   phase: PhaseKey,
   groups: ObjectiveTemplateGroup[] | undefined,
-  existing: Pick<TaskChecklistItem, 'title'>[],
+  existing: (Pick<TaskChecklistItem, 'title'> & Partial<Pick<TaskChecklistItem, 'room_id' | 'phase'>>)[],
+  /*
+    OS AMBIENTES DO PROJETO, quando a etapa os mostra (0100) — quem chama passa a
+    lista vazia quando não mostra. Cada ambiente vira um objetivo obrigatório na
+    seção "Ambientes", uma vez POR ETAPA: "Sala" se marca de novo em cada etapa
+    que exibe ambientes. Por isso a comparação é por (ambiente, etapa), e não por
+    título como a do modelo.
+  */
+  rooms: RoomRef[] = [],
 ) {
-  if (!groups || groups.length === 0) return []
+  /* Só objetivos comuns contam para o título: o de ambiente pode ter o mesmo
+     nome de um objetivo do modelo sem colidir (índice parcial da 0100). */
+  const titles = new Set(existing.filter((item) => !item.room_id).map((item) => item.title))
 
-  const titles = new Set(existing.map((item) => item.title))
-
-  return groups
+  const doModelo = (groups ?? [])
     .flatMap((group) => group.objectives.map((objective) => ({ ...objective, section: group.name })))
     .filter((objective) => !titles.has(objective.title))
-    .map((objective, index) => ({
+    .map((objective) => ({
       title: objective.title,
       phase,
       section: objective.section,
       is_required: objective.is_required,
-      display_order: existing.length + index + 1,
+      room_id: null as string | null,
     }))
+
+  const deAmbiente = rooms
+    .filter((room) => !existing.some((item) => item.room_id === room.id && item.phase === phase))
+    .map((room) => ({
+      title: room.name,
+      phase,
+      section: ROOMS_SECTION as string | null,
+      is_required: true,
+      room_id: room.id as string | null,
+    }))
+
+  return [...doModelo, ...deAmbiente].map((item, index) => ({
+    ...item,
+    display_order: existing.length + index + 1,
+  }))
+}
+
+/*
+  TUDO O QUE DECIDE OS OBJETIVOS DE UMA TAREFA, lido do quadro e dos ambientes:
+  o modelo de cada etapa, quais etapas mostram ambientes e os ambientes de cada
+  projeto. Montado uma vez por render, e não por tarefa.
+*/
+export type ChecklistSources = {
+  templates: ReadonlyMap<string, ObjectiveTemplateGroup[]>
+  roomColumns: ReadonlySet<string>
+  roomsByProject: ReadonlyMap<string, RoomRef[]>
+}
+
+export function buildChecklistSources(
+  columns: { key: string; objectiveGroups: ObjectiveTemplateGroup[]; shows_project_rooms: boolean }[],
+  rooms: { id: string; project_id: string; name: string; display_order: number }[],
+): ChecklistSources {
+  const roomsByProject = new Map<string, RoomRef[]>()
+  for (const room of [...rooms].sort((a, b) => a.display_order - b.display_order)) {
+    const lista = roomsByProject.get(room.project_id) ?? []
+    lista.push({ id: room.id, name: room.name })
+    roomsByProject.set(room.project_id, lista)
+  }
+  return {
+    templates: new Map(columns.map((column) => [column.key, column.objectiveGroups])),
+    roomColumns: new Set(columns.filter((column) => column.shows_project_rooms).map((column) => column.key)),
+    roomsByProject,
+  }
+}
+
+/* Os objetivos que faltam para UMA tarefa numa etapa, com as três fontes. */
+export function missingItemsForTask(
+  task: { project_id: string | null; checklist: Parameters<typeof missingChecklistItems>[2] },
+  phase: PhaseKey,
+  sources: ChecklistSources,
+) {
+  const rooms =
+    task.project_id && sources.roomColumns.has(phase)
+      ? (sources.roomsByProject.get(task.project_id) ?? [])
+      : []
+  return missingChecklistItems(phase, sources.templates.get(phase), task.checklist, rooms)
 }
 
 /*

@@ -6,6 +6,7 @@ import {
   BookOpen,
   Calendar,
   CheckSquare,
+  Home,
   Hourglass,
   MoreVertical,
   Tag,
@@ -37,10 +38,11 @@ import type { Collaborator } from '@/features/team/types'
 import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
 import TaskDetailDialog from './TaskDetailDialog'
 import AvatarPicture from '@/features/profile/components/AvatarPicture'
+import { buildChecklistSources } from '../checklist-templates'
+import { useProjectRooms } from '../hooks'
 import { initialsOf } from '../initials'
 import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
 import KanbanColumnEditDialog from '@/features/settings/components/KanbanColumnEditDialog'
-import { objectiveTemplatesByKey } from '@/features/kanban/objectives'
 import { orderedPhaseKeys, phaseLabelIn } from '@/features/kanban/board'
 import { columnHeaderClass, tagStyleOf } from '@/features/kanban/types'
 import type { DiaryProject } from '@/features/diary/types'
@@ -126,6 +128,8 @@ type Column = {
   id: PhaseKey
   label: string
   headerClass: string
+  /* A etapa mostra os ambientes do projeto (0100): o cartão ganha o resumo. */
+  showsRooms: boolean
   /* As chaves dos status que o menu do cartão oferece nesta etapa — tabela de
      ligação desde a migration 0097, e não mais lista fixa em `flow.ts`. */
   tagKeys: string[]
@@ -226,6 +230,7 @@ const DEFAULT_COLUMNS: Column[] = [
   id: column.id as PhaseKey,
   label: labelOf(PROJECT_PHASE, column.id as ProjectPhase),
   headerClass: columnHeaderClass(column.color),
+  showsRooms: false,
   /* O mesmo recorte que a 0097 semeia, para o quadro de emergência oferecer os
      status que o quadro de verdade oferece. */
   tagKeys: ['layout', 'renderings'].includes(column.id)
@@ -436,6 +441,8 @@ export default function TaskKanban({
   */
   const boardQuery = useKanbanBoard('project_flow')
   const boardColumns = boardQuery.data?.columns ?? []
+  /* Os ambientes de cada projeto, para os objetivos das etapas que os mostram. */
+  const rooms = useProjectRooms().data ?? []
 
   /*
     EDITAR A ETAPA DIRETO DO QUADRO — o segundo caminho, além de Configurações →
@@ -479,6 +486,7 @@ export default function TaskKanban({
           id: column.key,
           label: column.label,
           headerClass: columnHeaderClass(column.color),
+          showsRooms: column.shows_project_rooms,
           tagKeys: column.tagKeys,
         }))
     : DEFAULT_COLUMNS
@@ -500,7 +508,7 @@ export default function TaskKanban({
       fromPhase,
       toPhase,
       orderedKeys,
-      objectiveTemplatesByKey(boardColumns),
+      buildChecklistSources(boardColumns, rooms),
     )
 
     if (outcome.kind === 'blocked') {
@@ -953,6 +961,24 @@ export default function TaskKanban({
                                         </div>
 
                                         <div className="flex items-center gap-2.5 shrink-0">
+                                          {/* Os ambientes à parte do resto: é o
+                                              andamento que a etapa com ambientes
+                                              quer ler de relance (0100). */}
+                                          {column.showsRooms &&
+                                            checklist.some((item) => item.room_id) && (
+                                              <span
+                                                className={`flex items-center gap-1 tabular-nums ${
+                                                  checklist.every((item) => !item.room_id || item.is_completed)
+                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                    : ''
+                                                }`}
+                                                title="Ambientes"
+                                              >
+                                                <Home className="w-3 h-3" />
+                                                {checklist.filter((item) => item.room_id && item.is_completed).length}/
+                                                {checklist.filter((item) => item.room_id).length}
+                                              </span>
+                                            )}
                                           {checklist.length > 0 && (
                                             <span
                                               className={`flex items-center gap-1 tabular-nums ${
