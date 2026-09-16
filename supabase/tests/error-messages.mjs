@@ -141,6 +141,8 @@ const NAO_ALCANCAVEL = {
     'mesma razão: a chave da etapa nasce com o quadro e não é editável — Configurações renomeia o `label`, e é isso que separa "renomear a etapa" de "reescrever o que já foi gravado nas tarefas"',
   kanban_columns_board_phase_key:
     'duas colunas na mesma fase seria bug nosso, não gesto de quem usa: a tela não oferece escolher a fase de uma etapa, e nesta fatia nem sequer há policy de INSERT em kanban_columns',
+  client_intakes_dismissed_fields_valid_check:
+    'a conferência só grava a coluna da diferença que está na tela, e essa coluna vem de ApplicableClientColumn, a mesma lista do check (0101)',
   operational_tags_key_format_check:
     'a chave do status nasce derivada do nome (phaseKeyFrom) e nao e editavel: a tela oferece o rotulo, e e o rotulo que se renomeia',
   operational_tags_color_format_check:

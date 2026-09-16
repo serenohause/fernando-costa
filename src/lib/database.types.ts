@@ -845,6 +845,7 @@ export type Database = {
           last_link_error: string | null
           last_validation_status: Database["public"]["Enums"]["client_intake_validation_status"]
           legacy_id: string | null
+          dismissed_fields: string[]
           negotiation_id: string | null
           phone: string | null
           site_city: string | null
@@ -884,6 +885,7 @@ export type Database = {
           last_link_error?: string | null
           last_validation_status?: Database["public"]["Enums"]["client_intake_validation_status"]
           legacy_id?: string | null
+          dismissed_fields?: string[]
           negotiation_id?: string | null
           phone?: string | null
           site_city?: string | null
@@ -923,6 +925,7 @@ export type Database = {
           last_link_error?: string | null
           last_validation_status?: Database["public"]["Enums"]["client_intake_validation_status"]
           legacy_id?: string | null
+          dismissed_fields?: string[]
           negotiation_id?: string | null
           phone?: string | null
           site_city?: string | null
