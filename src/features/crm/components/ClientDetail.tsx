@@ -19,6 +19,7 @@ import {
 } from '@/features/pipeline/hooks'
 import ClientForm, { toFormValues } from './ClientForm'
 import ClientHistory from './ClientHistory'
+import ClientSiteAddresses from './ClientSiteAddresses'
 import { DuplicateClientError, describeDatabaseError, useClient, useUpdateClient } from '../hooks'
 import type { Client, ClientInput } from '../types'
 import { formatAddress } from '../address'
@@ -335,6 +336,9 @@ export default function ClientDetail() {
           )}
         </div>
       </Card>
+
+      {/* Uma obra por projeto (0101): o cadastro acima guarda uma só. */}
+      <ClientSiteAddresses clientId={client.id} />
 
       {/* Última coisa da página, como no original. */}
       <ClientHistory clientId={client.id} />

@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { formatAddress } from './address'
 import {
   assertRowAffected,
   describeDatabaseError as describeError,
@@ -735,6 +736,105 @@ export function useLookupZipcode() {
       } catch {
         return null
       }
+    },
+  })
+}
+
+/*
+  OS ENDEREÇOS DE OBRA DO CLIENTE, um por projeto — o "histórico" pedido pelo
+  escritório (0101).
+
+  O cadastro guarda UMA obra, e o cliente com dois projetos tem duas. A lista sai
+  de onde cada obra de fato mora: o CONTRATO, que é o retrato gravado dela; e,
+  para a negociação que ainda não tem contrato deste cliente, o BRIEFING enviado.
+*/
+export type ClientSiteAddress = {
+  key: string
+  source: 'contract' | 'briefing'
+  title: string
+  detail: string
+  address: string
+  date: string
+}
+
+export function useClientSiteAddresses(clientId: string | null | undefined) {
+  return useQuery({
+    queryKey: [...crmKeys.all, 'site-addresses', clientId ?? ''] as const,
+    enabled: Boolean(clientId),
+    queryFn: async (): Promise<ClientSiteAddress[]> => {
+      const [contratos, briefings] = await Promise.all([
+        supabase
+          .from('contracts')
+          .select(
+            'id, contract_number, project_name, negotiation_id, created_at, site_zipcode, site_street, site_number, site_complement, site_city, site_state',
+          )
+          .eq('client_id', clientId!),
+        supabase
+          .from('client_intakes')
+          .select(
+            'id, negotiation_id, submitted_at, created_at, site_zipcode, site_street, site_number, site_complement, site_district, site_city, site_state',
+          )
+          .eq('client_id', clientId!)
+          .eq('status', 'submitted'),
+      ])
+
+      if (contratos.error) throw contratos.error
+      if (briefings.error) throw briefings.error
+
+      const comContrato = new Set(
+        (contratos.data ?? []).flatMap((contrato) => (contrato.negotiation_id ? [contrato.negotiation_id] : [])),
+      )
+      const semContrato = (briefings.data ?? []).filter(
+        (briefing) => !briefing.negotiation_id || !comContrato.has(briefing.negotiation_id),
+      )
+
+      const negociacaoIds = [
+        ...new Set(semContrato.flatMap((briefing) => (briefing.negotiation_id ? [briefing.negotiation_id] : []))),
+      ]
+      const nomes = new Map<string, string>()
+      if (negociacaoIds.length > 0) {
+        const { data, error } = await supabase.from('negotiations').select('id, name').in('id', negociacaoIds)
+        if (error) throw error
+        for (const negociacao of data ?? []) nomes.set(negociacao.id, negociacao.name)
+      }
+
+      const lista: ClientSiteAddress[] = [
+        ...(contratos.data ?? []).map((contrato) => ({
+          key: `contract:${contrato.id}`,
+          source: 'contract' as const,
+          title: contrato.project_name?.trim() || `Contrato ${contrato.contract_number}`,
+          detail: `Contrato ${contrato.contract_number}`,
+          address: formatAddress({
+            street: contrato.site_street,
+            number: contrato.site_number,
+            complement: contrato.site_complement,
+            city: contrato.site_city,
+            state: contrato.site_state,
+            zipcode: contrato.site_zipcode,
+          }),
+          date: contrato.created_at,
+        })),
+        ...semContrato.map((briefing) => ({
+          key: `briefing:${briefing.id}`,
+          source: 'briefing' as const,
+          title: (briefing.negotiation_id && nomes.get(briefing.negotiation_id)) || 'Briefing',
+          detail: 'Briefing, ainda sem contrato',
+          address: formatAddress({
+            street: briefing.site_street,
+            number: briefing.site_number,
+            complement: briefing.site_complement,
+            district: briefing.site_district,
+            city: briefing.site_city,
+            state: briefing.site_state,
+            zipcode: briefing.site_zipcode,
+          }),
+          date: briefing.submitted_at ?? briefing.created_at,
+        })),
+      ]
+
+      return lista
+        .filter((item) => item.address !== '')
+        .sort((a, b) => b.date.localeCompare(a.date))
     },
   })
 }

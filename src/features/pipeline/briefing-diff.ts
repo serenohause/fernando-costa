@@ -1,5 +1,6 @@
 import { CLIENT_TYPE, labelOf } from '@/lib/enums'
 import { formatDateBR } from '@/lib/format'
+import { formatAddress } from '@/features/crm/address'
 import type { Client } from '@/features/crm/types'
 import type { ApplicableClientColumn, BriefingDiff, ClientIntake, IntakeBriefing } from './types'
 
@@ -67,14 +68,17 @@ const FIELDS: FieldMap[] = [
   { field: 'address_district', label: 'Bairro', column: 'address_district' },
   { field: 'address_complement', label: 'Complemento', column: 'address_complement' },
 
-  // Passo 3 — Endereço da Obra
-  { field: 'site_zipcode', label: 'CEP da Obra', column: 'site_zipcode' },
-  { field: 'site_city', label: 'Cidade da Obra', column: 'site_city' },
-  { field: 'site_state', label: 'Estado da Obra', column: 'site_state' },
-  { field: 'site_street', label: 'Logradouro da Obra', column: 'site_street' },
-  { field: 'site_number', label: 'Número da Obra', column: 'site_number' },
-  { field: 'site_district', label: 'Bairro da Obra', column: 'site_district' },
-  { field: 'site_complement', label: 'Complemento da Obra', column: 'site_complement' },
+  /*
+    O PASSO 3 — ENDEREÇO DA OBRA — SAIU DAQUI (migration 0101), e é o conserto do
+    "um fica puxando o outro".
+
+    O cadastro do cliente guarda UMA obra; o cliente com dois projetos tem duas.
+    Comparar a obra de cada briefing com a mesma coluna fazia a conferência de
+    um projeto desfazer a do outro, sem fim — caso real de produção, dois
+    projetos do mesmo cliente em ruas diferentes do mesmo condomínio. A obra é
+    do PROJETO: a conferência a mostra (`briefingSiteAddress`) e o contrato da
+    negociação a copia do briefing, sem passar pelo cadastro.
+  */
 ]
 
 export function buildBriefingDiff(intake: ClientIntake, client: Client): BriefingDiff[] {
@@ -103,8 +107,13 @@ export function buildBriefingDiff(intake: ClientIntake, client: Client): Briefin
   }
 
   const diffs: BriefingDiff[] = []
+  /* Diferença que a equipe decidiu manter como está no cadastro ("Manter
+     cadastro", 0101): deixa de ser acusada, aqui e no aviso do Pipeline. */
+  const dismissed = new Set(intake.dismissed_fields ?? [])
 
   for (const [column, list] of answers) {
+    if (dismissed.has(column)) continue
+
     const winner = list[list.length - 1]
 
     const current = client[column]
@@ -142,4 +151,20 @@ function displayValue(column: ApplicableClientColumn, value: string): string {
   }
   if (column === 'birth_date') return formatDateBR(value)
   return value
+}
+
+/*
+  O endereço da obra DESTE briefing, numa linha, para a conferência mostrar.
+  Vazio quando o passo 3 não foi respondido.
+*/
+export function briefingSiteAddress(intake: ClientIntake): string {
+  return formatAddress({
+    street: intake.site_street,
+    number: intake.site_number,
+    complement: intake.site_complement,
+    district: intake.site_district,
+    city: intake.site_city,
+    state: intake.site_state,
+    zipcode: intake.site_zipcode,
+  })
 }

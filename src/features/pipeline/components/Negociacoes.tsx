@@ -123,6 +123,10 @@ export default function Negociacoes() {
   const collaboratorsQuery = useCollaborators()
 
   const negotiations = useMemo(() => negotiationsQuery.data ?? [], [negotiationsQuery.data])
+  const negotiationNames = useMemo(
+    () => new Map(negotiations.map((negotiation) => [negotiation.id, negotiation.name])),
+    [negotiations],
+  )
   const intakes = useMemo(() => intakesQuery.data ?? [], [intakesQuery.data])
 
   const createMutation = useCreateNegotiation()
@@ -876,6 +880,7 @@ export default function Negociacoes() {
         open={briefingsOpen}
         onClose={() => setBriefingsOpen(false)}
         intakes={submittedIntakes}
+        negotiationNames={negotiationNames}
       />
 
       <AlertDialog open={Boolean(deleting)} onOpenChange={() => setDeleting(null)}>

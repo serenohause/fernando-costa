@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, Check, ClipboardCheck, UserX } from 'lucide-react'
+import { ArrowRight, Check, ClipboardCheck, MapPin, UserX } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,11 +22,12 @@ import ErrorState from '@/components/shared/ErrorState'
 import { useClient } from '@/features/crm/hooks'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { formatDateBR } from '@/lib/format'
-import { buildBriefingDiff } from '../briefing-diff'
+import { briefingSiteAddress, buildBriefingDiff } from '../briefing-diff'
 import {
   describeContractError,
   describeDatabaseError,
   useApplyBriefingField,
+  useDismissBriefingField,
   useGenerateContractFromBriefing,
 } from '../hooks'
 import type { ClientIntake } from '../types'
@@ -55,11 +56,18 @@ export default function BriefingReview({
   open,
   onClose,
   intakes,
+  negotiationNames,
 }: {
   open: boolean
   onClose: () => void
   /* Só os briefings já enviados — os outros não têm o que comparar. */
   intakes: ClientIntake[]
+  /*
+    O NOME DA NEGOCIAÇÃO de cada briefing, por id. Sem ele, dois briefings do
+    mesmo cliente apareciam idênticos na lista ("Fernando — 09/09/2026" duas
+    vezes), e não havia como saber qual era de qual projeto (0101).
+  */
+  negotiationNames: ReadonlyMap<string, string>
 }) {
   const [selectedId, setSelectedId] = useState<string>('')
 
@@ -100,6 +108,9 @@ export default function BriefingReview({
                   {intakes.map((intake) => (
                     <SelectItem key={intake.id} value={intake.id}>
                       {intake.full_name ?? 'Sem nome informado'}
+                      {intake.negotiation_id && negotiationNames.get(intake.negotiation_id)
+                        ? ` — ${negotiationNames.get(intake.negotiation_id)}`
+                        : ''}
                       {intake.submitted_at ? ` — ${formatDateBR(intake.submitted_at.slice(0, 10))}` : ''}
                     </SelectItem>
                   ))}
@@ -107,7 +118,14 @@ export default function BriefingReview({
               </Select>
             )}
 
-            {selected && <BriefingComparison intake={selected} />}
+            {selected && (
+              <BriefingComparison
+                intake={selected}
+                negotiationName={
+                  selected.negotiation_id ? (negotiationNames.get(selected.negotiation_id) ?? null) : null
+                }
+              />
+            )}
           </div>
         )}
       </DialogContent>
@@ -115,9 +133,16 @@ export default function BriefingReview({
   )
 }
 
-function BriefingComparison({ intake }: { intake: ClientIntake }) {
+function BriefingComparison({
+  intake,
+  negotiationName,
+}: {
+  intake: ClientIntake
+  negotiationName: string | null
+}) {
   const clientQuery = useClient(intake.client_id)
   const applyMutation = useApplyBriefingField()
+  const dismissMutation = useDismissBriefingField()
   const generateContract = useGenerateContractFromBriefing()
   const { canEdit: canEditCrm } = useMenuPermissions('crm')
   const { canEdit: canEditPipeline } = useMenuPermissions('pipeline')
@@ -183,18 +208,43 @@ function BriefingComparison({ intake }: { intake: ClientIntake }) {
   }
 
   const diffs = buildBriefingDiff(intake, client).filter((diff) => !applied.includes(diff.field))
+  const obraDoProjeto = briefingSiteAddress(intake)
 
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-border bg-elevated p-4">
         <p className="text-xs text-muted-foreground">Cadastro no CRM</p>
         <p className="font-semibold text-foreground">{client.name}</p>
+        {negotiationName && (
+          <p className="text-sm text-soft mt-0.5">Negociação: {negotiationName}</p>
+        )}
         {intake.submitted_at && (
           <p className="text-xs text-muted-foreground mt-1">
             Briefing enviado em {formatDateBR(intake.submitted_at.slice(0, 10))}
           </p>
         )}
       </div>
+
+      {/*
+        A OBRA DESTE PROJETO, só para ler (0101). Não é mais comparada com o
+        cadastro: o cliente pode ter outras obras, e o contrato desta negociação
+        copia esta daqui.
+      */}
+      {obraDoProjeto && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-semibold text-soft uppercase tracking-wider mb-1">
+            Endereço da obra deste projeto
+          </p>
+          <div className="flex items-start gap-2 text-sm text-foreground">
+            <MapPin className="w-4 h-4 text-faint mt-0.5 shrink-0" />
+            <span>{obraDoProjeto}</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Vai para o contrato desta negociação e não altera o cadastro do cliente, que pode ter
+            outras obras.
+          </p>
+        </div>
+      )}
 
       {!canEditCrm && (
         <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -235,8 +285,8 @@ function BriefingComparison({ intake }: { intake: ClientIntake }) {
                   Briefing conferido. Gerar o contrato?
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  O contrato nasce em Contratos &amp; Propostas, com os dados da negociação e o
-                  cadastro do cliente como está agora.
+                  O contrato nasce em Contratos &amp; Propostas, com os dados da negociação, a
+                  obra deste briefing e o cadastro do cliente como está agora.
                 </p>
               </div>
               <Button
@@ -306,6 +356,31 @@ function BriefingComparison({ intake }: { intake: ClientIntake }) {
                   </p>
                 )}
               </div>
+              <div className="flex items-center gap-2 shrink-0">
+              {/* O cadastro é que está certo: a diferença deixa de ser
+                  acusada, e nada é gravado no cliente (0101). */}
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={!canEditPipeline || dismissMutation.isPending}
+                title={canEditPipeline ? undefined : 'Exige permissão de edição no Pipeline'}
+                onClick={() => {
+                  dismissMutation.mutate(
+                    { intake, column: diff.column },
+                    {
+                      onSuccess: () => {
+                        setApplied((previous) => [...previous, diff.field])
+                        toast.success(`${diff.label}: mantido o que está no cadastro.`)
+                      },
+                      onError: (error) => {
+                        toast.error('Não foi possível dispensar: ' + describeDatabaseError(error))
+                      },
+                    },
+                  )
+                }}
+              >
+                Manter cadastro
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -327,6 +402,7 @@ function BriefingComparison({ intake }: { intake: ClientIntake }) {
               >
                 Aplicar
               </Button>
+              </div>
             </div>
           ))}
         </div>

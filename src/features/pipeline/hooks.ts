@@ -898,3 +898,41 @@ export function useSubmitClientIntake(token: string) {
     },
   })
 }
+
+/*
+  "MANTER CADASTRO": a diferença entre o briefing e o cadastro deixa de ser
+  acusada, sem alterar nenhum dos dois (migration 0101).
+
+  É a saída que faltava quando o CADASTRO é que está certo — o caso de produção
+  foi a data de nascimento: corrigida no CRM, o briefing continuava com o ano
+  digitado errado, e a única forma de o aviso sumir era aplicar o erro.
+
+  A escrita é no BRIEFING (`dismissed_fields`), então a permissão é a do Pipeline
+  (`client_intakes_update_pipeline_editor`), e não a do CRM como o "Aplicar".
+*/
+export function useDismissBriefingField() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ intake, column }: { intake: ClientIntake; column: ApplicableClientColumn }) => {
+      const atuais = intake.dismissed_fields ?? []
+      if (atuais.includes(column)) return column
+
+      const { data, error } = await supabase
+        .from('client_intakes')
+        .update({ dismissed_fields: [...atuais, column] })
+        .eq('id', intake.id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A diferença não foi dispensada. É preciso permissão de edição no Pipeline.',
+      )
+      return column
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: pipelineKeys.intakes() })
+    },
+  })
+}
