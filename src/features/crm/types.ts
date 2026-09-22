@@ -19,6 +19,19 @@ export type ClientPerson = Tables<'client_people'>
   coluna nova for usada na listagem sem ter sido pedida na consulta — que
   apareceria como `undefined` em produção, não como erro.
 */
+/*
+  A LINHA DA LISTA pode ser o cadastro OU alguém vinculado a ele (0102).
+
+  O escritório pediu para não ter de abrir o cliente para ver o cônjuge: os dois
+  aparecem na lista e contam como lead. A linha da pessoa carrega o `id` do
+  TITULAR — é o cadastro que ela abre — e `person` diz de quem é o nome exibido.
+*/
+export type ClientListPerson = {
+  id: string
+  relationship: string
+  titularName: string
+}
+
 export type ClientListRow = Pick<
   Client,
   | 'id'
@@ -30,7 +43,12 @@ export type ClientListRow = Pick<
   | 'address_state'
   | 'address_country'
   | 'lead_source'
->
+> & {
+  person?: ClientListPerson
+  /* Tem contrato associado ao cadastro. Vale para as duas linhas: o vínculo é do
+     cliente, e é o que o escritório quis ver sinalizado. */
+  hasContract?: boolean
+}
 
 /*
   O que o formulário de cliente do original edita, já em valores do banco.

@@ -322,7 +322,7 @@ export function useClients(search: string) {
       const { data, error } = await query
       if (error) throw error
       const encontrados = data ?? []
-      if (!term) return encontrados
+      if (!term) return comVinculos(encontrados)
 
       /*
         A BUSCA TAMBÉM ACHA PELO CÔNJUGE (migration 0102). `search_text` é uma
@@ -369,11 +369,65 @@ export function useClients(search: string) {
 
       if (erroExtras) throw erroExtras
 
-      return [...encontrados, ...(extras ?? [])]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .slice(0, CLIENTS_LIST_LIMIT)
+      return comVinculos(
+        [...encontrados, ...(extras ?? [])]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .slice(0, CLIENTS_LIST_LIMIT),
+      )
     },
   })
+}
+
+/*
+  A LISTA MOSTRA O TITULAR E QUEM ESTÁ VINCULADO A ELE (0102), e marca quem tem
+  contrato.
+
+  Pedido do escritório: "não quero ter que entrar no cliente para ver os usuários
+  vinculados; ambos devem ser considerados leads, só deve ser sinalizado que tem
+  contrato associado". A linha da pessoa aponta para o cadastro do titular — é
+  ele que se abre — e leva o contato dela, que é o que se procura numa lista.
+
+  Duas consultas a mais, sobre os ids que já estão na tela: não é uma por linha.
+*/
+async function comVinculos(clientes: ClientListRow[]): Promise<ClientListRow[]> {
+  if (clientes.length === 0) return clientes
+
+  const ids = clientes.map((cliente) => cliente.id)
+
+  const [pessoas, contratos] = await Promise.all([
+    supabase
+      .from('client_people')
+      .select('id, client_id, name, relationship, email, phone')
+      .in('client_id', ids),
+    supabase.from('contracts').select('client_id').in('client_id', ids),
+  ])
+
+  if (pessoas.error) throw pessoas.error
+  if (contratos.error) throw contratos.error
+
+  const comContrato = new Set((contratos.data ?? []).flatMap((c) => (c.client_id ? [c.client_id] : [])))
+  const porId = new Map(clientes.map((cliente) => [cliente.id, cliente]))
+
+  const linhasDePessoa: ClientListRow[] = (pessoas.data ?? []).flatMap((pessoa) => {
+    const titular = porId.get(pessoa.client_id)
+    if (!titular) return []
+    return [
+      {
+        ...titular,
+        name: pessoa.name,
+        /* O contato é o DELA; cidade, estado e origem continuam do cadastro. */
+        email: pessoa.email,
+        phone: pessoa.phone ?? '',
+        person: { id: pessoa.id, relationship: pessoa.relationship, titularName: titular.name },
+        hasContract: comContrato.has(titular.id),
+      },
+    ]
+  })
+
+  return [
+    ...clientes.map((cliente) => ({ ...cliente, hasContract: comContrato.has(cliente.id) })),
+    ...linhasDePessoa,
+  ].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /*

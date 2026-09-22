@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { CLIENT_TYPE, LEAD_SOURCE, labelOf } from '@/lib/enums'
+import { relationshipLabel } from '../people'
 import { createPageUrl } from '@/lib/page-url'
 import { useDebouncedValue } from '@/lib/use-debounced-value'
 import ClientForm, { toFormValues } from './ClientForm'
@@ -185,8 +186,25 @@ export default function Clients() {
             <span className="font-semibold text-soft">{row.name?.charAt(0).toUpperCase()}</span>
           </div>
           <div>
-            <p className="font-medium text-foreground">{row.name}</p>
-            <p className="text-sm text-muted-foreground">{labelOf(CLIENT_TYPE, row.client_type)}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-medium text-foreground">{row.name}</p>
+              {/* Contrato associado ao cadastro — o único sinal que o escritório
+                  pediu na lista (0102). Vale para o titular e para quem está
+                  vinculado a ele. */}
+              {row.hasContract && (
+                <Badge
+                  variant="outline"
+                  className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
+                >
+                  Com contrato
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {row.person
+                ? `${relationshipLabel(row.person.relationship)} de ${row.person.titularName}`
+                : labelOf(CLIENT_TYPE, row.client_type)}
+            </p>
           </div>
         </div>
       ),
@@ -236,8 +254,12 @@ export default function Clients() {
     {
       header: '',
       cell: (row) =>
-        /* Quem não pode editar vê a lista sem os botões de ação. */
-        canEdit ? (
+        /*
+          Quem não pode editar vê a lista sem os botões de ação — e a linha de
+          quem está VINCULADO também não os tem: editar e remover aqui são do
+          cadastro do titular, e a pessoa se edita na ficha dele (0102).
+        */
+        canEdit && !row.person ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -335,6 +357,7 @@ export default function Clients() {
         />
       ) : (
         <DataTable
+          rowKey={(row) => (row.person ? `person:${row.person.id}` : row.id)}
           columns={columns}
           data={clients}
           isLoading={clientsQuery.isLoading}

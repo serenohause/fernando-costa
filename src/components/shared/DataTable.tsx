@@ -36,9 +36,14 @@ export default function DataTable<T extends { id?: string }>({
   emptyMessage = 'Nenhum registro encontrado',
   rowRef,
   rowClassName,
+  rowKey,
 }: {
   columns: Column<T>[]
   data: T[]
+  /* Quando duas linhas podem compartilhar o mesmo `id` — a lista do CRM mostra
+     o titular e as pessoas do cadastro dele, todas apontando para o mesmo
+     cadastro (0102) — quem chama diz qual é a chave de cada linha. */
+  rowKey?: (row: T) => string
   isLoading?: boolean
   onRowClick?: (row: T) => void
   emptyMessage?: string
@@ -103,7 +108,7 @@ export default function DataTable<T extends { id?: string }>({
                     tema claro e passa a seguir o tema no escuro.
                   */
                   <motion.tr
-                    key={row.id ?? rowIndex}
+                    key={rowKey?.(row) ?? row.id ?? rowIndex}
                     ref={row.id && rowRef ? rowRef(row.id) : undefined}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
