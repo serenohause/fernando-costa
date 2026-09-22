@@ -89,6 +89,11 @@ function isRealDate(value: string): boolean {
 */
 const briefingSchema = z
   .object({
+    /* Quem respondeu (0102): o objeto é estrito, então sem estas duas chaves o
+       formulário novo seria recusado inteiro. */
+    filled_by_relationship: z.enum(['client', 'spouse', 'representative', 'other']).optional(),
+    filled_by_name: text(200),
+
     full_name: text(200),
     phone: text(50),
     /*

@@ -846,6 +846,8 @@ export type Database = {
           last_validation_status: Database["public"]["Enums"]["client_intake_validation_status"]
           legacy_id: string | null
           dismissed_fields: string[]
+          filled_by_name: string | null
+          filled_by_relationship: string | null
           negotiation_id: string | null
           phone: string | null
           site_city: string | null
@@ -886,6 +888,8 @@ export type Database = {
           last_validation_status?: Database["public"]["Enums"]["client_intake_validation_status"]
           legacy_id?: string | null
           dismissed_fields?: string[]
+          filled_by_name?: string | null
+          filled_by_relationship?: string | null
           negotiation_id?: string | null
           phone?: string | null
           site_city?: string | null
@@ -926,6 +930,8 @@ export type Database = {
           last_validation_status?: Database["public"]["Enums"]["client_intake_validation_status"]
           legacy_id?: string | null
           dismissed_fields?: string[]
+          filled_by_name?: string | null
+          filled_by_relationship?: string | null
           negotiation_id?: string | null
           phone?: string | null
           site_city?: string | null
@@ -960,6 +966,75 @@ export type Database = {
           },
           {
             foreignKeyName: "client_intakes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_people: {
+        Row: {
+          birth_date: string | null
+          client_id: string
+          created_at: string
+          display_order: number
+          email: string | null
+          id: string
+          is_contract_signer: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          relationship: string
+          tax_id: string | null
+          tax_id_digits: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          birth_date?: string | null
+          client_id: string
+          created_at?: string
+          display_order?: number
+          email?: string | null
+          id?: string
+          is_contract_signer?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          relationship?: string
+          tax_id?: string | null
+          tax_id_digits?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          birth_date?: string | null
+          client_id?: string
+          created_at?: string
+          display_order?: number
+          email?: string | null
+          id?: string
+          is_contract_signer?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          relationship?: string
+          tax_id?: string | null
+          tax_id_digits?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_people_client_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "client_people_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
