@@ -132,6 +132,10 @@ const optionalTrimmed = (max: number) =>
   )
 
 export const intakeBriefingSchema = z.object({
+  /* Quem respondeu o formulário (0102). Ausente nos briefings anteriores. */
+  filled_by_relationship: z.enum(['client', 'spouse', 'representative', 'other']).optional(),
+  filled_by_name: optionalTrimmed(200),
+
   full_name: optionalTrimmed(200),
   phone: optionalTrimmed(50),
   email: z.preprocess(

@@ -3,6 +3,10 @@ import type { ClientType, LeadSource } from '@/lib/enums'
 
 export type Client = Tables<'clients'>
 
+/* Quem mais está no cadastro junto com o titular: cônjuge, segundo titular,
+   sócio, representante (migration 0102). */
+export type ClientPerson = Tables<'client_people'>
+
 /*
   O recorte que a LISTAGEM lê — não o cadastro inteiro.
 

@@ -712,6 +712,24 @@ export default function Negociacoes() {
         O componente continua no repositório, desmontado. Se um dia for ligado,
         as faixas precisam vir do escritório, não de palpite.
       */}
+      {/*
+        A PORTA FIXA PARA OS BRIEFINGS.
+
+        Antes só existia o botão do aviso azul, e ele some quando não há mais
+        nada a aplicar — que passou a ser o caso comum depois da 0102 (o briefing
+        preenchido pelo cônjuge não propõe mais trocar o titular). Sem esta
+        entrada, o briefing conferido ficava inalcançável, e com ele o botão de
+        gerar o contrato.
+      */}
+      {submittedIntakes.length > 0 && (
+        <div className="mb-6 flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => setBriefingsOpen(true)}>
+            <ClipboardCheck className="w-4 h-4 mr-2" />
+            Briefings recebidos ({submittedIntakes.length})
+          </Button>
+        </div>
+      )}
+
       {(hasNegotiations || isFiltering) && (
         <div className="mb-6">
           <div className="relative flex-1">

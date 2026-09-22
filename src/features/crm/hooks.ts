@@ -16,6 +16,7 @@ import type {
   CompanyLookup,
   DuplicateField,
   ZipcodeAddress,
+  ClientPerson,
 } from './types'
 import type { ProjectStatus } from '@/lib/enums'
 
@@ -28,6 +29,7 @@ export const crmKeys = {
      não muda nenhum dos dois — mas gravar um cliente novo a partir de um
      briefing muda, e uma invalidação só cobre as duas telas. */
   history: (id: string) => [...crmKeys.all, 'history', id] as const,
+  people: (id: string | null | undefined) => [...crmKeys.all, 'people', id ?? ''] as const,
 }
 
 /* `Client.list('name', 500)` é como o original carrega a tela. */
@@ -319,7 +321,57 @@ export function useClients(search: string) {
 
       const { data, error } = await query
       if (error) throw error
-      return data ?? []
+      const encontrados = data ?? []
+      if (!term) return encontrados
+
+      /*
+        A BUSCA TAMBÉM ACHA PELO CÔNJUGE (migration 0102). `search_text` é uma
+        coluna gerada de `clients` e não enxerga linha filha; então quem responde
+        por essa parte é uma segunda consulta, em `client_people`, e o resultado
+        entra na mesma lista.
+
+        Duas consultas em vez de um `or(...)`: o termo é texto digitado, e
+        vírgula ou parêntese dentro dele quebraria a sintaxe do filtro composto
+        do PostgREST.
+      */
+      const digitos = term.replace(/\D/g, '')
+      const porNome = supabase
+        .from('client_people')
+        .select('client_id')
+        .ilike('name', `%${escapeLikePattern(term)}%`)
+        .limit(CLIENTS_LIST_LIMIT)
+
+      const consultas = [porNome]
+      if (digitos.length >= 3) {
+        consultas.push(
+          supabase
+            .from('client_people')
+            .select('client_id')
+            .ilike('tax_id_digits', `%${digitos}%`)
+            .limit(CLIENTS_LIST_LIMIT),
+        )
+      }
+
+      const respostas = await Promise.all(consultas)
+      for (const resposta of respostas) if (resposta.error) throw resposta.error
+
+      const jaNaLista = new Set(encontrados.map((cliente) => cliente.id))
+      const faltando = [
+        ...new Set(respostas.flatMap((resposta) => (resposta.data ?? []).map((linha) => linha.client_id))),
+      ].filter((id) => !jaNaLista.has(id))
+
+      if (faltando.length === 0) return encontrados
+
+      const { data: extras, error: erroExtras } = await supabase
+        .from('clients')
+        .select(CLIENTS_LIST_COLUMNS)
+        .in('id', faltando)
+
+      if (erroExtras) throw erroExtras
+
+      return [...encontrados, ...(extras ?? [])]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, CLIENTS_LIST_LIMIT)
     },
   })
 }
@@ -835,6 +887,105 @@ export function useClientSiteAddresses(clientId: string | null | undefined) {
       return lista
         .filter((item) => item.address !== '')
         .sort((a, b) => b.date.localeCompare(a.date))
+    },
+  })
+}
+
+/* ── Pessoas do cadastro (migration 0102) ──────────────────────────────── */
+
+export function useClientPeople(clientId: string | null | undefined) {
+  return useQuery({
+    queryKey: crmKeys.people(clientId),
+    enabled: Boolean(clientId),
+    queryFn: async (): Promise<ClientPerson[]> => {
+      const { data, error } = await supabase
+        .from('client_people')
+        .select('*')
+        .eq('client_id', clientId!)
+        .order('display_order', { ascending: true })
+        .order('name', { ascending: true })
+
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export type ClientPersonInput = {
+  name: string
+  relationship: string
+  tax_id: string | null
+  birth_date: string | null
+  email: string | null
+  phone: string | null
+  notes: string | null
+  is_contract_signer: boolean
+}
+
+/*
+  Grava uma pessoa do cadastro. `id` nulo é pessoa nova.
+
+  A permissão é a do CRM (`client_people_*_crm_editor`), a mesma de editar o
+  cliente: quem confere o briefing no Pipeline e não edita o CRM consegue ver,
+  não gravar — e a tela diz isso em vez de deixar o banco recusar calado.
+*/
+export function useSaveClientPerson() {
+  const queryClient = useQueryClient()
+  const tenantId = useTenantId()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      clientId,
+      input,
+    }: {
+      id: string | null
+      clientId: string
+      input: ClientPersonInput
+    }) => {
+      const semPermissao = 'Não foi possível salvar. É preciso permissão de edição no CRM.'
+
+      if (id) {
+        const { data, error } = await supabase
+          .from('client_people')
+          .update(input)
+          .eq('id', id)
+          .select('id')
+
+        if (error) throw error
+        assertRowAffected(data, semPermissao)
+        return id
+      }
+
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+
+      const { data, error } = await supabase
+        .from('client_people')
+        .insert({ ...input, tenant_id: tenantId, client_id: clientId })
+        .select('id')
+        .single()
+
+      if (error) throw error
+      return data.id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: crmKeys.all })
+    },
+  })
+}
+
+export function useDeleteClientPerson() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase.from('client_people').delete().eq('id', id).select('id')
+      if (error) throw error
+      assertRowAffected(data, 'Não foi possível remover. É preciso permissão de edição no CRM.')
+      return id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: crmKeys.all })
     },
   })
 }

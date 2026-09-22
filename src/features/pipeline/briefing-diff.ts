@@ -81,6 +81,40 @@ const FIELDS: FieldMap[] = [
   */
 ]
 
+/*
+  OS CAMPOS QUE DESCREVEM A PESSOA, e não o endereço nem o contato do cadastro.
+
+  Quando quem preencheu NÃO é o cliente (o cônjuge, quase sempre), aplicar estes
+  quatro trocaria o titular do cadastro pela pessoa que respondeu — o defeito
+  relatado. Eles saem da comparação e viram a oferta de guardar a pessoa junto ao
+  cadastro (`client_people`, migration 0102).
+*/
+const PERSONAL_COLUMNS: ApplicableClientColumn[] = [
+  'name',
+  'tax_id',
+  'birth_date',
+  'client_type',
+  /* Telefone e e-mail entram na lista pelo mesmo motivo: quem respondeu com os
+     próprios dados deu o PRÓPRIO contato, e ele vai para as pessoas do cadastro
+     (client_people) em vez de substituir o do titular. */
+  'phone',
+  'email',
+]
+
+/* O formulário foi respondido por outra pessoa? Briefing antigo não tem a
+   resposta, e aí a tela decide pelo nome (ver `intakeNameDiffers`). */
+export function intakeFilledByOther(intake: ClientIntake): boolean {
+  return Boolean(intake.filled_by_relationship && intake.filled_by_relationship !== 'client')
+}
+
+/* O nome que veio no briefing é outro? É o sinal que resta nos briefings
+   anteriores à 0102 — o caso que chegou de produção. */
+export function intakeNameDiffers(intake: ClientIntake, client: Client): boolean {
+  const doBriefing = (intake.full_name ?? '').trim().toLocaleLowerCase('pt-BR')
+  const doCadastro = client.name.trim().toLocaleLowerCase('pt-BR')
+  return doBriefing !== '' && doCadastro !== '' && doBriefing !== doCadastro
+}
+
 export function buildBriefingDiff(intake: ClientIntake, client: Client): BriefingDiff[] {
   /*
     PRIMEIRO as respostas, DEPOIS a comparação — e a ordem entre as duas etapas
@@ -111,8 +145,19 @@ export function buildBriefingDiff(intake: ClientIntake, client: Client): Briefin
      cadastro", 0101): deixa de ser acusada, aqui e no aviso do Pipeline. */
   const dismissed = new Set(intake.dismissed_fields ?? [])
 
+  /*
+    SÓ QUANDO AS DUAS COISAS VALEM: quem respondeu não é o titular E o nome que
+    veio é outro. Cônjuge que preencheu corretamente os dados DO CLIENTE continua
+    podendo corrigir o cadastro; o que sai da lista é o caso em que a pessoa
+    respondeu com os próprios dados.
+  */
+  const dadosDeOutraPessoa = intakeFilledByOther(intake) && intakeNameDiffers(intake, client)
+
   for (const [column, list] of answers) {
     if (dismissed.has(column)) continue
+    /* Quem respondeu não é o titular: nome, CPF, nascimento e tipo de cliente
+       são DELA, e não do cadastro (0102). */
+    if (dadosDeOutraPessoa && PERSONAL_COLUMNS.includes(column)) continue
 
     const winner = list[list.length - 1]
 

@@ -110,6 +110,14 @@ export type OpenIntakeResult = {
 /* As chaves são as colunas de briefing de `client_intakes`, e é este objeto que
    viaja para a edge function. */
 export type IntakeBriefing = {
+  /*
+    QUEM ESTÁ PREENCHENDO (migration 0102). No escritório é comum o cônjuge
+    responder pelo cliente; sem esta resposta, a conferência entendia que o
+    titular tinha mudado e oferecia trocar nome, CPF e nascimento.
+  */
+  filled_by_relationship?: 'client' | 'spouse' | 'representative' | 'other'
+  filled_by_name?: string
+
   full_name?: string
   phone?: string
   email?: string

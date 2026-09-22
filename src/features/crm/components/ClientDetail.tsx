@@ -19,6 +19,7 @@ import {
 } from '@/features/pipeline/hooks'
 import ClientForm, { toFormValues } from './ClientForm'
 import ClientHistory from './ClientHistory'
+import ClientPeople from './ClientPeople'
 import ClientSiteAddresses from './ClientSiteAddresses'
 import { DuplicateClientError, describeDatabaseError, useClient, useUpdateClient } from '../hooks'
 import type { Client, ClientInput } from '../types'
@@ -336,6 +337,10 @@ export default function ClientDetail() {
           )}
         </div>
       </Card>
+
+      {/* Quem mais está neste cadastro (0102): o cônjuge que preenche o
+          formulário público não substitui mais o titular. */}
+      <ClientPeople clientId={client.id} />
 
       {/* Uma obra por projeto (0101): o cadastro acima guarda uma só. */}
       <ClientSiteAddresses clientId={client.id} />

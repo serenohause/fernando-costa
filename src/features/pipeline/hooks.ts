@@ -936,3 +936,58 @@ export function useDismissBriefingField() {
     },
   })
 }
+
+/*
+  GUARDA QUEM PREENCHEU O BRIEFING como pessoa do cadastro (migration 0102).
+
+  O relato: "às vezes quem preenche é o cônjuge, e o briefing muda o nome do
+  cliente e todas as informações pessoais". A resposta não é descartar esses
+  dados — o escritório os consulta depois —, é guardá-los ao lado do titular.
+
+  A escrita é em `client_people`, então a permissão é a do CRM, como o "Aplicar".
+  O `tenant_id` vem da própria linha do briefing: ela já é do escritório certo, e
+  a policy confere isso de novo.
+*/
+export function useSaveIntakePerson() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      intake,
+      name,
+      relationship,
+      /* Os dados pessoais do briefing só acompanham quando são DELA: quem
+         respondeu com o próprio nome. Cônjuge que preencheu os dados do cliente
+         entra só com o nome. */
+      withPersonalData,
+    }: {
+      intake: ClientIntake
+      name: string
+      relationship: string
+      withPersonalData: boolean
+    }) => {
+      if (!intake.client_id) throw new WriteError('Este briefing não está ligado a um cliente.')
+
+      const { data, error } = await supabase
+        .from('client_people')
+        .insert({
+          tenant_id: intake.tenant_id,
+          client_id: intake.client_id,
+          name: name.trim(),
+          relationship,
+          tax_id: withPersonalData ? intake.tax_id : null,
+          birth_date: withPersonalData ? intake.birth_date : null,
+          email: withPersonalData ? intake.email : null,
+          phone: withPersonalData ? intake.phone : null,
+        })
+        .select('id')
+        .single()
+
+      if (error) throw error
+      return data.id
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: crmKeys.all })
+    },
+  })
+}

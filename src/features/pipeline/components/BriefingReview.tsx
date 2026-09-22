@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, Check, ClipboardCheck, MapPin, UserX } from 'lucide-react'
+import { ArrowRight, Check, ClipboardCheck, MapPin, UserPlus, UserX } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,12 +22,19 @@ import ErrorState from '@/components/shared/ErrorState'
 import { useClient } from '@/features/crm/hooks'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { formatDateBR } from '@/lib/format'
-import { briefingSiteAddress, buildBriefingDiff } from '../briefing-diff'
+import { relationshipFromIntake, relationshipLabel } from '@/features/crm/people'
+import {
+  briefingSiteAddress,
+  buildBriefingDiff,
+  intakeFilledByOther,
+  intakeNameDiffers,
+} from '../briefing-diff'
 import {
   describeContractError,
   describeDatabaseError,
   useApplyBriefingField,
   useDismissBriefingField,
+  useSaveIntakePerson,
   useGenerateContractFromBriefing,
 } from '../hooks'
 import type { ClientIntake } from '../types'
@@ -143,6 +150,8 @@ function BriefingComparison({
   const clientQuery = useClient(intake.client_id)
   const applyMutation = useApplyBriefingField()
   const dismissMutation = useDismissBriefingField()
+  const savePerson = useSaveIntakePerson()
+  const [personSaved, setPersonSaved] = useState(false)
   const generateContract = useGenerateContractFromBriefing()
   const { canEdit: canEditCrm } = useMenuPermissions('crm')
   const { canEdit: canEditPipeline } = useMenuPermissions('pipeline')
@@ -210,6 +219,18 @@ function BriefingComparison({
   const diffs = buildBriefingDiff(intake, client).filter((diff) => !applied.includes(diff.field))
   const obraDoProjeto = briefingSiteAddress(intake)
 
+  /*
+    QUEM RESPONDEU NÃO É O TITULAR (0102). Duas situações caem aqui: o briefing
+    diz que quem preencheu é cônjuge ou representante, e o briefing antigo, sem
+    a pergunta, cujo nome veio diferente do cadastro — o caso que chegou de
+    produção. Nos dois, a saída é guardar a pessoa ao lado do titular em vez de
+    substituí-lo.
+  */
+  const respondidoPorOutro = intakeFilledByOther(intake)
+  const nomeDiferente = intakeNameDiffers(intake, client)
+  const dadosDaPessoa = respondidoPorOutro && nomeDiferente
+  const nomeDaPessoa = (intake.filled_by_name ?? '').trim() || (nomeDiferente ? (intake.full_name ?? '').trim() : '')
+
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-border bg-elevated p-4">
@@ -246,6 +267,64 @@ function BriefingComparison({
         </div>
       )}
 
+      {(respondidoPorOutro || nomeDiferente) && nomeDaPessoa !== '' && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-semibold text-soft uppercase tracking-wider mb-1">
+            {respondidoPorOutro ? 'Quem preencheu' : 'O nome do briefing é diferente do cadastro'}
+          </p>
+          <p className="text-sm text-foreground">
+            {nomeDaPessoa}
+            {respondidoPorOutro && (
+              <span className="text-muted-foreground">
+                {' '}
+                · {relationshipLabel(relationshipFromIntake(intake.filled_by_relationship))}
+              </span>
+            )}
+          </p>
+          {dadosDaPessoa && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Nome, CPF, nascimento, telefone e e-mail do briefing são desta pessoa, então não
+              são oferecidos para trocar o titular.
+            </p>
+          )}
+          <div className="mt-3 flex items-center gap-2">
+            {personSaved ? (
+              <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                Salvo em Titulares e contatos, no cadastro do cliente.
+              </p>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canEditCrm || savePerson.isPending}
+                title={canEditCrm ? undefined : 'Exige permissão de edição no CRM'}
+                onClick={() => {
+                  savePerson.mutate(
+                    {
+                      intake,
+                      name: nomeDaPessoa,
+                      relationship: relationshipFromIntake(intake.filled_by_relationship),
+                      withPersonalData: dadosDaPessoa,
+                    },
+                    {
+                      onSuccess: () => {
+                        setPersonSaved(true)
+                        toast.success(`${nomeDaPessoa} salvo no cadastro do cliente.`)
+                      },
+                      onError: (error) =>
+                        toast.error('Não foi possível salvar: ' + describeDatabaseError(error)),
+                    },
+                  )
+                }}
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Salvar como segundo titular
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       {!canEditCrm && (
         <p className="text-sm text-amber-700 dark:text-amber-400">
           Você pode conferir o briefing, mas aplicar um campo altera o cadastro do cliente — e isso
@@ -258,7 +337,11 @@ function BriefingComparison({
           <EmptyState
             icon={Check}
             title="Nada a aplicar"
-            description="O que o cliente preencheu já é o que está no cadastro."
+            description={
+              dadosDaPessoa
+                ? 'Os dados pessoais deste briefing são de quem preencheu, não do titular — guarde-os acima. O resto já é o que está no cadastro.'
+                : 'O que o cliente preencheu já é o que está no cadastro.'
+            }
           />
 
           {/*

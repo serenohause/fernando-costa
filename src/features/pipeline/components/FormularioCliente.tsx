@@ -65,6 +65,12 @@ import type { IntakeBriefing } from '../types'
 */
 
 type FormValues = {
+  /* Quem está preenchendo (migration 0102) — a pergunta que faltava: no
+     escritório é comum o cônjuge responder, e os dados dele viravam o cadastro
+     do titular. */
+  filled_by_relationship: 'client' | 'spouse' | 'representative' | 'other'
+  filled_by_name: string
+
   full_name: string
   phone: string
   email: string
@@ -93,6 +99,9 @@ type FormValues = {
 }
 
 const EMPTY: FormValues = {
+  filled_by_relationship: 'client',
+  filled_by_name: '',
+
   full_name: '',
   phone: '',
   email: '',
@@ -323,6 +332,50 @@ export default function FormularioCliente() {
               {currentStep === 1 && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-foreground mb-4">Dados Iniciais</h3>
+
+                  {/* Quem está preenchendo (0102). Sem esta pergunta, o briefing
+                      respondido pelo cônjuge chegava como se o titular tivesse
+                      mudado de nome, CPF e data de nascimento. */}
+                  <div className="space-y-2">
+                    <Label htmlFor="filled_by_relationship">Quem está preenchendo?</Label>
+                    <Select
+                      value={formData.filled_by_relationship}
+                      onValueChange={(value) =>
+                        setFormData({
+                          ...formData,
+                          filled_by_relationship: value as FormValues['filled_by_relationship'],
+                          filled_by_name: value === 'client' ? '' : formData.filled_by_name,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="filled_by_relationship">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="client">Sou o cliente</SelectItem>
+                        <SelectItem value="spouse">Sou cônjuge/companheiro(a) do cliente</SelectItem>
+                        <SelectItem value="representative">Represento o cliente</SelectItem>
+                        <SelectItem value="other">Outro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formData.filled_by_relationship !== 'client' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="filled_by_name">Seu nome</Label>
+                      <Input
+                        id="filled_by_name"
+                        value={formData.filled_by_name}
+                        onChange={(e) => setFormData({ ...formData, filled_by_name: e.target.value })}
+                        placeholder="Quem está preenchendo o formulário"
+                        maxLength={200}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Nos campos abaixo, preencha os dados <strong>do cliente</strong>. Os seus
+                        ficam guardados no cadastro dele como contato.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="full_name">Nome Completo *</Label>
