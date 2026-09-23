@@ -272,6 +272,59 @@ export function useProjectDiaryEntries(projectId: string | null | undefined, ena
   tem FK para ela. Se um anexo falhar, o registro JÁ ESTÁ GRAVADO e o erro sobe
   — a tela avisa que o anexo não subiu, e o que a pessoa escreveu não se perde.
 */
+/*
+  A ATIVIDADE DE UMA TAREFA, para o detalhe do cartão — o "Atividade" do Trello,
+  feito com o que o sistema já grava, sem tabela nova.
+
+  Os eventos automáticos do diário (mudança de etapa, troca de responsável,
+  status operacional ligado e desligado) guardam o id da tarefa dentro da
+  `event_key` — `fase:<projeto>:<tarefa>:…`, `responsavel:<projeto>:<tarefa>:…`,
+  `tag-on:<projeto>:<tarefa>:…` (ver flow.ts). Filtrar por `:<tarefa>:` recupera
+  a história daquele cartão sem ler o diário inteiro do projeto.
+
+  O ID É UUID, e isso é o que torna o LIKE seguro: não há `%` nem `_` num uuid,
+  então o valor não vira curinga.
+
+  O QUE NÃO APARECE AQUI, e é limite do dado e não esquecimento: comentários
+  livres por tarefa. O diário escrito à mão é do PROJETO, e só Diretor e
+  Coordenador escrevem nele (migration 0070); comentário de tarefa aberto a
+  qualquer um seria uma tabela nova e uma regra de permissão nova.
+
+  Teto de 30: o cartão mostra o recente, e a história inteira mora no Diário do
+  Projeto, que o próprio detalhe abre.
+*/
+export type TaskActivityEntry = {
+  id: string
+  title: string
+  description: string | null
+  system_event: string | null
+  created_at: string
+  created_by: { id: string; name: string; avatar_path: string | null } | null
+}
+
+export function useTaskActivity(projectId: string | null, taskId: string | null) {
+  return useQuery({
+    queryKey: [...diaryKeys.all, 'task-activity', taskId] as const,
+    enabled: Boolean(projectId && taskId),
+    queryFn: async (): Promise<TaskActivityEntry[]> => {
+      const { data, error } = await supabase
+        .from('project_diary_entries')
+        .select(
+          'id, title, description, system_event, created_at, created_by:collaborators!project_diary_entries_created_by_id_fkey(id, name, avatar_path)',
+        )
+        .eq('project_id', projectId as string)
+        .like('event_key', `%:${taskId}:%`)
+        .order('created_at', { ascending: false })
+        .limit(30)
+
+      if (error) throw error
+      return (data ?? []) as unknown as TaskActivityEntry[]
+    },
+    /* Cada gesto no cartão grava um evento novo; o feed tem de relê-lo ao abrir. */
+    staleTime: 0,
+  })
+}
+
 export function useCreateDiaryEntry() {
   const queryClient = useQueryClient()
   const tenantId = useTenantId()

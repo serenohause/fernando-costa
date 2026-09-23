@@ -43,8 +43,12 @@ import {
   useProjects,
   useReorderProjects,
   useUpdateProject,
+  describeRoomsError,
+  useProjectRooms,
+  useSaveProjectRooms,
 } from '../hooks'
 import ProjectForm, { toFormValues, type ProjectFormValues } from './ProjectForm'
+import type { RoomDraft } from '../rooms'
 import type { ProjectInput, ProjectRow } from '../types'
 
 /*
@@ -135,6 +139,8 @@ export default function Projects() {
   const updateMutation = useUpdateProject()
   const deleteMutation = useDeleteProject()
   const reorderProjects = useReorderProjects()
+  const roomsQuery = useProjectRooms()
+  const saveRooms = useSaveProjectRooms()
 
   /* Referência estável de propósito: ProjectForm reinicia o formulário quando
      `initialData` muda, como no original. Recriar o objeto a cada render apagaria
@@ -144,20 +150,43 @@ export default function Projects() {
     [editing],
   )
 
+  /*
+    Os ambientes do projeto aberto, com referência estável pelo CONTEÚDO: o
+    formulário reinicia quando esta lista muda, e uma releitura de fundo que
+    trouxesse os mesmos ambientes apagaria o que está sendo digitado.
+  */
+  const roomsDoEditado = (roomsQuery.data ?? []).filter((room) => room.project_id === editing?.id)
+  const roomsKey = JSON.stringify(roomsDoEditado)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const formInitialRooms = useMemo(() => roomsDoEditado, [roomsKey])
+
   const closeForm = () => {
     setFormOpen(false)
     setEditing(null)
   }
 
-  const handleSubmit = (data: ProjectInput) => {
+  /* Terceira escrita do gesto, depois do projeto: os ambientes. Falhar aqui não
+     desfaz o projeto salvo — a tela diz o que ficou de fora. */
+  const salvarAmbientes = (projectId: string, rooms: RoomDraft[], mensagem: string) => {
+    saveRooms.mutate(
+      { projectId, drafts: rooms, previous: editing ? formInitialRooms : [] },
+      {
+        onSuccess: () => {
+          closeForm()
+          toast.success(mensagem)
+        },
+        onError: (error) =>
+          toast.error('O projeto foi salvo, mas os ambientes não: ' + describeRoomsError(error)),
+      },
+    )
+  }
+
+  const handleSubmit = (data: ProjectInput, rooms: RoomDraft[]) => {
     if (editing) {
       updateMutation.mutate(
         { id: editing.id, input: data },
         {
-          onSuccess: () => {
-            closeForm()
-            toast.success('Projeto atualizado com sucesso!')
-          },
+          onSuccess: () => salvarAmbientes(editing.id, rooms, 'Projeto atualizado com sucesso!'),
           onError: (error) => toast.error('Erro ao atualizar: ' + describeDatabaseError(error)),
         },
       )
@@ -165,10 +194,7 @@ export default function Projects() {
     }
 
     createMutation.mutate(data, {
-      onSuccess: () => {
-        closeForm()
-        toast.success('Projeto criado com sucesso!')
-      },
+      onSuccess: (projectId) => salvarAmbientes(projectId, rooms, 'Projeto criado com sucesso!'),
       onError: (error) => toast.error('Erro ao criar: ' + describeDatabaseError(error)),
     })
   }
@@ -475,7 +501,8 @@ export default function Projects() {
         onClose={closeForm}
         onSubmit={handleSubmit}
         initialData={formInitialData}
-        isLoading={createMutation.isPending || updateMutation.isPending}
+        initialRooms={formInitialRooms}
+        isLoading={createMutation.isPending || updateMutation.isPending || saveRooms.isPending}
         clients={clientsQuery.data ?? []}
         collaborators={collaboratorsQuery.data ?? []}
       />

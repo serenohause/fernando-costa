@@ -1748,6 +1748,109 @@ export type Database = {
           },
         ]
       }
+      kanban_column_objective_sections: {
+        Row: {
+          column_id: string
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          column_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          column_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_column_objective_sections_column_fkey"
+            columns: ["column_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_objective_sections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kanban_column_objectives: {
+        Row: {
+          column_id: string
+          created_at: string
+          display_order: number
+          id: string
+          is_required: boolean
+          section_id: string | null
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          column_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_required?: boolean
+          section_id?: string | null
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          column_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_required?: boolean
+          section_id?: string | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_column_objectives_column_fkey"
+            columns: ["column_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_objectives_section_fkey"
+            columns: ["section_id", "column_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_column_objective_sections"
+            referencedColumns: ["id", "column_id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_objectives_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kanban_column_operational_tags: {
         Row: {
           column_id: string
@@ -1802,6 +1905,7 @@ export type Database = {
           key: string
           label: string
           progress_percent: number | null
+          shows_project_rooms: boolean
           tenant_id: string
           updated_at: string
         }
@@ -1815,6 +1919,7 @@ export type Database = {
           key: string
           label: string
           progress_percent?: number | null
+          shows_project_rooms?: boolean
           tenant_id: string
           updated_at?: string
         }
@@ -1828,6 +1933,7 @@ export type Database = {
           key?: string
           label?: string
           progress_percent?: number | null
+          shows_project_rooms?: boolean
           tenant_id?: string
           updated_at?: string
         }
@@ -2938,6 +3044,51 @@ export type Database = {
           },
         ]
       }
+      project_rooms: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+          project_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          project_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+          project_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_rooms_project_fkey"
+            columns: ["project_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "project_rooms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           city: string | null
@@ -3333,45 +3484,71 @@ export type Database = {
       }
       task_checklist_items: {
         Row: {
+          assignee_id: string | null
           completed_at: string | null
           created_at: string
           display_order: number | null
+          due_date: string | null
           id: string
           is_completed: boolean
           is_required: boolean
           phase: string | null
+          room_id: string | null
+          section: string | null
           task_id: string
           tenant_id: string
           title: string
           updated_at: string
         }
         Insert: {
+          assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
           display_order?: number | null
+          due_date?: string | null
           id?: string
           is_completed?: boolean
           is_required?: boolean
           phase?: string | null
+          room_id?: string | null
+          section?: string | null
           task_id: string
           tenant_id: string
           title: string
           updated_at?: string
         }
         Update: {
+          assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
           display_order?: number | null
+          due_date?: string | null
           id?: string
           is_completed?: boolean
           is_required?: boolean
           phase?: string | null
+          room_id?: string | null
+          section?: string | null
           task_id?: string
           tenant_id?: string
           title?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_checklist_items_room_fkey"
+            columns: ["room_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "project_rooms"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "task_checklist_items_assignee_id_fkey"
+            columns: ["assignee_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
           {
             foreignKeyName: "task_checklist_items_task_id_fkey"
             columns: ["task_id", "tenant_id"]
@@ -4021,6 +4198,10 @@ export type Database = {
           p_to_phase?: string
         }
         Returns: Json
+      }
+      replace_kanban_column_objectives: {
+        Args: { p_column_id: string; p_sections: Json }
+        Returns: number
       }
       resolve_integration_api_key: {
         Args: {

@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Pencil, Plus, Wrench } from 'lucide-react'
+import { Pencil, Plus, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 import ErrorState from '@/components/shared/ErrorState'
+import SortableList from '@/components/shared/SortableList'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
   describeDatabaseError,
   useCreateServiceType,
+  useReorderServiceTypes,
   useServiceTypes,
   useUpdateServiceType,
 } from '../hooks'
@@ -30,6 +32,7 @@ export default function ServiceTypesSection({ canEdit }: { canEdit: boolean }) {
   const serviceTypesQuery = useServiceTypes()
   const createMutation = useCreateServiceType()
   const updateMutation = useUpdateServiceType()
+  const reorderMutation = useReorderServiceTypes()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<ServiceTypeRow | null>(null)
@@ -70,30 +73,12 @@ export default function ServiceTypesSection({ canEdit }: { canEdit: boolean }) {
     )
   }
 
-  /*
-    TROCAR DE LUGAR É TROCAR AS DUAS ORDENS, e não empurrar a lista inteira: são
-    dois UPDATEs, um por linha. A ordem é o que decide a sequência dos checkboxes
-    no formulário de negociação — o mesmo papel que a ordem do enum tinha.
-  */
-  const handleMove = (index: number, direction: -1 | 1) => {
-    const current = types[index]
-    const neighbour = types[index + direction]
-    if (!current || !neighbour) return
-
-    updateMutation.mutate(
-      { id: current.id, display_order: neighbour.display_order },
-      {
-        onSuccess: () => {
-          updateMutation.mutate(
-            { id: neighbour.id, display_order: current.display_order },
-            {
-              onError: (error) => toast.error('Erro ao reordenar: ' + describeDatabaseError(error)),
-            },
-          )
-        },
-        onError: (error) => toast.error('Erro ao reordenar: ' + describeDatabaseError(error)),
-      },
-    )
+  /* A ordem é o que decide a sequência dos checkboxes no formulário de
+     negociação — o mesmo papel que a ordem do enum tinha. */
+  const handleReorder = (ordered: ServiceTypeRow[]) => {
+    reorderMutation.mutate(ordered, {
+      onError: (error) => toast.error('Erro ao reordenar: ' + describeDatabaseError(error)),
+    })
   }
 
   return (
@@ -146,9 +131,15 @@ export default function ServiceTypesSection({ canEdit }: { canEdit: boolean }) {
           </p>
         </div>
       ) : (
-        <div className="bg-card rounded-xl border border-border divide-y divide-border">
-          {types.map((type, index) => (
-            <div key={type.id} className="flex items-center gap-3 px-4 py-3">
+        <SortableList
+          items={types}
+          disabled={!canEdit}
+          onReorder={handleReorder}
+          className="bg-card rounded-xl border border-border divide-y divide-border"
+          handleLabel={(type) => `Arrastar ${type.label} para reordenar`}
+          renderItem={(type, handle) => (
+            <div className="flex items-center gap-3 px-4 py-3">
+              {handle}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p
@@ -169,24 +160,6 @@ export default function ServiceTypesSection({ canEdit }: { canEdit: boolean }) {
 
               {canEdit && (
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Subir ${type.label}`}
-                    disabled={index === 0 || updateMutation.isPending}
-                    onClick={() => handleMove(index, -1)}
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Descer ${type.label}`}
-                    disabled={index === types.length - 1 || updateMutation.isPending}
-                    onClick={() => handleMove(index, 1)}
-                  >
-                    <ArrowDown className="w-4 h-4" />
-                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -218,8 +191,8 @@ export default function ServiceTypesSection({ canEdit }: { canEdit: boolean }) {
                 </span>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        />
       )}
 
       <ServiceTypeDialog

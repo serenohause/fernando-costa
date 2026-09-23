@@ -1,5 +1,7 @@
 import type { Database } from '@/lib/database.types'
 
+import type { ObjectiveTemplateGroup } from './objectives'
+
 export type KanbanBoardRow = Database['public']['Tables']['kanban_boards']['Row']
 export type KanbanColumnRow = Database['public']['Tables']['kanban_columns']['Row']
 
@@ -12,7 +14,12 @@ export type OperationalTagRow = Database['public']['Tables']['operational_tags']
   booleano que carrega o NOME de um valor não sobrevive a uma lista que o
   escritório cria.
 */
-export type KanbanColumnWithTags = KanbanColumnRow & { tagKeys: string[] }
+/* ...e o modelo de objetivos que a tarefa ganha ao entrar nela (0099), já em
+   grupos: soltos primeiro, depois as seções na ordem. */
+export type KanbanColumnWithTags = KanbanColumnRow & {
+  tagKeys: string[]
+  objectiveGroups: ObjectiveTemplateGroup[]
+}
 
 export type KanbanBoard = KanbanBoardRow & { columns: KanbanColumnWithTags[] }
 

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import ErrorState from '@/components/shared/ErrorState'
+import SortableList from '@/components/shared/SortableList'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -11,6 +12,7 @@ import {
   useCreateOperationalTag,
   useDeleteOperationalTag,
   useOperationalTags,
+  useReorderOperationalTags,
   useUpdateOperationalTag,
 } from '@/features/kanban/hooks'
 import { tagStyleOf, type OperationalTagRow } from '@/features/kanban/types'
@@ -37,6 +39,7 @@ export default function OperationalTagsSection({ canEdit }: { canEdit: boolean }
   const createTag = useCreateOperationalTag()
   const updateTag = useUpdateOperationalTag()
   const deleteTag = useDeleteOperationalTag()
+  const reorderTags = useReorderOperationalTags()
   const { data: collaborator } = useCurrentCollaborator()
 
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -82,27 +85,11 @@ export default function OperationalTagsSection({ canEdit }: { canEdit: boolean }
     )
   }
 
-  /* A ordem decide a sequência do submenu do cartão. Troca as duas posições, como
-     em Tipos de Serviço. */
-  const handleMove = (index: number, direction: -1 | 1) => {
-    const atual = tags[index]
-    const vizinho = tags[index + direction]
-    if (!atual || !vizinho) return
-
-    updateTag.mutate(
-      { id: atual.id, display_order: vizinho.display_order },
-      {
-        onSuccess: () =>
-          updateTag.mutate(
-            { id: vizinho.id, display_order: atual.display_order },
-            {
-              onError: (error) =>
-                toast.error('Erro ao reordenar: ' + describeDatabaseError(error)),
-            },
-          ),
-        onError: (error) => toast.error('Erro ao reordenar: ' + describeDatabaseError(error)),
-      },
-    )
+  /* A ordem decide a sequência do submenu do cartão. */
+  const handleReorder = (ordered: OperationalTagRow[]) => {
+    reorderTags.mutate(ordered, {
+      onError: (error) => toast.error('Erro ao reordenar: ' + describeDatabaseError(error)),
+    })
   }
 
   const handleDelete = (tag: OperationalTagRow) => {
@@ -168,9 +155,15 @@ export default function OperationalTagsSection({ canEdit }: { canEdit: boolean }
           </p>
         </div>
       ) : (
-        <div className="bg-card rounded-xl border border-border divide-y divide-border">
-          {tags.map((tag, index) => (
-            <div key={tag.id} className="flex items-center gap-3 px-4 py-3">
+        <SortableList
+          items={tags}
+          disabled={!canEdit}
+          onReorder={handleReorder}
+          className="bg-card rounded-xl border border-border divide-y divide-border"
+          handleLabel={(tag) => `Arrastar ${tag.label} para reordenar`}
+          renderItem={(tag, handle) => (
+            <div className="flex items-center gap-3 px-4 py-3">
+              {handle}
               {/* O crachá como ele aparece no cartão — não uma amostra de cor. */}
               <Badge
                 variant="outline"
@@ -187,24 +180,6 @@ export default function OperationalTagsSection({ canEdit }: { canEdit: boolean }
 
               {canEdit && (
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Subir ${tag.label}`}
-                    disabled={index === 0 || updateTag.isPending}
-                    onClick={() => handleMove(index, -1)}
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Descer ${tag.label}`}
-                    disabled={index === tags.length - 1 || updateTag.isPending}
-                    onClick={() => handleMove(index, 1)}
-                  >
-                    <ArrowDown className="w-4 h-4" />
-                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -253,8 +228,8 @@ export default function OperationalTagsSection({ canEdit }: { canEdit: boolean }
                 </span>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        />
       )}
 
       <p className="text-xs text-faint mt-3">

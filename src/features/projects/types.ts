@@ -73,9 +73,12 @@ export type ProjectRow = Project & {
   reordenada ou um item é removido. Agora é `task_checklist_items`, uma linha por
   item, com id próprio: marcar é UPDATE por id.
 */
+/* Pessoa com foto: onde há espaço para avatar, a foto aparece quando existe. */
+export type PersonWithAvatar = PersonRef & { avatar_path: string | null }
+
 export type TaskRow = Task & {
   project: PersonRef | null
-  responsible: PersonRef | null
+  responsible: PersonWithAvatar | null
   checklist: TaskChecklistItem[]
 }
 
@@ -150,7 +153,14 @@ export type TaskPhaseMove = {
   status: WorkStatus
   completion_date: string | null
   /* Itens do template da nova etapa que a tarefa ainda não tem. */
-  newChecklistItems: { title: string; phase: PhaseKey; is_required: boolean; display_order: number }[]
+  newChecklistItems: {
+    title: string
+    phase: PhaseKey
+    section: string | null
+    room_id: string | null
+    is_required: boolean
+    display_order: number
+  }[]
   /*
     O GESTO, e não a gravação — quem precisa destes três é o evento automático do
     diário (`phase_change`), que registra de ONDE para ONDE em coluna própria
@@ -169,3 +179,6 @@ export type TaskPhaseMove = {
 }
 
 export type { PhaseKey, ProjectPhase, TaskPhase }
+
+/* Um ambiente do projeto como o quadro e o formulário o leem (0100). */
+export type ProjectRoomRef = { id: string; project_id: string; name: string; display_order: number }

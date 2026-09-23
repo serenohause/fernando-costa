@@ -1,25 +1,25 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Check, Columns3, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Check, Columns3, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import ErrorState from '@/components/shared/ErrorState'
+import SortableList from '@/components/shared/SortableList'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import {
   describeDatabaseError,
-  useCreateKanbanColumn,
   useDeleteKanbanColumn,
   useOperationalTags,
-  useSetColumnOperationalTags,
   useKanbanBoard,
   useOpenTaskCountByPhase,
   useRenameKanbanBoard,
   useReorderKanbanColumns,
   useUpdateKanbanColumn,
 } from '@/features/kanban/hooks'
+import { countObjectives } from '@/features/kanban/objectives'
 import { columnSwatchClass, type KanbanColumnWithTags } from '@/features/kanban/types'
-import KanbanColumnDialog, { type KanbanColumnFormValues } from './KanbanColumnDialog'
+import KanbanColumnEditDialog from './KanbanColumnEditDialog'
 import KanbanDeleteDialog from './KanbanDeleteDialog'
 
 const BOARD_KEY = 'project_flow'
@@ -47,8 +47,6 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   const updateColumn = useUpdateKanbanColumn(BOARD_KEY)
   const renameBoard = useRenameKanbanBoard(BOARD_KEY)
   const reorder = useReorderKanbanColumns(BOARD_KEY)
-  const createColumn = useCreateKanbanColumn()
-  const setColumnTags = useSetColumnOperationalTags(BOARD_KEY)
   const tagsQuery = useOperationalTags()
   const deleteColumn = useDeleteKanbanColumn()
 
@@ -62,59 +60,6 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   const columns = board?.columns ?? []
   const counts = countsQuery.data ?? {}
   const tags = tagsQuery.data ?? []
-
-  const handleSubmit = (values: KanbanColumnFormValues) => {
-    if (!editing) {
-      if (!board) return
-      createColumn.mutate(
-        {
-          boardId: board.id,
-          tenantId: board.tenant_id,
-          label: values.label,
-          color: values.color,
-          progressPercent: values.progress_percent,
-          lastOrder: columns.reduce((maior, column) => Math.max(maior, column.display_order), 0),
-        },
-        {
-          onSuccess: (novaEtapaId) => {
-            /* A etapa e a oferta de status são duas escritas: a linha da ligação
-               precisa do id que só existe depois do INSERT. */
-            if (values.tagIds.length > 0 && board) {
-              setColumnTags.mutate({
-                columnId: novaEtapaId,
-                tenantId: board.tenant_id,
-                tagIds: values.tagIds,
-              })
-            }
-            setDialogOpen(false)
-            toast.success('Etapa criada')
-          },
-          onError: (error) => toast.error('Erro ao criar: ' + describeDatabaseError(error)),
-        },
-      )
-      return
-    }
-
-    const { tagIds, ...colunas } = values
-    updateColumn.mutate(
-      { id: editing.id, ...colunas },
-      {
-        onSuccess: () => {
-          if (board) {
-            setColumnTags.mutate({
-              columnId: editing.id,
-              tenantId: board.tenant_id,
-              tagIds,
-            })
-          }
-          setDialogOpen(false)
-          setEditing(null)
-          toast.success('Etapa atualizada')
-        },
-        onError: (error) => toast.error('Erro ao salvar: ' + describeDatabaseError(error)),
-      },
-    )
-  }
 
   /*
     OCULTAR ETAPA COM TAREFA ABERTA DENTRO É O GESTO PERIGOSO DESTA TELA: as
@@ -141,15 +86,8 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
   }
 
   /* A lista chega na ordem desejada e o hook renumera de 1 a n. */
-  const handleMove = (index: number, direction: -1 | 1) => {
-    const destino = index + direction
-    if (destino < 0 || destino >= columns.length) return
-
-    const reordenadas = [...columns]
-    const [movida] = reordenadas.splice(index, 1)
-    reordenadas.splice(destino, 0, movida)
-
-    reorder.mutate(reordenadas, {
+  const handleReorder = (ordered: KanbanColumnWithTags[]) => {
+    reorder.mutate(ordered, {
       onError: (error) => toast.error('Erro ao reordenar: ' + describeDatabaseError(error)),
     })
   }
@@ -300,11 +238,17 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
         )}
       </div>
 
-      <div className="bg-card rounded-xl border border-border divide-y divide-border">
-        {columns.map((column, index) => {
+      <SortableList
+        items={columns}
+        disabled={!canEdit}
+        onReorder={handleReorder}
+        className="bg-card rounded-xl border border-border divide-y divide-border"
+        handleLabel={(column) => `Arrastar ${column.label} para reordenar`}
+        renderItem={(column, handle) => {
           const abertas = counts[column.key] ?? 0
           return (
-            <div key={column.id} className="flex items-center gap-3 px-4 py-3">
+            <div className="flex items-center gap-3 px-4 py-3">
+              {handle}
               <span
                 className={`w-3 h-3 rounded-full shrink-0 ${columnSwatchClass(column.color)}`}
                 aria-hidden
@@ -346,29 +290,16 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                   {abertas === 0
                     ? 'Nenhuma tarefa aberta'
                     : `${abertas} ${abertas === 1 ? 'tarefa aberta' : 'tarefas abertas'}`}
+                  {countObjectives(column.objectiveGroups) > 0 &&
+                    ` · ${countObjectives(column.objectiveGroups)} ${
+                      countObjectives(column.objectiveGroups) === 1 ? 'objetivo padrão' : 'objetivos padrão'
+                    }`}
+                  {column.shows_project_rooms && ' · mostra ambientes'}
                 </p>
               </div>
 
               {canEdit && (
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Subir ${column.label}`}
-                    disabled={index === 0 || reorder.isPending}
-                    onClick={() => handleMove(index, -1)}
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Descer ${column.label}`}
-                    disabled={index === columns.length - 1 || reorder.isPending}
-                    onClick={() => handleMove(index, 1)}
-                  >
-                    <ArrowDown className="w-4 h-4" />
-                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -413,24 +344,24 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
               </div>
             </div>
           )
-        })}
-      </div>
+        }}
+      />
 
       <p className="text-xs text-faint mt-3">
         Ocultar tira a etapa do quadro sem perder nada e pode ser desfeito. Excluir é definitivo, e
         o sistema pergunta para onde vão as tarefas antes.
       </p>
 
-      <KanbanColumnDialog
+      {/* O mesmo diálogo que o lápis do cabeçalho da coluna abre no Fluxo do
+          Projeto: as escritas moram nele, e não aqui. */}
+      <KanbanColumnEditDialog
+        boardKey={BOARD_KEY}
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open)
           if (!open) setEditing(null)
         }}
         editing={editing}
-        tags={tags}
-        onSubmit={handleSubmit}
-        isPending={updateColumn.isPending || createColumn.isPending || setColumnTags.isPending}
       />
 
       <KanbanDeleteDialog

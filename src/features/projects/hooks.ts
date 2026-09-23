@@ -29,6 +29,7 @@ import {
   tagEventKey,
   tagEventText,
 } from './flow'
+import { projectRoomsError, type RoomDraft } from './rooms'
 import { projectInputSchema, taskInputSchema } from './schemas'
 import { allTasksCompleted, calculateProjectPhase, type TaskPhaseSource } from './project-phase'
 import type {
@@ -39,6 +40,7 @@ import type {
   TaskInput,
   TaskPhaseMove,
   TaskRow,
+  ProjectRoomRef,
 } from './types'
 
 export const projectKeys = {
@@ -46,6 +48,7 @@ export const projectKeys = {
   list: () => [...projectKeys.all, 'list'] as const,
   progress: () => [...projectKeys.all, 'progress'] as const,
   tasks: () => [...projectKeys.all, 'tasks'] as const,
+  rooms: () => [...projectKeys.all, 'rooms'] as const,
 }
 
 /* `Project.list('-created_date')` e `Task.list('-created_date')` são como o
@@ -98,9 +101,30 @@ const PROJECTS_ERROR_MESSAGES: DatabaseErrorMessages = {
     'Algum campo está fora do que o sistema aceita. Confira as datas, as áreas e os prazos.',
 }
 
+/* Ambientes do projeto (0100). A tela recusa o nome repetido antes
+   (`projectRoomsError`), dizendo qual; esta é a rede. */
+const ROOMS_ERROR_MESSAGES: DatabaseErrorMessages = {
+  project_rooms_project_id_name_key:
+    'Este projeto já tem um ambiente com esse nome. Use nomes diferentes, como “Quarto 1” e “Quarto 2”.',
+  project_rooms_name_not_blank_check: 'Dê um nome a cada ambiente.',
+  project_rooms_name_length_check: 'O nome do ambiente é longo demais (máximo de 60 caracteres).',
+  '42501': 'Sem permissão de edição em Projetos.',
+}
+
+export function describeRoomsError(error: unknown): string {
+  return describeError(error, { ...PROJECTS_ERROR_MESSAGES, ...ROOMS_ERROR_MESSAGES })
+}
+
 const TASKS_ERROR_MESSAGES: DatabaseErrorMessages = {
   task_checklist_items_task_id_title_key:
     'Esta tarefa já tem um item de checklist com este título. Renomeie um dos dois para eles não se confundirem na conferência.',
+  /* As três abaixo existem desde que o detalhe da tarefa passou a editar no
+     lugar (TaskDetailDialog): título, prazo e objetivo são gravados campo a
+     campo, sem passar pelo schema do formulário que barrava antes. */
+  task_checklist_items_title_not_blank_check: 'Escreva o objetivo antes de adicionar.',
+  tasks_title_not_blank_check: 'Dê um título à tarefa.',
+  tasks_due_date_not_before_start_check:
+    'O prazo não pode ser antes da data de início da tarefa.',
   ...PROJECTS_ERROR_MESSAGES,
   '23502': 'Falta um campo obrigatório: título da tarefa.',
   /*
@@ -227,7 +251,7 @@ export function useProjectProgress() {
 const TASKS_SELECT = `
   *,
   project:projects!tasks_project_id_fkey(id, name),
-  responsible:collaborators!tasks_responsible_id_fkey(id, name),
+  responsible:collaborators!tasks_responsible_id_fkey(id, name, avatar_path),
   checklist:task_checklist_items(*)
 `
 
@@ -900,6 +924,225 @@ export function useToggleChecklistItem() {
 }
 
 /*
+  EDIÇÃO NO LUGAR, campo a campo — o gesto do detalhe da tarefa, que funciona como
+  o cartão do Trello: clica no título, muda, sai; clica na descrição, escreve,
+  salva. Sem abrir o formulário inteiro.
+
+  NÃO PASSA PELO `taskInputSchema` de propósito: aquele schema valida o
+  formulário COMPLETO e exige todos os campos, e aqui chega um só. As regras que
+  importam continuam valendo onde sempre valeram — o banco recusa título em
+  branco (`tasks_title_not_blank_check`) e prazo antes do início
+  (`tasks_due_date_not_before_start_check`), e as duas têm frase própria.
+
+  Otimista, como o checklist: o título novo aparece no cartão e no detalhe na
+  hora, e volta ao anterior se o banco recusar.
+*/
+export type TaskFieldsPatch = {
+  title?: string
+  description?: string | null
+  due_date?: string | null
+}
+
+export function useUpdateTaskFields() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: TaskFieldsPatch }) => {
+      const limpo: TaskFieldsPatch = { ...patch }
+      if (limpo.title !== undefined) {
+        limpo.title = limpo.title.trim()
+        if (!limpo.title) throw new WriteError('Dê um título à tarefa.')
+      }
+      /* Descrição apagada vira nulo, e não string vazia: é o que o formulário
+         grava, e as duas formas de "sem descrição" não devem coexistir. */
+      if (limpo.description !== undefined) limpo.description = limpo.description?.trim() || null
+      if (limpo.due_date !== undefined) limpo.due_date = limpo.due_date || null
+
+      const { data, error } = await supabase.from('tasks').update(limpo).eq('id', id).select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A tarefa não foi alterada. É preciso permissão de edição no Fluxo do Projeto.',
+      )
+      return id
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all })
+    },
+  })
+
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (tasks, { id, patch }: { id: string; patch: TaskFieldsPatch }) =>
+      tasks.map((task) => (task.id === id ? { ...task, ...patch } : task)),
+  )
+}
+
+/*
+  ADICIONAR UM OBJETIVO ao checklist da tarefa, direto no detalhe.
+
+  O item nasce na ETAPA ATUAL da tarefa (`phase`), e isso não é detalhe: o
+  checklist mostrado é o da etapa (`currentChecklist`), então um item sem etapa
+  seria gravado e não apareceria em lugar nenhum.
+
+  NASCE NÃO OBRIGATÓRIO. Obrigatório é o item que TRAVA o avanço de etapa
+  (`moveTaskToPhase`), e esses vêm dos modelos de checklist da etapa; deixar
+  qualquer objetivo digitado no cartão travar o fluxo seria dar a quem escreve um
+  poder que hoje só o modelo tem.
+
+  Não é otimista: a linha precisa do id que só o banco dá, e um item fantasma
+  sem id não teria como ser marcado ou removido até a volta.
+*/
+export function useAddChecklistItem() {
+  const queryClient = useQueryClient()
+  const tenantId = useTenantId()
+
+  return useMutation({
+    mutationFn: async ({
+      taskId,
+      phase,
+      title,
+      displayOrder,
+    }: {
+      taskId: string
+      phase: string
+      title: string
+      displayOrder: number
+    }) => {
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+      const titulo = title.trim()
+      if (!titulo) throw new WriteError('Escreva o objetivo antes de adicionar.')
+
+      const { error } = await supabase.from('task_checklist_items').insert({
+        tenant_id: tenantId,
+        task_id: taskId,
+        phase,
+        title: titulo,
+        is_required: false,
+        display_order: displayOrder,
+      })
+
+      if (error) throw error
+      return titulo
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+    },
+  })
+}
+
+/*
+  REMOVER UM OBJETIVO. Otimista: some da lista na hora e volta se o banco recusar.
+
+  ITEM OBRIGATÓRIO NÃO SE REMOVE POR AQUI, e a recusa é deste hook, não do banco
+  (a RLS permite o DELETE a quem edita o fluxo). O motivo: obrigatório é o que
+  segura a tarefa na etapa até ser cumprido. Um "x" no cartão que apagasse o
+  item seria o jeito mais curto de pular a trava sem cumprir nada — o mesmo que
+  marcar concluído sem ter feito, só que sem deixar rastro.
+*/
+export function useDeleteChecklistItem() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async ({ id, isRequired }: { id: string; isRequired: boolean }) => {
+      if (isRequired) {
+        throw new WriteError(
+          'Item obrigatório não pode ser removido: ele é o que libera a tarefa para a próxima etapa.',
+        )
+      }
+
+      const { data, error } = await supabase
+        .from('task_checklist_items')
+        .delete()
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O objetivo não foi removido. É preciso permissão de edição no Fluxo do Projeto.',
+      )
+      return id
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+    },
+  })
+
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (tasks, { id, isRequired }: { id: string; isRequired: boolean }) =>
+      /* O obrigatório nem sai do cache: a recusa vem logo em seguida, e tirar
+         para pôr de volta faria o item piscar. */
+      isRequired
+        ? tasks
+        : tasks.map((task) =>
+            task.checklist.some((item) => item.id === id)
+              ? { ...task, checklist: task.checklist.filter((item) => item.id !== id) }
+              : task,
+          ),
+  )
+}
+
+/*
+  RESPONSÁVEL E PRAZO DE UM OBJETIVO — os dois botões ao lado de cada item no
+  detalhe da tarefa, como no Trello (migration 0098).
+
+  Otimista: o avatar e a data aparecem no item na hora, e voltam ao que eram se o
+  banco recusar. Nulo em qualquer dos dois é "remover".
+
+  Não recalcula nada da tarefa. O prazo do objetivo não mexe no prazo da tarefa
+  nem na regra de atraso do quadro — ver o cabeçalho da 0098.
+*/
+export type ChecklistItemPatch = {
+  assignee_id?: string | null
+  due_date?: string | null
+}
+
+export function useUpdateChecklistItem() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: ChecklistItemPatch }) => {
+      const { data, error } = await supabase
+        .from('task_checklist_items')
+        .update(patch)
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O objetivo não foi alterado. É preciso permissão de edição no Fluxo do Projeto.',
+      )
+      return id
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+    },
+  })
+
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (tasks, { id, patch }: { id: string; patch: ChecklistItemPatch }) =>
+      tasks.map((task) =>
+        task.checklist.some((item) => item.id === id)
+          ? {
+              ...task,
+              checklist: task.checklist.map((item) =>
+                item.id === id ? { ...item, ...patch } : item,
+              ),
+            }
+          : task,
+      ),
+  )
+}
+
+/*
   Os itens do template que a tarefa ainda não tem, criados de uma vez.
 
   No original isso acontece DENTRO do render (`getTasksByPhase` chama
@@ -952,7 +1195,7 @@ export function useChangeTaskResponsible() {
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
-    mutationFn: async ({ task, responsible }: { task: TaskRow; responsible: PersonRef }) => {
+    mutationFn: async ({ task, responsible }: { task: TaskRow; responsible: PersonRef & { avatar_path?: string | null } }) => {
       const previousName = task.responsible?.name ?? null
 
       const { data, error } = await supabase
@@ -997,10 +1240,16 @@ export function useChangeTaskResponsible() {
   return optimisticTaskWrite(
     queryClient,
     mutation,
-    (tasks, { task, responsible }: { task: TaskRow; responsible: PersonRef }) =>
+    (tasks, { task, responsible }: { task: TaskRow; responsible: PersonRef & { avatar_path?: string | null } }) =>
       tasks.map((candidate) =>
         candidate.id === task.id
-          ? { ...candidate, responsible_id: responsible.id, responsible }
+          ? {
+              ...candidate,
+              responsible_id: responsible.id,
+              /* A foto entra no palpite também: sem ela o avatar do cartão
+                 piscaria as iniciais até a volta da gravação. */
+              responsible: { ...responsible, avatar_path: responsible.avatar_path ?? null },
+            }
           : candidate,
       ),
   )
@@ -1090,4 +1339,101 @@ export function useSetTaskOperationalTag() {
         candidate.id === task.id ? { ...candidate, operational_tag: tag } : candidate,
       ),
   )
+}
+
+/* ── Ambientes do projeto (0100) ───────────────────────────────────────── */
+
+/*
+  TODOS OS AMBIENTES DO ESCRITÓRIO, numa consulta: o Fluxo do Projeto precisa dos
+  de cada projeto com tarefa no quadro, e o formulário de projeto recorta os do
+  projeto aberto. São poucas linhas por projeto.
+*/
+export function useProjectRooms() {
+  return useQuery({
+    queryKey: projectKeys.rooms(),
+    queryFn: async (): Promise<ProjectRoomRef[]> => {
+      const { data, error } = await supabase
+        .from('project_rooms')
+        .select('id, project_id, name, display_order')
+        .order('display_order', { ascending: true })
+
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+/*
+  GRAVAR OS AMBIENTES DE UM PROJETO a partir do que o formulário deixou: exclui
+  os que saíram, renomeia e reordena os que ficaram, cria os novos.
+
+  EXCLUIR PRIMEIRO, e é o que evita a recusa por nome repetido quando alguém
+  apaga "Quarto" e cria outro "Quarto" no mesmo gesto.
+
+  Renomear leva junto os objetivos das tarefas (gatilho da 0100), e excluir os
+  tira — por isso o formulário avisa antes de remover.
+*/
+export function useSaveProjectRooms() {
+  const queryClient = useQueryClient()
+  const tenantId = useTenantId()
+
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      drafts,
+      previous,
+    }: {
+      projectId: string
+      drafts: RoomDraft[]
+      previous: ProjectRoomRef[]
+    }) => {
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+      const recusa = projectRoomsError(drafts)
+      if (recusa) throw new WriteError(recusa)
+
+      const limpos = drafts
+        .map((draft) => ({ ...draft, name: draft.name.trim() }))
+        .filter((draft) => draft.name !== '')
+      const mantidos = new Set(limpos.flatMap((draft) => (draft.id ? [draft.id] : [])))
+      const removidos = previous.filter((room) => !mantidos.has(room.id)).map((room) => room.id)
+      const semPermissao = 'Os ambientes não foram salvos. É preciso permissão de edição em Projetos.'
+
+      if (removidos.length > 0) {
+        const { data, error } = await supabase
+          .from('project_rooms')
+          .delete()
+          .in('id', removidos)
+          .select('id')
+        if (error) throw error
+        assertRowAffected(data, semPermissao)
+      }
+
+      for (const [index, draft] of limpos.entries()) {
+        const ordem = index + 1
+        if (draft.id) {
+          const antes = previous.find((room) => room.id === draft.id)
+          if (antes && antes.name === draft.name && antes.display_order === ordem) continue
+          const { data, error } = await supabase
+            .from('project_rooms')
+            .update({ name: draft.name, display_order: ordem })
+            .eq('id', draft.id)
+            .select('id')
+          if (error) throw error
+          assertRowAffected(data, semPermissao)
+        } else {
+          const { error } = await supabase.from('project_rooms').insert({
+            tenant_id: tenantId,
+            project_id: projectId,
+            name: draft.name,
+            display_order: ordem,
+          })
+          if (error) throw error
+        }
+      }
+    },
+    onSettled: () => {
+      /* Ambientes e tarefas: renomear e excluir mudam os objetivos dos cartões. */
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all })
+    },
+  })
 }

@@ -6,9 +6,7 @@ import {
   BookOpen,
   Calendar,
   CheckSquare,
-  ChevronDown,
-  ChevronUp,
-  Clock,
+  Home,
   Hourglass,
   MoreVertical,
   Tag,
@@ -23,7 +21,6 @@ import { format, parseISO } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,13 +31,18 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import CardLink from '@/components/shared/CardLink'
 import { useFocusParam } from '@/components/shared/useFocusParam'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { createPageUrl } from '@/lib/page-url'
 import type { Collaborator } from '@/features/team/types'
 import ProjectDiaryDrawer from '@/features/diary/components/ProjectDiaryDrawer'
+import TaskDetailDialog from './TaskDetailDialog'
+import AvatarPicture from '@/features/profile/components/AvatarPicture'
+import { buildChecklistSources } from '../checklist-templates'
+import { useProjectRooms } from '../hooks'
+import { initialsOf } from '../initials'
 import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
+import KanbanColumnEditDialog from '@/features/settings/components/KanbanColumnEditDialog'
 import { orderedPhaseKeys, phaseLabelIn } from '@/features/kanban/board'
 import { columnHeaderClass, tagStyleOf } from '@/features/kanban/types'
 import type { DiaryProject } from '@/features/diary/types'
@@ -77,9 +79,14 @@ import type {
   migration 0061 e não existe lá (ver COLUMNS) —, a largura fixa de 280px, as
   alturas `calc(100vh - 280px)` e `calc(100vh - 300px)`, o cabeçalho colorido por
   coluna,
-  o aviso de travamento em rosa, a dica "← Deslize →" no celular, o cartão com
-  selo de progresso, prioridade, etapa, responsável, prazo, horas e o checklist
-  retrátil são os do original.
+  o aviso de travamento em rosa e a dica "← Deslize →" no celular são os do
+  original.
+
+  O CARTÃO DEIXOU DE SER O DO ORIGINAL, por pedido do usuário ("o menos poluído
+  visualmente possível"). Lá ele traz selo de progresso, prioridade, etapa,
+  responsável, prazo, horas e o checklist retrátil; aqui ficam título, projeto e
+  uma linha de rodapé (prazo ou status, checklist em "3/7", iniciais do
+  responsável), e o resto abre num clique, em TaskDetailDialog.
 
   QUATRO TRADUÇÕES OBRIGATÓRIAS, e nenhuma é escolha de layout:
 
@@ -121,6 +128,8 @@ type Column = {
   id: PhaseKey
   label: string
   headerClass: string
+  /* A etapa mostra os ambientes do projeto (0100): o cartão ganha o resumo. */
+  showsRooms: boolean
   /* As chaves dos status que o menu do cartão oferece nesta etapa — tabela de
      ligação desde a migration 0097, e não mais lista fixa em `flow.ts`. */
   tagKeys: string[]
@@ -221,6 +230,7 @@ const DEFAULT_COLUMNS: Column[] = [
   id: column.id as PhaseKey,
   label: labelOf(PROJECT_PHASE, column.id as ProjectPhase),
   headerClass: columnHeaderClass(column.color),
+  showsRooms: false,
   /* O mesmo recorte que a 0097 semeia, para o quadro de emergência oferecer os
      status que o quadro de verdade oferece. */
   tagKeys: ['layout', 'renderings'].includes(column.id)
@@ -258,6 +268,9 @@ const TAG_ICONS: Record<string, LucideIcon> = {
 }
 
 const tagIconOf = (key: string): LucideIcon => TAG_ICONS[key] ?? Tag
+
+/* As iniciais do responsável no rodapé do cartão vêm de `../initials`, que o
+   detalhe da tarefa também usa. */
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
   high: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900',
@@ -393,7 +406,13 @@ export default function TaskKanban({
      e não um terceiro valor. */
   onSetOperationalTag: (task: TaskRow, tag: string | null) => void
 }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  /*
+    A TAREFA ABERTA NO DETALHE, guardada por id e não por objeto: o diálogo lê a
+    tarefa do array vivo, e marcar um item do checklist (toggle otimista) ou
+    trocar o responsável aparece nele na hora. Com a tarefa copiada no clique, o
+    modal mostraria o estado de antes.
+  */
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [blockAlert, setBlockAlert] = useState<BlockAlert | null>(null)
   /*
     A gaveta do Diário do Projeto, aberta pelo menu do cartão. Guarda o projeto
@@ -422,6 +441,21 @@ export default function TaskKanban({
   */
   const boardQuery = useKanbanBoard('project_flow')
   const boardColumns = boardQuery.data?.columns ?? []
+  /* Os ambientes de cada projeto, para os objetivos das etapas que os mostram. */
+  const rooms = useProjectRooms().data ?? []
+
+  /*
+    EDITAR A ETAPA DIRETO DO QUADRO — o segundo caminho, além de Configurações →
+    Quadros. O lápis só aparece para quem EDITA Configurações, e não para quem
+    edita o Fluxo do Projeto: mudar a etapa muda o quadro de todo o escritório,
+    e é a permissão de Configurações que a RLS das tabelas do quadro cobra.
+
+    Guardada pela CHAVE, e não pelo objeto: depois de salvar, o quadro relido
+    traz a etapa nova, e o diálogo nunca mostra a cópia velha.
+  */
+  const { canEdit: canEditSettings } = useMenuPermissions('settings')
+  const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null)
+  const editingColumn = boardColumns.find((column) => column.key === editingColumnKey) ?? null
 
   /*
     A ORDEM E O RÓTULO SAEM DO QUADRO desde a migration 0094. A ordem inclui as
@@ -452,6 +486,7 @@ export default function TaskKanban({
           id: column.key,
           label: column.label,
           headerClass: columnHeaderClass(column.color),
+          showsRooms: column.shows_project_rooms,
           tagKeys: column.tagKeys,
         }))
     : DEFAULT_COLUMNS
@@ -468,7 +503,13 @@ export default function TaskKanban({
     const task = tasks.find((candidate) => candidate.id === result.draggableId)
     if (!task) return
 
-    const outcome: MoveOutcome = moveTaskToPhase(task, fromPhase, toPhase, orderedKeys)
+    const outcome: MoveOutcome = moveTaskToPhase(
+      task,
+      fromPhase,
+      toPhase,
+      orderedKeys,
+      buildChecklistSources(boardColumns, rooms),
+    )
 
     if (outcome.kind === 'blocked') {
       setBlockAlert(outcome)
@@ -494,6 +535,27 @@ export default function TaskKanban({
     task.checklist
       .filter((item) => item.phase === task.phase)
       .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+
+  /*
+    A tarefa selecionada sai do array VIVO. Se ela sumir (excluída, ou filtrada
+    fora da tela), vira nulo e o diálogo fecha sozinho em vez de mostrar dado
+    velho.
+  */
+  const selectedTask = selectedTaskId
+    ? (tasks.find((candidate) => candidate.id === selectedTaskId) ?? null)
+    : null
+
+  /* A oferta de status é a da ETAPA em que a tarefa está, a mesma do ⋮. */
+  const selectedTagOptions = selectedTask
+    ? operationalTagOptions(columns.find((column) => column.id === selectedTask.phase)).map(
+        (key) => ({
+          key,
+          label: tagLabelOf(key),
+          dotClass: tagStyleOf(tagColorOf(key)).dot,
+          activeClass: tagStyleOf(tagColorOf(key)).menuActive,
+        }),
+      )
+    : []
 
   return (
     <>
@@ -556,11 +618,26 @@ export default function TaskKanban({
                     <div
                       className={`px-4 py-3 rounded-t-xl ${column.headerClass} sticky top-0 z-10`}
                     >
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-foreground">{column.label}</h3>
-                        <Badge variant="secondary" className="bg-card/50">
-                          {columnTasks.length}
-                        </Badge>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-semibold text-foreground truncate">{column.label}</h3>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Só com a configuração lida: o quadro de emergência
+                              (DEFAULT_COLUMNS) não tem etapa de banco para editar. */}
+                          {canEditSettings && boardQuery.data && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingColumnKey(column.id)}
+                              aria-label={`Editar etapa ${column.label}`}
+                              title="Editar etapa"
+                              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-card/60 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <Badge variant="secondary" className="bg-card/50">
+                            {columnTasks.length}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
 
@@ -624,49 +701,75 @@ export default function TaskKanban({
                                       }}
                                       {...dragProvided.draggableProps}
                                       {...dragProvided.dragHandleProps}
-                                      className={`p-4 bg-card border-0 shadow-xs hover:shadow-md transition-all ${
-                                        canEdit ? 'cursor-grab' : ''
-                                      } ${dragSnapshot.isDragging ? 'shadow-lg rotate-2' : ''} ${
+                                      /*
+                                        O CARTÃO INTEIRO ABRE O DETALHE. O arraste
+                                        continua: a biblioteca só dispara o clique
+                                        quando não houve arraste. Enter abre pelo
+                                        teclado — espaço é da biblioteca, que o usa
+                                        para levantar o cartão.
+                                      */
+                                      onClick={() => setSelectedTaskId(task.id)}
+                                      onKeyDown={(event) => {
+                                        if (event.key !== 'Enter') return
+                                        /*
+                                          `preventDefault` é o que faz o Enter
+                                          funcionar. Sem ele, a MESMA tecla abria o
+                                          detalhe no keydown e, logo em seguida, sua
+                                          ação padrão acionava o primeiro botão que
+                                          o diálogo focava (o link do projeto) —
+                                          fechando o modal e navegando para
+                                          Projetos. Parecia que o Enter não fazia
+                                          nada.
+                                        */
+                                        event.preventDefault()
+                                        setSelectedTaskId(task.id)
+                                      }}
+                                      aria-label={`Abrir detalhes de ${task.title}`}
+                                      className={`p-3 bg-card border-0 shadow-xs hover:shadow-md transition-all cursor-pointer ${
+                                        dragSnapshot.isDragging ? 'shadow-lg rotate-2' : ''
+                                      } ${
                                         showOverdueBorder ? 'border-l-4 border-l-rose-500' : ''
                                       } ${focusClassName(task.id)}`}
                                     >
-                                      <div className="flex items-start justify-between gap-2 mb-3">
-                                        {/* O TÍTULO ABRE A TAREFA. Não existe
-                                            tela de detalhe de tarefa: o que
-                                            existe é o formulário, e é o mesmo
-                                            destino do "Editar" do menu. Sem
-                                            permissão de edição fica texto. */}
-                                        <CardLink
-                                          enabled={canEdit}
-                                          onClick={() => onEdit(task)}
-                                          className="font-medium text-foreground text-sm line-clamp-2 flex-1"
-                                        >
-                                          {task.title}
-                                        </CardLink>
-                                        {/* O percentual vem da view, não de coluna. */}
-                                        {task.project_id && (
-                                          <div className="shrink-0 px-2 py-0.5 bg-muted rounded text-xs font-bold text-soft">
-                                            {progressOf(task.project_id)}%
-                                          </div>
+                                      {/*
+                                        O CARTÃO ENXUTO — pedido do usuário: "o menos
+                                        poluído visualmente possível". Fica o que se
+                                        lê de relance numa coluna cheia: título,
+                                        projeto e UMA linha de rodapé.
+
+                                        O que saiu foi para o detalhe
+                                        (TaskDetailDialog): a etapa por extenso (a
+                                        coluna já diz qual é), a prioridade por
+                                        extenso (fica só o ponto vermelho da alta,
+                                        que é a que muda o que se faz primeiro), as
+                                        horas, o progresso do projeto e o checklist
+                                        aberto.
+                                      */}
+                                      <div className="flex items-start gap-2">
+                                        {task.priority === 'high' && (
+                                          <span
+                                            className="mt-1.5 w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"
+                                            title="Prioridade alta"
+                                            aria-label="Prioridade alta"
+                                          />
                                         )}
+                                        <p className="font-medium text-foreground text-sm line-clamp-2 flex-1">
+                                          {task.title}
+                                        </p>
                                         {/*
-                                          O MENU APARECE TAMBÉM PARA QUEM SÓ LÊ, e isso
-                                          mudou com o módulo 11.
-
-                                          Antes a condição era `canEdit || canDelete`, ou
-                                          seja, quem não edita o Fluxo do Projeto não via o
-                                          botão. O Diário do Projeto é para LER também —
-                                          qualquer colaborador ativo lê o histórico inteiro
-                                          (migration 0070) — e ele se alcança por aqui. Sem
-                                          esta terceira condição, o Arquiteto que não edita
-                                          o fluxo não teria caminho nenhum até o diário.
-
-                                          Ninguém ganha ação de escrita com isso: cada item
-                                          continua atrás da sua própria permissão, e o único
-                                          que entra sem `canEdit` é o do diário, que abre uma
-                                          gaveta cujos botões de escrever obedecem a outra
-                                          regra ainda (Diretor ou Coordenador).
+                                          O ⋮ FICA, como atalho: mudar status ou
+                                          responsável sem abrir o detalhe. O
+                                          `stopPropagation` é obrigatório — o
+                                          conteúdo do menu vai para um portal, mas o
+                                          evento do React sobe pela árvore de
+                                          componentes, e sem ele cada item clicado
+                                          abriria também o detalhe do cartão.
                                         */}
+                                        <div
+                                          onClick={(event) => event.stopPropagation()}
+                                          onKeyDown={(event) => event.stopPropagation()}
+                                          className="shrink-0 -mr-1 -mt-0.5"
+                                        >
                                         {(canEdit || canDelete || task.project_id) && (
                                           <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
@@ -819,153 +922,89 @@ export default function TaskKanban({
                                             </DropdownMenuContent>
                                           </DropdownMenu>
                                         )}
+                                        </div>
                                       </div>
 
                                       {task.project && (
-                                        <p className="text-xs text-muted-foreground mb-2 truncate">
-                                          {/*
-                                            O NOME DO PROJETO LEVA À LISTA DE
-                                            PROJETOS, com aquele projeto em
-                                            destaque — não há tela de detalhe de
-                                            projeto no sistema, e inventar uma
-                                            aqui seria bem mais do que foi
-                                            pedido. `Projects` lê `?focus=` e
-                                            rola até o cartão.
-
-                                            Só vira link para quem enxerga o
-                                            menu Projetos, pela mesma razão de
-                                            coerência dos outros quadros.
-                                          */}
-                                          <CardLink
-                                            enabled={canViewProjects && Boolean(task.project_id)}
-                                            onClick={() =>
-                                              navigate(
-                                                createPageUrl('Projects') +
-                                                  `?focus=${task.project_id}`,
-                                              )
-                                            }
-                                          >
-                                            {task.project.name}
-                                          </CardLink>
+                                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                                          {task.project.name}
                                         </p>
                                       )}
 
-                                      <div className="flex flex-wrap gap-1 mb-3">
-                                        <Badge
-                                          variant="outline"
-                                          className={
-                                            PRIORITY_STYLES[task.priority as TaskPriority]
-                                          }
-                                        >
-                                          {labelOf(TASK_PRIORITY, task.priority as TaskPriority)}
-                                        </Badge>
-                                        <Badge
-                                          variant="outline"
-                                          className="bg-elevated text-soft border-border text-xs"
-                                        >
-                                          {phaseLabel(task.phase)}
-                                        </Badge>
-                                        {/* O crachá do status operacional, depois
-                                            da etapa, como na versão nova. */}
-                                        {activeTag && tagStyle && TagIcon && (
-                                          <Badge
-                                            variant="outline"
-                                            className={`${tagStyle.badge} text-xs font-medium`}
-                                          >
-                                            <TagIcon className="w-3 h-3 mr-1" />
-                                            {tagLabelOf(activeTag)}
-                                          </Badge>
-                                        )}
-                                      </div>
-
-                                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                        {task.responsible && (
-                                          <div className="flex items-center gap-1">
-                                            <User className="w-3 h-3" />
-                                            <span className="truncate max-w-[80px]">
-                                              {task.responsible.name}
-                                            </span>
-                                          </div>
-                                        )}
-                                        {showDueDate && task.due_date && (
-                                          <div
-                                            className={`flex items-center gap-1 ${
-                                              isOverdue(task)
-                                                ? 'text-rose-600 dark:text-rose-400 font-medium'
-                                                : ''
-                                            }`}
-                                          >
-                                            <Calendar className="w-3 h-3" />
-                                            {format(parseISO(task.due_date), 'dd/MM')}
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      {task.estimated_hours != null && (
-                                        <div className="flex items-center gap-1 text-xs text-faint mt-2">
-                                          <Clock className="w-3 h-3" />
-                                          {task.estimated_hours}h
-                                        </div>
-                                      )}
-
-                                      {checklist.length > 0 && (
-                                        <div className="mt-3 pt-3 border-t border-border">
-                                          <button
-                                            onClick={(event) => {
-                                              event.stopPropagation()
-                                              setExpanded((current) => ({
-                                                ...current,
-                                                [task.id]: !current[task.id],
-                                              }))
-                                            }}
-                                            className="flex items-center justify-between w-full hover:bg-elevated p-1.5 rounded -ml-1.5 transition-colors"
-                                          >
-                                            <div className="flex items-center gap-2">
-                                              <CheckSquare className="w-3.5 h-3.5 text-muted-foreground" />
-                                              <span className="text-xs font-medium text-soft">
-                                                {done}/{checklist.length} concluídos
+                                      <div className="flex items-center justify-between gap-2 mt-3 text-xs text-muted-foreground">
+                                        <div className="min-w-0 flex items-center">
+                                          {/* A tag pausa o prazo: com ela, o rodapé
+                                              mostra a tag no lugar da data. */}
+                                          {activeTag && tagStyle && TagIcon ? (
+                                            <Badge
+                                              variant="outline"
+                                              className={`${tagStyle.badge} text-[11px] font-medium px-1.5 py-0`}
+                                            >
+                                              <TagIcon className="w-3 h-3 mr-1" />
+                                              <span className="truncate">{tagLabelOf(activeTag)}</span>
+                                            </Badge>
+                                          ) : (
+                                            showDueDate &&
+                                            task.due_date && (
+                                              <span
+                                                className={`flex items-center gap-1 ${
+                                                  isOverdue(task)
+                                                    ? 'text-rose-600 dark:text-rose-400 font-medium'
+                                                    : ''
+                                                }`}
+                                              >
+                                                <Calendar className="w-3 h-3" />
+                                                {format(parseISO(task.due_date), 'dd/MM')}
                                               </span>
-                                            </div>
-                                            {expanded[task.id] ? (
-                                              <ChevronUp className="w-3.5 h-3.5 text-faint" />
-                                            ) : (
-                                              <ChevronDown className="w-3.5 h-3.5 text-faint" />
-                                            )}
-                                          </button>
-
-                                          {expanded[task.id] && (
-                                            <div className="space-y-2 mt-2 max-h-40 overflow-y-auto">
-                                              {checklist.map((item) => (
-                                                <div
-                                                  key={item.id}
-                                                  className={`flex items-start gap-2 group hover:bg-elevated p-1.5 rounded -ml-1.5 ${
-                                                    canEdit ? 'cursor-pointer' : ''
-                                                  }`}
-                                                  onClick={(event) => {
-                                                    event.stopPropagation()
-                                                    if (canEdit) onToggleChecklistItem(item)
-                                                  }}
-                                                >
-                                                  <Checkbox
-                                                    checked={item.is_completed}
-                                                    disabled={!canEdit}
-                                                    className="mt-0.5"
-                                                  />
-                                                  <span
-                                                    className={`text-xs flex-1 ${
-                                                      item.is_completed
-                                                        ? 'line-through text-faint'
-                                                        : 'text-soft'
-                                                    }`}
-                                                  >
-                                                    {item.title}
-                                                  </span>
-                                                </div>
-                                              ))}
-                                            </div>
+                                            )
                                           )}
                                         </div>
-                                      )}
+
+                                        <div className="flex items-center gap-2.5 shrink-0">
+                                          {/* Os ambientes à parte do resto: é o
+                                              andamento que a etapa com ambientes
+                                              quer ler de relance (0100). */}
+                                          {column.showsRooms &&
+                                            checklist.some((item) => item.room_id) && (
+                                              <span
+                                                className={`flex items-center gap-1 tabular-nums ${
+                                                  checklist.every((item) => !item.room_id || item.is_completed)
+                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                    : ''
+                                                }`}
+                                                title="Ambientes"
+                                              >
+                                                <Home className="w-3 h-3" />
+                                                {checklist.filter((item) => item.room_id && item.is_completed).length}/
+                                                {checklist.filter((item) => item.room_id).length}
+                                              </span>
+                                            )}
+                                          {checklist.length > 0 && (
+                                            <span
+                                              className={`flex items-center gap-1 tabular-nums ${
+                                                done === checklist.length
+                                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                                  : ''
+                                              }`}
+                                              title="Checklist da etapa"
+                                            >
+                                              <CheckSquare className="w-3 h-3" />
+                                              {done}/{checklist.length}
+                                            </span>
+                                          )}
+                                          {task.responsible && (
+                                            <span title={task.responsible.name} className="inline-flex">
+                                              <AvatarPicture
+                                                avatarPath={task.responsible.avatar_path}
+                                                name={task.responsible.name}
+                                                size={24}
+                                                initials={initialsOf(task.responsible.name)}
+                                                initialClassName="text-soft"
+                                              />
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
                                     </Card>
                                   )}
                                 </Draggable>
@@ -984,6 +1023,83 @@ export default function TaskKanban({
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-border to-transparent pointer-events-none md:hidden" />
         </div>
       </DragDropContext>
+
+      <KanbanColumnEditDialog
+        boardKey="project_flow"
+        open={editingColumn !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingColumnKey(null)
+        }}
+        editing={editingColumn}
+      />
+
+      <TaskDetailDialog
+        task={selectedTask}
+        onOpenChange={(open) => {
+          if (!open) setSelectedTaskId(null)
+        }}
+        phaseLabel={selectedTask ? phaseLabel(selectedTask.phase) : ''}
+        priorityLabel={
+          selectedTask ? labelOf(TASK_PRIORITY, selectedTask.priority as TaskPriority) : ''
+        }
+        priorityClass={
+          selectedTask ? PRIORITY_STYLES[selectedTask.priority as TaskPriority] : ''
+        }
+        progress={selectedTask?.project_id ? progressOf(selectedTask.project_id) : null}
+        checklist={selectedTask ? currentChecklist(selectedTask) : []}
+        tag={
+          selectedTask?.operational_tag
+            ? {
+                label: tagLabelOf(selectedTask.operational_tag),
+                badgeClass: tagStyleOf(tagColorOf(selectedTask.operational_tag)).badge,
+                Icon: tagIconOf(selectedTask.operational_tag),
+              }
+            : null
+        }
+        tagOptions={selectedTagOptions}
+        responsibles={responsibles}
+        isOverdue={selectedTask ? isOverdue(selectedTask) : false}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        canViewProjects={canViewProjects}
+        /*
+          Editar, excluir e diário FECHAM o detalhe antes: cada um abre a sua
+          própria camada (formulário, confirmação, gaveta), e empilhar modal
+          sobre modal deixaria dois fundos escuros e dois "fechar".
+        */
+        onEdit={() => {
+          if (!selectedTask) return
+          setSelectedTaskId(null)
+          onEdit(selectedTask)
+        }}
+        onDelete={() => {
+          if (!selectedTask) return
+          setSelectedTaskId(null)
+          onDelete(selectedTask)
+        }}
+        onToggleChecklistItem={onToggleChecklistItem}
+        onChangeResponsible={(collaboratorId) => {
+          if (selectedTask) onChangeResponsible(selectedTask, collaboratorId)
+        }}
+        onSetOperationalTag={(tag) => {
+          if (selectedTask) onSetOperationalTag(selectedTask, tag)
+        }}
+        onOpenDiary={() => {
+          if (!selectedTask) return
+          const diaryProject = diaryProjectOf(selectedTask, projects)
+          if (!diaryProject) return
+          setSelectedTaskId(null)
+          setDiary({
+            project: diaryProject,
+            underConstruction: selectedTask.phase === 'under_construction',
+          })
+        }}
+        onOpenProject={() => {
+          if (!selectedTask?.project_id) return
+          setSelectedTaskId(null)
+          navigate(createPageUrl('Projects') + `?focus=${selectedTask.project_id}`)
+        }}
+      />
 
       {/* A gaveta do Diário do Projeto, como na versão nova (TaskKanban.jsx:758). */}
       <ProjectDiaryDrawer
