@@ -143,6 +143,10 @@ const NAO_ALCANCAVEL = {
     'duas colunas na mesma fase seria bug nosso, não gesto de quem usa: a tela não oferece escolher a fase de uma etapa, e nesta fatia nem sequer há policy de INSERT em kanban_columns',
   client_intakes_dismissed_fields_valid_check:
     'a conferência só grava a coluna da diferença que está na tela, e essa coluna vem de ApplicableClientColumn, a mesma lista do check (0101)',
+  client_people_relationship_check:
+    'a relação sai de uma lista fechada na tela (CLIENT_RELATIONSHIP, src/features/crm/people.ts) e não é digitada; o check existe para barrar valor vindo pela API (0102)',
+  client_intakes_filled_by_relationship_check:
+    'a resposta de "quem está preenchendo" é um select de quatro opções no formulário público, e a edge function recusa qualquer outro valor antes do banco (0102)',
   operational_tags_key_format_check:
     'a chave do status nasce derivada do nome (phaseKeyFrom) e nao e editavel: a tela oferece o rotulo, e e o rotulo que se renomeia',
   operational_tags_color_format_check:

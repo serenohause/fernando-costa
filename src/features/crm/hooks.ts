@@ -36,6 +36,16 @@ export const crmKeys = {
 const CLIENTS_LIST_LIMIT = 500
 
 const CRM_ERROR_MESSAGES: DatabaseErrorMessages = {
+  /* Pessoas do cadastro (migration 0102): cônjuge, segundo titular, sócio. */
+  client_people_client_id_name_key:
+    'Esta pessoa já está no cadastro deste cliente. Edite a que existe em vez de adicionar outra.',
+  client_people_name_not_blank_check: 'Dê um nome à pessoa.',
+  client_people_name_length_check: 'O nome é longo demais (máximo de 200 caracteres).',
+  client_people_email_format_check: 'Informe um e-mail válido para esta pessoa.',
+  client_people_tax_id_length_check: 'O CPF/CNPJ é longo demais (máximo de 30 caracteres).',
+  client_people_phone_length_check: 'O telefone é longo demais (máximo de 50 caracteres).',
+  client_people_notes_length_check:
+    'As observações são longas demais (máximo de 2000 caracteres).',
   /*
     A chave de deduplicação do CRM, na forma `cpf:<digitos>` ou
     `email:<normalizado>`. É índice único PARCIAL (0065), e por isso ficou fora

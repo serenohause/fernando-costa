@@ -38,6 +38,9 @@ export const pipelineKeys = {
 const NEGOTIATIONS_LIST_LIMIT = 500
 
 const PIPELINE_ERROR_MESSAGES: DatabaseErrorMessages = {
+  /* Quem preencheu o briefing (migration 0102). */
+  client_intakes_filled_by_name_length_check:
+    'O nome de quem preencheu é longo demais (máximo de 200 caracteres).',
   negotiation_services_negotiation_id_service_type_id_key:
     'Este serviço já está marcado nesta negociação.',
   negotiation_services_service_type_id_fkey:
