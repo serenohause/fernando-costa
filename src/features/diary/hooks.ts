@@ -293,38 +293,6 @@ export function useProjectDiaryEntries(projectId: string | null | undefined, ena
   Teto de 30: o cartão mostra o recente, e a história inteira mora no Diário do
   Projeto, que o próprio detalhe abre.
 */
-export type TaskActivityEntry = {
-  id: string
-  title: string
-  description: string | null
-  system_event: string | null
-  created_at: string
-  created_by: { id: string; name: string; avatar_path: string | null } | null
-}
-
-export function useTaskActivity(projectId: string | null, taskId: string | null) {
-  return useQuery({
-    queryKey: [...diaryKeys.all, 'task-activity', taskId] as const,
-    enabled: Boolean(projectId && taskId),
-    queryFn: async (): Promise<TaskActivityEntry[]> => {
-      const { data, error } = await supabase
-        .from('project_diary_entries')
-        .select(
-          'id, title, description, system_event, created_at, created_by:collaborators!project_diary_entries_created_by_id_fkey(id, name, avatar_path)',
-        )
-        .eq('project_id', projectId as string)
-        .like('event_key', `%:${taskId}:%`)
-        .order('created_at', { ascending: false })
-        .limit(30)
-
-      if (error) throw error
-      return (data ?? []) as unknown as TaskActivityEntry[]
-    },
-    /* Cada gesto no cartão grava um evento novo; o feed tem de relê-lo ao abrir. */
-    staleTime: 0,
-  })
-}
-
 export function useCreateDiaryEntry() {
   const queryClient = useQueryClient()
   const tenantId = useTenantId()

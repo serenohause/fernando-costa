@@ -3598,6 +3598,61 @@ export type Database = {
           },
         ]
       }
+      task_events: {
+        Row: {
+          actor_id: string | null
+          actor_name: string | null
+          created_at: string
+          details: Json
+          id: string
+          kind: string
+          task_id: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          kind: string
+          task_id: string
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          kind?: string
+          task_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_events_actor_fkey"
+            columns: ["actor_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "task_events_task_fkey"
+            columns: ["task_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "task_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           completion_date: string | null

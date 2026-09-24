@@ -23,7 +23,6 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
-import { useTaskActivity } from '@/features/diary/hooks'
 import AvatarPicture from '@/features/profile/components/AvatarPicture'
 import type { Collaborator } from '@/features/team/types'
 import { COLLABORATOR_ROLE, labelOf } from '@/lib/enums'
@@ -31,12 +30,15 @@ import {
   describeTaskError,
   useAddChecklistItem,
   useDeleteChecklistItem,
+  useTaskEvents,
   useToggleChecklistItemAssignee,
   useUpdateChecklistItem,
   useUpdateTaskFields,
+  type TaskEventRow,
 } from '../hooks'
 import { groupChecklistBySection } from '../checklist-templates'
 import { initialsOf } from '../initials'
+import { describeTaskEvent, type TaskEventDetails } from '../task-events'
 import type { TaskChecklistItem, TaskRow } from '../types'
 
 /*
@@ -134,7 +136,7 @@ function OpenCard({
           toast.error('Não foi possível alterar o objetivo: ' + describeTaskError(error)),
       },
     )
-  const activityQuery = useTaskActivity(task.project_id, task.id)
+  const activityQuery = useTaskEvents(task.id)
 
   const [adding, setAdding] = useState(false)
   const addInputRef = useRef<HTMLInputElement>(null)
@@ -376,7 +378,6 @@ function OpenCard({
             <div className="border-t border-border pt-8">
               <Section title="Atividade">
                 <ActivityFeed
-                  hasProject={Boolean(task.project_id)}
                   isLoading={activityQuery.isLoading}
                   isError={activityQuery.isError}
                   entries={activityQuery.data ?? []}
@@ -1095,34 +1096,22 @@ function DuePicker({
 }
 
 /*
-  O FEED DE ATIVIDADE: os eventos que o sistema já grava no Diário do Projeto
-  para esta tarefa — mudança de etapa, troca de responsável, status ligado e
-  desligado (ver `useTaskActivity`).
+  O FEED DE ATIVIDADE: o histórico do cartão, escrito pelo banco a cada mudança
+  (migration 0104) — criação, edições, objetivos concluídos e reabertos, prazos e
+  responsáveis, com quem fez.
+
+  A FRASE É MONTADA AQUI (`describeTaskEvent`), e não gravada: o banco guarda o
+  fato, e o texto pode melhorar sem reescrever o passado.
 */
 function ActivityFeed({
-  hasProject,
   isLoading,
   isError,
   entries,
 }: {
-  hasProject: boolean
   isLoading: boolean
   isError: boolean
-  entries: {
-    id: string
-    title: string
-    created_at: string
-    created_by: { id: string; name: string; avatar_path: string | null } | null
-  }[]
+  entries: TaskEventRow[]
 }) {
-  /* Os eventos são gravados no diário DO PROJETO; tarefa solta não tem onde. */
-  if (!hasProject) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Tarefa sem projeto não registra atividade.
-      </p>
-    )
-  }
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -1138,31 +1127,36 @@ function ActivityFeed({
   if (entries.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Nenhuma atividade ainda. Mudanças de etapa, responsável e status aparecem aqui.
+        Nenhuma atividade ainda. O que acontecer neste cartão aparece aqui.
       </p>
     )
   }
 
   return (
     <ol className="space-y-3">
-      {entries.map((entry) => (
-        <li key={entry.id} className="flex items-start gap-3">
-          {entry.created_by ? (
-            <Avatar name={entry.created_by.name} avatarPath={entry.created_by.avatar_path} />
-          ) : (
-            <span className="w-7 h-7 rounded-full bg-elevated border border-border shrink-0" />
-          )}
-          <div className="min-w-0">
-            <p className="text-sm text-foreground">
-              {entry.created_by && <span className="font-semibold">{entry.created_by.name} </span>}
-              {entry.title}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {format(parseISO(entry.created_at), "dd/MM/yyyy 'às' HH:mm")}
-            </p>
-          </div>
-        </li>
-      ))}
+      {entries.map((entry) => {
+        /* Sem autor é escrita sem sessão — semeadura, correção no banco. Dizer
+           "Sistema" é mais honesto que deixar a linha sem dono. */
+        const nome = entry.actor?.name ?? entry.actor_name ?? 'Sistema'
+        return (
+          <li key={entry.id} className="flex items-start gap-3">
+            {entry.actor ? (
+              <Avatar name={entry.actor.name} avatarPath={entry.actor.avatar_path} />
+            ) : (
+              <span className="w-7 h-7 rounded-full bg-elevated border border-border shrink-0" />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm text-foreground">
+                <span className="font-semibold">{nome} </span>
+                {describeTaskEvent(entry.kind, (entry.details ?? null) as TaskEventDetails | null)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {format(parseISO(entry.created_at), "dd/MM/yyyy 'às' HH:mm")}
+              </p>
+            </div>
+          </li>
+        )
+      })}
     </ol>
   )
 }

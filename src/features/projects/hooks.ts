@@ -1518,3 +1518,54 @@ export function useToggleChecklistItemAssignee() {
       })),
   )
 }
+
+/*
+  O HISTÓRICO DO CARTÃO (migration 0104).
+
+  Lia o Diário do Projeto e encontrava três fatos — etapa, responsável e status.
+  Agora lê `task_events`, que o BANCO escreve por gatilho a cada mudança: criação,
+  título, descrição, prazos, objetivos concluídos e reabertos, responsáveis do
+  objetivo. Três consequências que a tela ganhou de graça:
+
+  - tarefa SEM projeto tem histórico (o diário é do projeto, e ela não tinha);
+  - o que for gravado por outro caminho também aparece;
+  - o autor vem do JWT, não do que a tela mandou junto.
+
+  O Diário do Projeto continua existindo e continua sendo do PROJETO: lá a
+  mudança de etapa aparece na linha do tempo da obra, aqui no cartão.
+*/
+export type TaskEventRow = {
+  id: string
+  kind: string
+  details: Record<string, unknown> | null
+  created_at: string
+  actor_name: string | null
+  actor: { id: string; name: string; avatar_path: string | null } | null
+}
+
+export function useTaskEvents(taskId: string | null) {
+  return useQuery({
+    /* DENTRO da chave das tarefas, e é isso que mantém o histórico vivo: toda
+       gravação do cartão invalida `projectKeys.tasks()`, e esta consulta vem
+       junto por prefixo. Sob a chave do Diário — onde ela nasceu — a lista só
+       se atualizava ao reabrir o cartão. */
+    queryKey: [...projectKeys.tasks(), 'events', taskId] as const,
+    enabled: Boolean(taskId),
+    queryFn: async (): Promise<TaskEventRow[]> => {
+      const { data, error } = await supabase
+        .from('task_events')
+        .select(
+          'id, kind, details, created_at, actor_name, actor:collaborators!task_events_actor_fkey(id, name, avatar_path)',
+        )
+        .eq('task_id', taskId as string)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (error) throw error
+      return (data ?? []) as unknown as TaskEventRow[]
+    },
+    /* Cada gesto no cartão gera evento novo; o feed tem de relê-lo ao abrir. */
+    staleTime: 0,
+  })
+}
+
