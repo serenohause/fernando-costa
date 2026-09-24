@@ -42,6 +42,7 @@
     "test:contract-from-negotiation": "supabase/tests/run-sql.sh supabase/tests/contract-from-negotiation.sql",
     "test:briefing-site": "supabase/tests/run-sql.sh supabase/tests/briefing-site.sql",
     "test:client-people": "supabase/tests/run-sql.sh supabase/tests/client-people.sql",
+    "test:checklist-assignees": "supabase/tests/run-sql.sh supabase/tests/checklist-assignees.sql",
     "test:forged": "node supabase/tests/forged-token.mjs",
     "create-tenant": "node scripts/create-tenant.mjs",
     "test:errors": "node supabase/tests/error-messages.mjs",

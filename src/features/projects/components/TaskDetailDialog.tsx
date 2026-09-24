@@ -31,6 +31,7 @@ import {
   describeTaskError,
   useAddChecklistItem,
   useDeleteChecklistItem,
+  useToggleChecklistItemAssignee,
   useUpdateChecklistItem,
   useUpdateTaskFields,
 } from '../hooks'
@@ -122,12 +123,10 @@ function OpenCard({
   const addItem = useAddChecklistItem()
   const deleteItem = useDeleteChecklistItem()
   const updateItem = useUpdateChecklistItem()
+  const toggleAssignee = useToggleChecklistItemAssignee()
 
-  /* Responsável e prazo de um objetivo (migration 0098). Nulo remove. */
-  const salvarItem = (
-    item: TaskChecklistItem,
-    patch: { assignee_id?: string | null; due_date?: string | null },
-  ) =>
+  /* Prazo do objetivo (migration 0098). Nulo remove. */
+  const salvarItem = (item: TaskChecklistItem, patch: { due_date?: string | null }) =>
     updateItem(
       { id: item.id, patch },
       {
@@ -272,7 +271,17 @@ function OpenCard({
                     canEdit={canEdit}
                     responsibles={responsibles}
                     onToggle={() => onToggleChecklistItem(item)}
-                    onAssign={(assigneeId) => salvarItem(item, { assignee_id: assigneeId })}
+                    onToggleAssignee={(collaboratorId, assign) =>
+                      toggleAssignee(
+                        { item, collaboratorId, assign },
+                        {
+                          onError: (error) =>
+                            toast.error(
+                              'Não foi possível alterar o responsável: ' + describeTaskError(error),
+                            ),
+                        },
+                      )
+                    }
                     onDue={(due) => salvarItem(item, { due_date: due })}
                     onRemove={() =>
                       deleteItem(
@@ -817,8 +826,12 @@ function InlineDescription({
   - SEM responsável ou prazo, os botões (pessoa e relógio) só aparecem ao passar o
     mouse, para a lista não virar uma fileira de ícones vazios. No celular não há
     "passar o mouse", então lá eles ficam sempre visíveis.
-  - COM responsável ou prazo, o botão dá lugar ao valor — o avatar e a data — e é
-    o próprio valor que se clica para trocar ou remover.
+  - COM responsáveis ou prazo, o botão dá lugar ao valor — os avatares e a data —
+    e é o próprio valor que se clica para trocar ou remover.
+
+  VÁRIOS RESPONSÁVEIS POR OBJETIVO (migration 0103), como os membros de um item
+  do Trello: o menu marca e desmarca nomes e NÃO fecha a cada clique, porque
+  escolher duas pessoas são dois cliques.
 
   O PRAZO DO OBJETIVO É SÓ DELE: vermelho quando venceu e o objetivo não foi
   cumprido, verde quando foi cumprido, neutro no resto. A tarefa não fica
@@ -829,7 +842,7 @@ function ObjectiveRow({
   canEdit,
   responsibles,
   onToggle,
-  onAssign,
+  onToggleAssignee,
   onDue,
   onRemove,
 }: {
@@ -837,13 +850,19 @@ function ObjectiveRow({
   canEdit: boolean
   responsibles: Collaborator[]
   onToggle: () => void
-  onAssign: (assigneeId: string | null) => void
+  onToggleAssignee: (collaboratorId: string, assign: boolean) => void
   onDue: (due: string | null) => void
   onRemove: () => void
 }) {
-  const assignee = item.assignee_id
-    ? (responsibles.find((collaborator) => collaborator.id === item.assignee_id) ?? null)
-    : null
+  const assignedIds = (item.assignees ?? []).map((assignee) => assignee.collaborator_id)
+  /* Quem está na lista de responsáveis do escritório aparece com nome e foto; o
+     que sobra é gente desligada ou fora da lista — o objetivo continua com dono,
+     e a tela diz isso com um ícone em vez de sumir com ele. */
+  const assignados = assignedIds.flatMap((id) => {
+    const encontrado = responsibles.find((collaborator) => collaborator.id === id)
+    return encontrado ? [encontrado] : []
+  })
+  const desconhecidos = assignedIds.length - assignados.length
   const hoje = format(new Date(), 'yyyy-MM-dd')
   const vencido = Boolean(item.due_date && item.due_date < hoje && !item.is_completed)
 
@@ -919,26 +938,38 @@ function ObjectiveRow({
           </ObjectivePopover>
         )}
 
-        {/* ── Responsável ── */}
-        {(item.assignee_id || canEdit) && (
+        {/* ── Responsáveis ── */}
+        {(assignedIds.length > 0 || canEdit) && (
           <ObjectivePopover
-            label="Responsável pelo objetivo"
+            label="Responsáveis pelo objetivo"
             disabled={!canEdit}
             trigger={
-              item.assignee_id ? (
-                assignee ? (
-                  <Avatar name={assignee.name} avatarPath={assignee.avatar_path} size="sm" />
-                ) : (
-                  /* Colaborador fora da lista de responsáveis (desativado, por
-                     exemplo): o objetivo continua com dono, só não há nome ativo
-                     para mostrar. */
-                  <span
-                    className="w-6 h-6 rounded-full bg-elevated border border-border flex items-center justify-center text-muted-foreground"
-                    title="Colaborador inativo"
-                  >
-                    <User className="w-3 h-3" />
-                  </span>
-                )
+              assignedIds.length > 0 ? (
+                /* Pilha de avatares: três e o resto vira "+N", para a linha do
+                   objetivo não virar uma fileira de fotos. */
+                <span className="flex items-center -space-x-1.5">
+                  {assignados.slice(0, 3).map((collaborator) => (
+                    <Avatar
+                      key={collaborator.id}
+                      name={collaborator.name}
+                      avatarPath={collaborator.avatar_path}
+                      size="sm"
+                    />
+                  ))}
+                  {desconhecidos > 0 && (
+                    <span
+                      className="w-6 h-6 rounded-full bg-elevated border border-border flex items-center justify-center text-muted-foreground"
+                      title="Colaborador inativo"
+                    >
+                      <User className="w-3 h-3" />
+                    </span>
+                  )}
+                  {assignados.length > 3 && (
+                    <span className="w-6 h-6 rounded-full bg-elevated border border-border text-[10px] font-semibold text-soft flex items-center justify-center">
+                      +{assignados.length - 3}
+                    </span>
+                  )}
+                </span>
               ) : (
                 <span
                   className={`flex items-center justify-center w-6 h-6 rounded text-muted-foreground hover:text-foreground hover:bg-muted ${vazio}`}
@@ -949,40 +980,38 @@ function ObjectiveRow({
               )
             }
           >
-            {(fechar) => (
+            {() => (
               <div className="max-h-64 overflow-y-auto -m-1">
-                {responsibles.map((collaborator) => (
-                  <button
-                    key={collaborator.id}
-                    type="button"
-                    onClick={() => {
-                      onAssign(collaborator.id)
-                      fechar()
-                    }}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-elevated"
-                  >
-                    <Avatar name={collaborator.name} avatarPath={collaborator.avatar_path} />
-                    <span className="flex-1 min-w-0">
-                      <span className="block truncate text-foreground">{collaborator.name}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        {labelOf(COLLABORATOR_ROLE, collaborator.role)}
+                {responsibles.map((collaborator) => {
+                  const marcado = assignedIds.includes(collaborator.id)
+                  return (
+                    <button
+                      key={collaborator.id}
+                      type="button"
+                      /* O menu fica aberto: marcar duas pessoas são dois cliques. */
+                      onClick={() => onToggleAssignee(collaborator.id, !marcado)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-elevated"
+                    >
+                      <Avatar name={collaborator.name} avatarPath={collaborator.avatar_path} />
+                      <span className="flex-1 min-w-0">
+                        <span className="block truncate text-foreground">{collaborator.name}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {labelOf(COLLABORATOR_ROLE, collaborator.role)}
+                        </span>
                       </span>
-                    </span>
-                    {item.assignee_id === collaborator.id && (
-                      <Check className="w-4 h-4 text-foreground" />
-                    )}
-                  </button>
-                ))}
-                {item.assignee_id && (
+                      {marcado && <Check className="w-4 h-4 text-foreground" />}
+                    </button>
+                  )
+                })}
+                {assignedIds.length > 0 && (
                   <button
                     type="button"
                     onClick={() => {
-                      onAssign(null)
-                      fechar()
+                      for (const id of assignedIds) onToggleAssignee(id, false)
                     }}
                     className="w-full mt-1 pt-2 border-t border-border px-2 py-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground hover:bg-elevated"
                   >
-                    Remover responsável
+                    Remover todos
                   </button>
                 )}
               </div>

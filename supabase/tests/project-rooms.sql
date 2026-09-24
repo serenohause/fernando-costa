@@ -239,8 +239,11 @@ select pg_temp.rec('4.1', 'toggle nasce desligado em todas as etapas', '0',
   (select count(*)::text from public.kanban_columns
     where tenant_id = (select tenant_a from ids) and shows_project_rooms));
 
-select pg_temp.rec('4.2', 'escritórios que já existiam também ficaram desligados', '0',
-  (select count(*)::text from public.kanban_columns where shows_project_rooms));
+/* O padrão da coluna, e não quantas etapas estão ligadas agora: ligar o toggle é
+   uso normal, e a asserção antiga quebrava quando alguém usava a tela. */
+select pg_temp.rec('4.2', 'o padrão da coluna é desligado', 'false',
+  (select column_default from information_schema.columns
+    where table_name = 'kanban_columns' and column_name = 'shows_project_rooms'));
 
 select pg_temp.rec('4.3', 'RLS ligada em project_rooms', 'true',
   (select relrowsecurity::text from pg_class where oid = 'public.project_rooms'::regclass));

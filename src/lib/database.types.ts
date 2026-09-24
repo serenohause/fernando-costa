@@ -3482,9 +3482,51 @@ export type Database = {
           },
         ]
       }
+      task_checklist_item_assignees: {
+        Row: {
+          collaborator_id: string
+          created_at: string
+          item_id: string
+          tenant_id: string
+        }
+        Insert: {
+          collaborator_id: string
+          created_at?: string
+          item_id: string
+          tenant_id: string
+        }
+        Update: {
+          collaborator_id?: string
+          created_at?: string
+          item_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_checklist_item_assignees_collaborator_fkey"
+            columns: ["collaborator_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "task_checklist_item_assignees_item_fkey"
+            columns: ["item_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "task_checklist_items"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "task_checklist_item_assignees_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_checklist_items: {
         Row: {
-          assignee_id: string | null
           completed_at: string | null
           created_at: string
           display_order: number | null
@@ -3501,7 +3543,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
           display_order?: number | null
@@ -3518,7 +3559,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
           display_order?: number | null
@@ -3540,13 +3580,6 @@ export type Database = {
             columns: ["room_id", "tenant_id"]
             isOneToOne: false
             referencedRelation: "project_rooms"
-            referencedColumns: ["id", "tenant_id"]
-          },
-          {
-            foreignKeyName: "task_checklist_items_assignee_id_fkey"
-            columns: ["assignee_id", "tenant_id"]
-            isOneToOne: false
-            referencedRelation: "collaborators"
             referencedColumns: ["id", "tenant_id"]
           },
           {

@@ -12,7 +12,16 @@ import type {
 
 export type Project = Tables<'projects'>
 export type Task = Tables<'tasks'>
-export type TaskChecklistItem = Tables<'task_checklist_items'>
+/*
+  QUEM RESPONDE POR UM OBJETIVO — vários, como os membros de um item do Trello
+  (migration 0103). Vem pelo embed da consulta de tarefas; os nomes saem de
+  `collaborators`, que a tela já carrega.
+*/
+export type ChecklistAssignee = { collaborator_id: string }
+
+export type TaskChecklistItem = Tables<'task_checklist_items'> & {
+  assignees?: ChecklistAssignee[]
+}
 
 /*
   A linha da view `project_progress` (migrations 0034/0035).

@@ -41,6 +41,7 @@ import type {
   TaskPhaseMove,
   TaskRow,
   ProjectRoomRef,
+  TaskChecklistItem,
 } from './types'
 
 export const projectKeys = {
@@ -122,6 +123,7 @@ const TASKS_ERROR_MESSAGES: DatabaseErrorMessages = {
      lugar (TaskDetailDialog): título, prazo e objetivo são gravados campo a
      campo, sem passar pelo schema do formulário que barrava antes. */
   task_checklist_items_title_not_blank_check: 'Escreva o objetivo antes de adicionar.',
+  task_checklist_item_assignees_pkey: 'Esta pessoa já responde por este objetivo.',
   tasks_title_not_blank_check: 'Dê um título à tarefa.',
   tasks_due_date_not_before_start_check:
     'O prazo não pode ser antes da data de início da tarefa.',
@@ -252,7 +254,7 @@ const TASKS_SELECT = `
   *,
   project:projects!tasks_project_id_fkey(id, name),
   responsible:collaborators!tasks_responsible_id_fkey(id, name, avatar_path),
-  checklist:task_checklist_items(*)
+  checklist:task_checklist_items(*, assignees:task_checklist_item_assignees(collaborator_id))
 `
 
 export function useTasks() {
@@ -1098,7 +1100,6 @@ export function useDeleteChecklistItem() {
   nem na regra de atraso do quadro — ver o cabeçalho da 0098.
 */
 export type ChecklistItemPatch = {
-  assignee_id?: string | null
   due_date?: string | null
 }
 
@@ -1436,4 +1437,84 @@ export function useSaveProjectRooms() {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all })
     },
   })
+}
+
+/*
+  LIGA OU DESLIGA UM RESPONSÁVEL DO OBJETIVO (migration 0103).
+
+  Um por clique, e não a lista inteira a cada gesto: é o que o menu do cartão faz
+  (marcar e desmarcar nomes), e é o que deixa duas pessoas mexerem no mesmo
+  objetivo sem uma apagar a escolha da outra.
+
+  Sem UPDATE no banco — a policy não tem —, então trocar é tirar um e pôr outro.
+*/
+export function useToggleChecklistItemAssignee() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async ({
+      item,
+      collaboratorId,
+      assign,
+    }: {
+      item: TaskChecklistItem
+      collaboratorId: string
+      assign: boolean
+    }) => {
+      if (assign) {
+        const { error } = await supabase.from('task_checklist_item_assignees').insert({
+          tenant_id: item.tenant_id,
+          item_id: item.id,
+          collaborator_id: collaboratorId,
+        })
+        if (error) throw error
+        return item.id
+      }
+
+      const { data, error } = await supabase
+        .from('task_checklist_item_assignees')
+        .delete()
+        .eq('item_id', item.id)
+        .eq('collaborator_id', collaboratorId)
+        .select('item_id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'O responsável não foi removido. É preciso permissão de edição no Fluxo do Projeto.',
+      )
+      return item.id
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+    },
+  })
+
+  return optimisticTaskWrite(
+    queryClient,
+    mutation,
+    (
+      tasks,
+      {
+        item,
+        collaboratorId,
+        assign,
+      }: { item: TaskChecklistItem; collaboratorId: string; assign: boolean },
+    ) =>
+      tasks.map((task) => ({
+        ...task,
+        checklist: task.checklist.map((candidate) =>
+          candidate.id === item.id
+            ? {
+                ...candidate,
+                assignees: assign
+                  ? [...(candidate.assignees ?? []), { collaborator_id: collaboratorId }]
+                  : (candidate.assignees ?? []).filter(
+                      (assignee) => assignee.collaborator_id !== collaboratorId,
+                    ),
+              }
+            : candidate,
+        ),
+      })),
+  )
 }

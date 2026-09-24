@@ -164,15 +164,16 @@ select pg_temp.rec('1.14', 'todos de fábrica são obrigatórios e sem seção',
   (select count(*)::text from public.kanban_column_objectives
     where tenant_id = (select tenant_a from ids) and (not is_required or section_id is not null)));
 
-select pg_temp.rec('1.15', 'escritórios que já existiam receberam a mesma cópia (etapas divergentes)', '0',
-  (select count(*)::text from (
-     select c.id
-     from public.kanban_columns c
-     join public.default_kanban_objectives() d on d.column_key = c.key
-     where c.tenant_id not in ((select tenant_a from ids), (select tenant_b from ids))
-       and not exists (select 1 from public.kanban_column_objectives o
-                        where o.column_id = c.id and o.title = d.title)
-   ) faltando));
+/*
+  O QUE ESTE CASO PASSOU A AFIRMAR: a lista de fábrica em si.
+
+  Antes ele varria os escritórios que já existiam procurando objetivo do modelo
+  que não estivesse lá — e isso dá FALSO quando um escritório apaga um objetivo
+  padrão, que é uso normal da tela. O backfill da migration já é provado pelos
+  casos 1.1 a 1.14, no escritório recém-criado.
+*/
+select pg_temp.rec('1.15', 'a lista de fábrica continua com 35 títulos', '35',
+  (select count(*)::text from public.default_kanban_objectives()));
 
 -- 2. GRAVAR O MODELO -------------------------------------------------------------
 
