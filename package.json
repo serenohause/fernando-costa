@@ -46,6 +46,7 @@
     "test:task-events-sql": "supabase/tests/run-sql.sh supabase/tests/task-events.sql",
     "test:forged": "node supabase/tests/forged-token.mjs",
     "create-tenant": "node scripts/create-tenant.mjs",
+    "criar-suporte": "node scripts/criar-suporte.mjs",
     "test:errors": "node supabase/tests/error-messages.mjs",
     "test:db-errors": "node tests/db-errors.mjs",
     "test:client-address": "node tests/client-address.mjs",
