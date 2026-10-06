@@ -235,14 +235,35 @@ export function useChangePassword() {
         password: currentPassword,
       })
 
+      /*
+        NEM TODA FALHA AQUI É SENHA ERRADA, e dizer que é manda a pessoa para o
+        lado errado. Caso real: alguém tentou várias vezes porque o navegador
+        preencheu sozinho a senha ANTIGA no campo; o servidor passou a recusar
+        por excesso de tentativas, e a tela continuou dizendo "senha atual
+        incorreta" — ou seja, acusando a única coisa que já estava certa.
+      */
       if (reauthError) {
-        throw new WriteError('A senha atual está incorreta.')
+        const status = reauthError.status ?? 0
+        if (status === 429) {
+          throw new WriteError(
+            'Muitas tentativas seguidas. Espere alguns minutos e tente de novo — a senha pode estar certa.',
+          )
+        }
+        if (status === 0) {
+          throw new WriteError('Sem conexão com o servidor. Confira a internet e tente de novo.')
+        }
+        throw new WriteError(
+          'A senha atual não confere. Se o navegador preencheu o campo sozinho, apague e digite a senha atual à mão.',
+        )
       }
 
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) {
         /* A mensagem do GoTrue vem em inglês e às vezes descreve a política de
            senha; a tela já diz a regra, então o texto daqui é o nosso. */
+        if (error.status === 422) {
+          throw new WriteError('A senha nova precisa ser diferente da atual.')
+        }
         throw new WriteError('Não foi possível trocar a senha. Tente novamente.')
       }
     },
