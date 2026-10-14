@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { formatAddress } from './address'
+import { semAcento } from '@/lib/text'
 import {
   assertRowAffected,
   describeDatabaseError as describeError,
@@ -313,11 +314,25 @@ function useTenantId() {
 const CLIENTS_LIST_COLUMNS =
   'id, name, client_type, email, phone, address_city, address_state, address_country, lead_source'
 
-export function useClients(search: string) {
+/*
+  A LISTA DE CLIENTES — e ela alimenta DUAS coisas diferentes.
+
+  A tela do CRM quer ver também quem está vinculado ao cadastro (cônjuge, sócio),
+  porque o escritório pediu para não ter de abrir o cliente para enxergá-los
+  (0102). Todo o resto do sistema — os seletores de cliente da negociação, do
+  projeto, do contrato, do recebível — quer só os CADASTROS.
+
+  Isso já quebrou em produção: as pessoas vinculadas apareciam no seletor de
+  cliente da negociação, e como a linha de uma pessoa carrega o id do TITULAR,
+  o seletor marcava várias linhas ao mesmo tempo e trocar de cliente virava
+  adivinhação. Por isso vir junto é opção de quem chama, e o padrão é não vir.
+*/
+export function useClients(search: string, opcoes?: { comVinculados?: boolean }) {
   const term = search.trim()
+  const comVinculados = opcoes?.comVinculados ?? false
 
   return useQuery({
-    queryKey: crmKeys.clients(term),
+    queryKey: [...crmKeys.clients(term), comVinculados ? 'com-vinculados' : 'so-cadastros'] as const,
     /* Mantém a tabela anterior na tela enquanto a busca nova não volta. */
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<ClientListRow[]> => {
@@ -327,11 +342,14 @@ export function useClients(search: string) {
         .order('name', { ascending: true })
         .limit(CLIENTS_LIST_LIMIT)
 
-      if (term) query = query.ilike('search_text', `%${escapeLikePattern(term)}%`)
+      /* `search_plain` guarda o mesmo conteúdo sem acento (0105), e o termo vai
+         pelo mesmo tratamento: assim "Junior" acha "Júnior" e vice-versa. */
+      if (term) query = query.ilike('search_plain', `%${escapeLikePattern(semAcento(term))}%`)
 
       const { data, error } = await query
       if (error) throw error
       const encontrados = data ?? []
+      if (!comVinculados) return encontrados
       if (!term) return comVinculos(encontrados)
 
       /*
@@ -348,7 +366,7 @@ export function useClients(search: string) {
       const porNome = supabase
         .from('client_people')
         .select('client_id')
-        .ilike('name', `%${escapeLikePattern(term)}%`)
+        .ilike('name_plain', `%${escapeLikePattern(semAcento(term))}%`)
         .limit(CLIENTS_LIST_LIMIT)
 
       const consultas = [porNome]

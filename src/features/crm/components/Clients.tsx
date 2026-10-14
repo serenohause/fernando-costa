@@ -80,7 +80,8 @@ export default function Clients() {
   }, [saveOrigin])
 
   const debouncedSearch = useDebouncedValue(searchQuery)
-  const clientsQuery = useClients(debouncedSearch)
+  /* A única tela que mostra também as pessoas vinculadas ao cadastro (0102). */
+  const clientsQuery = useClients(debouncedSearch, { comVinculados: true })
   const clients = clientsQuery.data ?? []
 
   /*

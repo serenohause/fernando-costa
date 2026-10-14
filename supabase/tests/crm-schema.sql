@@ -389,7 +389,7 @@ select pg_temp.val('6.1c', 'extensoes que a busca por pedaco exige estao ativas'
 -- trigger de colisao precisam enxergar tambem o cliente IMPORTADO, que saiu do
 -- indice unico. Ver a secao 7 e o cabecalho da 0065.
 select pg_temp.val('6.3', 'indices da tabela',
-  'clients_id_tenant_id_key,clients_pkey,clients_tenant_id_client_key_idx,clients_tenant_id_client_key_key,clients_tenant_id_created_at_idx,clients_tenant_id_legacy_id_key,clients_tenant_id_name_idx,clients_tenant_id_phone_digits_idx,clients_tenant_id_phone_digits_key,clients_tenant_id_referrer_client_id_idx,clients_tenant_id_search_text_idx,clients_tenant_id_tax_id_digits_idx,clients_tenant_id_tax_id_digits_key',
+  'clients_id_tenant_id_key,clients_pkey,clients_tenant_id_client_key_idx,clients_tenant_id_client_key_key,clients_tenant_id_created_at_idx,clients_tenant_id_legacy_id_key,clients_tenant_id_name_idx,clients_tenant_id_phone_digits_idx,clients_tenant_id_phone_digits_key,clients_tenant_id_referrer_client_id_idx,clients_tenant_id_search_plain_idx,clients_tenant_id_search_text_idx,clients_tenant_id_tax_id_digits_idx,clients_tenant_id_tax_id_digits_key',
   $q$select string_agg(indexname, ',' order by indexname) from pg_indexes
      where schemaname = 'public' and tablename = 'clients'$q$);
 
@@ -407,7 +407,7 @@ select pg_temp.val('6.7', 'o unico de chave de cliente tem a mesma condicao',
   $q$select indexdef from pg_indexes
      where schemaname = 'public' and indexname = 'clients_tenant_id_client_key_key'$q$);
 
-select pg_temp.val('6.4', 'colunas geradas declaradas', 'client_key,email_normalized,phone_digits,search_text,tax_id_digits',
+select pg_temp.val('6.4', 'colunas geradas declaradas', 'client_key,email_normalized,phone_digits,search_plain,search_text,tax_id_digits',
   $q$select string_agg(column_name, ',' order by column_name) from information_schema.columns
      where table_schema = 'public' and table_name = 'clients' and is_generated = 'ALWAYS'$q$);
 

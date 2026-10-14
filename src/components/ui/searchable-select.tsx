@@ -68,16 +68,32 @@ export function SearchableSelect({
   const listRef = React.useRef<HTMLDivElement>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  const selected = options.find((option) => option.value === value) ?? null
+  /* UM ID POR LINHA, mesmo que quem chama mande repetido. O visto é desenhado
+     comparando valor com valor, então duas linhas com o mesmo id aparecem as
+     duas marcadas, e escolher qualquer uma devolve sempre a primeira — a troca
+     parece travada. Isso chegou a produção pela busca do CRM, que juntava
+     pessoa vinculada ao cadastro usando o id do titular. */
+  const unicas = React.useMemo(() => {
+    const vistos = new Set<string>()
+    const resultado: SearchableOption[] = []
+    for (const option of options) {
+      if (vistos.has(option.value)) continue
+      vistos.add(option.value)
+      resultado.push(option)
+    }
+    return resultado
+  }, [options])
+
+  const selected = unicas.find((option) => option.value === value) ?? null
 
   const filtered = React.useMemo(() => {
     const needle = fold(term.trim())
-    if (!needle) return options
+    if (!needle) return unicas
     /* Casa só com o que está VISÍVEL na lista. Buscar em texto escondido
        (cidade, documento) faz aparecer resultado que a pessoa não consegue
        explicar olhando a tela. */
-    return options.filter((option) => fold(option.label).includes(needle))
-  }, [options, term])
+    return unicas.filter((option) => fold(option.label).includes(needle))
+  }, [unicas, term])
 
   /* Abrir volta ao começo: a lista filtrada da vez anterior não existe mais, e
      um índice herdado apontaria para outra pessoa. */
