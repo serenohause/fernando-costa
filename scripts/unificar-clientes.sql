@@ -3,9 +3,10 @@
 -- POR QUE EXISTE
 --   O CRM recusa documento e telefone repetidos (0076, 0096), mas a trava e
 --   PARCIAL: `where legacy_id is null`. Linha importada do base44 escapa dela, e
---   duas linhas importadas da mesma pessoa convivem — foi o que aconteceu com
---   "Junior Sintonia" e "Júnior Sintonia", mesmo telefone e mesmo e-mail, uma
---   com CNPJ de uma SPE e outra de outra.
+--   duas linhas importadas da mesma pessoa convivem — mesmo telefone e mesmo
+--   e-mail, cada uma com o CNPJ de uma SPE diferente. Ja aconteceu em producao
+--   com um cliente; o registro da execucao fica em `backup/` (fora do git,
+--   porque tem dado real).
 --
 -- O QUE ELE FAZ
 --   Aponta para o cadastro que fica (SOBREVIVENTE) tudo que esta pendurado no
@@ -33,8 +34,11 @@
 begin;
 
 create temp table alvo on commit drop as select
-  '87f417fa-cf96-4f29-b8fe-8de20764675f'::uuid as sobrevivente,
-  '3b4e61b4-ad82-4809-880f-0f8c00f7ac77'::uuid as absorvido;
+  /* Os dois uuids. SOBREVIVENTE e o cadastro que fica com tudo; ABSORVIDO e o
+     que deixa de existir. A escolha e do escritorio, nao tecnica: o que fica
+     carrega o nome, o documento e a cidade que vao aparecer no CRM. */
+  '00000000-0000-0000-0000-000000000000'::uuid as sobrevivente,
+  '00000000-0000-0000-0000-000000000000'::uuid as absorvido;
 
 /* Trava: os dois tem de existir, ser do MESMO escritorio e ser dois. Sem isto,
    um uuid digitado errado viraria um update silencioso em zero linhas. */
@@ -83,9 +87,15 @@ update public.map_properties
 
 -- Dados que ficam no cadastro sobrevivente -----------------------------------------
 
-update public.clients
-   set name = 'Júnior Sintonia'
- where id = (select sobrevivente from alvo);
+/* Se a ficha que fica precisar nascer com outro nome, documento ou cidade — por
+   exemplo o nome com a grafia correta, que estava na ficha que sai — e aqui:
+
+   update public.clients
+      set name = '<nome>', tax_id = '<documento>', address_city = '<cidade>'
+    where id = (select sobrevivente from alvo);
+
+   Nada disso mexe nos contratos: CNPJ e razao social de cada um ficam no
+   proprio contrato. */
 
 -- Apagar o absorvido ---------------------------------------------------------------
 
