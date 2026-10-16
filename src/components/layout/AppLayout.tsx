@@ -29,6 +29,7 @@ import TabNavigationWrapper, {
 import QuickActions from '@/components/header/QuickActions'
 import AcessoIndisponivel from '@/features/auth/components/AcessoIndisponivel'
 import AcessoPendente from '@/features/auth/components/AcessoPendente'
+import TrocarSenhaProvisoria from '@/features/auth/components/TrocarSenhaProvisoria'
 import TenantName from '@/features/auth/components/TenantName'
 import { MAIN_MENU_PAGES, redirectTargetFor } from '@/features/auth/access'
 import {
@@ -229,6 +230,17 @@ export default function AppLayout() {
 
   if (!currentUser) {
     return <Navigate to="/login" replace />
+  }
+
+  /*
+    A PAREDE DA SENHA PROVISÓRIA vem antes de tudo o que o sistema mostra, e
+    antes até da checagem de colaborador ativo: a senha que o Diretor digitou na
+    tela de Equipe é conhecida por duas pessoas, e enquanto ela valer não há
+    sessão de uma pessoa só. A marca é apagada pela própria troca (0108 e a edge
+    function create-collaborator-login).
+  */
+  if (currentUser.user_metadata?.senha_provisoria === true) {
+    return <TrocarSenhaProvisoria userEmail={currentUser.email} />
   }
 
   if (collaboratorQuery.isError || navigationQuery.isError) {

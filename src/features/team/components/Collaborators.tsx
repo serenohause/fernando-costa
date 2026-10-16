@@ -34,6 +34,7 @@ import {
   describeDatabaseError,
   useCollaborators,
   useCreateCollaborator,
+  useDefinirSenhaProvisoria,
   useDeleteCollaborator,
   useUpdateCollaborator,
 } from '../hooks'
@@ -79,16 +80,42 @@ export default function Collaborators() {
   const createMutation = useCreateCollaborator()
   const updateMutation = useUpdateCollaborator()
   const deleteMutation = useDeleteCollaborator()
+  const senhaMutation = useDefinirSenhaProvisoria()
 
-  const handleSubmit = (data: CollaboratorInput) => {
+  /*
+    O CADASTRO E O LOGIN SÃO DUAS ESCRITAS, e em lugares diferentes: a linha de
+    `collaborators` entra pela Data API, com RLS; o login entra pela edge
+    function, que é quem tem a chave de serviço. Não dá para juntá-las numa
+    transação, então a ordem importa — primeiro o cadastro, depois o login.
+
+    Se o login falhar, o cadastro FICA: ele é válido sozinho (pessoa de equipe
+    sem acesso ao sistema é um estado previsto), e desfazê-lo apagaria um dado
+    que ninguém pediu para apagar. O aviso diz exatamente o que aconteceu, para
+    a pessoa poder tentar o login de novo pelo botão de editar.
+  */
+  const definirSenha = (collaboratorId: string, password: string, aviso: string) => {
+    senhaMutation.mutate(
+      { collaboratorId, password },
+      {
+        onSuccess: (resposta) => toast.success(resposta.message),
+        onError: (error) => toast.error(aviso + describeDatabaseError(error)),
+      },
+    )
+  }
+
+  const handleSubmit = (data: CollaboratorInput, senhaProvisoria: string) => {
     if (editingCollaborator) {
+      const id = editingCollaborator.id
       updateMutation.mutate(
-        { id: editingCollaborator.id, input: data },
+        { id, input: data },
         {
           onSuccess: () => {
             setFormOpen(false)
             setEditingCollaborator(null)
             toast.success('Colaborador atualizado com sucesso!')
+            if (senhaProvisoria) {
+              definirSenha(id, senhaProvisoria, 'Cadastro salvo, mas a senha não entrou: ')
+            }
           },
           onError: (error) => {
             toast.error('Erro ao atualizar: ' + describeDatabaseError(error))
@@ -99,7 +126,7 @@ export default function Collaborators() {
     }
 
     createMutation.mutate(data, {
-      onSuccess: () => {
+      onSuccess: (criado) => {
         setFormOpen(false)
         /*
           O original avisa aqui que um e-mail de boas-vindas foi enviado. Não há
@@ -107,6 +134,9 @@ export default function Collaborators() {
           enviado — mesmo critério já aplicado em AcessoPendente.tsx.
         */
         toast.success('Colaborador criado com sucesso!')
+        if (senhaProvisoria) {
+          definirSenha(criado.id, senhaProvisoria, 'Colaborador criado, mas o login não: ')
+        }
       },
       onError: (error) => {
         toast.error('Erro ao criar: ' + describeDatabaseError(error))
@@ -193,6 +223,18 @@ export default function Collaborators() {
           <div className="flex items-center gap-2 text-sm text-soft">
             <Mail className="w-4 h-4 text-faint" />
             {row.email}
+            {/*
+              SEM LOGIN é um estado comum e invisível até aqui: o cadastro de
+              equipe existe, a pessoa aparece como responsável, e mesmo assim
+              não entra no sistema. Quem não vê isso na lista descobre pelo
+              suporte ("ela diz que a senha não funciona"). A saída está a um
+              clique: editar e preencher a senha provisória.
+            */}
+            {!row.user_id && (
+              <span className="text-xs text-muted-foreground border border-border rounded-full px-2 py-0.5">
+                sem login
+              </span>
+            )}
           </div>
         ) : (
           <span className="text-faint">-</span>
@@ -200,7 +242,9 @@ export default function Collaborators() {
     },
     /*
       A coluna "Senha Temporária" do original não existe mais: o campo guardava
-      senha em texto puro e está fora de escopo desde docs/ARCHITECTURE.md.
+      senha em texto puro e está fora de escopo desde docs/ARCHITECTURE.md. O
+      que entrou no lugar é o campo "Senha provisória" do formulário, que cria o
+      login de verdade no Auth (migration 0108) em vez de gravar texto no banco.
     */
     {
       header: 'Carga Horária',
@@ -314,7 +358,8 @@ export default function Collaborators() {
         }}
         onSubmit={handleSubmit}
         initialData={formInitialData}
-        isLoading={createMutation.isPending || updateMutation.isPending}
+        temLogin={Boolean(editingCollaborator?.user_id)}
+        isLoading={createMutation.isPending || updateMutation.isPending || senhaMutation.isPending}
       />
 
       <Dialog
@@ -370,5 +415,8 @@ function toFormValues(collaborator: Collaborator): CollaboratorFormValues {
     email: collaborator.email,
     status: collaborator.status,
     weekly_hours: collaborator.weekly_hours == null ? '' : String(collaborator.weekly_hours),
+    /* Nunca pré-preenchida: não há senha para ler de volta, e campo com ponto
+       alguma coisa sugeriria que há. */
+    senha_provisoria: '',
   }
 }

@@ -35,6 +35,7 @@ export type CollaboratorFormValues = {
   email: string
   status: CollaboratorStatus
   weekly_hours: string
+  senha_provisoria: string
 }
 
 const EMPTY: CollaboratorFormValues = {
@@ -44,6 +45,7 @@ const EMPTY: CollaboratorFormValues = {
   email: '',
   status: 'active',
   weekly_hours: '',
+  senha_provisoria: '',
 }
 
 export default function CollaboratorForm({
@@ -53,13 +55,15 @@ export default function CollaboratorForm({
   initialData,
   isLoading,
   variant = 'collaborator',
+  temLogin = false,
 }: {
   open: boolean
   onClose: () => void
-  onSubmit: (data: CollaboratorInput) => void
+  onSubmit: (data: CollaboratorInput, senhaProvisoria: string) => void
   initialData?: Partial<CollaboratorFormValues> | null
   isLoading?: boolean
   variant?: 'collaborator' | 'approval'
+  temLogin?: boolean
 }) {
   const [formData, setFormData] = useState<CollaboratorFormValues>({ ...EMPTY, ...initialData })
 
@@ -89,14 +93,20 @@ export default function CollaboratorForm({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    onSubmit({
-      name: formData.name,
-      role: formData.role as CollaboratorRole,
-      area: formData.area === '' ? null : formData.area,
-      email: formData.email,
-      status: formData.status,
-      weekly_hours: formData.weekly_hours ? Number(formData.weekly_hours) : null,
-    })
+    onSubmit(
+      {
+        name: formData.name,
+        role: formData.role as CollaboratorRole,
+        area: formData.area === '' ? null : formData.area,
+        email: formData.email,
+        status: formData.status,
+        weekly_hours: formData.weekly_hours ? Number(formData.weekly_hours) : null,
+      },
+      /* Vai por fora de CollaboratorInput de propósito: senha não é coluna de
+         `collaborators`, e misturar as duas coisas num objeto só é o primeiro
+         passo para alguém gravá-la lá sem querer. */
+      formData.senha_provisoria.trim(),
+    )
   }
 
   return (
@@ -207,6 +217,40 @@ export default function CollaboratorForm({
               </p>
             )}
           </div>
+
+          {/*
+            SENHA PROVISÓRIA — o campo que o original tinha e que tinha sumido.
+
+            Lá ele era a coluna `senha_temporaria`, texto puro no banco, visível
+            na listagem da Equipe. Aqui ele não é coluna nenhuma: o que for
+            digitado vai para o Auth do Supabase pela edge function
+            create-collaborator-login, que guarda hash, e a pessoa é obrigada a
+            trocar no primeiro acesso.
+
+            Não aparece na aprovação de acesso: ali a pessoa já tem login (foi
+            com ele que ela pediu acesso), e oferecer troca de senha no meio de
+            uma aprovação é outra ação, em outro lugar.
+          */}
+          {!isApproval && (
+            <div className="space-y-2">
+              <Label htmlFor="senha_provisoria">
+                {temLogin ? 'Nova senha provisória' : 'Senha provisória'}
+              </Label>
+              <Input
+                id="senha_provisoria"
+                type="text"
+                value={formData.senha_provisoria}
+                onChange={(e) => setFormData({ ...formData, senha_provisoria: e.target.value })}
+                placeholder="Pelo menos 8 caracteres"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                {temLogin
+                  ? 'Preenchida, redefine a senha desta pessoa. Em branco, nada muda.'
+                  : 'Preenchida, cria o login com este e-mail. Em branco, o cadastro entra sem acesso ao sistema.'}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="weekly_hours">Carga horária semanal</Label>

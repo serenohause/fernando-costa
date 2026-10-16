@@ -288,6 +288,58 @@ export function useApproveAccessRequest() {
   })
 }
 
+type LoginResponse = {
+  status: 'created' | 'password_reset'
+  collaborator_id: string
+  tenant_id: string
+  outcome: 'linked' | 'relinked'
+  message: string
+}
+
+/*
+  CRIAR O LOGIN DO COLABORADOR com uma senha provisória, ou redefinir a senha de
+  quem já tem login.
+
+  A senha NÃO passa por `collaborators`: ela vai direto para a edge function, que
+  a entrega ao Auth do Supabase (hash) e devolve só o resultado. A coluna
+  `senha_temporaria` do original, em texto puro, segue fora de escopo — ver o
+  cabeçalho da migration 0108.
+
+  Chave de serviço é obrigatória para criar usuário, e por isso isto é edge
+  function e não uma escrita daqui: chave de serviço no navegador passa por cima
+  de toda a RLS do sistema.
+
+  Invalida `authKeys` junto porque o vínculo recém-criado muda o que a sessão de
+  OUTRA aba enxergaria — e porque a própria lista de equipe passa a mostrar a
+  pessoa como "com login".
+*/
+export function useDefinirSenhaProvisoria() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      collaboratorId,
+      password,
+    }: {
+      collaboratorId: string
+      password: string
+    }) => {
+      if (password.trim().length < 8) {
+        throw new WriteError('A senha provisória precisa ter pelo menos 8 caracteres.')
+      }
+
+      return invokeEdgeFunction<LoginResponse>('create-collaborator-login', {
+        collaboratorId,
+        password,
+      })
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: teamKeys.all })
+      void queryClient.invalidateQueries({ queryKey: authKeys.all })
+    },
+  })
+}
+
 type RejectResponse = { status: 'rejected'; requestId: string }
 
 export function useRejectAccessRequest() {

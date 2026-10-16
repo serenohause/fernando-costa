@@ -79,6 +79,9 @@ export default function AprovacoesAcesso() {
           collaboratorToApprove.weekly_hours == null
             ? ''
             : String(collaboratorToApprove.weekly_hours),
+        /* A caixa de aprovação não mostra o campo de senha (quem pede acesso já
+           tem login); o valor existe só para completar o formato. */
+        senha_provisoria: '',
       }
     }
     /* Mesmo pré-preenchimento do original: Administrativo / Administrativo / Ativo. */
@@ -89,6 +92,7 @@ export default function AprovacoesAcesso() {
       role: 'admin_staff',
       status: 'active',
       weekly_hours: '',
+      senha_provisoria: '',
     }
   }, [collaboratorToApprove, selectedSolicitacao])
 

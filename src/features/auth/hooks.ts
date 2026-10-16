@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { WriteError } from '@/lib/db-errors'
 import { buildNavigation } from './navigation'
 import type { MenuRow, PermissionRow, Tenant } from './types'
 
@@ -192,6 +193,56 @@ export function useCollaboratorPermissions(collaboratorId: string | undefined) {
   Não custa requisição nova: a chave de `useCollaboratorPermissions` é a mesma
   que o AppLayout já usa para montar a sidebar.
 */
+/*
+  TROCAR A SENHA PROVISÓRIA, no primeiro acesso.
+
+  Quem cria o login de um colaborador é o Diretor, pela tela de Equipe, e a
+  senha que ele digita nasce marcada: o usuário do Auth recebe
+  `user_metadata.senha_provisoria = true` (edge function
+  create-collaborator-login). Enquanto a marca estiver lá, o AppLayout não abre
+  o sistema — senão "provisória" seria só uma palavra, e a senha que o Diretor
+  escolheu continuaria valendo para sempre, conhecida por duas pessoas.
+
+  NÃO PEDE A SENHA ATUAL, ao contrário da troca pelo Perfil: a sessão já está
+  autenticada (a pessoa acabou de entrar com a provisória), e pedir de novo o
+  que ela digitou há dez segundos é atrito sem ganho de segurança.
+
+  A marca é apagada na MESMA chamada que troca a senha. Fossem duas, uma falha
+  no meio deixaria a pessoa com senha nova e a tela ainda exigindo a troca.
+*/
+export function useTrocarSenhaProvisoria() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (novaSenha: string) => {
+      const { data, error } = await supabase.auth.updateUser({
+        password: novaSenha,
+        data: { senha_provisoria: false },
+      })
+
+      if (error) {
+        /* A mensagem do GoTrue vem em inglês e às vezes descreve a política de
+           senha; a tela já diz a regra, então o texto daqui é o nosso. */
+        if (error.status === 422) {
+          throw new WriteError('A senha nova precisa ser diferente da provisória.')
+        }
+        if ((error.status ?? 0) === 0) {
+          throw new WriteError('Sem conexão com o servidor. Confira a internet e tente de novo.')
+        }
+        throw new WriteError('Não foi possível trocar a senha. Tente novamente.')
+      }
+
+      return data.user
+    },
+    onSuccess: async () => {
+      /* A sessão em cache ainda carrega o metadado antigo; sem isto a tela de
+         troca continuaria na frente depois de a senha já ter mudado. */
+      const { data } = await supabase.auth.getSession()
+      queryClient.setQueryData(authKeys.session(), data.session)
+    },
+  })
+}
+
 export function useMenuPermissions(menuKey: string) {
   const collaboratorQuery = useCurrentCollaborator()
   const collaborator = collaboratorQuery.data ?? null
