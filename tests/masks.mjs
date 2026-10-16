@@ -28,9 +28,12 @@
 
 import {
   applyMaskEdit,
+  maskMoney,
+  maskMoneyFromDigits,
   maskTaxId,
   maskPhone,
   maskZipcode,
+  moneyToNumberText,
 } from '../src/lib/masks.ts'
 
 let passed = 0
@@ -143,6 +146,50 @@ const emCimaDoSeparador = applyMaskEdit(maskPhone, {
   deletion: 'backward',
 })
 check('4.2  backspace sobre separador come o dígito da esquerda', emCimaDoSeparador.value, '(69) 8765-4321')
+
+// 5. DINHEIRO ------------------------------------------------------------------
+//
+// Nasce do mesmo tipo de relato que o resto do arquivo: o campo de valor
+// estimado do orçamento por cliente não mascarava reais. Era `type="number"`, e
+// em pt-BR isso é pior que não ter máscara — "1.500,00" digitado ali vira valor
+// inválido e o campo ESVAZIA.
+//
+// O comportamento provado aqui é o de caixa: a tecla entra pelos centavos.
+
+check('5.1  primeira tecla é centavo', maskMoneyFromDigits('5'), '0,05')
+check('5.2  a vírgula anda com a segunda tecla', maskMoneyFromDigits('50'), '0,50')
+check('5.3  três teclas atravessam a vírgula', maskMoneyFromDigits('150'), '1,50')
+check('5.4  milhar ganha ponto', maskMoneyFromDigits('150000'), '1.500,00')
+check('5.5  milhão ganha dois pontos', maskMoneyFromDigits('123456789'), '1.234.567,89')
+check('5.6  campo vazio continua vazio', maskMoneyFromDigits(''), '')
+check('5.7  zero digitado é zero, não vazio', maskMoneyFromDigits('0'), '0,00')
+check('5.8  zero à esquerda não ocupa lugar', maskMoneyFromDigits('0005'), '0,05')
+
+// A capacidade é a da coluna: numeric(14, 2). Acima dela a máscara NÃO corta —
+// devolve cru, porque valor cortado parece certo e não é. Quem recusa é o schema.
+check('5.9  14 dígitos ainda mascaram', maskMoneyFromDigits('99999999999999'), '999.999.999.999,99')
+check('5.10 o 15º dígito desmancha a máscara em vez de cortar',
+  maskMoneyFromDigits('999999999999999'), '999999999999999')
+
+// O que está guardado é número puro, e é dele que o campo desenha.
+check('5.11 número do banco vira texto mascarado', maskMoney('1234.5'), '1.234,50')
+check('5.12 inteiro sem casas também', maskMoney('50000'), '50.000,00')
+check('5.13 centavo solto', maskMoney('0.05'), '0,05')
+check('5.14 nulo/vazio não desenha nada', maskMoney(''), '')
+check('5.15 texto que não é número volta cru', maskMoney('abc'), 'abc')
+// A coluna tem check de não negativo: sinal ali é defeito de quem gravou, e
+// esconder o sinal mostraria OUTRO valor.
+check('5.16 negativo volta cru em vez de virar positivo', maskMoney('-10'), '-10')
+
+// E a volta: o que o formulário guarda depois da digitação.
+check('5.17 mascarado volta a número puro', moneyToNumberText('1.234,56'), '1234.56')
+check('5.18 centavo volta com zero à esquerda', moneyToNumberText('0,05'), '0.05')
+check('5.19 vazio volta vazio (o campo é opcional, e vira NULO)', moneyToNumberText(''), '')
+// Colado do jeito que se escreve dinheiro, ou do jeito que o banco devolve: os
+// dois chegam no mesmo número.
+check('5.20 colar "1.500,00" dá o mesmo que colar "1500.00"',
+  moneyToNumberText(maskMoneyFromDigits('1.500,00')), moneyToNumberText(maskMoneyFromDigits('150000')))
+
 
 console.log(`\n${passed}/${passed + failed} casos passaram.`)
 if (failed > 0) process.exit(1)

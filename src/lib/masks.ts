@@ -243,3 +243,76 @@ export function applyMaskEdit(mask: Mask, edit: MaskEdit): MaskEditResult {
 
   return { value: masked, caret: caretAfterDigits(masked, targetDigits) }
 }
+
+/*
+  DINHEIRO, em reais.
+
+  Vem de um relato do escritório: o campo de valor estimado do orçamento por
+  cliente não mascarava nada. Era `type="number"`, que em português é pior que
+  sem máscara nenhuma — digitar "1.500,00" no campo numérico do navegador em
+  pt-BR produz valor inválido e o campo fica VAZIO, porque o ponto é lido como
+  separador decimal e a vírgula não é lida. Quem digitou do jeito que se escreve
+  dinheiro no Brasil perdia o que digitou.
+
+  O COMPORTAMENTO É O DE CAIXA: cada tecla entra pelos centavos e empurra a
+  vírgula para a esquerda. "5" é 0,05; "150" é 1,50; "150000" é 1.500,00. É como
+  todo campo de dinheiro de sistema brasileiro se comporta, e é o que faz a
+  máscara funcionar sem o teclado de pontuação.
+
+  A CAPACIDADE É A DA COLUNA, não um número escolhido aqui: `numeric(14, 2)` são
+  12 dígitos de inteiro mais 2 de centavo. Passar disso o Postgres arredondaria
+  ou recusaria.
+
+  O QUE O FORMULÁRIO GUARDA CONTINUA SENDO NÚMERO PURO ("1234.56"). A máscara é
+  de exibição e de digitação; o estado, o schema Zod e o que vai para o banco não
+  mudam de forma. Por isso são duas funções, e não uma: `maskMoney` desenha o que
+  está guardado, `moneyToNumberText` traduz de volta o que foi digitado.
+*/
+
+const MONEY_MAX_DIGITS = 14
+
+function groupThousands(integerPart: string): string {
+  return integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+/*
+  Dígitos crus -> "1.234,56". Acima da capacidade devolve os dígitos sem máscara,
+  pela mesma razão do telefone de 13 dígitos: um valor plausível e errado é pior
+  que um campo sem formatação. Quem recusa de fato é o schema, com frase em
+  português.
+*/
+export function maskMoneyFromDigits(value: string): string {
+  const digits = onlyDigits(value).replace(/^0+(?=\d)/, '')
+  if (digits.length === 0) return ''
+  if (digits.length > MONEY_MAX_DIGITS) return digits
+
+  const padded = digits.padStart(3, '0')
+
+  return `${groupThousands(padded.slice(0, -2))},${padded.slice(-2)}`
+}
+
+/* O que está guardado ("1234.5", do banco ou do estado) -> "1.234,50". */
+export function maskMoney(value: string): string {
+  const text = value.trim()
+  if (text === '') return ''
+
+  const amount = Number(text)
+  /* Texto que não é número, ou negativo, volta cru: a coluna tem check de não
+     negativo, então sinal ali é defeito de quem gravou, e esconder o sinal
+     mostraria outro valor. */
+  if (!Number.isFinite(amount) || amount < 0) return text
+
+  return maskMoneyFromDigits(Math.round(amount * 100).toString())
+}
+
+/* "1.234,56" -> "1234.56", a forma que o formulário guarda e o schema lê. */
+export function moneyToNumberText(value: string): string {
+  const digits = onlyDigits(value)
+  if (digits.length === 0) return ''
+
+  const padded = digits.padStart(3, '0')
+
+  return `${padded.slice(0, -2).replace(/^0+(?=\d)/, '')}.${padded.slice(-2)}`
+}
+
+export { MONEY_MAX_DIGITS }

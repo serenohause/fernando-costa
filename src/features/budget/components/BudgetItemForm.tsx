@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { MoneyInput } from '@/components/ui/money-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -436,11 +437,11 @@ export default function BudgetItemForm({
             </div>
             <div className="space-y-1">
               <Label htmlFor="item-approved-value">Valor Aprovado (R$)</Label>
-              <Input
+              <MoneyInput
                 id="item-approved-value"
-                type="number"
                 value={values.approved_value}
-                onChange={(e) => set('approved_value', e.target.value)}
+                onValueChange={(valor) => set('approved_value', valor)}
+                placeholder="0,00"
               />
             </div>
             {/* CAMPO NOVO — o original não tem nenhum para `estimated_value`, e
@@ -449,11 +450,11 @@ export default function BudgetItemForm({
                 original mude de posição. Ver o cabeçalho deste arquivo. */}
             <div className="space-y-1">
               <Label htmlFor="item-estimated-value">Valor Estimado (R$)</Label>
-              <Input
+              <MoneyInput
                 id="item-estimated-value"
-                type="number"
                 value={values.estimated_value}
-                onChange={(e) => set('estimated_value', e.target.value)}
+                onValueChange={(valor) => set('estimated_value', valor)}
+                placeholder="0,00"
               />
             </div>
           </div>
@@ -543,11 +544,10 @@ export default function BudgetItemForm({
                   ))}
                 </SelectContent>
               </Select>
-              <Input
-                type="number"
+              <MoneyInput
                 placeholder="Valor"
                 value={draftQuote.value}
-                onChange={(e) => setDraftQuote((current) => ({ ...current, value: e.target.value }))}
+                onValueChange={(valor) => setDraftQuote((current) => ({ ...current, value: valor }))}
               />
               <Button type="button" variant="outline" onClick={addQuote}>
                 <Plus className="w-4 h-4 mr-1" /> Adicionar
