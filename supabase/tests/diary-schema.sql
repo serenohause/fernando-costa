@@ -10,23 +10,26 @@
 --   elas entraram em pattern_tables. NADA disso se repete aqui.
 --
 -- POR QUE A SECAO 1 E A MAIS IMPORTANTE DO ARQUIVO
---   Este e o unico modulo do sistema cuja escrita NAO passa por can_edit_menu.
---   Decisao do usuario: so Diretor e Coordenador escrevem no diario, como na
---   versao nova do base44. Isso cria um modo de falha silencioso, e ele e o
---   motivo de a migration 0070 existir do jeito que existe: o evento automatico
---   (mover cartao, trocar responsavel, marcar tag) nasce dentro de uma escrita
---   que um ARQUITETO faz, e os sete Arquitetos do escritorio real tem
---   can_edit_menu('project_flow'). Se a policy do diario valesse para o evento
---   automatico, o arraste do Arquiteto pararia de registrar - e pararia em
---   silencio, porque o original ja engole o erro (diaryAutoEvents.js:32).
+--   Ela guarda QUEM ESCREVE no diario, e essa regra mudou de eixo na migration
+--   0107, a pedido do escritorio: "todos os usuarios podem ter acesso ao diario
+--   do projeto, desde que tenham acesso ao modulo que aparece isso". Antes
+--   (0070) era CARGO — so Diretor e Coordenador, como na versao nova do base44.
+--   Agora e a permissao do menu de onde o diario e aberto,
+--   can_edit_menu('project_flow'), que e a mesma regra do resto do sistema.
+--
+--   O efeito pratico da troca, no dado real: os Arquitetos do escritorio, que
+--   ja editam o Fluxo do Projeto, passam a escrever no diario dos cartoes que
+--   movem; e Coordenador sem o menu deixa de escrever. Ninguem do escritorio
+--   real cai nesse segundo caso — todo Coordenador ativo tem can_edit no modulo.
 --
 --   Os casos 1.1 a 1.4 sao o quadrado inteiro dessa decisao:
---     1.1  Arquiteto COM o menu do fluxo NAO escreve a mao
+--     1.1  Arquiteto COM o menu do fluxo escreve a mao
 --     1.2  o MESMO Arquiteto grava o evento automatico pela funcao
---     1.3  Coordenador SEM permissao de menu nenhuma escreve a mao
+--     1.3  Coordenador SEM permissao de menu nenhuma NAO escreve a mao
 --     1.4  o MESMO Coordenador NAO grava evento automatico pela funcao
---   Os quatro juntos afirmam que os dois caminhos sao disjuntos e que cada um le
---   a autorizacao que devia ler. Um sozinho nao afirma nada.
+--   Os dois caminhos — escrita a mao e evento automatico — passaram a ler a
+--   MESMA autorizacao, e os quatro casos juntos sao o que prova isso. Antes
+--   eram disjuntos, e era o ponto; a convergencia e o que a 0107 comprou.
 --
 -- POR QUE A SECAO 10 EXISTE
 --   Bucket novo, e nao existe suite de padrao para Storage: storage.objects nao
@@ -270,10 +273,10 @@ insert into public.collaborators (id, tenant_id, user_id, name, role, email, sta
 
 -- A MATRIZ DE PERMISSAO E O CORACAO DA SECAO 1, e ela e assimetrica de proposito:
 --
---   Camila (Arquiteta)  tem can_edit em project_flow  -> move cartao, e a razao
---                       de a funcao SECURITY DEFINER existir
---   Rafael (Coordenador) NAO tem linha nenhuma        -> escreve no diario so
---                       pela FUNCAO dele, e nao consegue gravar evento automatico
+--   Camila (Arquiteta)  tem can_edit em project_flow  -> escreve no diario, e o
+--                       CARGO dela nao e nenhum dos dois de antes da 0107
+--   Rafael (Coordenador) NAO tem linha nenhuma        -> NAO escreve, e o cargo
+--                       dele e o que escrevia antes: e o caso que prova a troca
 --   Juliana (Coordenadora AFASTADA) tem can_edit      -> "nao escreve" so pode
 --                       ser por causa do status
 insert into public.collaborator_permissions (tenant_id, collaborator_id, menu_key, can_view, can_edit) values
@@ -341,15 +344,17 @@ insert into storage.objects (bucket_id, name) values
 -- quatro primeiros casos sao um quadrado: cada um so significa alguma coisa
 -- junto dos outros tres.
 
-select pg_temp.chk_as('1.1', 'ARQUITETO com can_edit no fluxo NAO escreve no diario a mao', 'ERR:42501',
+select pg_temp.chk_as('1.1', 'ARQUITETO com can_edit no fluxo escreve no diario a mao', 'OK:1',
   (select u_arch from ids), (select tenant_a from ids), format($q$
   insert into public.project_diary_entries (tenant_id, project_id, entry_type, title, occurrence_date)
   values (%L, %L, 'note', 'Anotacao do arquiteto', current_date)
 $q$, (select tenant_a from ids), (select proj_a from ids)));
 
--- O caso que a decisao de permissao do usuario cria, e o modo de falha que a
--- migration 0070 existe para impedir. Sem ele, tudo o mais nesta secao poderia
--- estar certo e o diario ficaria mudo justamente nas acoes mais frequentes.
+-- O evento automatico (mover cartao, trocar responsavel) nasce dentro de uma
+-- escrita que o Arquiteto faz. Desde a 0107 ele e a escrita a mao leem a MESMA
+-- autorizacao; este caso continua aqui porque e o caminho mais frequente do
+-- modulo, e porque o original engole o erro em silencio
+-- (diaryAutoEvents.js:32) — quebrado, ele some da tela sem avisar ninguem.
 select pg_temp.val_as('1.2', 'CONTROLE: o MESMO arquiteto GRAVA evento automatico pela funcao', 'recorded',
   (select u_arch from ids), (select tenant_a from ids), format($q$
   select public.record_project_diary_event(
@@ -358,15 +363,16 @@ select pg_temp.val_as('1.2', 'CONTROLE: o MESMO arquiteto GRAVA evento automatic
     'layout', 'renderings') ->> 'outcome'
 $q$, (select proj_a from ids)));
 
-select pg_temp.chk_as('1.3', 'CONTROLE: COORDENADOR sem permissao de menu nenhuma escreve a mao', 'OK:1',
+select pg_temp.chk_as('1.3', 'COORDENADOR sem permissao de menu nenhuma NAO escreve a mao', 'ERR:42501',
   (select u_coord from ids), (select tenant_a from ids), format($q$
   insert into public.project_diary_entries (tenant_id, project_id, entry_type, title, occurrence_date)
   values (%L, %L, 'note', 'Anotacao do coordenador', current_date)
 $q$, (select tenant_a from ids), (select proj_a from ids)));
 
--- O outro lado do quadrado: quem escreve a mao nao consegue forjar evento de
--- sistema pela funcao. Os dois caminhos sao disjuntos, e cada um le a
--- autorizacao que devia ler.
+-- O outro lado do quadrado: o mesmo Coordenador tambem nao grava evento de
+-- sistema. Antes da 0107 este caso era o par assimetrico do 1.3 (escrevia a mao
+-- e nao pela funcao); agora os dois caminhos recusam pela MESMA razao, que e o
+-- que a troca de regra significa.
 select pg_temp.val_as('1.4', 'o MESMO coordenador NAO grava evento automatico (nao tem o menu do fluxo)',
   'ERR:not_authorized',
   (select u_coord from ids), (select tenant_a from ids), format($q$
@@ -374,28 +380,32 @@ select pg_temp.val_as('1.4', 'o MESMO coordenador NAO grava evento automatico (n
     %L, 'responsible_change', 'Responsavel alterado', null, null) ->> 'outcome'
 $q$, (select proj_a from ids)));
 
--- A mesma regra alcanca as outras quatro tabelas do modulo.
-select pg_temp.chk_as('1.5', 'arquiteto nao registra visita', 'ERR:42501',
+-- A mesma regra alcanca as outras quatro tabelas do modulo: uma funcao so,
+-- chamada por todas as policies, entao nenhuma delas pode divergir sozinha.
+select pg_temp.chk_as('1.5', 'arquiteto registra visita', 'OK:1',
   (select u_arch from ids), (select tenant_a from ids), format($q$
   insert into public.project_site_visits (tenant_id, project_id, visit_date, visit_type)
   values (%L, %L, current_date, 'follow_up')
 $q$, (select tenant_a from ids), (select proj_a from ids)));
 
-select pg_temp.chk_as('1.6', 'arquiteto nao cria pendencia', 'ERR:42501',
+select pg_temp.chk_as('1.6', 'arquiteto cria pendencia', 'OK:1',
   (select u_arch from ids), (select tenant_a from ids), format($q$
   insert into public.project_issues (tenant_id, project_id, description, category, identified_date)
   values (%L, %L, 'Pendencia do arquiteto', 'other', current_date)
 $q$, (select tenant_a from ids), (select proj_a from ids)));
 
-select pg_temp.chk_as('1.7', 'arquiteto nao anexa arquivo', 'ERR:42501',
+select pg_temp.chk_as('1.7', 'arquiteto anexa arquivo', 'OK:1',
   (select u_arch from ids), (select tenant_a from ids), format($q$
   insert into public.project_diary_files (tenant_id, entry_id, file_kind, file_path, file_name)
   values (%L, %L, 'photo', 'd1111111-1111-4111-8111-111111111111/entry/z/arch.jpg', 'x.jpg')
 $q$, (select tenant_a from ids), (select entry_files from ids)));
 
-select pg_temp.chk_as('1.8', 'arquiteto nao resolve pendencia (UPDATE)', 'OK:0',
+/* Edita a descricao, e nao o status: resolver aqui deixaria a pendencia fechada
+   para as secoes 6 e 7, que contam com ela ABERTA. O que este caso precisa
+   provar e o UPDATE passar pela policy, nao qual coluna mudou. */
+select pg_temp.chk_as('1.8', 'arquiteto edita pendencia (UPDATE)', 'OK:1',
   (select u_arch from ids), (select tenant_a from ids), format($q$
-  update public.project_issues set status = 'resolved', resolved_at = now() where id = %L
+  update public.project_issues set description = 'Pendencia revisada pelo arquiteto' where id = %L
 $q$, (select issue_a from ids)));
 
 -- Leitura larga, pela quarta vez no sistema (financeiro, orcamento, mapa, e
@@ -412,7 +422,7 @@ $q$, (select entry_man from ids)));
 
 select pg_temp.chk_as('1.10', 'CONTROLE: arquiteto LE o historico da pendencia', 'OK:1',
   (select u_arch from ids), (select tenant_a from ids), format($q$
-  select 1 from public.project_issue_events where issue_id = %L
+  select 1 from public.project_issue_events where issue_id = %L limit 1
 $q$, (select issue_a from ids)));
 
 -- Coordenadora AFASTADA, com can_edit no fluxo: "nao escreve" so pode ser por
@@ -442,37 +452,41 @@ $q$, (select proj_b from ids)));
 -- caminho ate um evento de sistema. Sem estes casos, quem escreve no diario
 -- forjaria "o sistema registrou" - e evento de sistema e exatamente o que
 -- ninguem confere depois.
+--
+-- O ator aqui e o Arquiteto porque ele e quem escreve desde a 0107. O que a
+-- secao prova nao mudou: nem quem PODE escrever a mao marca registro como
+-- automatico.
 
-select pg_temp.chk_as('2.1', 'coordenador NAO cria registro marcado como automatico', 'ERR:42501',
-  (select u_coord from ids), (select tenant_a from ids), format($q$
+select pg_temp.chk_as('2.1', 'arquiteto NAO cria registro marcado como automatico', 'ERR:42501',
+  (select u_arch from ids), (select tenant_a from ids), format($q$
   insert into public.project_diary_entries
     (tenant_id, project_id, entry_type, title, occurrence_date, is_automatic, system_event)
   values (%L, %L, 'system', 'Evento forjado', current_date, true, 'phase_change')
 $q$, (select tenant_a from ids), (select proj_a from ids)));
 
 select pg_temp.chk_as('2.2', 'CONTROLE: o mesmo registro SEM a marca de automatico entra', 'OK:1',
-  (select u_coord from ids), (select tenant_a from ids), format($q$
+  (select u_arch from ids), (select tenant_a from ids), format($q$
   insert into public.project_diary_entries
     (tenant_id, project_id, entry_type, title, occurrence_date)
   values (%L, %L, 'note', 'Registro honesto', current_date)
 $q$, (select tenant_a from ids), (select proj_a from ids)));
 
 -- Sem este caso, a recusa de 2.1 seria contornavel em dois passos.
-select pg_temp.chk_as('2.3', 'coordenador NAO promove registro manual a automatico', 'ERR:42501',
-  (select u_coord from ids), (select tenant_a from ids), format($q$
+select pg_temp.chk_as('2.3', 'arquiteto NAO promove registro manual a automatico', 'ERR:42501',
+  (select u_arch from ids), (select tenant_a from ids), format($q$
   update public.project_diary_entries
      set is_automatic = true, entry_type = 'system', system_event = 'phase_change'
    where id = %L
 $q$, (select entry_man from ids)));
 
-select pg_temp.chk_as('2.4', 'coordenador NAO edita registro automatico', 'ERR:42501',
-  (select u_coord from ids), (select tenant_a from ids), $q$
+select pg_temp.chk_as('2.4', 'arquiteto NAO edita registro automatico', 'ERR:42501',
+  (select u_arch from ids), (select tenant_a from ids), $q$
   update public.project_diary_entries set title = 'reescrito'
    where is_automatic and event_key = 'phase:t1:layout->renderings'
 $q$);
 
-select pg_temp.chk_as('2.5', 'CONTROLE: coordenador edita registro manual', 'OK:1',
-  (select u_coord from ids), (select tenant_a from ids), format($q$
+select pg_temp.chk_as('2.5', 'CONTROLE: arquiteto edita registro manual', 'OK:1',
+  (select u_arch from ids), (select tenant_a from ids), format($q$
   update public.project_diary_entries set title = 'Cliente pediu bancada ainda maior' where id = %L
 $q$, (select entry_man from ids)));
 
@@ -480,8 +494,8 @@ $q$, (select entry_man from ids)));
 -- apenas esconde o botao, e virar policy criaria uma linha que ninguem no
 -- escritorio consegue remover nunca. O DELETE aqui e desfeito pelo ROLLBACK do
 -- arquivo, mas nao pelo chk_as - por isso ele vem depois de 2.4.
-select pg_temp.chk_as('2.6', 'CONTROLE: coordenador APAGA registro automatico', 'OK:1',
-  (select u_coord from ids), (select tenant_a from ids), $q$
+select pg_temp.chk_as('2.6', 'CONTROLE: arquiteto APAGA registro automatico', 'OK:1',
+  (select u_arch from ids), (select tenant_a from ids), $q$
   delete from public.project_diary_entries where event_key = 'phase:t1:layout->renderings'
 $q$);
 
@@ -866,12 +880,12 @@ select pg_temp.val('7.10', 'sem sessao identificavel, o autor do evento fica NUL
    where issue_id = %L and author_id is null
 $q$, (select issue_hist from ids)));
 
-select pg_temp.chk_as('7.11', 'coordenador resolve a pendencia pela sessao dele', 'OK:1',
-  (select u_coord from ids), (select tenant_a from ids), format($q$
+select pg_temp.chk_as('7.11', 'arquiteto resolve a pendencia pela sessao dele', 'OK:1',
+  (select u_arch from ids), (select tenant_a from ids), format($q$
   update public.project_issues set status = 'resolved', resolved_at = now() where id = %L
 $q$, (select issue_hist from ids)));
 
-select pg_temp.val('7.12', 'CONTROLE: agora o evento tem autor, e e ele', 'Rafael Andrade', format($q$
+select pg_temp.val('7.12', 'CONTROLE: agora o evento tem autor, e e ele', 'Camila Nogueira', format($q$
   select c.name from public.project_issue_events e
     join public.collaborators c on c.id = e.author_id
    where e.issue_id = %L order by e.occurred_at desc limit 1
@@ -1048,24 +1062,26 @@ select pg_temp.chk_as('10.9', 'colaboradora AFASTADA nao le o arquivo', 'OK:0',
      and name like 'd1111111-1111-4111-8111-111111111111/%'
 $q$);
 
--- A mesma assimetria da secao 1, agora no Storage: o Arquiteto LE a foto da obra
--- e nao ENVIA nenhuma. Anexar arquivo e sempre gesto manual, entao a excecao da
--- funcao SECURITY DEFINER nao se estende ate aqui.
-select pg_temp.chk_as('10.10', 'ARQUITETO com o menu do fluxo NAO envia arquivo', 'ERR:42501',
+-- A mesma regra da secao 1, agora no Storage, e pelo mesmo motivo: a policy do
+-- bucket chama a MESMA funcao. Quem edita o Fluxo do Projeto envia foto da obra;
+-- quem nao edita le e nao envia.
+select pg_temp.chk_as('10.10', 'CONTROLE: ARQUITETO com o menu do fluxo envia arquivo', 'OK:1',
   (select u_arch from ids), (select tenant_a from ids), $q$
   insert into storage.objects (bucket_id, name)
   values ('project-diary-files', 'd1111111-1111-4111-8111-111111111111/visit/z/arch.jpg')
 $q$);
 
-select pg_temp.chk_as('10.11', 'CONTROLE: coordenador envia na pasta do PROPRIO escritorio', 'OK:1',
+select pg_temp.chk_as('10.11', 'COORDENADOR sem o menu do fluxo NAO envia arquivo', 'ERR:42501',
   (select u_coord from ids), (select tenant_a from ids), $q$
   insert into storage.objects (bucket_id, name)
   values ('project-diary-files', 'd1111111-1111-4111-8111-111111111111/visit/z/coord.jpg')
 $q$);
 
--- O equivalente, no Storage, do WITH CHECK sobre tenant_id nas tabelas.
-select pg_temp.chk_as('10.12', 'coordenador nao envia na pasta de OUTRO escritorio', 'ERR:42501',
-  (select u_coord from ids), (select tenant_a from ids), $q$
+-- O equivalente, no Storage, do WITH CHECK sobre tenant_id nas tabelas. O ator e
+-- o Arquiteto, que ACABOU de enviar na pasta do proprio escritorio (10.10): a
+-- recusa aqui so pode ser por causa da pasta, e nao por falta de permissao.
+select pg_temp.chk_as('10.12', 'quem envia no proprio escritorio nao envia na pasta de OUTRO', 'ERR:42501',
+  (select u_arch from ids), (select tenant_a from ids), $q$
   insert into storage.objects (bucket_id, name)
   values ('project-diary-files', 'd2222222-2222-4222-8222-222222222222/visit/z/invasor.jpg')
 $q$);

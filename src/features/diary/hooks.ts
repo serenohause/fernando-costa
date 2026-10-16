@@ -8,7 +8,7 @@ import {
   type DatabaseErrorMessages,
 } from '@/lib/db-errors'
 import type { TablesInsert } from '@/lib/database.types'
-import { useCurrentCollaborator, useCurrentTenant } from '@/features/auth/hooks'
+import { useCurrentCollaborator, useCurrentTenant, useMenuPermissions } from '@/features/auth/hooks'
 import {
   PROJECT_ISSUE_CATEGORY,
   SITE_VISIT_STATUS,
@@ -76,14 +76,14 @@ const DIARY_ERROR_MESSAGES: DatabaseErrorMessages = {
     O 42501 DESTE MÓDULO TEM DONO CERTO, e por isso ele sobrepõe o texto geral
     ("Você não tem permissão para executar esta ação").
 
-    O diário é a ÚNICA superfície do sistema cuja escrita não passa por
-    `can_edit_menu` (migration 0070): quem escreve é Diretor ou Coordenador, por
-    função, e um Arquiteto com permissão de edição em Fluxo do Projeto — que os
-    sete Arquitetos do escritório real têm — é recusado aqui. Dizer só "sem
-    permissão" mandaria essa pessoa pedir uma permissão de menu que ela já tem.
+    Quem escreve no diário é quem edita o Fluxo do Projeto, que é o módulo de
+    onde a gaveta é aberta (migration 0107). Quem não tem essa edição continua
+    LENDO o diário inteiro — e é isso que a frase precisa dizer, senão a pessoa
+    lê "sem permissão" numa tela que ela está enxergando e conclui que perdeu
+    acesso ao módulo.
   */
   '42501':
-    'Só Diretor e Coordenador escrevem no Diário do Projeto. Você continua lendo o histórico inteiro.',
+    'Para escrever no Diário do Projeto é preciso ter edição no Fluxo do Projeto. Você continua lendo o histórico inteiro.',
 
   '23503':
     'O projeto ou o responsável informado não existe mais neste escritório. Recarregue a página e tente de novo.',
@@ -163,33 +163,34 @@ function useTenantId() {
 }
 
 /*
-  QUEM ESCREVE NO DIÁRIO, do lado do cliente — e esta é a única regra de escrita
-  do sistema que NÃO é permissão de menu.
+  QUEM ESCREVE NO DIÁRIO, do lado do cliente.
 
-  Ela reproduz `is_project_diary_writer()` (migration 0070) termo a termo:
-  Diretor ou Coordenador, e `active`. O helper do banco embute o filtro de
-  status porque `auth_collaborator_role()` embute (migration 0007) — Diretor em
-  Férias ou Afastado não escreve, e aqui também não.
+  Era a única regra de escrita do sistema que não passava pela matriz de
+  permissão: `is_project_diary_writer()` (migration 0070) perguntava o CARGO —
+  Diretor ou Coordenador —, porte literal do `canEdit()` do original
+  (ProjectDiaryDrawer.jsx:133). O escritório pediu o contrário: "todos os
+  usuários podem ter acesso ao diário do projeto, desde que tenham acesso ao
+  módulo que aparece isso". A migration 0107 trocou a função do banco por
+  `can_edit_menu('project_flow')`, e este hook acompanha — tela e banco
+  discordando sobre quem escreve é o defeito que o `ARCHITECTURE.md` registra:
+  a tela prometendo o botão e a RLS devolvendo 42501, ou o contrário.
 
-  POR QUE NÃO `useMenuPermissions('project_flow')`, que é o que o resto do Fluxo
-  do Projeto usa: porque o banco não pergunta isso aqui. Tela e banco
-  discordando sobre quem escreve é o defeito que o `ARCHITECTURE.md` já registra
-  — a tela prometendo o botão e a RLS devolvendo 42501, ou o contrário. A
-  decisão de manter o recorte por função é do usuário ("mantém o fluxo como
-  veio", plano do módulo 11).
+  `project_flow` porque é de onde o diário é aberto: o item "Diário do Projeto"
+  do menu do cartão do Fluxo do Projeto. Diretor continua entrando pelo atalho
+  que `useMenuPermissions` já tem, e quem está em Férias ou Afastado continua de
+  fora porque o hook exige `active` — as duas garantias da regra antiga seguem
+  de pé, por outro caminho.
 
-  O `role === 'admin'` da expressão do original (ProjectDiaryDrawer.jsx:133) não
-  tem equivalente: é papel de PLATAFORMA do base44, e o correspondente aqui é o
-  `service_role`, que não passa por policy nenhuma nem abre tela.
+  O `role === 'admin'` da expressão do original não tem equivalente: é papel de
+  PLATAFORMA do base44, e o correspondente aqui é o `service_role`, que não passa
+  por policy nenhuma nem abre tela.
 
   LER É OUTRA COISA, e é largo: qualquer colaborador ativo lê o diário inteiro,
   inclusive registro marcado como interno. Não há hook para isso porque não há o
   que decidir — quem não pode ler recebe zero linha da RLS.
 */
 export function useCanWriteProjectDiary(): boolean {
-  const { data } = useCurrentCollaborator()
-  if (!data || data.status !== 'active') return false
-  return data.role === 'director' || data.role === 'coordinator'
+  return useMenuPermissions('project_flow').canEdit
 }
 
 /* ── Leitura ───────────────────────────────────────────────────────────── */
@@ -286,8 +287,8 @@ export function useProjectDiaryEntries(projectId: string | null | undefined, ena
   então o valor não vira curinga.
 
   O QUE NÃO APARECE AQUI, e é limite do dado e não esquecimento: comentários
-  livres por tarefa. O diário escrito à mão é do PROJETO, e só Diretor e
-  Coordenador escrevem nele (migration 0070); comentário de tarefa aberto a
+  livres por tarefa. O diário escrito à mão é do PROJETO, e quem escreve nele é
+  quem edita o Fluxo do Projeto (migration 0107); comentário de tarefa aberto a
   qualquer um seria uma tabela nova e uma regra de permissão nova.
 
   Teto de 30: o cartão mostra o recente, e a história inteira mora no Diário do

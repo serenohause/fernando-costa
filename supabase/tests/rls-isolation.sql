@@ -230,7 +230,12 @@ select pg_temp.check('1.C3', 'CONTROLE: Diretora A ve as 2 solicitacoes do propr
   'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
   'select 1 from public.access_requests');
 
-select pg_temp.check('1.C4', 'CONTROLE: Diretora A ve o catalogo de menus', 'OK:18',
+/* O numero sai do proprio catalogo, e nao de um literal: o que este caso afirma
+   e "ve TODOS os menus", e menu novo entra por migration (a `settings` entrou
+   depois que este arquivo foi escrito, e o 18 virou 19 sem nada ter quebrado de
+   verdade). Literal aqui falha na proxima tela que o sistema ganhar. */
+select pg_temp.check('1.C4', 'CONTROLE: Diretora A ve o catalogo de menus INTEIRO',
+  'OK:' || (select count(*)::text from public.menus),
   'authenticated', pg_temp.claims((select u_dir_a from rls_ids), (select tenant_a from rls_ids)),
   'select 1 from public.menus');
 
@@ -465,7 +470,8 @@ select pg_temp.check('9.C2', 'CONTROLE: Administrativo A le as PROPRIAS permisso
   'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
   'select 1 from public.collaborator_permissions');
 
-select pg_temp.check('9.C3', 'CONTROLE: Administrativo A le o catalogo de menus', 'OK:18',
+select pg_temp.check('9.C3', 'CONTROLE: Administrativo A le o catalogo de menus INTEIRO',
+  'OK:' || (select count(*)::text from public.menus),
   'authenticated', pg_temp.claims((select u_admin_a from rls_ids), (select tenant_a from rls_ids)),
   'select 1 from public.menus');
 

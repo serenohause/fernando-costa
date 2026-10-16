@@ -52,22 +52,15 @@ begin;
 -- pela FK antes de a policy opinar, e passaria a afirmar "a FK funciona" em vez
 -- de "o WITH CHECK funciona".
 --
--- `writer_role` existe por causa do MODULO 11, e e a unica coisa que este arquivo
--- precisou aprender depois do modulo 2. Ate aqui, escrita era sempre
--- can_edit_menu('<chave>'), e o editor da suite e um Arquiteto com can_edit em
--- todo menu do registro. O diario do projeto foge disso por decisao do usuario:
--- na versao nova do base44 as telas do diario perguntam a FUNCAO da pessoa
--- (Diretor ou Coordenador) e nao consultam permissao de menu nenhuma - ver o
--- cabecalho da migration 0070. Com o editor Arquiteto, o caso C1 ("quem tem
--- can_edit no menu CRIA") seria recusado nas cinco tabelas do modulo, e o certo
--- nao e afrouxar a policy: e a suite dizer quem escreve naquela tabela.
---
---   writer_role nulo          -> escreve o editor de sempre (Arquiteto com
---                                can_edit no menu). 21 tabelas, sem mudanca.
---   writer_role 'coordinator' -> escreve o Coordenador. Coordenador NAO tem
---                                atalho em can_edit_menu (o atalho da 0019 e so
---                                de Diretor), entao ele continua provando
---                                policy, e nao privilegio de papel.
+-- O MODULO 11 JA FOI A EXCECAO DESTE ARQUIVO, e deixou de ser. O diario do
+-- projeto nasceu (0070) perguntando a FUNCAO da pessoa — Diretor ou Coordenador,
+-- como nas telas do base44 — e ignorando a matriz de permissao, o que obrigou a
+-- suite a aprender um `writer_role`: um ator diferente so para aquelas cinco
+-- tabelas. A migration 0107 trocou a regra a pedido do escritorio ("acesso ao
+-- diario para quem tem acesso ao modulo onde ele aparece"), e com ela a coluna
+-- saiu: as cinco voltaram a ser escrita por can_edit_menu('project_flow'), igual
+-- as outras 21, e o editor de sempre (Arquiteto com can_edit no menu) escreve em
+-- todas.
 
 /*
   O QUE FICA DE FORA DESTA SUITE, E POR QUE
@@ -86,8 +79,7 @@ create temp table pattern_tables (
   menu_key text,
   insert_cols text,
   insert_vals text,
-  insert_vals_b text,
-  writer_role text
+  insert_vals_b text
 ) on commit drop;
 
 -- Os uuids literais abaixo sao os das fixtures declaradas em `pat`, logo
@@ -411,28 +403,24 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
      'Finalidade Padrao ' || (select count(*) from public.map_property_purposes f
                               where f.map_property_id = 'eb900000-0000-4000-8000-000000000001')$$);
 
--- MODULO 11 (Diario do Projeto). As cinco tabelas escrevem por FUNCAO, e nao por
--- menu - por isso writer_role = 'coordinator' em todas. Ver o comentario de
--- writer_role acima e o cabecalho da migration 0070.
+-- MODULO 11 (Diario do Projeto). As cinco tabelas escreviam por FUNCAO, e nao
+-- por menu; desde a 0107 seguem o mesmo padrao do resto do arquivo.
 --
--- O menu_key continua sendo 'project_flow', que e o menu onde o diario mora (a
--- gaveta abre pelo cartao do Fluxo do Projeto). Ele NAO governa a escrita destas
--- tabelas: os casos E1-E4 aqui afirmam que o helper de menu funciona, e nao que a
--- policy o consulta. Quem prova que a policy le a FUNCAO e nao o menu e a secao 1
--- de supabase/tests/diary-schema.sql, com um Arquiteto que tem
--- can_edit_menu('project_flow') e mesmo assim nao escreve no diario a mao.
-insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, insert_vals_b, writer_role) values
+-- O menu_key e 'project_flow', que e o menu onde o diario mora (a gaveta abre
+-- pelo cartao do Fluxo do Projeto) E, agora, tambem o que governa a escrita:
+-- `is_project_diary_writer()` e `can_edit_menu('project_flow')`. Quem prova que
+-- as policies continuam lendo a funcao — e nao cada uma a sua regra — e a secao
+-- 1 de supabase/tests/diary-schema.sql.
+insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, insert_vals_b) values
   (11, 'project_diary_entries', 'project_flow',
    'project_id, entry_type, title, occurrence_date',
    $$'ea400000-0000-4000-8000-000000000001', 'note', 'Registro Padrao', current_date$$,
-   $$'eb400000-0000-4000-8000-000000000001', 'note', 'Registro Padrao', current_date$$,
-   'coordinator'),
+   $$'eb400000-0000-4000-8000-000000000001', 'note', 'Registro Padrao', current_date$$),
 
   (11, 'project_site_visits', 'project_flow',
    'project_id, visit_date, visit_type',
    $$'ea400000-0000-4000-8000-000000000001', current_date, 'follow_up'$$,
-   $$'eb400000-0000-4000-8000-000000000001', current_date, 'follow_up'$$,
-   'coordinator'),
+   $$'eb400000-0000-4000-8000-000000000001', current_date, 'follow_up'$$),
 
   -- issue_number NAO entra na linha minima: ele e alocado pelo trigger da 0069, e
   -- a suite grava a mesma linha duas vezes no escritorio A (a fixture dos casos B,
@@ -443,14 +431,12 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
   (11, 'project_issues', 'project_flow',
    'project_id, description, category, identified_date',
    $$'ea400000-0000-4000-8000-000000000001', 'Pendencia Padrao', 'architecture', current_date$$,
-   $$'eb400000-0000-4000-8000-000000000001', 'Pendencia Padrao', 'architecture', current_date$$,
-   'coordinator'),
+   $$'eb400000-0000-4000-8000-000000000001', 'Pendencia Padrao', 'architecture', current_date$$),
 
   (11, 'project_issue_events', 'project_flow',
    'issue_id, event_type',
    $$'eab00000-0000-4000-8000-000000000001', 'updated'$$,
-   $$'ebb00000-0000-4000-8000-000000000001', 'updated'$$,
-   'coordinator'),
+   $$'ebb00000-0000-4000-8000-000000000001', 'updated'$$),
 
   -- O caminho sai de um contador pelo mesmo motivo de budget_item_approval_files:
   -- project_diary_files tem unique (tenant_id, file_path) e a suite grava a mesma
@@ -472,8 +458,7 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
      'e2222222-2222-4222-8222-222222222222/entry/eba00000-0000-4000-8000-000000000001/pat-b-'
        || (select count(*) from public.project_diary_files f
            where f.entry_id = 'eba00000-0000-4000-8000-000000000001') || '.jpg',
-     'foto-da-obra.jpg'$$,
-   'coordinator');
+     'foto-da-obra.jpg'$$);
 
 -- FIXTURES --------------------------------------------------------------------
 
@@ -489,8 +474,8 @@ create temp table pat on commit drop as select
   'ea100000-0000-4000-8000-000000000002'::uuid as c_viewer_a,
   'ea100000-0000-4000-8000-000000000003'::uuid as c_leave_a,
   'eb100000-0000-4000-8000-000000000001'::uuid as c_editor_b,
-  -- O escritor por FUNCAO, um por escritorio (writer_role = 'coordinator'). Ver o
-  -- comentario de writer_role no registro das tabelas.
+  -- Coordenador de cada escritorio. Depois da 0107 ele nao escreve mais por
+  -- cargo nenhum; fica como CONTROLE do caso C3 (ver a nota da fixture abaixo).
   'ea000000-0000-4000-8000-000000000005'::uuid as u_coord_a,
   'eb000000-0000-4000-8000-000000000002'::uuid as u_coord_b,
   'ea100000-0000-4000-8000-000000000004'::uuid as c_coord_a,
@@ -555,10 +540,10 @@ insert into public.tenant_users (tenant_id, user_id, role) values
 -- (migration 0019), e Diretor passaria em tudo sem provar que a permissao de
 -- menu esta sendo lida. O atalho tem teste proprio em crm-rls.sql secao 12.
 --
--- O Coordenador (writer_role das tabelas do modulo 11) tambem NAO e Diretor, pelo
--- mesmo motivo: is_project_diary_writer() aceita as duas funcoes, e usar o
--- Diretor aqui faria os casos C passarem tambem pelo atalho de can_edit_menu -
--- duas razoes ao mesmo tempo, e o teste sem saber qual delas funciona.
+-- O Coordenador ficou da epoca em que o diario escrevia por cargo (0070). Ele
+-- continua aqui de proposito, e sem permissao nenhuma: desde a 0107, cargo nao
+-- abre escrita em lugar nenhum do sistema, e ter no banco alguem com o cargo que
+-- ABRIA e a forma de a suite perceber se a regra antiga voltar por acidente.
 insert into public.collaborators (id, tenant_id, user_id, name, role, email, status) values
   ((select c_editor_a from pat), (select tenant_a from pat), (select u_editor_a from pat),
    'Editor A', 'architect', 'pattern-editor-a@example.test', 'active'),
@@ -768,11 +753,7 @@ begin
     v_pref := t.modulo || '.' || t.tabela;
     v_vals_b := coalesce(t.insert_vals_b, t.insert_vals);
 
-    if t.writer_role = 'coordinator' then
-      v_writer_a := p.u_coord_a;
-    else
-      v_writer_a := p.u_editor_a;
-    end if;
+    v_writer_a := p.u_editor_a;
 
     -- ---- Catalogo: os dois lados da tranca -----------------------------------
     --
@@ -859,7 +840,7 @@ begin
       pg_temp.probe('authenticated', pg_temp.claims(p.u_orphan, null),
         format('select 1 from public.%I where id = %L', t.tabela, v_row_a)));
 
-    -- ---- Escrita presa a permissao (menu, ou funcao quando writer_role) ------
+    -- ---- Escrita presa a permissao de menu -----------------------------------
 
     perform pg_temp.rec(v_pref || '/C1', 'quem pode escrever CRIA', 'OK:1',
       pg_temp.probe('authenticated', pg_temp.claims(v_writer_a, p.tenant_a),

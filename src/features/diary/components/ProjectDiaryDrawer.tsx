@@ -113,11 +113,13 @@ import { usePhaseLabel } from '@/features/kanban/hooks'
 
   1. QUEM PODE ESCREVER. `canEdit()` de lá é
      `role === 'admin' || 'Diretor' || 'Coordenador'` lido do usuário e do
-     colaborador que a tela recebe por prop. Aqui é `useCanWriteProjectDiary()`,
-     que reproduz `is_project_diary_writer()` (migration 0070) — Diretor ou
-     Coordenador, `active`. É a MESMA regra do banco; se a tela usasse outra,
-     ela prometeria um botão que a RLS recusa. O `admin` daquela expressão é
-     papel de plataforma do base44, cujo equivalente aqui é o `service_role`.
+     colaborador que a tela recebe por prop — decide por CARGO. Aqui é
+     `useCanWriteProjectDiary()`, que segue a permissão do módulo de onde a
+     gaveta é aberta: quem edita o Fluxo do Projeto escreve no diário
+     (migration 0107, a pedido do escritório). É a MESMA regra do banco; se a
+     tela usasse outra, ela prometeria um botão que a RLS recusa. O `admin`
+     daquela expressão é papel de plataforma do base44, cujo equivalente aqui é
+     o `service_role`.
   2. TRÊS ESTADOS, e não dois. A versão nova distingue carregando e vazio, e
      falha de leitura deixa a gaveta idêntica a "não há registro nenhum". A aba
      ganha estado de erro com o motivo e o botão de tentar de novo.
