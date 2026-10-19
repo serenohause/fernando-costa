@@ -1,23 +1,33 @@
 /*
   ONDE A SESSÃO DO DIRETOR FICA ENQUANTO ELE ESTÁ SENDO OUTRA PESSOA.
 
-  Assumir a sessão de alguém SUBSTITUI a sessão no `localStorage` — é o mesmo
-  lugar onde o supabase-js guarda a única sessão que ele conhece. Sem guardar a
-  do Diretor antes, "voltar para minha conta" não teria para onde voltar: ele
-  precisaria digitar a senha de novo.
+  Assumir a sessão de alguém SUBSTITUI a sessão guardada pelo supabase-js — é
+  uma só, e ele a mantém em `localStorage` (`persistSession: true`, ver
+  src/lib/supabase.ts). Sem guardar a do Diretor antes, "voltar para minha
+  conta" não teria para onde voltar: ele precisaria digitar a senha de novo.
 
-  POR QUE `sessionStorage`, E NÃO `localStorage`
-  A sessão assumida tem que morrer com a aba. `localStorage` sobrevive ao
-  fechamento do navegador, e uma sessão de outra pessoa esquecida ali, aberta na
-  próxima semana, é exatamente o que esta feature não pode produzir.
+  POR QUE `localStorage`, E NÃO `sessionStorage` — ISTO FOI UM DEFEITO E ESTÁ
+  CONSERTADO. A primeira versão usava `sessionStorage`, com a intenção de a
+  sessão assumida "morrer com a aba". Ela não morre: quem guarda a sessão
+  assumida é o supabase-js, no `localStorage`, que sobrevive a fechar a aba e a
+  fechar o navegador. O que morria com a aba era só a FAIXA e o botão de voltar.
 
-  O CUSTO DISSO, dito em voz alta: fechar a aba no meio perde a volta, e o
-  Diretor entra de novo com a própria senha. É o lado certo do balanço — perder
-  o atalho é um aborrecimento, deixar sessão viva é um incidente.
+  O resultado era o pior arranjo possível: numa aba nova o Diretor continuava
+  logado como a outra pessoa, sem nenhum aviso na tela, e sem o botão de voltar
+  — indistinguível de a pessoa estar logada. Pior ainda, a isenção da parede de
+  senha provisória (AppLayout) depende desta chave: sem ela, o Diretor cairia na
+  tela de definir a senha DELA.
 
-  ISTO NÃO É EXPOSIÇÃO NOVA. A sessão do Diretor já vive no `localStorage` do
-  mesmo domínio, posta lá pelo próprio supabase-js. O que muda é o prazo (uma
-  aba) e o escopo (uma chave só).
+  A REGRA QUE PASSA A VALER: esta chave tem exatamente o mesmo tempo de vida da
+  sessão assumida, porque mora no mesmo lugar que ela. Enquanto existir sessão
+  assumida existe faixa, em qualquer aba, inclusive depois de reabrir o
+  navegador. "Sem faixa" volta a significar "não estou assumido".
+
+  O QUE ISSO CUSTA, dito em voz alta: o refresh token do Diretor fica em
+  `localStorage` enquanto durar a impersonação. Não é classe nova de exposição —
+  a sessão corrente já vive ali, posta pelo próprio supabase-js —, mas é uma
+  segunda identidade legível na mesma origem. O que encurta a janela é o
+  `signOut` local na volta (ver hooks.ts), não o tipo de storage.
 
   TODO ACESSO É ENVOLVIDO EM try/catch: em aba anônima, com dados de site
   bloqueados, o próprio acessador pode lançar — e "não consegui guardar" precisa
@@ -43,7 +53,7 @@ export type EstadoAcessarComo = {
 
 export function guardarEstado(estado: EstadoAcessarComo): boolean {
   try {
-    window.sessionStorage.setItem(CHAVE, JSON.stringify(estado))
+    window.localStorage.setItem(CHAVE, JSON.stringify(estado))
     return true
   } catch {
     return false
@@ -52,7 +62,7 @@ export function guardarEstado(estado: EstadoAcessarComo): boolean {
 
 export function lerEstado(): EstadoAcessarComo | null {
   try {
-    const cru = window.sessionStorage.getItem(CHAVE)
+    const cru = window.localStorage.getItem(CHAVE)
     if (!cru) return null
 
     const estado = JSON.parse(cru) as Partial<EstadoAcessarComo>
@@ -78,7 +88,7 @@ export function lerEstado(): EstadoAcessarComo | null {
 
 export function limparEstado(): void {
   try {
-    window.sessionStorage.removeItem(CHAVE)
+    window.localStorage.removeItem(CHAVE)
   } catch {
     /* Nada a fazer: se não dá para apagar, também não dava para gravar. */
   }

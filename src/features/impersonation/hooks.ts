@@ -21,6 +21,11 @@ import { guardarEstado, lerEstado, limparEstado, type EstadoAcessarComo } from '
   dela que escreveu. O único lugar que sabe a verdade é `impersonation_events`
   (0109), gravado antes de o token existir.
 
+  A FAIXA TEM O MESMO TEMPO DE VIDA DA SESSÃO ASSUMIDA, e isso é requisito de
+  segurança, não detalhe: as duas moram em `localStorage`. Enquanto houver
+  sessão assumida há faixa, em qualquer aba. Ver o cabeçalho de storage.ts para
+  o defeito que isso conserta.
+
   POR QUE RECARREGAR A PÁGINA NAS DUAS PONTAS
   Trocar de sessão invalida TUDO que está em memória: o cache do React Query, os
   `staleTime: Infinity` da sessão e do escritório, as permissões de menu, os
@@ -51,7 +56,8 @@ export function acessarComoDisponivel(): boolean {
 */
 export function useAcessarComoAtivo(): EstadoAcessarComo | null {
   /* Lido no primeiro render e mantido: devolver objeto novo a cada render faria
-     qualquer `useMemo` que dependesse dele recalcular para sempre. */
+     qualquer `useMemo` que dependesse dele recalcular para sempre. Vale em
+     qualquer aba, porque a chave é de `localStorage`. */
   const [estado] = useState<EstadoAcessarComo | null>(() =>
     impersonationHabilitada ? lerEstado() : null,
   )
@@ -63,6 +69,20 @@ export function useAcessarComo() {
     mutationFn: async (input: { collaboratorId: string; collaboratorName: string }) => {
       if (!impersonationHabilitada) {
         throw new Error('Acessar como não está disponível neste ambiente.')
+      }
+
+      /*
+        UM SALTO DE CADA VEZ. Assumir a partir de uma sessão já assumida faria
+        duas coisas ruins de uma vez: a trilha registraria o INTERMEDIÁRIO como
+        autor (a função SQL não tem como distinguir sessão assumida de login
+        real — é esse o ponto da feature), e o segundo `guardarEstado`
+        sobrescreveria a passagem de volta do Diretor original, que ficaria
+        preso na conta do meio.
+      */
+      if (lerEstado()) {
+        throw new Error(
+          'Você já está em uma sessão assumida. Volte para a sua conta antes de acessar como outra pessoa.',
+        )
       }
 
       /*
@@ -138,6 +158,25 @@ export function useVoltarParaMinhaConta() {
       const estado = lerEstado()
       if (!estado) {
         throw new Error('Não há sessão guardada para voltar.')
+      }
+
+      /*
+        REVOGAR A SESSÃO ASSUMIDA ANTES DE SAIR DELA. `setSession` só troca o
+        que está no navegador: sem isto, o refresh token emitido para o
+        colaborador continua válido no servidor depois da volta, e cada
+        "Acessar como" deixaria para trás uma credencial viva dele que ninguém
+        vê e ninguém expira.
+
+        `scope: 'local'` derruba SÓ a sessão corrente — a que acabou de ser
+        emitida. `'global'` seria errado: expulsaria a pessoa do próprio login,
+        no aparelho dela, sem ela ter feito nada.
+
+        Falhar aqui não impede a volta: ficar preso na conta do outro é pior que
+        um token sobrando. O erro vai para o console e o fluxo segue.
+      */
+      const { error: revogacao } = await supabase.auth.signOut({ scope: 'local' })
+      if (revogacao) {
+        console.error('[acessar-como] falha ao revogar a sessao assumida:', revogacao)
       }
 
       const { error } = await supabase.auth.setSession({

@@ -98,7 +98,9 @@ create temp table ids on commit drop as select
   'daa00000-0000-4000-8000-0000000000c6'::uuid as c_arq_ferias,
   'daa00000-0000-4000-8000-0000000000c7'::uuid as c_dir2_a,
   'daa00000-0000-4000-8000-0000000000d1'::uuid as c_dir_b,
-  'daa00000-0000-4000-8000-0000000000d2'::uuid as c_arq_b;
+  'daa00000-0000-4000-8000-0000000000d2'::uuid as c_arq_b,
+  /* Diretora A tem uma SEGUNDA linha, no escritorio B: o caso da 0110. */
+  'daa00000-0000-4000-8000-0000000000d3'::uuid as c_dir_a_em_b;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 select u, '00000000-0000-0000-0000-000000000000'::uuid, 'authenticated', 'authenticated', e, now(), now()
@@ -146,6 +148,16 @@ insert into public.collaborators (id, tenant_id, user_id, name, role, email, sta
    'Diretor B', 'director', 'imp-dir-b@example.test', 'active'),
   ((select c_arq_b from ids), (select tenant_b from ids), (select u_arq_b from ids),
    'Arquiteto B', 'architect', 'imp-arq-b@example.test', 'active');
+
+/*
+  A MESMA PESSOA, DIRETORA NOS DOIS ESCRITORIOS. `collaborators` tem unique
+  PARCIAL em (tenant_id, user_id), entao isto e estado alcancavel no banco. A
+  linha de B nasce DEPOIS, e e por isso que o criterio importa: sem `order by`,
+  qual das duas vence era a ordem fisica da tabela (0110).
+*/
+insert into public.collaborators (id, tenant_id, user_id, name, role, email, status) values
+  ((select c_dir_a_em_b from ids), (select tenant_b from ids), (select u_dir_a from ids),
+   'Diretora A no B', 'director', 'imp-dir-a@example.test', 'active');
 
 -- 1. QUEM PODE ASSUMIR ---------------------------------------------------------------
 
@@ -296,6 +308,20 @@ select pg_temp.rec('6.4', 'a tabela tem RLS ligada', 'true',
 
 select pg_temp.rec('6.5', 'e exatamente uma policy, de SELECT', 'SELECT',
   (select string_agg(cmd, ',') from pg_policies where tablename = 'impersonation_events'));
+
+-- 7. O ATOR COM LINHA EM DOIS ESCRITORIOS (0110) --------------------------------------
+
+/* A Diretora A agora e Diretora tambem no escritorio B. O escritorio em que ela
+   age tem que ser o MAIS ANTIGO (o A), e nao o que a ordem fisica devolver. */
+select pg_temp.rec('7.1', 'o ator com duas linhas age no escritorio mais ANTIGO', 'ERR:target_other_tenant',
+  pg_temp.assumir((select u_dir_a from ids), (select c_arq_b from ids)));
+
+select pg_temp.rec('7.2', 'e continua assumindo no escritorio dela', 'OK:Coordenador A',
+  pg_temp.assumir((select u_dir_a from ids), (select c_coord_a from ids)));
+
+select pg_temp.rec('7.3', 'a trilha do evento novo ficou no escritorio A', 'true',
+  (select (tenant_id = (select tenant_a from ids))::text from public.impersonation_events
+    where target_user_id = (select u_coord_a from ids)));
 
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
