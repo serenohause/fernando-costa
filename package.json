@@ -41,6 +41,7 @@
     "seed:second-office": "node supabase/seed/second-office.mjs",
     "test:contract-from-negotiation": "supabase/tests/run-sql.sh supabase/tests/contract-from-negotiation.sql",
     "test:briefing-site": "supabase/tests/run-sql.sh supabase/tests/briefing-site.sql",
+    "test:acessar-como": "supabase/tests/run-sql.sh supabase/tests/acessar-como.sql",
     "test:collaborator-login": "supabase/tests/run-sql.sh supabase/tests/collaborator-login.sql",
     "test:client-people": "supabase/tests/run-sql.sh supabase/tests/client-people.sql",
     "test:checklist-assignees": "supabase/tests/run-sql.sh supabase/tests/checklist-assignees.sql",
