@@ -418,10 +418,23 @@ function BriefingComparison({
                 <p className="text-xs font-semibold text-soft uppercase tracking-wider mb-1">
                   {diff.label}
                 </p>
-                <div className="flex items-center gap-2 text-sm min-w-0">
-                  <span className="text-muted-foreground line-clamp-1">{diff.currentText}</span>
-                  <ArrowRight className="w-4 h-4 shrink-0 text-faint" />
-                  <span className="text-foreground font-medium line-clamp-1">
+                {/*
+                  OS DOIS LADOS APARECEM INTEIROS, e é o ponto desta tela: ela
+                  existe para alguém conferir campo a campo antes de gravar, e
+                  conferir endereço cortado em "Alphaville Cear..." não é
+                  conferir. Complemento e logradouro passam folgado dos 40
+                  caracteres que cabem numa linha aqui — `line-clamp-1`
+                  escondia justamente a parte que distingue uma quadra da outra.
+
+                  A SETA ALINHA PELO TOPO porque o valor agora ocupa quantas
+                  linhas precisar: centrada, ela flutuaria no meio de um bloco
+                  de três linhas, longe das duas primeiras linhas que ela
+                  liga. O `mt-0.5` a põe na altura da primeira linha de texto.
+                */}
+                <div className="flex items-start gap-2 text-sm min-w-0">
+                  <span className="text-muted-foreground break-words">{diff.currentText}</span>
+                  <ArrowRight className="w-4 h-4 shrink-0 mt-0.5 text-faint" />
+                  <span className="text-foreground font-medium break-words">
                     {diff.briefingText}
                   </span>
                 </div>
