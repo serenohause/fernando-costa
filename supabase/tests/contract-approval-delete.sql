@@ -55,7 +55,10 @@ create temp table ids on commit drop as select
   'dddddddd-1111-4000-8000-000000000006'::uuid as outro_contrato,
   'dddddddd-1111-4000-8000-000000000007'::uuid as projeto_de_outro,
   'dddddddd-1111-4000-8000-000000000008'::uuid as projeto_solto,
-  'dddddddd-1111-4000-8000-000000000009'::uuid as negociacao;
+  'dddddddd-1111-4000-8000-000000000009'::uuid as negociacao,
+  /* Contrato SEM nome de projeto: e o caso que prova a degradacao do titulo
+     (0111) — o projeto nasce com o nome do cliente e o cartao herda dali. */
+  'dddddddd-1111-4000-8000-00000000000a'::uuid as contrato_sem_nome;
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
 values ((select usuario from ids), '00000000-0000-0000-0000-000000000000'::uuid,
@@ -83,7 +86,9 @@ insert into public.contracts (id,tenant_id,contract_number,contract_type,total_v
 values ((select contrato from ids),(select tenant from ids),'0900','architecture_interiors',50000,
         (select cliente from ids),'Casa Cascade','negotiating',30,'Goiania','GO',current_date),
        ((select outro_contrato from ids),(select tenant from ids),'0901','architecture',10000,
-        (select cliente from ids),'Outro Contrato','approved',null,'Goiania','GO',current_date);
+        (select cliente from ids),'Outro Contrato','approved',null,'Goiania','GO',current_date),
+       ((select contrato_sem_nome from ids),(select tenant from ids),'0902','architecture',10000,
+        (select cliente from ids),null,'negotiating',null,'Goiania','GO',current_date);
 
 -- Um projeto do MESMO CLIENTE ligado a OUTRO contrato, e um projeto sem contrato.
 insert into public.projects (id,tenant_id,name,project_type,client_id,contract_id,status,current_phase,visible_in_list)
@@ -105,8 +110,18 @@ select pg_temp.rec('1.2','o projeto herda nome, tipo, prazo e local do contrato'
     select p.name||'|'||p.project_type||'|'||p.layout_study_days||'|'||p.city||'|'||p.status||'|'||p.current_phase||'|'||p.visible_in_list
     from public.projects p where p.contract_id = %L $q$, (select contrato from ids))));
 
-select pg_temp.rec('1.3','o cartao do Fluxo nasce com numero e cliente no titulo',
-  '0900 - Cliente Cascade|not_started|high',
+/*
+  O TITULO DO CARTAO E O NOME DO PROJETO, nao o do cliente (0111). Ate a 0110
+  era `contract_number || ' - ' || client_name`, copiado do original — e o
+  escritorio relatou de producao: "os projetos estao indo com o nome completo
+  dos clientes e nao com o nome do projeto".
+
+  O caso so prova alguma coisa porque o contrato desta fixture tem
+  `project_name = 'Casa Cascade'` DIFERENTE do nome do cliente. Com os dois
+  iguais, a asercao passaria pela regra velha tambem.
+*/
+select pg_temp.rec('1.3','o cartao do Fluxo nasce com numero e NOME DO PROJETO no titulo',
+  '0900 - Casa Cascade|not_started|high',
   pg_temp.como((select usuario from ids),(select tenant from ids), format($q$
     select t.title||'|'||t.phase||'|'||t.priority from public.tasks t
     join public.projects p on p.id=t.project_id where p.contract_id = %L $q$, (select contrato from ids))));
@@ -114,6 +129,26 @@ select pg_temp.rec('1.3','o cartao do Fluxo nasce com numero e cliente no titulo
 select pg_temp.rec('1.4','o contrato ficou Aprovado','approved',
   pg_temp.como((select usuario from ids),(select tenant from ids), format($q$
     select status::text from public.contracts where id = %L $q$, (select contrato from ids))));
+
+/*
+  DEGRADACAO SEM EXCECAO: contrato sem nome de projeto. O projeto ja nasce com o
+  nome do CLIENTE (cadeia de coalesce vinda de Contracts.jsx:548), e o cartao
+  herda dali — ou seja, nesses casos o titulo volta a ser o nome do cliente, que
+  e o certo, e a regra nova nao precisou de um `if` para isso.
+*/
+select pg_temp.rec('1.4b','aprovar o contrato sem nome de projeto','created',
+  pg_temp.como((select usuario from ids),(select tenant from ids), format($q$
+    select r ->> 'outcome' from public.approve_contract_proposal(%L) r $q$,
+    (select contrato_sem_nome from ids))));
+
+/* Leitura em outro comando, de proposito: num SELECT so, o CTE que chama a
+   funcao e a varredura de `tasks` nao tem ordem garantida entre si. */
+select pg_temp.rec('1.4c','contrato sem nome de projeto: o cartao cai no nome do cliente',
+  '0902 - Cliente Cascade',
+  pg_temp.como((select usuario from ids),(select tenant from ids), format($q$
+    select t.title from public.tasks t
+    join public.projects p on p.id=t.project_id
+    where p.contract_id = %L $q$, (select contrato_sem_nome from ids))));
 
 /* 1.5 e a idempotencia: apertar de novo nao cria um segundo projeto nem uma
    segunda tarefa, e nao rebobina o cartao que ja andou. */
@@ -178,7 +213,11 @@ select pg_temp.rec('3.2','o contrato, o projeto, as parcelas e o cartao sumiram'
     select (select count(*) from public.contracts where id = %L)::text ||'|'||
            (select count(*) from public.projects where contract_id = %L)::text ||'|'||
            (select count(*) from public.accounts_receivable where contract_id = %L)::text ||'|'||
-           (select count(*) from public.tasks)::text $q$,
+           /* O cartao DESTE contrato, e nao `count(*) from tasks` sem recorte:
+              a suite passou a aprovar um segundo contrato (1.4b) e a contagem
+              global deixou de significar "o cartao sumiu". O cartao automatico
+              carrega o numero do contrato na descricao. */
+           (select count(*) from public.tasks where description = 'Contrato: 0900')::text $q$,
     (select contrato from ids),(select contrato from ids),(select contrato from ids))));
 
 /* 3.3 e o caso central desta entrega: SO os projetos deste contrato. O projeto
