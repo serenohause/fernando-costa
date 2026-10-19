@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Clock, Lock, Mail, MoreVertical, Pencil, Trash2, UserCircle } from 'lucide-react'
+import { Clock, Lock, Mail, MoreVertical, Pencil, Trash2, UserCircle, UserCog } from 'lucide-react'
 import { toast } from 'sonner'
 import PageHeader from '@/components/shared/PageHeader'
 import DataTable, { type Column } from '@/components/shared/DataTable'
@@ -26,6 +26,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useCurrentCollaborator } from '@/features/auth/hooks'
+import AcessarComoDialog from '@/features/impersonation/components/AcessarComoDialog'
+import { acessarComoDisponivel } from '@/features/impersonation/hooks'
 import { COLLABORATOR_AREA, COLLABORATOR_ROLE, COLLABORATOR_STATUS, labelOf } from '@/lib/enums'
 import AcessoNegado from './AcessoNegado'
 import CollaboratorForm, { type CollaboratorFormValues } from './CollaboratorForm'
@@ -56,6 +58,10 @@ export default function Collaborators() {
     collaborator: null,
   })
   const [permissoesDialog, setPermissoesDialog] = useState<{
+    open: boolean
+    collaborator: Collaborator | null
+  }>({ open: false, collaborator: null })
+  const [acessarComoDialog, setAcessarComoDialog] = useState<{
     open: boolean
     collaborator: Collaborator | null
   }>({ open: false, collaborator: null })
@@ -283,6 +289,44 @@ export default function Collaborators() {
                 <Lock className="w-4 h-4 mr-2" />
                 Permissões
               </DropdownMenuItem>
+              {/*
+                "ACESSAR COMO" só existe no ambiente de desenvolvimento (ver
+                acessarComoDisponivel). Entra entre Permissões e Remover: ação
+                destrutiva fica por último.
+
+                QUANDO NÃO DÁ, O ITEM FICA VISÍVEL E DESABILITADO, com o motivo
+                escrito. Esconder faria o Diretor procurar o que não está lá;
+                desabilitar sem dizer por quê faria ele clicar duas vezes e
+                desistir. Os três motivos são de verdade e vêm do banco
+                (`start_impersonation`, 0109): sem login não há sessão, fora de
+                atividade não se assume, e a própria conta já é a dele.
+              */}
+              {acessarComoDisponivel() &&
+                (() => {
+                  const impedimento = !row.user_id
+                    ? `${row.name.trim().split(/\s+/)[0]} não tem login no sistema. Defina uma senha provisória em Editar para liberar o acesso.`
+                    : row.status !== 'active'
+                      ? 'Só é possível acessar como quem está em atividade.'
+                      : row.id === currentCollaborator?.id
+                        ? 'Esta é a sua própria conta.'
+                        : null
+
+                  return (
+                    <>
+                      <DropdownMenuItem
+                        disabled={impedimento !== null}
+                        onClick={() => setAcessarComoDialog({ open: true, collaborator: row })}
+                      >
+                        <UserCog className="w-4 h-4 mr-2" />
+                        Acessar como
+                      </DropdownMenuItem>
+                      {impedimento && (
+                        <p className="px-2 pb-1.5 text-xs text-faint max-w-64">{impedimento}</p>
+                      )}
+                    </>
+                  )
+                })()}
+
               <DropdownMenuItem
                 onClick={() => handleDelete(row)}
                 className="text-rose-600 focus:text-rose-600 dark:text-rose-400 dark:focus:text-rose-400"
@@ -403,6 +447,12 @@ export default function Collaborators() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AcessarComoDialog
+        collaborator={acessarComoDialog.collaborator}
+        open={acessarComoDialog.open}
+        onOpenChange={(open) => setAcessarComoDialog({ ...acessarComoDialog, open })}
+      />
     </div>
   )
 }
