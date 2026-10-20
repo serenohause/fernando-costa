@@ -41,6 +41,17 @@ const PIPELINE_ERROR_MESSAGES: DatabaseErrorMessages = {
   /* Quem preencheu o briefing (migration 0102). */
   client_intakes_filled_by_name_length_check:
     'O nome de quem preencheu é longo demais (máximo de 200 caracteres).',
+  /*
+    "Salvar como segundo titular" grava em `client_people`, e as constraints de
+    lá só estavam no mapa do CRM. Do Pipeline, qualquer recusa delas caía no
+    texto genérico.
+  */
+  client_people_name_not_blank_check: 'Dê um nome à pessoa.',
+  client_people_name_length_check: 'O nome é longo demais (máximo de 200 caracteres).',
+  client_people_email_format_check:
+    'O e-mail do briefing não é válido. Salve só o nome e corrija o e-mail no cadastro do cliente.',
+  client_people_tax_id_length_check: 'O CPF/CNPJ é longo demais (máximo de 30 caracteres).',
+  client_people_phone_length_check: 'O telefone é longo demais (máximo de 50 caracteres).',
   negotiation_services_negotiation_id_service_type_id_key:
     'Este serviço já está marcado nesta negociação.',
   negotiation_services_service_type_id_fkey:
@@ -986,8 +997,19 @@ export function useSaveIntakePerson() {
         .select('id')
         .single()
 
+      /*
+        A PESSOA JÁ ESTAR LÁ NÃO É FALHA. O caso real: a equipe já tinha posto o
+        cônjuge na ficha do cliente pelo CRM, e o briefing chegou depois com o
+        mesmo nome. O índice `client_people_client_id_name_key` recusa a segunda
+        linha — e está certo —, mas o que a pessoa pediu ("guarde esta pessoa no
+        cadastro") já está feito. Devolver erro mandava avisar o suporte por um
+        dado que não faltava.
+      */
+      if (error?.code === '23505' && error.message.includes('client_people_client_id_name_key')) {
+        return { id: null, alreadySaved: true }
+      }
       if (error) throw error
-      return data.id
+      return { id: data.id, alreadySaved: false }
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: crmKeys.all })

@@ -307,9 +307,13 @@ function BriefingComparison({
                       withPersonalData: dadosDaPessoa,
                     },
                     {
-                      onSuccess: () => {
+                      onSuccess: ({ alreadySaved }) => {
                         setPersonSaved(true)
-                        toast.success(`${nomeDaPessoa} salvo no cadastro do cliente.`)
+                        toast.success(
+                          alreadySaved
+                            ? `${nomeDaPessoa} já estava no cadastro do cliente.`
+                            : `${nomeDaPessoa} salvo no cadastro do cliente.`,
+                        )
                       },
                       onError: (error) =>
                         toast.error('Não foi possível salvar: ' + describeDatabaseError(error)),
