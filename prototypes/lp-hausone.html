@@ -6,12 +6,23 @@
   o e-mail de dono/sócio de escritório de arquitetura.
   ============================================================================
 
-  REGRA SEM EXCEÇÃO — OS SCREENSHOTS SAEM DO AMBIENTE DE DEV, COM DADO
-  SIMULADO. Captura de produção contém nome de cliente real, CPF, endereço de
-  obra e valor de contrato. Nenhuma delas vai para uma página pública. Por isso
-  as quatro molduras deste protótipo têm o miolo explicitamente VAZIO e
-  etiquetado: quem for substituir troca a moldura pela captura de DEV, nunca
-  pela da conta do escritório Fernando Costa.
+  AS CAPTURAS — REGRA SEM EXCEÇÃO, E ELA JÁ FOI CUMPRIDA
+  As quatro imagens de `prototypes/lp-hausone/` saíram do AMBIENTE DE DEV, do
+  escritório de teste `fernando-costa-teste`, onde nenhuma linha é importada:
+  cliente, projeto, contrato e parcela são todos simulados. Captura de produção
+  tem nome de cliente real, CPF, endereço de obra e valor de contrato, e não
+  entra em página pública — nem aqui, nem quando esta peça virar rota React.
+
+  Quem for refazer alguma: mesma origem, mesmo escritório de teste. O retrato
+  da conta do escritório Fernando Costa não serve, por mais bonita que a tela
+  esteja naquele dia.
+
+    01-fluxo-do-projeto.png        quadro por fase (hero)
+    02-conferencia-do-briefing.png o diff campo a campo do briefing
+    03-diario-de-obra.png          aba Obra, com visita e pendências
+    04-contas-a-receber.png        recebíveis do mês, com os totais
+
+  Todas em 2880×1800 (16:10 a 2x), capturadas em 1440×900.
 
   O QUE O E-MAIL SIGNIFICA, e isso governa toda a microcopy: a pessoa está
   dizendo "tenho interesse, me procurem". Ela NÃO recebe nada automático — nem
@@ -696,7 +707,7 @@
       }
 
       /* ======================================================================
-         MOLDURA DE SCREENSHOT — miolo vazio, de propósito. Mesmo rounded-2xl
+         MOLDURA DE SCREENSHOT — a janela em volta da captura. Mesmo rounded-2xl
          do bloco do ícone da marca, em escala de janela.
          ====================================================================== */
       .mockup {
@@ -722,26 +733,28 @@
         border-radius: 9999px;
         background-color: hsl(var(--text-faint) / 0.5);
       }
+      /*
+        O MIOLO DA JANELA É A CAPTURA. Até aqui era uma moldura vazia com grade
+        tracejada e uma etiqueta ("Screenshot 1"), porque as imagens ainda não
+        existiam. Agora existem, e saíram do AMBIENTE DE DEV, com dado simulado
+        — nunca de produção. Ver o bloco "AS CAPTURAS" no cabeçalho.
+
+        `aspect-ratio` fica no contêiner, e não só no <img>, para a altura da
+        janela ser a mesma antes e depois de a imagem carregar: sem isso cada
+        bloco do tour salta quando a captura chega, e a revelação ao rolar é
+        medida em cima de uma altura que ainda vai mudar.
+      */
       .mockup-body {
         aspect-ratio: 16 / 10;
-        display: grid;
-        place-items: center;
-        padding: 1.25rem;
-        background-image: linear-gradient(
-            to right,
-            hsl(var(--border) / 0.55) 1px,
-            transparent 1px
-          ),
-          linear-gradient(to bottom, hsl(var(--border) / 0.55) 1px, transparent 1px);
-        background-size: 2.5rem 2.5rem;
+        display: block;
+        background-color: hsl(var(--muted));
       }
-      .mockup-label {
-        border: 1px dashed hsl(var(--border));
-        border-radius: var(--radius);
-        background-color: hsl(var(--card) / 0.85);
-        padding: 1rem 1.25rem;
-        text-align: center;
-        max-width: 26rem;
+      .mockup-body img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: top left;
       }
 
       /*
@@ -1521,13 +1534,14 @@
                 <span class="ml-2 truncate text-xs text-faint">HausOne · Fluxo do Projeto</span>
               </div>
               <div class="mockup-body">
-                <figcaption class="mockup-label">
-                  <p class="t-eyebrow text-faint">Screenshot 1</p>
-                  <p class="mt-2 text-sm font-semibold">Fluxo do Projeto — quadro por fase</p>
-                  <p class="mt-1 text-xs text-muted-foreground">
-                    Proporção 16:10 · captura do ambiente de DEV, com dado simulado
-                  </p>
-                </figcaption>
+                <img
+                  src="lp-hausone/01-fluxo-do-projeto.png"
+                  width="2880"
+                  height="1800"
+                  fetchpriority="high"
+                  decoding="async"
+                  alt="Quadro do Fluxo do Projeto no HausOne, com as colunas Não iniciado, Levantamento, Briefing e Estudo preliminar, cada uma com o cartão de uma etapa e o nome do projeto embaixo."
+                />
               </div>
             </figure>
           </div>
@@ -1721,13 +1735,14 @@
                 >
               </div>
               <div class="mockup-body">
-                <figcaption class="mockup-label">
-                  <p class="t-eyebrow text-faint">Screenshot 2</p>
-                  <p class="mt-2 text-sm font-semibold">Conferência do briefing</p>
-                  <p class="mt-1 text-xs text-muted-foreground">
-                    Proporção 16:10 · captura do ambiente de DEV, com dado simulado
-                  </p>
-                </figcaption>
+                <img
+                  src="lp-hausone/02-conferencia-do-briefing.png"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Conferência do briefing: o cadastro do CRM no topo, o endereço da obra do projeto e, abaixo, cada campo que difere com o valor atual, o valor que o cliente respondeu e os botões Manter cadastro e Aplicar."
+                />
               </div>
             </figure>
           </div>
@@ -1752,13 +1767,14 @@
                 <span class="ml-2 truncate text-xs text-faint">HausOne · Diário de obra</span>
               </div>
               <div class="mockup-body">
-                <figcaption class="mockup-label">
-                  <p class="t-eyebrow text-faint">Screenshot 3</p>
-                  <p class="mt-2 text-sm font-semibold">Diário de obra</p>
-                  <p class="mt-1 text-xs text-muted-foreground">
-                    Proporção 16:10 · captura do ambiente de DEV, com dado simulado
-                  </p>
-                </figcaption>
+                <img
+                  src="lp-hausone/03-diario-de-obra.png"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Diário do projeto aberto na aba Obra: contadores de visitas e pendências e o registro de uma vistoria, com descrição, data, responsável e as duas pendências abertas naquela visita."
+                />
               </div>
             </figure>
           </div>
@@ -1781,13 +1797,14 @@
                 <span class="ml-2 truncate text-xs text-faint">HausOne · Contas a receber</span>
               </div>
               <div class="mockup-body">
-                <figcaption class="mockup-label">
-                  <p class="t-eyebrow text-faint">Screenshot 4</p>
-                  <p class="mt-2 text-sm font-semibold">Contas a receber</p>
-                  <p class="mt-1 text-xs text-muted-foreground">
-                    Proporção 16:10 · captura do ambiente de DEV, com dado simulado
-                  </p>
-                </figcaption>
+                <img
+                  src="lp-hausone/04-contas-a-receber.png"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Tela de Recebíveis: os totais de recebido, previsto e em atraso, o seletor de mês e a lista de parcelas com projeto, vencimento, valor e situação."
+                />
               </div>
             </figure>
           </div>
@@ -3232,11 +3249,11 @@
       ========================================================================
 
       CONTEÚDO
-       1. Os quatro screenshots, capturados NO AMBIENTE DE DEV, com dado
-          simulado — Fluxo do Projeto, conferência do briefing, diário de obra
-          e contas a receber. Proporção 16:10, duas densidades (1x e 2x).
-          Nenhuma captura de produção: lá há nome de cliente, CPF, endereço de
-          obra e valor de contrato.
+       1. FEITO — as quatro capturas estão em `prototypes/lp-hausone/`, tiradas
+          do ambiente de DEV, escritório de teste, 2880×1800. O que resta é
+          servi-las em formato moderno (AVIF/WebP com PNG de reserva) e numa
+          largura adequada ao telefone: hoje vai o mesmo arquivo de 2880px para
+          todo mundo, e isso é peso à toa em rede lenta. Ver o item 15.
        2. TIRAR OU TROCAR O CONTEÚDO SIMULADO. Os quatro indicadores da seção
           5-A ("O sistema hoje") e os quatro depoimentos do carrossel da 10-A
           são inventados — números que não existem, escritórios e pessoas que
@@ -3283,9 +3300,10 @@
       14. Revisão de acessibilidade com leitor de tela e verificação de
           contraste medida, não estimada, em cada par de texto/fundo das seções
           escuras.
-      15. Revisão de performance com imagem real no lugar das molduras: as
-          quatro capturas são o peso da página, e precisam de width/height,
-          loading="lazy" (menos a do hero) e formato moderno.
+      15. Performance das capturas. width/height e loading="lazy" (menos a do
+          hero, que é fetchpriority="high") já estão. Falta o formato moderno e
+          o `srcset` por largura: são ~1,1 MB de PNG hoje, e no telefone se
+          baixa a imagem de 2880px para exibir em 343px.
       16. Medir o movimento em aparelho fraco de verdade. Aqui ele foi
           conferido em navegador de mesa: a revelação e a trilha só mexem em
           transform/opacity, o ponteiro do hero está preso a
