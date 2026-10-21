@@ -251,10 +251,11 @@
     superfície BRANCA (--card) de ponta a ponta com cards em slate-50; 9 volta
     para slate-50 com cards brancos; 10 fica em slate-50 sem card. Três
     respiros distintos dentro do mesmo tema.
-  · NENHUMA BORDA DURA entre seções. Onde o tema troca, a seção que chega abre
-    com um degradê de 4rem vindo da cor da anterior (.edge-from-dark /
-    .edge-from-light). É o que as duas referências fazem e é o que impede a
-    página de parecer uma pilha de blocos.
+  · BORDA SÓLIDA entre seções (.borda-secao): 1px no --border da seção que
+    chega. A primeira versão usava uma banda de degradê de 4rem com a cor da
+    seção anterior, copiada das referências — e degradê é vocabulário delas,
+    não do sistema. O app separa tabela, cartão, lista e rodapé com uma linha
+    de 1px em --border, e a página passa a separar do mesmo jeito.
 
   ---------------------------------------------------------------------------
   OS TRÊS ESTADOS DO FORMULÁRIO — escolha e por quê
@@ -570,45 +571,20 @@
       }
 
       /* ======================================================================
-         BORDA ENTRE SEÇÕES — nenhuma. A seção que chega abre com um degradê de
-         4rem vindo da cor da anterior.
+         BORDA ENTRE SEÇÕES — linha sólida de 1px, no --border da seção que
+         CHEGA. Era uma banda de degradê de 4rem copiada das referências; saiu
+         porque degradê é vocabulário delas, não do sistema. O app separa
+         tabela, cartão, lista e rodapé com exatamente isto: uma linha de 1px
+         em --border. A LP passa a separar do mesmo jeito.
+
+         O --border vem do escopo da própria seção, então a linha troca de tom
+         junto com o tema sem uma classe condicional. Onde os dois fundos já
+         são muito diferentes (escuro contra claro), quem separa é a troca de
+         cor e a linha quase não aparece — e é na fronteira da seção 8 para a
+         9, branco contra slate-50, que ela faz todo o trabalho.
          ====================================================================== */
-      .edge-from-dark,
-      .edge-from-light,
-      .edge-from-white {
-        position: relative;
-        isolation: isolate;
-      }
-      /*
-        A BANDA TEM 4rem, E NÃO 7rem COMO EU TINHA PLANEJADO. O degradê é a cor
-        da seção ANTERIOR entrando por cima desta: numa seção clara, os
-        primeiros pixels são escuros. O padding de topo mínimo é 4,5rem
-        (clamp), então uma banda de 7rem colocaria o título da seção sobre
-        fundo quase preto com texto quase preto. Com 4rem a banda termina meia
-        rem antes do conteúdo começar, em qualquer largura, e continua grande
-        o bastante para não existir borda dura entre as seções.
-        `isolation: isolate` + z-index negativo: o degradê pinta acima do fundo
-        da seção e abaixo de todo o conteúdo dela.
-      */
-      .edge-from-dark::before,
-      .edge-from-light::before,
-      .edge-from-white::before {
-        content: '';
-        position: absolute;
-        inset: 0 0 auto 0;
-        height: 4rem;
-        pointer-events: none;
-        z-index: -1;
-      }
-      .edge-from-dark::before {
-        background: linear-gradient(to bottom, hsl(222 8% 4.5%), hsl(222 8% 4.5% / 0));
-      }
-      .edge-from-light::before {
-        background: linear-gradient(to bottom, hsl(210 40% 98%), hsl(210 40% 98% / 0));
-      }
-      /* vindo da seção 8, que roda sobre branco */
-      .edge-from-white::before {
-        background: linear-gradient(to bottom, hsl(0 0% 100%), hsl(0 0% 100% / 0));
+      .borda-secao {
+        border-top: 1px solid hsl(var(--border));
       }
 
       /* ======================================================================
@@ -1341,7 +1317,7 @@
            =================================================================== -->
       <section
         id="sistema"
-        class="sec-light edge-from-dark bg-background py-[clamp(4.5rem,9vw,8rem)]"
+        class="sec-light borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]"
       >
         <div class="mx-auto max-w-container px-5 sm:px-8">
           <div class="max-w-2xl" data-revelar>
@@ -1452,7 +1428,7 @@
            4 · AS FASES (escuro) — ocupa o lugar da faixa de métricas das
            referências. Aqui vive a assinatura da página.
            =================================================================== -->
-      <section class="sec-dark edge-from-light bg-background py-[clamp(4.5rem,9vw,8rem)]">
+      <section class="sec-dark borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]">
         <div class="mx-auto max-w-container px-5 sm:px-8">
           <div class="max-w-3xl" data-revelar>
             <h2 class="titulo-duplo t-h2">
@@ -1498,7 +1474,7 @@
       <!-- ===================================================================
            5 · O TOUR (claro) — três blocos alternados.
            =================================================================== -->
-      <section id="tour" class="sec-light edge-from-dark bg-background py-[clamp(4.5rem,9vw,8rem)]">
+      <section id="tour" class="sec-light borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]">
         <div class="mx-auto grid max-w-container gap-20 px-5 sm:px-8 lg:gap-28">
           <!-- BLOCO A -->
           <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
@@ -1602,7 +1578,7 @@
            =================================================================== -->
       <section
         id="origem"
-        class="sec-dark edge-from-light bg-background pb-[clamp(3rem,6vw,5rem)] pt-[clamp(4.5rem,9vw,8rem)]"
+        class="sec-dark borda-secao bg-background pb-[clamp(3rem,6vw,5rem)] pt-[clamp(4.5rem,9vw,8rem)]"
       >
         <div class="mx-auto max-w-container px-5 sm:px-8">
           <div class="max-w-3xl" data-revelar>
@@ -1732,7 +1708,7 @@
            =================================================================== -->
       <section
         id="seguranca"
-        class="sec-light sec-light-inverted edge-from-dark py-[clamp(4.5rem,9vw,8rem)]"
+        class="sec-light sec-light-inverted borda-secao py-[clamp(4.5rem,9vw,8rem)]"
       >
         <div class="mx-auto max-w-container px-5 sm:px-8">
           <div class="max-w-2xl" data-revelar>
@@ -1794,7 +1770,7 @@
            de nó + linha da trilha da seção 4.
            =================================================================== -->
       <section
-        class="sec-light edge-from-white bg-background py-[clamp(4.5rem,9vw,8rem)]"
+        class="sec-light borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]"
       >
         <div class="mx-auto max-w-container px-5 sm:px-8">
           <h2 class="t-h2 max-w-2xl" data-revelar>Como começa</h2>
@@ -1944,7 +1920,7 @@
            =================================================================== -->
       <section
         id="interesse"
-        class="sec-dark edge-from-light bg-background py-[clamp(4.5rem,9vw,8rem)]"
+        class="sec-dark borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]"
       >
         <div class="mx-auto max-w-container px-5 sm:px-8">
           <!--
