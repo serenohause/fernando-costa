@@ -1,0 +1,841 @@
+<!doctype html>
+<!--
+  ============================================================================
+  PROTÓTIPO · "ACESSAR COMO" (impersonação de colaborador)
+  Fonte da verdade visual. Diretor assume a sessão de um colaborador do mesmo
+  escritório. Só Diretor, só em ambiente de desenvolvimento.
+  ============================================================================
+
+  AS TRÊS SEÇÕES DESTA PÁGINA
+    1 · Gatilho na tela Equipe — a linha do colaborador com "Acessar como" no
+        menu ⋮. Duas linhas lado a lado: uma com login (ação disponível) e uma
+        "sem login" (ação desabilitada, com o motivo escrito).
+    2 · Diálogo de confirmação — nomeia as três consequências antes de assumir.
+    3 · Banner de sessão assumida — dentro da moldura do app (sidebar +
+        cabeçalho + conteúdo), para dar para julgar como ele convive com o
+        layout.
+
+  ---------------------------------------------------------------------------
+  PLANO DE DESIGN
+  ---------------------------------------------------------------------------
+
+  COR — nenhum hex inventado. Tudo sai dos tokens de src/index.css, repetidos
+  aqui em :root/.dark com os MESMOS valores HSL:
+    --background  210 40% 98%     página (slate-50; a página não é branca)
+    --card        0 0% 100%       cartão, sidebar, cabeçalho
+    --primary     222.2 47.4% 11.2%  ação principal (slate-900)
+    --border      214.3 31.8% 91.4%
+    --text-soft / --muted-foreground / --text-faint   três degraus de apoio
+
+  A COR DA SESSÃO ASSUMIDA É VIOLETA (violet-700 sólido, violet-100 e
+  violet-300 por cima). Não é cor nova no produto: o crachá do colaborador na
+  tela Equipe já é `from-violet-100 to-violet-200` com `text-violet-600`
+  (Collaborators.tsx), e no StatusBadge violeta é FASE, nunca erro. Vermelho
+  (`--destructive`) e âmbar estavam descartados: aqui vermelho é "Remover" e
+  "Em atraso", âmbar é "Em aprovação"/espera. Usar um dos dois faria a sessão
+  assumida parecer defeito — exatamente o que o banner não pode parecer.
+  O violeta é IDÊNTICO nos dois temas: é a cor de um MODO, e modo que muda de
+  cor junto com o tema deixa de ser reconhecível.
+
+  TIPOGRAFIA — nenhuma webfont, de propósito. O app não carrega nenhuma: o
+  `font-family: Inter` do projeto-original está comentado (index.css:7) e o
+  index.html não tem link de fonte. Vale o stack padrão do Tailwind. Três
+  papéis, todos já existentes no produto:
+    display     text-2xl font-bold tracking-tight      (PageHeader)
+    corpo       text-sm / text-base                    (texto e descrição)
+    utilitária  text-xs font-semibold uppercase tracking-wider
+                (cabeçalho da DataTable) → reaproveitada no rótulo
+                "SESSÃO ASSUMIDA" do banner
+
+  ASSINATURA — O CRACHÁ DA EQUIPE SOBE PARA O TOPO DA TELA. O quadrado
+  `rounded-xl` violeta com a inicial, que hoje identifica a pessoa na lista de
+  Equipe, é o mesmo objeto que aparece no diálogo e dentro da faixa (lá em
+  negativo: violet-100 sobre violet-700). O gesto inteiro — escolher na lista,
+  confirmar, assumir — é um crachá trocando de lugar. Reforço: moldura violeta
+  de 2px na janela inteira enquanto a sessão durar.
+
+  ---------------------------------------------------------------------------
+  PARA QUEM FOR IMPLEMENTAR (referência de layout do AppLayout)
+  ---------------------------------------------------------------------------
+  O banner é a PRIMEIRA coisa da árvore e empurra todo o shell para baixo:
+    banner   h-14 (3,5rem), fixed top-0 left-0 right-0, z-index acima de
+             --z-header (100) e abaixo de qualquer overlay (o menor é 40000)
+    aside    top-0 → top-14,  h-full → h-[calc(100%-3.5rem)]
+    header   sticky top-0 → top-14
+    main     height: calc(100vh - 4rem) → calc(100vh - 7.5rem)
+  A altura é FIXA (h-14) e não `py-2`, para o deslocamento ser um número só.
+  Com py-2 o conteúdo mediria 3,25rem e cada offset viraria uma conta.
+  Uma linha só em qualquer largura: o nome trunca, o rótulo "Sua conta" some
+  abaixo de lg e o texto do botão encurta para "Voltar" abaixo de sm. Isso
+  mantém um único deslocamento vertical (3,5rem) em todos os breakpoints.
+
+  Convenções do protótipo, para não serem lidas como divergência:
+  · Tailwind aqui é o CDN do v3; o projeto usa v4. Onde o React escreve
+    `shadow-xs`/`outline-hidden` (nomes do v4), aqui está `shadow-sm`/
+    `outline-none` — mesmo valor renderizado.
+  · Os menus ⋮ aparecem abertos, os dois ao mesmo tempo, porque o pedido é
+    comparar os dois estados. No app é um DropdownMenu do Radix, em portal.
+  · Os breakpoints da moldura do app (seção 3) respondem à largura da JANELA,
+    não à do quadro desenhado — em telas largas o quadro mostra o shell de
+    desktop; em celular, o shell de celular (hambúrguer + navegação inferior).
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Protótipo · Acessar como colaborador · HausOne</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              background: 'hsl(var(--background))',
+              foreground: 'hsl(var(--foreground))',
+              card: 'hsl(var(--card))',
+              popover: 'hsl(var(--popover))',
+              primary: {
+                DEFAULT: 'hsl(var(--primary))',
+                foreground: 'hsl(var(--primary-foreground))',
+              },
+              secondary: 'hsl(var(--secondary))',
+              muted: {
+                DEFAULT: 'hsl(var(--muted))',
+                foreground: 'hsl(var(--muted-foreground))',
+              },
+              accent: 'hsl(var(--accent))',
+              destructive: 'hsl(var(--destructive))',
+              border: 'hsl(var(--border))',
+              input: 'hsl(var(--input))',
+              ring: 'hsl(var(--ring))',
+              elevated: 'hsl(var(--elevated))',
+              soft: 'hsl(var(--text-soft))',
+              faint: 'hsl(var(--text-faint))',
+              sidebar: {
+                DEFAULT: 'hsl(var(--sidebar-background))',
+                foreground: 'hsl(var(--sidebar-foreground))',
+                accent: 'hsl(var(--sidebar-accent))',
+                border: 'hsl(var(--sidebar-border))',
+                primary: 'hsl(var(--sidebar-primary))',
+              },
+            },
+            borderRadius: {
+              sm: 'calc(var(--radius) - 4px)',
+              md: 'calc(var(--radius) - 2px)',
+              lg: 'var(--radius)',
+              xl: 'calc(var(--radius) + 4px)',
+            },
+          },
+        },
+      }
+    </script>
+
+    <style>
+      /* Valores idênticos aos de src/index.css. Só os tokens usados nesta tela. */
+      :root {
+        --background: 210 40% 98%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --popover: 0 0% 100%;
+        --primary: 222.2 47.4% 11.2%;
+        --primary-foreground: 210 40% 98%;
+        --secondary: 210 40% 96.1%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --accent: 210 40% 96.1%;
+        --destructive: 0 84.2% 60.2%;
+        --border: 214.3 31.8% 91.4%;
+        --input: 214.3 31.8% 91.4%;
+        --ring: 222.2 84% 4.9%;
+        --radius: 0.5rem;
+        --sidebar-background: 0 0% 100%;
+        --sidebar-foreground: 215.4 16.3% 36%;
+        --sidebar-primary: 222.2 47.4% 11.2%;
+        --sidebar-accent: 210 40% 94%;
+        --sidebar-border: 214.3 31.8% 91.4%;
+        --elevated: 210 40% 98%;
+        --text-soft: 215.3 19.3% 34.5%;
+        --text-faint: 215 20.2% 65.1%;
+      }
+
+      .dark {
+        --background: 222 8% 4.5%;
+        --foreground: 210 14% 96%;
+        --card: 222 8% 8%;
+        --popover: 222 8% 10%;
+        --primary: 210 14% 96%;
+        --primary-foreground: 222 10% 10%;
+        --secondary: 222 7% 14%;
+        --muted: 222 7% 13%;
+        --muted-foreground: 215 9% 67%;
+        --accent: 222 7% 16%;
+        --destructive: 0 62% 48%;
+        --border: 222 8% 20%;
+        --input: 222 8% 22%;
+        --ring: 213 12% 70%;
+        --sidebar-background: 222 8% 6%;
+        --sidebar-foreground: 215 10% 78%;
+        --sidebar-primary: 210 14% 96%;
+        --sidebar-accent: 222 7% 14%;
+        --sidebar-border: 222 8% 17%;
+        --elevated: 222 8% 12%;
+        --text-soft: 215 11% 81%;
+        --text-faint: 215 8% 55%;
+      }
+
+      body {
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
+      }
+
+      /* Foco de teclado visível em tudo, com o --ring do tema. */
+      :focus-visible {
+        outline: 2px solid hsl(var(--ring));
+        outline-offset: 2px;
+      }
+      /* Dentro da faixa violeta o --ring escuro desapareceria. */
+      .faixa-assumida :focus-visible {
+        outline-color: #ede9fe; /* violet-100 */
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body class="antialiased">
+    <!-- ================================================================== -->
+    <!-- CHROME DO PROTÓTIPO — não faz parte do produto. Neutro de propósito -->
+    <!-- para não disputar atenção com as telas desenhadas abaixo.          -->
+    <!-- ================================================================== -->
+    <header class="border-b border-border bg-card">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <p class="text-[10px] text-muted-foreground tracking-[0.3em]">HAUSONE · PROTÓTIPO</p>
+          <h1 class="text-lg sm:text-xl font-bold tracking-tight truncate">
+            Acessar como colaborador
+          </h1>
+        </div>
+        <button
+          id="alternar-tema"
+          type="button"
+          class="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-md text-sm font-medium border border-input bg-card text-soft shadow-sm hover:bg-accent transition-colors shrink-0"
+        >
+          <i data-lucide="moon" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">Tema escuro</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-12 sm:space-y-16">
+      <!-- ================================================================ -->
+      <!-- SEÇÃO 1 · GATILHO NA TELA EQUIPE                                 -->
+      <!-- ================================================================ -->
+      <section>
+        <div class="mb-6">
+          <p class="text-xs font-semibold uppercase tracking-wider text-faint">Seção 1</p>
+          <h2 class="text-xl font-bold tracking-tight mt-1">Gatilho na tela Equipe</h2>
+          <p class="text-sm text-muted-foreground mt-1 max-w-2xl">
+            A ação entra no menu ⋮ que já existe na linha do colaborador, entre
+            <span class="text-soft">Permissões</span> e <span class="text-soft">Remover</span>.
+            Quem não tem login não tem sessão para assumir — a ação aparece desabilitada com o
+            motivo escrito embaixo.
+          </p>
+        </div>
+
+        <!-- Fragmento da tela Equipe: PageHeader + DataTable -->
+        <div class="rounded-xl border border-border bg-background p-4 sm:p-6 lg:p-8">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+            <div>
+              <h3 class="text-2xl font-bold text-foreground tracking-tight">Equipe</h3>
+              <p class="text-muted-foreground mt-1">Gerencie sua equipe e permissões</p>
+            </div>
+            <button
+              type="button"
+              class="inline-flex items-center justify-center gap-2 h-11 md:h-9 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground shadow-lg shadow-slate-900/20 hover:bg-primary/90 transition-all self-start"
+            >
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              Novo Membro
+            </button>
+          </div>
+
+          <div>
+            <div class="rounded-xl bg-card shadow-sm overflow-hidden">
+              <div class="overflow-x-auto w-full">
+                <table class="w-full min-w-full caption-bottom text-sm">
+                  <thead class="[&_tr]:border-b">
+                    <tr class="bg-elevated border-b border-border">
+                      <th
+                        class="h-10 px-2 text-left align-middle text-xs font-semibold text-soft uppercase tracking-wider whitespace-nowrap"
+                      >
+                        Colaborador
+                      </th>
+                      <th
+                        class="h-10 px-2 text-left align-middle text-xs font-semibold text-soft uppercase tracking-wider whitespace-nowrap"
+                      >
+                        E-mail
+                      </th>
+                      <th
+                        class="h-10 px-2 text-left align-middle text-xs font-semibold text-soft uppercase tracking-wider whitespace-nowrap"
+                      >
+                        Carga Horária
+                      </th>
+                      <th
+                        class="h-10 px-2 text-left align-middle text-xs font-semibold text-soft uppercase tracking-wider whitespace-nowrap"
+                      >
+                        Status
+                      </th>
+                      <th class="h-10 px-2 text-left align-middle"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Linha 1 · colaboradora com login: ação disponível -->
+                    <tr class="border-b border-border transition-colors hover:bg-elevated">
+                      <td class="p-2 py-4 align-middle">
+                        <div class="flex items-center gap-3">
+                          <span
+                            class="inline-flex items-center justify-center shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-violet-100 to-violet-200 text-violet-600 font-semibold"
+                            >L</span
+                          >
+                          <div>
+                            <p class="font-medium text-foreground whitespace-nowrap">Laura Ferraz</p>
+                            <p class="text-sm text-muted-foreground">Arquiteto</p>
+                            <p class="text-xs text-faint">Projetos</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="p-2 py-4 align-middle">
+                        <div class="flex items-center gap-2 text-sm text-soft whitespace-nowrap">
+                          <i data-lucide="mail" class="w-4 h-4 text-faint"></i>
+                          laura.ferraz@fernandocosta.arq.br
+                        </div>
+                      </td>
+                      <td class="p-2 py-4 align-middle">
+                        <div class="flex items-center gap-2 text-sm text-soft whitespace-nowrap">
+                          <i data-lucide="clock" class="w-4 h-4 text-faint"></i>
+                          40h/semana
+                        </div>
+                      </td>
+                      <td class="p-2 py-4 align-middle">
+                        <span
+                          class="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900"
+                          >Ativo</span
+                        >
+                      </td>
+                      <td class="p-2 py-4 align-middle">
+                        <button
+                          type="button"
+                          aria-label="Ações de Laura Ferraz"
+                          class="inline-flex items-center justify-center h-8 w-8 rounded-md text-foreground bg-accent transition-colors"
+                        >
+                          <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                        </button>
+                      </td>
+                    </tr>
+
+                    <!-- Linha 2 · colaborador sem login: ação desabilitada -->
+                    <tr class="transition-colors hover:bg-elevated">
+                      <td class="p-2 py-4 align-middle">
+                        <div class="flex items-center gap-3">
+                          <span
+                            class="inline-flex items-center justify-center shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-violet-100 to-violet-200 text-violet-600 font-semibold"
+                            >C</span
+                          >
+                          <div>
+                            <p class="font-medium text-foreground whitespace-nowrap">Caio Nunes</p>
+                            <p class="text-sm text-muted-foreground">Estagiário</p>
+                            <p class="text-xs text-faint">Projetos</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="p-2 py-4 align-middle">
+                        <div class="flex items-center gap-2 text-sm text-soft whitespace-nowrap">
+                          <i data-lucide="mail" class="w-4 h-4 text-faint"></i>
+                          caio.nunes@fernandocosta.arq.br
+                          <span
+                            class="text-xs text-muted-foreground border border-border rounded-full px-2 py-0.5"
+                            >sem login</span
+                          >
+                        </div>
+                      </td>
+                      <td class="p-2 py-4 align-middle">
+                        <div class="flex items-center gap-2 text-sm text-soft whitespace-nowrap">
+                          <i data-lucide="clock" class="w-4 h-4 text-faint"></i>
+                          20h/semana
+                        </div>
+                      </td>
+                      <td class="p-2 py-4 align-middle">
+                        <span
+                          class="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900"
+                          >Ativo</span
+                        >
+                      </td>
+                      <td class="p-2 py-4 align-middle">
+                        <button
+                          type="button"
+                          aria-label="Ações de Caio Nunes"
+                          class="inline-flex items-center justify-center h-8 w-8 rounded-md text-foreground bg-accent transition-colors"
+                        >
+                          <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          <!--
+            OS DOIS MENUS ⋮, ABERTOS LADO A LADO. No app é um DropdownMenu do
+            Radix em portal, ancorado ao ⋮ da própria linha (é assim que
+            Editar/Permissões/Remover já funcionam hoje).
+
+            Aqui eles ficam legendados abaixo da tabela, e não flutuando sobre
+            ela, por um motivo de medida: a linha da Equipe tem 5,5rem e o menu
+            tem 8,5rem — dois menus ancorados se sobreporiam, e o estado que
+            este protótipo existe para comparar ficaria escondido atrás do
+            outro. O ⋮ das duas linhas está desenhado no estado aberto
+            (`bg-accent`) para manter visível de onde cada menu sai.
+          -->
+          <div class="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-faint mb-2">
+                Menu de Laura Ferraz · com login
+              </p>
+              <div class="rounded-md border border-border bg-popover p-1 shadow-lg">
+                <div class="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground">
+                  <i data-lucide="pencil" class="w-4 h-4"></i> Editar
+                </div>
+                <div class="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground">
+                  <i data-lucide="lock" class="w-4 h-4"></i> Permissões
+                </div>
+                <div
+                  class="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 font-medium"
+                >
+                  <i data-lucide="user-check" class="w-4 h-4"></i> Acessar como
+                </div>
+                <div
+                  class="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-rose-600 dark:text-rose-400"
+                >
+                  <i data-lucide="trash-2" class="w-4 h-4"></i> Remover
+                </div>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-faint mb-2">
+                Menu de Caio Nunes · sem login
+              </p>
+              <div class="rounded-md border border-border bg-popover p-1 shadow-lg">
+                <div class="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground">
+                  <i data-lucide="pencil" class="w-4 h-4"></i> Editar
+                </div>
+                <div class="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground">
+                  <i data-lucide="lock" class="w-4 h-4"></i> Permissões
+                </div>
+                <div
+                  class="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground opacity-50"
+                >
+                  <i data-lucide="user-check" class="w-4 h-4"></i> Acessar como
+                </div>
+                <p class="px-2 pb-1.5 pt-0.5 text-xs text-muted-foreground leading-snug">
+                  Caio Nunes não tem login no sistema. Defina uma senha provisória em
+                  <span class="text-soft">Editar</span> para liberar o acesso.
+                </p>
+                <div
+                  class="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-rose-600 dark:text-rose-400"
+                >
+                  <i data-lucide="trash-2" class="w-4 h-4"></i> Remover
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================ -->
+      <!-- SEÇÃO 2 · DIÁLOGO DE CONFIRMAÇÃO                                 -->
+      <!-- ================================================================ -->
+      <section>
+        <div class="mb-6">
+          <p class="text-xs font-semibold uppercase tracking-wider text-faint">Seção 2</p>
+          <h2 class="text-xl font-bold tracking-tight mt-1">Diálogo de confirmação</h2>
+          <p class="text-sm text-muted-foreground mt-1 max-w-2xl">
+            AlertDialog, as medidas do componente que já existe:
+            <span class="text-soft">max-w-lg</span>, <span class="text-soft">p-4 sm:p-6</span>,
+            cancelar em <span class="text-soft">outline</span> e confirmar em
+            <span class="text-soft">primary</span>. Confirmar não é vermelho: nada é destruído, e
+            vermelho aqui leria como erro iminente.
+          </p>
+        </div>
+
+        <!-- Overlay do app (bg-black/80) com o diálogo em cima -->
+        <!--
+          O ENVELOPE É BLOCO, NÃO FLEX, e a centragem é `mx-auto`. No app o
+          diálogo é `fixed` e centrado por translate; aqui ele precisa morar
+          dentro da página. Como flex-item ele ganharia `min-width: auto`, cuja
+          mínima automática é a largura do e-mail da pessoa em `truncate`
+          (`nowrap`): a caixa ia para 408px numa tela de 375 e estourava a
+          página. Bloco + `mx-auto` honra a largura e deixa o `truncate` fazer o
+          que ele existe para fazer.
+
+          `w-[calc(100%_-_1rem)]` com sublinhados é a MESMA largura que o
+          AlertDialogContent escreve hoje (`w-[calc(100%-1rem)]`): o CDN do
+          Tailwind v3 deste protótipo não normaliza `100%-1rem` e descartaria a
+          regra. O v4 do projeto normaliza sozinho, e lá a classe fica como está
+          no componente.
+        -->
+        <div class="rounded-xl bg-black/80 py-10 sm:py-14">
+          <div
+            role="alertdialog"
+            aria-labelledby="titulo-confirmacao"
+            aria-describedby="descricao-confirmacao"
+            class="mx-auto w-[calc(100%_-_1rem)] sm:w-full max-w-lg grid gap-4 border border-border bg-card p-4 sm:p-6 shadow-lg rounded-lg"
+          >
+            <div class="flex flex-col space-y-2 text-center sm:text-left">
+              <h3 id="titulo-confirmacao" class="text-lg font-semibold">
+                Acessar o sistema como Laura Ferraz?
+              </h3>
+              <p id="descricao-confirmacao" class="text-sm text-muted-foreground">
+                Sua sessão de Diretor fica guardada e você entra na dela. Três coisas mudam na hora:
+              </p>
+            </div>
+
+            <!--
+              O crachá da Equipe, o mesmo objeto da linha da tabela.
+
+              O `min-w-0` DESTA linha não é enfeite e precisa ir junto para o
+              React: AlertDialogContent é `grid`, e item de grade carrega mínimo
+              automático igual ao próprio min-content. Com o e-mail da pessoa em
+              `truncate` (ou seja, `nowrap`), esse mínimo vira a largura inteira
+              do endereço — medido: a caixa ia a 392px dentro de um diálogo de
+              311px e levava a página junto. O `min-w-0` do bloco de texto lá
+              dentro resolve o encolhimento do flex, não este.
+            -->
+            <div class="min-w-0 flex items-center gap-3 rounded-lg border border-border bg-elevated p-3">
+              <span
+                class="inline-flex items-center justify-center shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-violet-100 to-violet-200 text-violet-600 font-semibold"
+                >L</span
+              >
+              <div class="min-w-0">
+                <p class="font-medium text-foreground truncate">Laura Ferraz</p>
+                <p class="text-xs text-muted-foreground truncate">
+                  Arquiteto · Projetos · laura.ferraz@fernandocosta.arq.br
+                </p>
+              </div>
+            </div>
+
+            <!-- AS TRÊS CONSEQUÊNCIAS, nomeadas uma por uma -->
+            <ul class="space-y-3">
+              <li class="flex gap-3">
+                <i data-lucide="eye" class="w-4 h-4 mt-0.5 shrink-0 text-violet-600 dark:text-violet-400"></i>
+                <p class="text-sm text-soft">
+                  Você passa a ver o sistema exatamente como ela: os menus dela, os dados dela. O que
+                  a permissão dela não abre, você também não abre.
+                </p>
+              </li>
+              <li class="flex gap-3">
+                <i data-lucide="pencil" class="w-4 h-4 mt-0.5 shrink-0 text-violet-600 dark:text-violet-400"></i>
+                <p class="text-sm text-soft">
+                  Tudo que você escrever fica gravado no nome dela. Tarefa, diário de projeto,
+                  contrato: o histórico vai dizer Laura Ferraz, não você.
+                </p>
+              </li>
+              <li class="flex gap-3">
+                <i data-lucide="undo-2" class="w-4 h-4 mt-0.5 shrink-0 text-violet-600 dark:text-violet-400"></i>
+                <p class="text-sm text-soft">
+                  A volta é um clique na faixa do topo. Não precisa digitar senha de novo.
+                </p>
+              </li>
+            </ul>
+
+            <p class="flex items-start gap-2 text-xs text-muted-foreground">
+              <i data-lucide="terminal" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+              Disponível só para o Diretor e só no ambiente de desenvolvimento.
+            </p>
+
+            <div class="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+              <button
+                type="button"
+                class="mt-2 sm:mt-0 inline-flex items-center justify-center gap-2 h-11 md:h-9 px-4 py-2 rounded-md text-sm font-medium border border-input bg-background text-foreground shadow-sm hover:bg-accent transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 h-11 md:h-9 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+              >
+                <i data-lucide="user-check" class="w-4 h-4"></i>
+                Acessar como Laura
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================ -->
+      <!-- SEÇÃO 3 · BANNER DE SESSÃO ASSUMIDA, DENTRO DA MOLDURA DO APP     -->
+      <!-- ================================================================ -->
+      <section>
+        <div class="mb-6">
+          <p class="text-xs font-semibold uppercase tracking-wider text-faint">Seção 3</p>
+          <h2 class="text-xl font-bold tracking-tight mt-1">Banner de sessão assumida</h2>
+          <p class="text-sm text-muted-foreground mt-1 max-w-2xl">
+            Faixa fixa no topo, acima da sidebar e do cabeçalho — a sidebar também mudou, porque os
+            menus agora são os dela. Violeta sólido: nada mais no produto se parece com isso, e
+            violeta aqui não é erro (vermelho é "Remover", âmbar é "em aprovação"). A moldura de 2px
+            segura a janela inteira enquanto a sessão durar.
+          </p>
+        </div>
+
+        <!-- Moldura da janela: borda violeta de 2px nas quatro bordas -->
+        <div
+          class="rounded-xl overflow-hidden border-2 border-violet-700 bg-background shadow-sm"
+        >
+          <!-- ============ A FAIXA ============ -->
+          <div
+            class="faixa-assumida h-14 bg-violet-700 text-violet-50 px-3 sm:px-4 lg:px-6 flex items-center gap-3"
+          >
+            <!-- O crachá da Equipe, agora em negativo -->
+            <span
+              class="inline-flex items-center justify-center shrink-0 w-8 h-8 rounded-xl bg-violet-100 text-violet-700 text-sm font-semibold"
+              >L</span
+            >
+
+            <div class="min-w-0 flex-1">
+              <!--
+                violet-200 e não violet-300: sobre violet-700 o 300 dá 3,86:1 e
+                este rótulo tem 12px, que exige 4,5:1. O 200 dá 5,13:1.
+              -->
+              <p
+                class="text-xs font-semibold uppercase tracking-wider text-violet-200 whitespace-nowrap"
+              >
+                Sessão assumida
+              </p>
+              <!--
+                O QUE ENCURTA NO CELULAR É A FRASE, NUNCA O NOME. Com a frase
+                inteira numa tela de 390px o `truncate` comia exatamente a
+                informação que a faixa existe para dar ("Você está usando o
+                sistem…"). Abaixo de sm sobra "Laura Ferraz · Arquiteto", e quem
+                diz o que isso significa é o rótulo da linha de cima.
+              -->
+              <p class="text-sm truncate">
+                <span class="hidden sm:inline">Você está usando o sistema como </span>
+                <span class="font-semibold">Laura Ferraz</span>
+                <span class="text-violet-200">· Arquiteto</span>
+              </p>
+            </div>
+
+            <p class="hidden lg:block text-xs text-violet-200 text-right shrink-0 leading-snug">
+              Sua conta<br /><span class="text-violet-50">Fernando Costa · Diretor</span>
+            </p>
+
+            <button
+              type="button"
+              class="shrink-0 inline-flex items-center justify-center gap-2 h-9 px-3 sm:px-4 rounded-md text-sm font-medium bg-violet-50 text-violet-700 hover:bg-white transition-colors"
+            >
+              <i data-lucide="undo-2" class="w-4 h-4"></i>
+              <span class="hidden sm:inline">Voltar para minha conta</span>
+              <span class="sm:hidden">Voltar</span>
+            </button>
+          </div>
+
+          <!-- ============ O SHELL DO APP, ABAIXO DA FAIXA ============ -->
+          <div class="flex min-h-[26rem]">
+            <!-- Sidebar (w-72), só a partir de lg, como no AppLayout -->
+            <aside class="hidden lg:flex w-72 shrink-0 flex-col bg-sidebar border-r border-sidebar-border">
+              <div
+                class="h-16 flex items-center justify-center px-6 border-b border-sidebar-border"
+              >
+                <div class="text-center w-full min-w-0 py-2">
+                  <p
+                    class="font-light text-foreground text-lg tracking-[0.15em] leading-tight uppercase truncate"
+                  >
+                    Fernando Costa
+                  </p>
+                  <p class="text-[10px] text-muted-foreground tracking-[0.3em] mt-1">HAUSONE</p>
+                </div>
+              </div>
+
+              <!-- Os menus são os DELA: Arquiteto não vê CRM nem Financeiro -->
+              <nav class="flex-1 px-4 py-6 space-y-1">
+                <div
+                  class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium bg-sidebar-primary text-primary-foreground shadow-lg shadow-slate-900/20"
+                >
+                  <i data-lucide="check-square" class="w-5 h-5"></i>
+                  Minhas Atividades
+                  <i data-lucide="chevron-right" class="w-4 h-4 ml-auto"></i>
+                </div>
+                <div
+                  class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-sidebar-foreground"
+                >
+                  <i data-lucide="folder-kanban" class="w-5 h-5 text-faint"></i>
+                  Projetos
+                </div>
+                <div
+                  class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-sidebar-foreground"
+                >
+                  <i data-lucide="book-open" class="w-5 h-5 text-faint"></i>
+                  Diário do Projeto
+                </div>
+              </nav>
+
+              <!-- O bloco de usuário mostra ELA, com a borda violeta do modo -->
+              <div class="p-4 border-t border-sidebar-border">
+                <div
+                  class="mb-3 flex items-center gap-3 px-4 py-2 rounded-xl border border-violet-300 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/40"
+                >
+                  <span
+                    class="inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-full bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-200 text-sm font-semibold"
+                    >L</span
+                  >
+                  <span class="min-w-0">
+                    <span class="block text-sm font-medium text-foreground truncate"
+                      >Laura Ferraz</span
+                    >
+                    <span class="block text-xs text-violet-700 dark:text-violet-300 truncate"
+                      >Sessão assumida</span
+                    >
+                  </span>
+                </div>
+                <div
+                  class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-sidebar-foreground"
+                >
+                  <i data-lucide="log-out" class="w-4 h-4"></i>
+                  Sair
+                </div>
+              </div>
+            </aside>
+
+            <!-- Conteúdo -->
+            <div class="flex-1 min-w-0 flex flex-col">
+              <!-- Cabeçalho h-16 -->
+              <header
+                class="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-8 shrink-0"
+              >
+                <button
+                  type="button"
+                  aria-label="Abrir menu"
+                  class="lg:hidden inline-flex items-center justify-center p-2 rounded-lg hover:bg-accent transition-colors"
+                >
+                  <i data-lucide="menu" class="w-5 h-5 text-soft"></i>
+                </button>
+                <div class="flex-1"></div>
+                <!--
+                  OS ATALHOS DO CABEÇALHO TAMBÉM SÃO OS DELA. QuickActions troca
+                  de ícone por função: Arquiteto recebe "Minhas Atividades"
+                  (CheckSquare) e "Fluxo do Projeto" (Columns). O Diretor
+                  receberia TrendingUp, do Painel Executivo — ele não está aqui
+                  justamente porque a sessão não é dele.
+                -->
+                <div class="flex items-center gap-2 text-soft">
+                  <span class="inline-flex items-center justify-center h-9 w-9 rounded-md">
+                    <i data-lucide="sun" class="w-5 h-5"></i>
+                  </span>
+                  <span class="inline-flex items-center justify-center h-9 w-9 rounded-md">
+                    <i data-lucide="search" class="w-5 h-5"></i>
+                  </span>
+                  <span class="inline-flex items-center justify-center h-9 w-9 rounded-md">
+                    <i data-lucide="check-square" class="w-5 h-5"></i>
+                  </span>
+                  <span class="inline-flex items-center justify-center h-9 w-9 rounded-md">
+                    <i data-lucide="columns" class="w-5 h-5"></i>
+                  </span>
+                </div>
+              </header>
+
+              <!-- Página -->
+              <div class="p-3 sm:p-4 lg:p-8 flex-1">
+                <p class="text-xs text-muted-foreground mb-6">Início / Minhas Atividades</p>
+
+                <div class="mb-8">
+                  <h3 class="text-2xl font-bold text-foreground tracking-tight">
+                    Minhas Atividades
+                  </h3>
+                  <p class="text-muted-foreground mt-1">Suas tarefas e prazos da semana</p>
+                </div>
+
+                <!--
+                  A consequência (b) aparecendo na tela, e não só no diálogo: o
+                  responsável que o sistema preenche é ELA.
+                -->
+                <div class="rounded-xl border border-border bg-card shadow-sm p-4 sm:p-6">
+                  <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="font-medium text-foreground">
+                        Revisar planta do pavimento térreo — Residência Albuquerque
+                      </p>
+                      <p class="text-sm text-muted-foreground mt-1">Entrega em 23/10 · Projetos</p>
+                    </div>
+                    <span
+                      class="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900 self-start"
+                      >Em execução</span
+                    >
+                  </div>
+                  <div
+                    class="mt-4 pt-4 border-t border-border flex items-center gap-2 text-sm text-soft"
+                  >
+                    <i data-lucide="user-round" class="w-4 h-4 text-faint"></i>
+                    Responsável: <span class="font-medium text-foreground">Laura Ferraz</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Navegação inferior de celular (md:hidden, como no AppLayout) -->
+              <nav class="md:hidden border-t border-border bg-card shrink-0">
+                <div class="flex items-center justify-around h-16">
+                  <span class="flex flex-col items-center justify-center flex-1 text-faint">
+                    <i data-lucide="layout-dashboard" class="w-6 h-6 mb-1"></i>
+                    <span class="text-xs">Início</span>
+                  </span>
+                  <span class="flex flex-col items-center justify-center flex-1 text-foreground">
+                    <i data-lucide="check-square" class="w-6 h-6 mb-1"></i>
+                    <span class="text-xs">Tarefas</span>
+                  </span>
+                  <span class="flex flex-col items-center justify-center flex-1 text-faint">
+                    <i data-lucide="folder-kanban" class="w-6 h-6 mb-1"></i>
+                    <span class="text-xs">Projetos</span>
+                  </span>
+                </div>
+              </nav>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-sm text-muted-foreground mt-4 max-w-2xl">
+          No celular a faixa continua em uma linha só: o nome trunca, "Sua conta" desaparece e o
+          botão encurta para <span class="text-soft">Voltar</span>. Assim o shell inteiro desce
+          sempre os mesmos 3,5rem, em qualquer largura.
+        </p>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      lucide.createIcons()
+
+      /* Única interatividade: alternar o tema, porque a faixa violeta precisa
+         ser julgada nos dois temas em que o app roda. */
+      const botao = document.getElementById('alternar-tema')
+      botao.addEventListener('click', () => {
+        const escuro = document.documentElement.classList.toggle('dark')
+        botao.innerHTML = escuro
+          ? '<i data-lucide="sun" class="w-4 h-4"></i><span class="hidden sm:inline">Tema claro</span>'
+          : '<i data-lucide="moon" class="w-4 h-4"></i><span class="hidden sm:inline">Tema escuro</span>'
+        lucide.createIcons()
+      })
+    </script>
+  </body>
+</html>

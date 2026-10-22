@@ -515,3 +515,14 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Edge Function de "Acessar como" (0109) - SO NO PROJETO DE DEV.
+#
+# A funcao devolve uma credencial de login completa do colaborador alvo, e por
+# isso ela tem uma fechadura que nao depende de onde esta publicada: o segredo
+# IMPERSONATION_ENABLED. Sem ele a funcao recusa toda requisicao, mesmo que
+# alguem a publique em producao por engano.
+
+[functions.impersonate-collaborator]
+enabled = true
+verify_jwt = true

@@ -15,6 +15,8 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import AvatarPicture from '@/features/profile/components/AvatarPicture'
+import ImpersonationBanner from '@/features/impersonation/components/ImpersonationBanner'
+import { useAcessarComoAtivo } from '@/features/impersonation/hooks'
 import Breadcrumb from '@/components/shared/Breadcrumb'
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import LoadingPage from '@/components/shared/LoadingPage'
@@ -60,12 +62,14 @@ function TabNavigationContent({
 }) {
   const { scrollContainerRef } = useTabNavigation()
   const queryClient = useQueryClient()
+  /* A faixa de sessao assumida empurra o shell inteiro 3,5rem para baixo. */
+  const acessarComo = useAcessarComoAtivo()
 
   return (
     <main
       ref={scrollContainerRef}
       className="p-3 sm:p-4 lg:p-8 pb-24 md:pb-8 overscroll-none overflow-y-auto overflow-x-hidden"
-      style={{ height: 'calc(100vh - 4rem)' }}
+      style={{ height: acessarComo ? 'calc(100vh - 7.5rem)' : 'calc(100vh - 4rem)' }}
     >
       <PullToRefresh
         onRefresh={async () => {
@@ -113,6 +117,9 @@ export default function AppLayout() {
   const navigationQuery = useAppNavigation()
   const navigation = navigationQuery.items
   const signOut = useSignOut()
+  /* A sessao assumida de agora, ou null. Lida uma vez: as duas transicoes
+     terminam em recarga da pagina. */
+  const acessarComo = useAcessarComoAtivo()
   const tenantName = useCurrentTenant().data?.name ?? null
 
   const isDirector = currentCollaborator?.role === 'director'
@@ -239,7 +246,13 @@ export default function AppLayout() {
     sessão de uma pessoa só. A marca é apagada pela própria troca (0108 e a edge
     function create-collaborator-login).
   */
-  if (currentUser.user_metadata?.senha_provisoria === true) {
+  /*
+    A PAREDE NAO VALE PARA SESSAO ASSUMIDA, e isso e uma salvaguarda e nao uma
+    brecha: assumir alguem que nunca entrou jogaria o Diretor na tela de trocar
+    a senha DELA, e ele acabaria definindo senha de terceiro sem querer. A faixa
+    do topo ja diz, o tempo todo, que a sessao nao e dele.
+  */
+  if (currentUser.user_metadata?.senha_provisoria === true && !acessarComo) {
     return <TrocarSenhaProvisoria userEmail={currentUser.email} />
   }
 
@@ -268,6 +281,14 @@ export default function AppLayout() {
       da página; a hierarquia nunca inverte.
     */
     <div className="min-h-screen bg-background">
+      {/*
+        A FAIXA E A PRIMEIRA COISA DA ARVORE e empurra o resto: a sidebar sai de
+        top-0 para top-14, o cabecalho grudado tambem, e a area de rolagem perde
+        3,5rem de altura. Altura fixa (h-14) justamente para o deslocamento ser
+        um numero so em todas as larguras.
+      */}
+      {acessarComo && <ImpersonationBanner estado={acessarComo} />}
+
       {/* Mobile sidebar overlay */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -286,7 +307,8 @@ export default function AppLayout() {
       {/* Sidebar */}
       <aside
         className={`
-        fixed top-0 left-0 h-full w-72 bg-sidebar border-r border-sidebar-border
+        fixed left-0 w-72 bg-sidebar border-r border-sidebar-border
+        ${acessarComo ? 'top-14 h-[calc(100%-3.5rem)]' : 'top-0 h-full'}
         transform transition-transform duration-300 ease-out
         lg:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -526,7 +548,7 @@ export default function AppLayout() {
       <div className="lg:pl-72">
         {/* Top bar */}
         <header
-          className="h-16 bg-card border-b border-border sticky top-0"
+          className={`h-16 bg-card border-b border-border sticky ${acessarComo ? 'top-14' : 'top-0'}`}
           style={{ paddingTop: 'env(safe-area-inset-top)', zIndex: 'var(--z-header)' }}
         >
           <div className="h-full flex items-center justify-between px-4 lg:px-8">

@@ -16,10 +16,22 @@ const envSchema = z.object({
     O porquê está inteiro no cabeçalho de src/features/map/geocoding.ts.
   */
   VITE_GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
+
+  /*
+    "ACESSAR COMO" — a terceira das quatro fechaduras da feature (migration
+    0109). Só existe no .env.dev: sem ela o gatilho não é desenhado em lugar
+    nenhum, e um merge distraído para main não liga nada.
+
+    `z.string()` e não `z.literal('true')` de propósito: valor estranho aqui
+    precisa significar "desligado", nunca "app não sobe". Uma variável de
+    ambiente mal digitada não pode derrubar a tela de login — é o mesmo
+    aprendizado do `|| undefined` da chave do Google, logo abaixo.
+  */
+  VITE_IMPERSONATION: z.string().optional(),
 })
 
 /*
-  AS TRÊS CHAVES, NOMEADAS — e não `import.meta.env` inteiro.
+  AS CHAVES, UMA A UMA — e não `import.meta.env` inteiro.
 
   O Vite substitui `import.meta.env` pelo objeto materializado em tempo de build,
   então passar o objeto todo arrasta para o bundle publicado TODA variável `VITE_`
@@ -49,6 +61,7 @@ const parsed = envSchema.safeParse({
     formas de "não tenho essa chave" significarem a mesma coisa.
   */
   VITE_GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || undefined,
+  VITE_IMPERSONATION: import.meta.env.VITE_IMPERSONATION || undefined,
 })
 
 if (!parsed.success) {
@@ -59,3 +72,6 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data
+
+/* A pergunta que as telas fazem. Uma string exata, e tudo o mais é "desligado". */
+export const impersonationHabilitada = env.VITE_IMPERSONATION === 'true'
