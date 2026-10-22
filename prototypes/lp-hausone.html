@@ -43,7 +43,13 @@
      2 · Hero (escuro) — olho, título, subtítulo, formulário de e-mail acima da
          dobra, CTA secundário, e o mockup do Fluxo do Projeto sangrando à
          direita.
-     3 · Os módulos (claro) — oito cards, quatro colunas no desktop.
+   2-A · As três perguntas (claro) — a SEÇÃO DE DOR, que não existia. Três
+         perguntas que o escritório ouve toda semana, com o custo de hoje
+         descrito sem adjetivo. Entra antes dos módulos porque lista de
+         funcionalidade não serve a quem ainda não reconheceu o problema.
+     3 · Os módulos (claro) — oito cards, quatro colunas no desktop. Divide a
+         mesma superfície clara da 2-A, sem borda entre as duas: é um
+         movimento só, problema e resposta.
      4 · As fases (escuro) — a trilha das seis fases. OCUPA O LUGAR da faixa de
          métricas das referências.
      5 · O tour (claro) — três blocos alternados, texto de um lado, moldura de
@@ -1384,7 +1390,7 @@
             href="#hero-form"
             class="btn-seta hidden rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:inline-flex"
           >
-            Tenho interesse
+            Quero ver funcionando
           </a>
           <button
             type="button"
@@ -1412,7 +1418,7 @@
           <a
             href="#hero-form"
             class="mt-2 rounded-full bg-primary px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground sm:hidden"
-            >Tenho interesse</a
+            >Quero ver funcionando</a
           >
         </nav>
       </div>
@@ -1431,16 +1437,14 @@
             <p class="t-eyebrow text-muted-foreground" data-revelar>Gestão para escritório de arquitetura</p>
 
             <h1 class="titulo-duplo t-h1 mt-5" data-revelar>
-              Briefing, Layout, Perspectivas, Projeto Legal, Executivo, Alvará.<br
-                class="hidden sm:inline"
-              />
-              <span class="destaque sublinhado-trilha">Seu sistema devia falar essa língua.</span>
+              Seu escritório inteiro num sistema que já fala<br class="hidden sm:inline" />
+              <span class="destaque sublinhado-trilha">Layout, Projeto Legal e Alvará.</span>
             </h1>
 
             <p class="t-lead mt-6 text-soft" data-revelar>
-              Do primeiro contato com o lead até a última parcela recebida. Cliente, proposta,
-              contrato, obra, equipe e dinheiro no mesmo lugar — com as fases do SEU fluxo, não com
-              "status genérico" de CRM.
+              Do lead que chegou no direct até a última parcela recebida. Cliente, proposta,
+              contrato, obra, equipe e dinheiro no mesmo lugar, com as fases que o seu escritório já
+              usa. Nenhum "status genérico" de CRM.
             </p>
 
             <!-- FORMULÁRIO DO HERO — UM campo, nada mais. -->
@@ -1474,7 +1478,7 @@
                     type="submit"
                     class="btn-seta inline-flex h-12 flex-none items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                   >
-                    Tenho interesse
+                    Quero ver funcionando
                     <i data-lucide="arrow-right" class="h-4 w-4"></i>
                   </button>
                 </div>
@@ -1490,8 +1494,8 @@
                 </p>
 
                 <p class="mt-3 text-sm text-muted-foreground" data-microcopy>
-                  Deixe seu e-mail e a gente entra em contato para mostrar o sistema. Você não
-                  recebe nada automático.
+                  A gente entra em contato para mostrar o sistema rodando no caso do seu escritório.
+                  Sem compromisso, e nada automático na sua caixa de entrada.
                 </p>
                 <p id="consent-hero" class="mt-2 text-xs text-faint">
                   Ao enviar, você autoriza o contato do HausOne sobre o sistema. Seu e-mail não é
@@ -1557,19 +1561,71 @@
       </section>
 
       <!-- ===================================================================
+           2-A · AS TRÊS PERGUNTAS (claro) — a seção de dor.
+           Entra ANTES dos módulos porque quem ainda não reconheceu o próprio
+           problema não tem o que fazer com uma lista de funcionalidades. Cada
+           bloco é uma pergunta que o escritório ouve toda semana, e a resposta
+           descreve o estado de hoje sem adjetivo nenhum: o leitor concorda ou
+           não concorda, e quem concorda já está vendendo a solução sozinho.
+           =================================================================== -->
+      <section class="sec-light borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]">
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-2xl" data-revelar>
+            <h2 class="titulo-duplo t-h2">
+              A resposta existe. <span class="destaque">Ela só não está no mesmo lugar.</span>
+            </h2>
+            <p class="t-lead mt-4 text-soft">
+              Três perguntas que o seu escritório responde toda semana, e o tempo que cada uma custa
+              hoje.
+            </p>
+          </div>
+
+          <ul class="mt-12 grid gap-4 lg:grid-cols-3">
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <h3 class="t-body font-semibold">"Em que fase está o projeto?"</h3>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                A fase mora no WhatsApp do coordenador e numa planilha que alguém esqueceu de
+                atualizar. O cliente liga, e a resposta leva meia hora e três mensagens.
+              </p>
+            </li>
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <h3 class="t-body font-semibold">"O cliente já passou o briefing?"</h3>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                Passou por áudio, por PDF e por print. Alguém redigita tudo no cadastro, e o
+                endereço da obra chega errado no contrato.
+              </p>
+            </li>
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <h3 class="t-body font-semibold">"Quanto já entrou desse contrato?"</h3>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                O contrato está num lugar, as parcelas em outro. Para somar, alguém abre duas
+                planilhas e confere na mão.
+              </p>
+            </li>
+          </ul>
+
+          <p class="t-body mt-8 max-w-3xl text-soft" data-revelar>
+            Nenhuma das três é falta de organização. É o mesmo dado morando em quatro lugares que
+            não se falam.
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================================================================
            3 · OS MÓDULOS (claro) — oito cards, quatro colunas no desktop.
            =================================================================== -->
       <section
         id="sistema"
-        class="sec-light borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]"
+        class="sec-light bg-background pb-[clamp(4.5rem,9vw,8rem)]"
       >
         <div class="mx-auto max-w-container px-5 sm:px-8">
           <div class="max-w-2xl" data-revelar>
             <h2 class="titulo-duplo t-h2">
-              Um sistema completo para um escritório <span class="destaque">que entrega</span>.
+              Tudo que o escritório faz, <span class="destaque">num lugar só</span>.
             </h2>
             <p class="t-lead mt-4 text-soft">
-              Do lead ao recebimento, da obra ao fornecedor. Tudo ligado, sem planilha paralela.
+              Do lead ao recebimento, da obra ao fornecedor. Oito módulos que conversam entre si,
+              sem planilha paralela do lado.
             </p>
           </div>
 
@@ -1583,7 +1639,7 @@
               </span>
               <h3 class="mt-4 font-semibold">CRM</h3>
               <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                Cliente sem duplicata: deduplicação por CPF/CNPJ e telefone.
+                Cliente duplicado para de nascer. O sistema barra por CPF, CNPJ e telefone.
               </p>
             </li>
             <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
@@ -1594,8 +1650,8 @@
               </span>
               <h3 class="mt-4 font-semibold">Pipeline</h3>
               <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                Lead recebido → Qualificado → Proposta → Negociação → Fechamento, com motivo de
-                perda.
+                Lead recebido, Qualificado, Proposta, Negociação, Fechamento. Quando perde, fica
+                registrado o porquê.
               </p>
             </li>
             <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
@@ -1606,7 +1662,8 @@
               </span>
               <h3 class="mt-4 font-semibold">Briefing do cliente</h3>
               <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                Link com validade de 24h, preenchido pelo próprio cliente, sem login.
+                O próprio cliente preenche, por um link que vale 24h. Sem login e sem instalar
+                nada.
               </p>
             </li>
             <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
@@ -1617,7 +1674,8 @@
               </span>
               <h3 class="mt-4 font-semibold">Contratos</h3>
               <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                Numeração em série do escritório e parcelas geradas a partir do contrato.
+                Numeração na série do escritório, e parcelas que nascem do contrato em vez da sua
+                memória.
               </p>
             </li>
             <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
@@ -1628,7 +1686,7 @@
               </span>
               <h3 class="mt-4 font-semibold">Fluxo do projeto</h3>
               <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                Quadro por fase, com as colunas definidas por você.
+                Quadro por fase, com as colunas que você mesmo define na tela de configurações.
               </p>
             </li>
             <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
@@ -1639,7 +1697,8 @@
               </span>
               <h3 class="mt-4 font-semibold">Diário de obra</h3>
               <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                Visita, foto, pendência com histórico e relatório em PDF.
+                Visita, foto e pendência com histórico, mais o relatório em PDF para mandar ao
+                cliente.
               </p>
             </li>
             <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
@@ -1661,7 +1720,7 @@
               </span>
               <h3 class="mt-4 font-semibold">Mapa</h3>
               <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                Terrenos e obras georreferenciados.
+                Terrenos e obras no mapa, para saber onde cada projeto está de verdade.
               </p>
             </li>
           </ul>
@@ -1681,8 +1740,8 @@
             </h2>
             <p class="t-lead mt-4 text-soft">
               Briefing, Layout, Perspectivas, Projeto Legal, Executivo, Alvará. As colunas do fluxo,
-              os tipos de serviço e as etiquetas são configurados na tela de configurações — sem
-              pedir para um desenvolvedor.
+              os tipos de serviço e as etiquetas ficam na tela de configurações, à mão do
+              escritório. Nada disso precisa de desenvolvedor.
             </p>
           </div>
 
@@ -1728,9 +1787,10 @@
                 <span class="destaque">Você confere campo a campo.</span>
               </h3>
               <p class="t-body mt-4 text-soft">
-                O link vale 24h e não exige login. Quando o briefing volta, o sistema mostra lado a
-                lado o que está no cadastro e o que o cliente respondeu — e você decide item por
-                item o que entra. Nada entra sozinho, nem por cima do que você já corrigiu à mão.
+                O link vale 24h e não exige login. Quando o briefing volta, o sistema põe lado a
+                lado o que está no cadastro e o que o cliente respondeu, e você decide item por
+                item o que entra. Nada entra sozinho, nem passa por cima do que você já corrigiu à
+                mão.
               </p>
             </div>
             <figure class="mockup" data-revelar>
@@ -1762,9 +1822,10 @@
                 Aprovou a proposta? <span class="destaque">O projeto já nasce.</span>
               </h3>
               <p class="t-body mt-4 text-soft">
-                O contrato aprovado cria o projeto e o primeiro cartão do fluxo na mesma hora, com o
-                número da série do escritório. Da obra, o diário registra visita, foto e pendência —
-                com histórico de quem resolveu o quê, e relatório em PDF para mandar ao cliente.
+                O contrato aprovado cria o projeto e o primeiro cartão do fluxo na mesma hora, já
+                com o número da série do escritório. Na obra, o diário registra visita, foto e
+                pendência, com histórico de quem resolveu o quê, e gera o relatório em PDF para
+                mandar ao cliente.
               </p>
             </div>
             <figure class="mockup lg:order-1" data-revelar>
@@ -1915,7 +1976,7 @@
             <div class="mt-8 border-l-2 border-foreground/20 pl-6 sm:pl-8" data-revelar>
               <p class="t-lead text-soft">
                 O HausOne roda todo dia dentro de um escritório de arquitetura. Foi construído tela
-                por tela na rotina dele — com arquitetos, coordenação e administrativo usando
+                por tela na rotina dele, com arquitetos, coordenação e administrativo usando
                 enquanto era feito, e com cada ajuste saindo de um problema real de quem entrega
                 projeto.
               </p>
@@ -2052,8 +2113,8 @@
                 <i data-lucide="database" class="h-[1.125rem] w-[1.125rem]"></i>
               </span>
               <p class="t-body text-soft">
-                Isolamento por escritório garantido no banco, não no frontend — e verificado por
-                teste automatizado, não por confiança.
+                Cada escritório é separado no banco de dados, não na tela. E a separação é
+                verificada por teste automatizado, não por confiança.
               </p>
             </li>
             <li class="cartao flex gap-4 rounded-xl border border-border bg-background p-5 sm:p-6" data-revelar>
@@ -2126,8 +2187,8 @@
               >
               <p class="t-body mt-4 font-medium">Trazemos o que você já tem.</p>
               <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-                A migração do seu cadastro de clientes, contratos e projetos — de planilha ou de
-                outra plataforma — faz parte da implantação.
+                A migração do seu cadastro de clientes, contratos e projetos faz parte da
+                implantação, venha de planilha ou de outra plataforma.
               </p>
             </li>
             <li class="cartao rounded-xl border border-border bg-card p-6" data-revelar>
@@ -2149,6 +2210,31 @@
           <h2 class="t-h2 max-w-2xl" data-revelar>Perguntas frequentes</h2>
 
           <div class="mt-10 max-w-3xl divide-y divide-border border-y border-border" data-grupo>
+            <!--
+              "QUANTO CUSTA" É A PRIMEIRA PERGUNTA, e ela abre a lista de
+              propósito. Não responder preço numa página de captação é padrão
+              em venda consultiva, mas FUGIR da pergunta custa confiança: quem
+              não acha a pergunta na página assume que o preço é alto e sai.
+              Dizer de que o preço depende já é meia resposta.
+
+              O TEXTO DESTA RESPOSTA PRECISA DE APROVAÇÃO. Ele compromete
+              política comercial que ainda não foi definida. Ver a lista do fim
+              do arquivo.
+            -->
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold">Quanto custa?</span>
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    Depende do tamanho da equipe e do que o escritório vai usar. É a primeira coisa
+                    que a gente trata na conversa, antes de qualquer demonstração.
+                  </p>
+                </div>
+              </div>
+            </details>
             <details class="group" data-revelar>
               <summary class="flex items-center justify-between gap-4 py-5 text-left">
                 <span class="t-body font-semibold">Funciona para escritório pequeno?</span>
@@ -2157,8 +2243,8 @@
               <div class="faq-corpo">
                 <div>
                   <p class="t-body pb-5 pr-10 text-soft">
-                    Sim. Funções e permissões são configuradas por escritório — uma pessoa pode acumular
-                    papéis.
+                    Sim. Funções e permissões são configuradas por escritório, e uma pessoa pode
+                    acumular papéis.
                   </p>
                 </div>
               </div>
@@ -2201,8 +2287,9 @@
               <div class="faq-corpo">
                 <div>
                   <p class="t-body pb-5 pr-10 text-soft">
-                    O sistema foi construído dentro da rotina de um escritório de arquitetura, tela por
-                    tela, com a equipe usando enquanto era feito.
+                    O sistema foi construído dentro da rotina de um escritório de arquitetura, tela
+                    por tela, com a equipe usando enquanto era feito. Quem não é de tecnologia foi
+                    justamente quem testou primeiro.
                   </p>
                 </div>
               </div>
@@ -2322,7 +2409,7 @@
               <div class="h-full rounded-xl border border-border bg-card p-6 sm:p-10">
                 <i data-lucide="quote" class="h-6 w-6 text-faint" aria-hidden="true"></i>
                 <blockquote class="citacao mt-5">Eu entro e vejo a minha fila: as atividades que são minhas e os projetos onde sou
-                responsável. Parei de perguntar no grupo em que fase está o Projeto Legal — está no
+                responsável. Parei de perguntar no grupo em que fase está o Projeto Legal. Está no
                 quadro.</blockquote>
                 <div class="mt-8 flex items-center gap-3">
                   <!-- O crachá do app (a inicial em quadrado) no lugar do retrato:
@@ -2458,7 +2545,7 @@
               class="mt-10 rounded-lg border border-dashed border-border px-4 py-3 text-xs leading-relaxed text-faint"
             >
               Nota de protótipo: os quatro indicadores da seção "O sistema hoje" e os quatro
-              depoimentos deste carrossel são simulados — números inventados, escritórios e pessoas
+              depoimentos deste carrossel são simulados: números inventados, escritórios e pessoas
               fictícios, desenhados só para dar peso visual à página. Nenhum deles pode ir ao ar:
               antes de publicar, saem ou são trocados por dado real. Nenhum escritório é nomeado em
               lugar nenhum desta página, nem o que de fato usa o sistema.
@@ -2493,7 +2580,8 @@
                 <span class="destaque">em um sistema só.</span>
               </h2>
               <p class="t-lead mt-4 max-w-2xl text-soft">
-                Deixe seu e-mail e a gente entra em contato.
+                Deixe seu e-mail. A gente entra em contato para entender como o seu escritório
+                trabalha hoje e mostrar o sistema rodando nesse caso.
               </p>
 
               <!--
@@ -2540,7 +2628,7 @@
                       type="submit"
                       class="btn-seta inline-flex h-12 flex-none items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:col-span-2 lg:col-span-1"
                     >
-                      Tenho interesse
+                      Quero ver funcionando
                       <i data-lucide="arrow-right" class="h-4 w-4"></i>
                     </button>
                   </div>
@@ -2556,8 +2644,8 @@
                   </p>
 
                   <p class="mt-3 text-sm text-muted-foreground" data-microcopy>
-                    Deixe seu e-mail e a gente entra em contato para mostrar o sistema. Você não
-                    recebe nada automático.
+                    A gente entra em contato para mostrar o sistema rodando no caso do seu
+                    escritório. Sem compromisso, e nada automático na sua caixa de entrada.
                   </p>
                   <p id="consent-cta" class="mt-2 text-xs text-faint">
                     Ao enviar, você autoriza o contato do HausOne sobre o sistema. Seu e-mail não é
@@ -2616,7 +2704,7 @@
               href="#hero-form"
               class="btn-seta mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              Tenho interesse
+              Quero ver funcionando
               <i data-lucide="arrow-right" class="h-4 w-4"></i>
             </a>
           </div>
@@ -2670,7 +2758,7 @@
         <p
           class="mt-10 rounded-lg border border-dashed border-border px-4 py-3 text-xs text-faint"
         >
-          Nota de protótipo: os links de Empresa, Ajuda e Privacidade são placeholders — nenhum
+          Nota de protótipo: os links de Empresa, Ajuda e Privacidade são placeholders, nenhum
           destino existe ainda. Ver a lista do fim do arquivo.
         </p>
 
@@ -2701,7 +2789,7 @@
         <h2 class="t-h3 mt-3">Os três estados do formulário</h2>
         <p class="t-body mt-3 max-w-2xl text-soft">
           Este bloco não faz parte da página publicada. Ele existe para os três estados serem
-          comparados ao mesmo tempo — altura do bloco, cor da borda, deslocamento do texto de apoio.
+          comparados ao mesmo tempo: altura do bloco, cor da borda, deslocamento do texto de apoio.
           Os formulários do hero e do CTA final são funcionais: validam, mostram o erro e trocam
           para o sucesso de verdade.
         </p>
@@ -2723,13 +2811,13 @@
                   class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground"
                   tabindex="-1"
                 >
-                  Tenho interesse
+                  Quero ver funcionando
                   <i data-lucide="arrow-right" class="h-4 w-4"></i>
                 </button>
               </div>
               <p class="mt-3 text-sm text-muted-foreground">
-                Deixe seu e-mail e a gente entra em contato para mostrar o sistema. Você não recebe
-                nada automático.
+                A gente entra em contato para mostrar o sistema rodando no caso do seu escritório.
+                Sem compromisso, e nada automático na sua caixa de entrada.
               </p>
               <p class="mt-2 text-xs text-faint">
                 Ao enviar, você autoriza o contato do HausOne sobre o sistema. Seu e-mail não é
@@ -2755,7 +2843,7 @@
                   class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground"
                   tabindex="-1"
                 >
-                  Tenho interesse
+                  Quero ver funcionando
                   <i data-lucide="arrow-right" class="h-4 w-4"></i>
                 </button>
               </div>
@@ -2764,8 +2852,8 @@
                 Digite um e-mail válido.
               </p>
               <p class="mt-3 text-sm text-muted-foreground">
-                Deixe seu e-mail e a gente entra em contato para mostrar o sistema. Você não recebe
-                nada automático.
+                A gente entra em contato para mostrar o sistema rodando no caso do seu escritório.
+                Sem compromisso, e nada automático na sua caixa de entrada.
               </p>
               <p class="mt-2 text-xs text-faint">
                 Ao enviar, você autoriza o contato do HausOne sobre o sistema. Seu e-mail não é
@@ -3273,9 +3361,16 @@
           citado. Junto com eles sai a nota de protótipo que fica ao fim da
           10-A. Enquanto a decisão não vier, as duas seções seguem marcadas na
           própria tela.
-       3. Aprovação dos quatro textos de interface que não vieram do brief:
-          mensagem de erro, texto do estado de sucesso, consentimento LGPD e os
+       3. Aprovação dos textos de interface que não vieram do brief: mensagem
+          de erro, texto do estado de sucesso, consentimento LGPD e os
           rótulos/links das colunas Empresa, Ajuda e Privacidade do rodapé.
+       3b. APROVAR A RESPOSTA DE "QUANTO CUSTA?", que é a primeira das
+          perguntas frequentes. Hoje ela diz que o preço depende do tamanho da
+          equipe e do que o escritório vai usar, e que o assunto é tratado na
+          conversa antes da demonstração. Isso é POLÍTICA COMERCIAL, não fato
+          técnico, e foi escrito por falta: página de captação sem a pergunta
+          de preço faz o leitor supor que é caro. Trocar pelo que o dono do
+          produto decidir, ou tirar a pergunta.
        4. Destino real para os links de rodapé que hoje são placeholder:
           Política de privacidade, Tratamento de dados, Suporte, "Falar com a
           gente", "Como o HausOne nasceu". Enquanto não existirem, a nota de
