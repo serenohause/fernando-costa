@@ -21,8 +21,15 @@
     02-conferencia-do-briefing.png o diff campo a campo do briefing
     03-diario-de-obra.png          aba Obra, com visita e pendências
     04-contas-a-receber.png        recebíveis do mês, com os totais
+    05-mapa-de-projetos.jpg        pins, filtros e o botão de satélite
 
   Todas em 2880×1800 (16:10 a 2x), capturadas em 1440×900.
+
+  A DO MAPA É JPEG, E AS OUTRAS SÃO PNG, de propósito. PNG é formato de tela
+  de sistema: pouca cor, texto fino, bordas duras, e comprime muito bem. O
+  mapa é imagem fotográfica (relevo, vegetação, sombreado), e em PNG ele saiu
+  com 1,37 MB, quatro vezes qualquer uma das outras. Em JPEG a 82 cai para
+  330 KB sem diferença visível nesse tamanho de exibição.
 
   O QUE O E-MAIL SIGNIFICA, e isso governa toda a microcopy: a pessoa está
   dizendo "tenho interesse, me procurem". Ela NÃO recebe nada automático — nem
@@ -52,8 +59,9 @@
          movimento só, problema e resposta.
      4 · As fases (escuro) — a trilha das seis fases. OCUPA O LUGAR da faixa de
          métricas das referências.
-     5 · O tour (claro) — três blocos alternados, texto de um lado, moldura de
-         screenshot do outro.
+     5 · O tour (claro) — quatro blocos alternados, texto de um lado, moldura
+         de screenshot do outro. A ordem segue o ciclo do escritório: briefing,
+         obra, dinheiro, mapa.
    5-A · Números (claro, superfície branca) — quatro indicadores com contagem
          crescente. CONTEÚDO SIMULADO.
      6 · Origem (escuro) — bloco editorial. OCUPA O LUGAR do depoimento em
@@ -1877,6 +1885,40 @@
               </div>
             </figure>
           </div>
+
+          <!-- BLOCO D — imagem à esquerda, alternando com o C -->
+          <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+            <div class="lg:order-2" data-revelar>
+              <h3 class="titulo-duplo t-h3">
+                Todo terreno e toda obra, <span class="destaque">num mapa só.</span>
+              </h3>
+              <p class="t-body mt-4 text-soft">
+                Cada propriedade vira um pin, e o endereço é resolvido sozinho a partir do ponto que
+                você marcou. Dá para filtrar por cliente, por nome do projeto, por status e por
+                cidade, e trocar para satélite quando a conversa é sobre o terreno. O pin também se
+                liga ao projeto, então o mapa responde onde cada coisa está sem ninguém abrir
+                planilha de endereço.
+              </p>
+            </div>
+            <figure class="mockup lg:order-1" data-revelar>
+              <div class="mockup-bar">
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="ml-2 truncate text-xs text-faint">HausOne · Mapa de Projetos</span>
+              </div>
+              <div class="mockup-body">
+                <img
+                  src="lp-hausone/05-mapa-de-projetos.jpg"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Mapa de Projetos: pins das propriedades sobre o mapa, o painel de filtros por cliente, nome do projeto, status, cidade e finalidade, e o botão que troca o mapa para satélite."
+                />
+              </div>
+            </figure>
+          </div>
         </div>
       </section>
 
@@ -3348,7 +3390,7 @@
       ========================================================================
 
       CONTEÚDO
-       1. FEITO — as quatro capturas estão em `prototypes/lp-hausone/`, tiradas
+       1. FEITO: as cinco capturas estão em `prototypes/lp-hausone/`, tiradas
           do ambiente de DEV, escritório de teste, 2880×1800. O que resta é
           servi-las em formato moderno (AVIF/WebP com PNG de reserva) e numa
           largura adequada ao telefone: hoje vai o mesmo arquivo de 2880px para
