@@ -2412,6 +2412,80 @@ export type Database = {
           },
         ]
       }
+      /* ACRESCENTADAS A MAO, e o comentario sai no proximo `npm run db:types`.
+         As tabelas da migration 0112 (leads do produto) nao estavam aqui porque
+         este arquivo foi gerado contra PRODUCAO, onde a 0112 ainda nao foi
+         aplicada. Regenerar inteiro agora traria junto a remocao de
+         `client_name` da view accounts_receivable_status - divergencia conhecida
+         e ACEITA pelo usuario em 21/10/2026 - e mais oito objetos de migrations
+         que tambem estao a frente. Essa regeneracao completa e um passo
+         separado, com o ambiente de dev de pe. */
+      platform_admins: {
+        Row: {
+          created_at: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      product_leads: {
+        Row: {
+          contacted_at: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          notes: string | null
+          office_name: string | null
+          phone: string | null
+          placement: string | null
+          source: string
+          status: Database["public"]["Enums"]["product_lead_status"]
+          submission_count: number
+          updated_at: string
+        }
+        Insert: {
+          contacted_at?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name?: string | null
+          notes?: string | null
+          office_name?: string | null
+          phone?: string | null
+          placement?: string | null
+          source?: string
+          status?: Database["public"]["Enums"]["product_lead_status"]
+          submission_count?: number
+          updated_at?: string
+        }
+        Update: {
+          contacted_at?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          notes?: string | null
+          office_name?: string | null
+          phone?: string | null
+          placement?: string | null
+          source?: string
+          status?: Database["public"]["Enums"]["product_lead_status"]
+          submission_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       project_checklist_items: {
         Row: {
           completed_at: string | null
@@ -4165,6 +4239,17 @@ export type Database = {
       auth_tenant_id: { Args: never; Returns: string }
       can_edit_menu: { Args: { p_menu_key: string }; Returns: boolean }
       can_view_menu: { Args: { p_menu_key: string }; Returns: boolean }
+      capture_product_lead: {
+        Args: {
+          p_email: string
+          p_name?: string
+          p_office_name?: string
+          p_phone?: string
+          p_placement?: string
+          p_source?: string
+        }
+        Returns: boolean
+      }
       collaborator_can_edit_menu: {
         Args: { p_menu_key: string; p_user_id: string }
         Returns: {
@@ -4238,6 +4323,7 @@ export type Database = {
       }
       increment_contract_number: { Args: { p_atual: string }; Returns: string }
       is_active_collaborator: { Args: never; Returns: boolean }
+      is_platform_admin: { Args: never; Returns: boolean }
       is_financial_overdue: {
         Args: {
           p_due_date: string
@@ -4493,6 +4579,7 @@ export type Database = {
         | "ted"
         | "cash"
         | "direct_debit"
+      product_lead_status: "new" | "contacted" | "qualified" | "discarded"
       priority_level: "low" | "medium" | "high" | "urgent"
       project_issue_category:
         | "architecture"
@@ -4889,6 +4976,7 @@ export const Constants = {
         "under_evaluation",
       ],
       payment_method: ["pix", "boleto", "card", "ted", "cash", "direct_debit"],
+      product_lead_status: ["new", "contacted", "qualified", "discarded"],
       priority_level: ["low", "medium", "high", "urgent"],
       project_issue_category: [
         "architecture",
