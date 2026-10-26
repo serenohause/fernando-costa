@@ -21,6 +21,7 @@
     "test:functions": "node supabase/tests/edge-functions.mjs",
     "seed:crm": "node supabase/seed/02-crm.mjs",
     "test:pattern": "supabase/tests/run-sql.sh supabase/tests/pattern-invariants.sql",
+    "test:leads": "supabase/tests/run-sql-local.sh supabase/tests/leads.sql",
     "test:schema:pipeline": "supabase/tests/run-sql.sh supabase/tests/pipeline-schema.sql",
     "test:intake": "supabase/tests/run-sql.sh supabase/tests/client-intake.sql",
     "test:schema:contracts": "supabase/tests/run-sql.sh supabase/tests/contracts-schema.sql",
