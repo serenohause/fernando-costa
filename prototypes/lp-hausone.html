@@ -32,12 +32,20 @@
   posto. Duas casas sobrepostas em traço contínuo, com a porta em latão, e o
   wordmark ao lado.
 
-  O ARQUIVO VEIO COM FUNDO CHAPADO E SOMBRA PROJETADA. Os quatro PNG de
-  `prototypes/lp-hausone/` são o recorte: alfa pela luminância, com rampa entre
-  192 e 226 para a borda ficar suave, mais um passe que apaga pixel parcial sem
-  vizinho opaco. Esse passe é o que mata a sombra: o traço da logo tem borda
-  dura e todo pixel de borda encosta num pixel 100% opaco, a sombra não, porque
-  é um borrão inteiro de alfa baixo. Foram 763 pixels de sombra removidos.
+  O ARQUIVO VEM COM FUNDO CHAPADO. Os quatro PNG de `prototypes/lp-hausone/`
+  são o recorte: alfa pela luminância, com rampa entre 192 e 226 para a borda
+  ficar suave, mais um passe que apaga pixel parcial sem vizinho opaco.
+
+  ESSE SEGUNDO PASSE É CONTRA SOMBRA PROJETADA, e está aqui por causa da
+  primeira versão da logo, que tinha uma. Limiar de claridade não separava as
+  duas coisas, porque a sombra e o fundo tinham quase a mesma claridade, então
+  ou sobrava um fantasma ao lado do wordmark ou a borda das letras era comida.
+  O que separa é a natureza: o traço tem borda dura, e todo pixel de borda dele
+  encosta num pixel 100% opaco; a sombra é um borrão inteiro de alfa baixo, sem
+  núcleo sólido. Na primeira versão esse passe tirou 763 pixels. A versão atual
+  do arquivo não tem sombra nenhuma, e o passe tira zero. Fica no caminho
+  mesmo assim, para a próxima versão da logo não precisar descobrir isso de
+  novo.
 
     logo-hausone-claro.png      lockup, navy + latão, para fundo claro
     logo-hausone-escuro.png     lockup, papel + latão claro, para fundo escuro
@@ -1430,7 +1438,7 @@
           <img
             src="lp-hausone/logo-hausone-escuro.png"
             width="1200"
-            height="315"
+            height="312"
             class="h-7 w-auto sm:h-8"
             alt="HausOne"
           />
@@ -2791,7 +2799,7 @@
             <img
               src="lp-hausone/logo-hausone-escuro.png"
               width="1200"
-              height="315"
+              height="312"
               loading="lazy"
               decoding="async"
               class="h-9 w-auto"
