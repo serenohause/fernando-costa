@@ -112,6 +112,12 @@
          obra, dinheiro, mapa.
    5-A · Números (claro, superfície branca) — quatro indicadores com contagem
          crescente. CONTEÚDO SIMULADO.
+   5-B · Gestão da equipe (claro, slate-50) — produtividade por pessoa,
+         projetos por colaborador e os dois responsáveis de cada projeto. Tudo
+         sai de tela existente; falta só a captura, que o banco de dev fora do
+         ar impediu.
+   5-C · Cobrança automática (claro, superfície branca) — ROADMAP, marcado como
+         "em desenvolvimento". Não existe no sistema.
      6 · Origem (escuro) — bloco editorial. OCUPA O LUGAR do depoimento em
          vídeo das referências. Fala do escritório que usa o sistema SEM
          nomeá-lo, sob o olho "Validado por arquitetos", e o que está escrito
@@ -578,6 +584,10 @@
                 foreground: 'hsl(var(--primary-foreground) / <alpha-value>)',
               },
               elevated: 'hsl(var(--elevated) / <alpha-value>)',
+              /* O latão da porta da logo. Volta ao config porque a tarja "em
+                 desenvolvimento" usa text-brand e border-brand; sem isto as
+                 duas classes não existem e o Tailwind as ignora em silêncio. */
+              brand: 'hsl(var(--brand) / <alpha-value>)',
               'auth-panel': 'hsl(var(--auth-panel) / <alpha-value>)',
               'auth-panel-foreground': 'hsl(var(--auth-panel-foreground) / <alpha-value>)',
             },
@@ -2067,6 +2077,135 @@
       </section>
 
       <!-- ===================================================================
+           5-B · GESTÃO DA EQUIPE (claro, slate-50).
+           Pedido do escritório: o dono precisa ver na página que enxerga a
+           produtividade de quem trabalha com ele, o que cada um está fazendo,
+           os projetos em andamento e quem responde por cada um.
+
+           CADA NÚMERO CITADO AQUI SAI DE UMA TELA QUE EXISTE. O relatório de
+           produtividade mede atividades concluídas, horas somadas, média por
+           atividade e percentual fora do prazo, com filtro de período,
+           colaborador, projeto e prioridade (RelatorioProdutividade.tsx e
+           productivity.ts). O painel executivo tem "Projetos por Colaborador"
+           com gaveta ao clicar, distribuição por fase, progresso médio e os
+           recortes abaixo de 30% e acima de 80% (DashboardExecutivo.tsx). Os
+           dois responsáveis por projeto vêm do schema, não de promessa.
+
+           SEM CAPTURA POR ORA: o banco de dev estava fora do ar quando esta
+           seção foi escrita. Quando voltar, ela vira o quinto bloco do tour,
+           com a tela do relatório do lado.
+
+           Fica depois dos números (superfície branca) e antes da origem
+           (escura): três respiros claros seguidos, alternando por superfície.
+           =================================================================== -->
+      <section
+        id="equipe"
+        class="sec-light bg-background pb-[clamp(4.5rem,9vw,8rem)] pt-[clamp(4.5rem,9vw,8rem)]"
+      >
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-3xl" data-revelar>
+            <h2 class="titulo-duplo t-h2">
+              Você sabe quem está fazendo o quê,
+              <span class="destaque">sem perguntar no grupo.</span>
+            </h2>
+            <p class="t-lead mt-4 text-soft">
+              O escritório não precisa parar para te dar status. Quem coordena abre o sistema e a
+              resposta já está lá, por pessoa, por projeto e por período.
+            </p>
+          </div>
+
+          <ul class="mt-12 grid gap-4 lg:grid-cols-3">
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="bar-chart-3" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Produtividade por pessoa</h3>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Quantas atividades cada um concluiu no período, quantas horas somaram, a média por
+                atividade e quanto saiu do prazo. Filtra por colaborador, por projeto e por
+                prioridade.
+              </p>
+            </li>
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="users" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Projetos por colaborador</h3>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                No painel executivo, clicar num nome abre os projetos daquela pessoa. Do lado,
+                a distribuição por fase, o progresso médio e quais projetos estão abaixo de 30 por
+                cento.
+              </p>
+            </li>
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="user-check" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Dois responsáveis por projeto</h3>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Quem vendeu e quem executa são pessoas diferentes, e o sistema trata assim. No
+                quadro, cada cartão mostra a inicial de quem responde por ele.
+              </p>
+            </li>
+          </ul>
+
+          <p class="t-body mt-8 max-w-3xl text-soft" data-revelar>
+            E a fila de cada um fica do lado dela: o arquiteto abre "Minhas Atividades" e vê o que é
+            dele, com prazo e coordenador.
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           5-C · COBRANÇA AUTOMÁTICA (claro, superfície branca).
+           NÃO EXISTE AINDA. É roadmap, e está marcado como tal em letra que
+           ninguém perde: tarja "em desenvolvimento" e a frase "ainda não faz".
+
+           A ideia e a pergunta são do escritório. O que o sistema faz HOJE é
+           controlar a parcela: ela nasce do contrato, tem vencimento, e fica
+           prevista, paga ou em atraso. Emitir boleto e cobrar o cliente é o
+           passo seguinte, com integração de meio de pagamento.
+
+           POR QUE NÃO ESCREVI COMO SE JÁ FUNCIONASSE: a página captura e-mail
+           para um vendedor ligar depois. Promessa que não se sustenta na
+           demonstração queima o contato e a reputação junto. Ver o item 3c da
+           lista do fim do arquivo.
+           =================================================================== -->
+      <section class="sec-light sec-light-inverted pb-[clamp(4.5rem,9vw,8rem)]">
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div
+            class="rounded-xl border border-dashed border-border bg-background p-6 sm:p-10"
+            data-revelar
+          >
+            <span
+              class="t-eyebrow inline-flex items-center gap-2 rounded-full border border-brand/40 px-3 py-1 text-brand"
+            >
+              <i data-lucide="hammer" class="h-3.5 w-3.5"></i>
+              Em desenvolvimento
+            </span>
+            <h2 class="titulo-duplo t-h3 mt-5 max-w-3xl">
+              Já pensou alguém cobrando seu cliente
+              <span class="destaque">e enviando boleto sozinho?</span>
+            </h2>
+            <p class="t-body mt-4 max-w-3xl text-soft">
+              Hoje o sistema já sabe quem deve o quê e quando vence: a parcela nasce do contrato e
+              fica prevista, paga ou em atraso. O que ainda não faz é emitir o boleto e cobrar por
+              você. É o próximo passo do financeiro, com integração de meio de pagamento.
+            </p>
+            <p class="mt-4 text-sm text-faint">
+              Deixe seu e-mail e a gente avisa quando entrar no ar.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
            6 · ORIGEM (escuro) — ocupa o lugar do depoimento em vídeo.
            Sem foto, sem aspas, sem nome de pessoa. Peso editorial.
            =================================================================== -->
@@ -2339,6 +2478,27 @@
                   <p class="t-body pb-5 pr-10 text-soft">
                     Depende do tamanho da equipe e do que o escritório vai usar. É a primeira coisa
                     que a gente trata na conversa, antes de qualquer demonstração.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <!--
+              A PERGUNTA DO BOLETO, respondida sem rodeio. A seção 5-C usa a
+              pergunta como chamariz e diz que é roadmap; aqui ela aparece
+              outra vez, do lado defensivo, porque quem desconfia procura na
+              lista de perguntas e não no bloco bonito.
+            -->
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold">O sistema emite boleto e cobra o cliente?</span>
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    Ainda não. Hoje ele controla a parcela: ela nasce do contrato, tem vencimento e
+                    fica prevista, paga ou em atraso, ligada ao projeto e ao cliente. Emitir boleto
+                    e cobrar automaticamente está em desenvolvimento.
                   </p>
                 </div>
               </div>
@@ -2828,6 +2988,7 @@
               <li><a href="#sistema" class="hover:text-foreground">Fluxo do projeto</a></li>
               <li><a href="#sistema" class="hover:text-foreground">Diário de obra</a></li>
               <li><a href="#sistema" class="hover:text-foreground">Financeiro</a></li>
+              <li><a href="#equipe" class="hover:text-foreground">Atividades da equipe</a></li>
               <li><a href="#sistema" class="hover:text-foreground">Mapa</a></li>
             </ul>
           </div>
@@ -3480,6 +3641,16 @@
           técnico, e foi escrito por falta: página de captação sem a pergunta
           de preço faz o leitor supor que é caro. Trocar pelo que o dono do
           produto decidir, ou tirar a pergunta.
+       3c. A SEÇÃO 5-C PROMETE COBRANÇA AUTOMÁTICA, e ela não existe. Está
+          marcada como "em desenvolvimento" na tarja e dita em texto ("o que
+          ainda não faz"), mais a pergunta frequente que responde o mesmo sem
+          rodeio. Isso é o mínimo honesto, mas continua sendo compromisso:
+          quem atender o lead precisa saber que o assunto vai aparecer, e
+          precisa responder a mesma coisa. Se a integração de pagamento for
+          adiada sem data, o bloco sai da página em vez de envelhecer nela.
+       3d. A seção 5-B (gestão da equipe) está sem captura de tela. Quando o
+          banco de dev voltar, capturar o Relatório de Produtividade e
+          promovê-la a quinto bloco do tour.
        4. Destino real para os links de rodapé que hoje são placeholder:
           Política de privacidade, Tratamento de dados, Suporte, "Falar com a
           gente", "Como o HausOne nasceu". Enquanto não existirem, a nota de
