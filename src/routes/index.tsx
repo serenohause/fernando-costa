@@ -24,7 +24,7 @@ import DashboardExecutivo from '@/features/dashboards/components/DashboardExecut
 import Home from '@/features/dashboards/components/Home'
 import Settings from '@/features/settings/components/Settings'
 import Perfil from '@/features/profile/components/Perfil'
-import Leads from '@/features/leads/components/Leads'
+import LeadsShell from '@/features/leads/components/LeadsShell'
 
 /*
   O shell já está de pé; as telas de conteúdo entram módulo a módulo, na ordem
@@ -48,6 +48,28 @@ export function AppRoutes() {
         este link nunca terá uma.
       */}
       <Route path="/FormularioCliente" element={<FormularioCliente />} />
+      {/*
+        A FILA DE LEADS DA LANDING PAGE, e a única tela do sistema que não é de
+        um escritório: o dado dela é de quem ainda NÃO é cliente, e quem lê é a
+        equipe que faz o produto.
+
+        FORA DO AppLayout, e esta é a segunda rota do sistema a ficar fora dele.
+        O motivo é parecido com o do formulário acima: o AppLayout exige
+        colaborador ATIVO de algum escritório, e quem faz o produto não é
+        colaborador de nenhum. Encaixar aqui dentro exigiria pôr a nossa conta
+        na equipe do cliente ou inventar um tenant que não é escritório, e as
+        duas saídas são piores que uma casca própria. O raciocínio inteiro está
+        em LeadsShell.tsx.
+
+        Diferente do formulário, esta rota EXIGE sessão: a casca manda para
+        /login quem não tem. Quem nega o DADO continua sendo a policy da
+        migration 0112, não esta linha nem a casca.
+
+        Sem item na barra lateral porque barra lateral é coisa de escritório, e
+        este acesso não cabe na matriz de permissão de nenhum: não é acesso que
+        um Diretor possa conceder, porque não é dele para dar.
+      */}
+      <Route path="/Leads" element={<LeadsShell />} />
       <Route element={<AppLayout />}>
         {/*
           `pages.config.js` do original declara `mainPage: "Dashboard"`, ou seja:
@@ -98,23 +120,6 @@ export function AppRoutes() {
             Todo mundo edita o próprio perfil, então não há menu a permissionar
             — e uma entrada na barra seria uma linha a mais para todos. */}
         <Route path="/Perfil" element={<Perfil />} />
-        {/*
-          A FILA DE LEADS DA LANDING PAGE, e a única tela do sistema que não é
-          de um escritório: o dado dela é de quem ainda NÃO é cliente, e quem lê
-          é a equipe que faz o produto.
-
-          Sem item na barra lateral, e não por discrição: a barra é montada a
-          partir de `menus` e da matriz de permissão do escritório, e este
-          acesso não cabe nessa matriz — não é acesso que um Diretor possa
-          conceder, porque não é dele para dar. Chega-se aqui pela URL, como em
-          /RelatorioProdutividade.
-
-          DENTRO do AppLayout de propósito: quem abre esta tela tem sessão, e a
-          sessão é de algum escritório (a conta de suporte). Fora do layout a
-          tela ficaria sem sessão, e sem sessão a policy não tem o que casar.
-          Quem nega o dado é a RLS (migration 0112), não esta linha.
-        */}
-        <Route path="/Leads" element={<Leads />} />
         <Route path="*" element={<PagePlaceholder />} />
       </Route>
     </Routes>

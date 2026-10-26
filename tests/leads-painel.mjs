@@ -116,23 +116,30 @@ const ids = {}
 for (const ator of ATORES) ids[ator.chave] = await criarUsuario(ator.email)
 
 /*
-  Os DOIS são colaboradores ativos do mesmo escritório, com a mesma função.
-  Isso é deliberado: a única diferença entre eles é a linha em platform_admins,
-  então o que o teste mede é essa linha, e não função, status ou permissão de
-  menu. Sem isso, "a Diretora não vê" poderia estar passando porque ela é
-  Diretora, e não porque não é da equipe do produto.
+  OS DOIS ATORES SÃO DE ESPÉCIES DIFERENTES, e é isso que o teste mede.
+
+  A Diretora é colaboradora ATIVA de um escritório, com tudo que isso dá:
+  tenant_users, linha em collaborators, função de Diretor. O que ela NÃO tem é
+  linha em platform_admins.
+
+  O admin da plataforma é o oposto: tem a linha em platform_admins e NADA mais.
+  Não é colaborador, não tem tenant, não tem claim de escritório no JWT. É o
+  único ator do sistema que existe fora de escritório, e o teste prova que a
+  tela funciona para ele exatamente por isso. Antes de `/Leads` sair de dentro
+  do AppLayout, este ator não conseguia nem abrir a página: o layout mostrava
+  "Acesso Pendente" para quem não é colaborador ativo.
+
+  O par cobre as duas afirmações que importam: acesso à fila NÃO depende de
+  escritório, e pertencer a um escritório NÃO dá acesso à fila.
 */
 DB(`
   insert into public.tenants (id, name, slug)
   values ('fcfcfcfc-0000-4000-8000-00000000000a', 'Painel de Teste', 'leads-painel');
 
   insert into public.tenant_users (tenant_id, user_id, role) values
-    ('fcfcfcfc-0000-4000-8000-00000000000a', '${ids.admin}', 'owner'),
     ('fcfcfcfc-0000-4000-8000-00000000000a', '${ids.diretora}', 'owner');
 
   insert into public.collaborators (tenant_id, user_id, name, email, role, area, status) values
-    ('fcfcfcfc-0000-4000-8000-00000000000a', '${ids.admin}', 'Admin da Plataforma',
-     'admin@painel.test', 'director', 'administrative', 'active'),
     ('fcfcfcfc-0000-4000-8000-00000000000a', '${ids.diretora}', 'Diretora do Escritorio',
      'diretora@painel.test', 'director', 'administrative', 'active');
 
@@ -220,11 +227,22 @@ async function entrar(email) {
   return { ctx, p, erros }
 }
 
-/* 1. O admin da plataforma vê a fila e trabalha nela. */
+/* 1. O admin da plataforma vê a fila e trabalha nela, SEM ser de escritório. */
 {
   const { ctx, p, erros } = await entrar('admin@painel.test')
   await p.goto(`${BASE}/Leads`, { waitUntil: 'networkidle' })
   await p.waitForSelector('table tbody tr', { timeout: 20000 })
+
+  /* A afirmação que o AppLayout impedia: nenhuma linha em collaborators, e a
+     tela abre. Sem isto, bastaria alguém devolver a rota para dentro do
+     AppLayout para a conta da equipe do produto voltar a precisar de um
+     escritório, e o teste não acusaria. */
+  caso(
+    'admin: não é colaborador de escritório nenhum',
+    '0',
+    DB("select count(*) from public.collaborators where email = 'admin@painel.test';"),
+  )
+  caso('admin: e a casca não é a do backoffice', '0', await p.locator('aside').count())
 
   /*
     A busca recorta a fila nos três do teste, e é por ela que as contagens
@@ -295,6 +313,12 @@ async function entrar(email) {
   await p.goto(`${BASE}/Leads`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(2500)
 
+  /* Ela É colaboradora ativa, e isso continua não dando acesso à fila. */
+  caso(
+    'diretora: é colaboradora ativa de um escritório',
+    '1',
+    DB("select count(*) from public.collaborators where email = 'diretora@painel.test' and status = 'active';"),
+  )
   caso('diretora: não vê tabela nenhuma', '0', await p.locator('table').count())
   caso('diretora: a tela diz que não é dela', '1',
     await p.getByText('Esta página não é do seu escritório').count())
