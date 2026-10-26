@@ -55,6 +55,25 @@ const LEAD_ERROR_MESSAGES: DatabaseErrorMessages = {
     Nos dois casos a resposta é que não é acesso dela.
   */
   '42501': 'Esta fila é da equipe do produto, e sua conta não tem acesso a ela.',
+
+  /*
+    Os dois abaixo entraram por achado de auditoria: eram alcançáveis e caíam na
+    frase genérica "Não foi possível concluir a operação", que não diz nada a
+    quem está na tela nem a quem está depurando.
+
+    `product_leads_notes_len`: a anotação passa de 2000 caracteres. O textarea
+    tem `maxLength`, mas isso é conveniência do navegador — quem decide é o
+    check da coluna (migration 0112), e colar texto por outro caminho chega aqui.
+  */
+  product_leads_notes_len:
+    'A anotação passou de 2000 caracteres. Encurte o texto e salve de novo.',
+
+  /*
+    `22P02`: valor fora do enum `product_lead_status`. Da tela não acontece (o
+    seletor só emite os quatro), então chegar aqui é defeito de código, e a
+    mensagem precisa mandar a pessoa recarregar em vez de tentar de novo.
+  */
+  '22P02': 'O sistema tentou gravar uma situação que não existe. Recarregue a página e tente de novo.',
 }
 
 export function describeDatabaseError(error: unknown): string {
