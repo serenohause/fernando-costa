@@ -25,6 +25,46 @@
 
   Todas em 2880×1800 (16:10 a 2x), capturadas em 1440×900.
 
+  ---------------------------------------------------------------------------
+  A LOGO, E DE ONDE SAIU A PALETA DESTA PÁGINA
+  ---------------------------------------------------------------------------
+  A marca existe desde 26/10/2026 e substituiu o ícone Building2 que segurava o
+  posto. Duas casas sobrepostas em traço contínuo, com a porta em latão, e o
+  wordmark ao lado.
+
+  O ARQUIVO VEIO COM FUNDO CHAPADO E SOMBRA PROJETADA. Os quatro PNG de
+  `prototypes/lp-hausone/` são o recorte: alfa pela luminância, com rampa entre
+  192 e 226 para a borda ficar suave, mais um passe que apaga pixel parcial sem
+  vizinho opaco. Esse passe é o que mata a sombra: o traço da logo tem borda
+  dura e todo pixel de borda encosta num pixel 100% opaco, a sombra não, porque
+  é um borrão inteiro de alfa baixo. Foram 763 pixels de sombra removidos.
+
+    logo-hausone-claro.png      lockup, navy + latão, para fundo claro
+    logo-hausone-escuro.png     lockup, papel + latão claro, para fundo escuro
+    simbolo-hausone-claro.png   só a casa, para favicon e espaço apertado
+    simbolo-hausone-escuro.png  idem, invertido
+
+  POR QUE DUAS VERSÕES, E NÃO UMA: o navy da logo dá 1,30 de contraste contra o
+  fundo escuro desta página. Some. E o latão escuro sobre o navy dá 2,85, que
+  também reprova. Na versão escura o traço vira papel e o latão clareia.
+
+  A PALETA DA PÁGINA PASSOU A SER A DA LOGO, e isso coube bem porque a logo é
+  uma escala de um matiz só:
+
+    navy do traço   #182838   hsl(210 40% 15.7%)
+    papel do fundo  #F8FAFC   hsl(210 40% 98%)
+
+  Mesmo matiz, mesma saturação, dois extremos de luminosidade. Então o escuro
+  desta página deixou de ser o grafite neutro e passou a ser esse mesmo 210 40%
+  em degraus: fundo 9%, cartão 14%, painel 16%, elevado 19%, borda 26%.
+
+  O LATÃO É O ÚNICO PONTO DE COR, e aparece em dois lugares, pela mesma razão
+  que a logo tem uma porta dourada e mais nada: o nó aceso da trilha das fases e
+  o sublinhado da expressão destacada do hero. Medido: #856818 dá 5,03 sobre o
+  papel, e #C9A227 dá 7,47 sobre o fundo escuro.
+
+  ---------------------------------------------------------------------------
+
   A DO MAPA É JPEG, E AS OUTRAS SÃO PNG, de propósito. PNG é formato de tela
   de sistema: pouca cor, texto fino, bordas duras, e comprime muito bem. O
   mapa é imagem fotográfica (relevo, vegetação, sombreado), e em PNG ele saiu
@@ -485,6 +525,9 @@
       content="Do primeiro contato com o lead até a última parcela recebida. Cliente, proposta, contrato, obra, equipe e dinheiro no mesmo lugar."
     />
 
+    <!-- O símbolo da logo, sem o wordmark: em 16px a palavra viraria borrão. -->
+    <link rel="icon" type="image/png" href="lp-hausone/simbolo-hausone-claro.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -579,20 +622,23 @@
 
       /* Valores do bloco .dark de src/index.css */
       .sec-dark {
-        --background: 222 8% 4.5%;
-        --foreground: 210 14% 96%;
-        --card: 222 8% 8%;
-        --elevated: 222 8% 12%;
-        --auth-panel: 222 9% 16%;
-        --auth-panel-foreground: 210 14% 96%;
-        --primary: 210 14% 96%;
-        --primary-foreground: 222 10% 10%;
-        --muted: 222 7% 13%;
-        --muted-foreground: 215 9% 67%;
-        --border: 222 8% 20%;
-        --ring: 213 12% 70%;
-        --text-soft: 215 11% 81%;
-        --text-faint: 215 8% 55%;
+        --background: 210 40% 9%;
+        --foreground: 210 40% 98%;
+        --card: 210 36% 14%;
+        --elevated: 210 32% 19%;
+        --auth-panel: 210 38% 16%;
+        --auth-panel-foreground: 210 40% 98%;
+        --primary: 210 40% 98%;
+        --primary-foreground: 210 40% 12%;
+        --muted: 210 34% 15%;
+        --muted-foreground: 210 16% 70%;
+        --border: 210 24% 26%;
+        --ring: 210 24% 72%;
+        --text-soft: 210 22% 84%;
+        --text-faint: 210 14% 58%;
+        /* O latão clareia no escuro, senão some: 3,43 contra o fundo na versão
+           escura, 7,47 nesta. Mesma regra da porta da logo invertida. */
+        --brand: 45.6 67.5% 47.1%;
         --destructive: 0 62% 48%;
         /* o degrau do título sem destaque: 67% contra 96% = 29 pontos */
         --titulo-apagado: var(--muted-foreground);
@@ -601,20 +647,22 @@
       /* Valores do :root de src/index.css */
       .sec-light {
         --background: 210 40% 98%;
-        --foreground: 222.2 84% 4.9%;
+        --foreground: 210 40% 12%;
         --card: 0 0% 100%;
         --elevated: 210 40% 98%;
-        --auth-panel: 222 10% 14%;
-        --auth-panel-foreground: 210 14% 96%;
-        --primary: 222.2 47.4% 11.2%;
+        --auth-panel: 210 38% 16%;
+        --auth-panel-foreground: 210 40% 98%;
+        --primary: 210 40% 15.7%;
         --primary-foreground: 210 40% 98%;
         --muted: 210 40% 96.1%;
         --muted-foreground: 215.4 16.3% 46.9%;
         --border: 214.3 31.8% 91.4%;
-        --ring: 222.2 84% 4.9%;
+        --ring: 210 40% 15.7%;
         --text-soft: 215.3 19.3% 34.5%;
         --text-faint: 215 20.2% 65.1%;
         --destructive: 0 84.2% 60.2%;
+        /* O latão da porta da logo, medido: 5,03 sobre o papel. */
+        --brand: 44 69.4% 30.8%;
         /* o degrau do título sem destaque: 34,5% contra 4,9% = 30 pontos */
         --titulo-apagado: var(--text-soft);
       }
@@ -823,10 +871,12 @@
         background-color: hsl(var(--background));
       }
       /* PREENCHIDO CONTRA VAZADO: é assim que a fase acesa se distingue agora. */
+      /* O NÓ ACESO É A PORTA DA LOGO. Único ponto de latão da seção, do mesmo
+         jeito que a logo tem uma porta dourada e mais nada colorido. */
       .trilha-no[data-ativa] .trilha-bolinha {
-        border-color: hsl(var(--foreground));
-        background-color: hsl(var(--foreground));
-        box-shadow: 0 0 0 6px hsl(var(--foreground) / 0.12);
+        border-color: hsl(var(--brand));
+        background-color: hsl(var(--brand));
+        box-shadow: 0 0 0 6px hsl(var(--brand) / 0.18);
       }
       .trilha-no[data-ativa] .trilha-rotulo {
         color: hsl(var(--foreground));
@@ -881,11 +931,13 @@
         bottom: -0.15em;
         height: 3px;
         border-radius: 9999px;
+        /* Mesma geometria de antes, agora em latão: é o segundo e último ponto
+           de cor da página, e fica embaixo da frase que o olho já procura. */
         background: linear-gradient(
           to right,
-          hsl(var(--foreground) / 0.15),
-          hsl(var(--foreground) / 0.55) 45%,
-          hsl(var(--foreground) / 0.15)
+          hsl(var(--brand) / 0.25),
+          hsl(var(--brand)) 45%,
+          hsl(var(--brand) / 0.25)
         );
       }
 
@@ -1368,14 +1420,20 @@
       <div
         class="nav-linha mx-auto flex max-w-container items-center justify-between gap-4 px-5 sm:px-8"
       >
-        <!-- A MARCA, literal de Login.tsx:157-161 -->
-        <a href="#hero" class="flex flex-none items-center gap-2.5" aria-label="HausOne, início">
-          <span
-            class="flex h-9 w-9 items-center justify-center rounded-2xl border border-foreground/10 bg-foreground/10"
-          >
-            <i data-lucide="building-2" class="h-[1.125rem] w-[1.125rem]"></i>
-          </span>
-          <span class="text-lg font-semibold tracking-tight">HausOne</span>
+        <!--
+          A MARCA DE VERDADE, no lugar do ícone Building2 que segurava o posto
+          enquanto ela não existia. Versão escura do lockup, porque a nav vive
+          sobre o hero: o navy da logo dá 1,30 de contraste contra o fundo
+          escuro, ou seja, desaparece. Ver "A LOGO" no cabeçalho.
+        -->
+        <a href="#hero" class="flex flex-none items-center" aria-label="HausOne, início">
+          <img
+            src="lp-hausone/logo-hausone-escuro.png"
+            width="1200"
+            height="315"
+            class="h-7 w-auto sm:h-8"
+            alt="HausOne"
+          />
         </a>
 
         <nav class="hidden items-center gap-7 lg:flex" aria-label="Seções da página">
@@ -2730,14 +2788,15 @@
       <div class="mx-auto max-w-container px-5 sm:px-8">
         <div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
           <div>
-            <div class="flex items-center gap-2.5">
-              <span
-                class="flex h-9 w-9 items-center justify-center rounded-2xl border border-foreground/10 bg-foreground/10"
-              >
-                <i data-lucide="building-2" class="h-[1.125rem] w-[1.125rem]"></i>
-              </span>
-              <span class="text-lg font-semibold tracking-tight">HausOne</span>
-            </div>
+            <img
+              src="lp-hausone/logo-hausone-escuro.png"
+              width="1200"
+              height="315"
+              loading="lazy"
+              decoding="async"
+              class="h-9 w-auto"
+              alt="HausOne"
+            />
             <!-- A frase que o painel de login do app já usa (Login.tsx:164) -->
             <p class="t-body mt-4 max-w-xs text-soft">
               Tudo do seu escritório de arquitetura em um só lugar.
@@ -3438,8 +3497,9 @@
        9. Fonte auto-hospedada com subset latin, em vez do CSS do Google Fonts
           — menos uma conexão de terceiro e menos uma questão de LGPD.
       10. Metadados sociais: og:title, og:description, og:image (1200x630),
-          twitter:card, canonical, favicon e manifest.
-      11. Tirar `noindex, nofollow` do <head> — está aqui porque é protótipo.
+          twitter:card, canonical e manifest. O favicon já está, apontando para
+          o símbolo da logo; falta o .ico e os tamanhos de ícone de aplicativo.
+      11. Tirar `noindex, nofollow` do <head>, que está aqui porque é protótipo.
       12. Analytics, se for usado, com consentimento de cookie. Hoje não há
           nenhum script de medição, e sem medição não dá para saber se a página
           converte.
