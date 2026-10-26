@@ -34,7 +34,7 @@
   teto de tamanho do corpo, a origem permitida e a resposta HTTP.
 */
 
-import { z } from 'npm:zod@4.4.3'
+import { z } from 'npm:zod@4.6.7'
 import {
   assertPost,
   errorResponse,

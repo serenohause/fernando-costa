@@ -14,7 +14,7 @@
   haveria janela entre a leitura e a escrita.
 */
 
-import { z } from 'npm:zod@4.4.3'
+import { z } from 'npm:zod@4.6.7'
 import {
   assertPost,
   errorResponse,
