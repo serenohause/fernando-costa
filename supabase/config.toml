@@ -516,6 +516,27 @@ enabled = true
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
 
+# Edge Function do modulo de LP - captura de lead da pagina de venda (0112).
+#
+# A TERCEIRA FUNCAO PUBLICA DO SISTEMA (verify_jwt = false), e a primeira sem
+# credencial nenhuma: as duas do modulo 3 tem o token do link, esta nao tem nada
+# - a pagina de venda e aberta para qualquer um.
+#
+# O que segura a porta, entao:
+#   - limite de requisicoes por origem contado no BANCO (public.hit_public_endpoint,
+#     migration 0027), com teto PROPRIO: varredura aqui nao pode calar o
+#     formulario de briefing de quem ja estava preenchendo;
+#   - anon nao tem EXECUTE em public.capture_product_lead e nenhum privilegio em
+#     product_leads, que tem RLS ligada sem policy de INSERT (migration 0112);
+#   - a funcao de banco recebe PARAMETRO NOMEADO: status, submission_count e
+#     created_at nao tem caminho de entrada pelo corpo da requisicao;
+#   - `source` nao vem do corpo, e constante no codigo da funcao;
+#   - corpo com teto de 64 KB e armadilha de robo no schema.
+
+[functions.capture-lead]
+enabled = true
+verify_jwt = false
+
 # Edge Function de "Acessar como" (0109) - SO NO PROJETO DE DEV.
 #
 # A funcao devolve uma credencial de login completa do colaborador alvo, e por
