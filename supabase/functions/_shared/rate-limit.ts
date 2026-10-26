@@ -1,4 +1,5 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.111.0'
+import { clientKey } from './client-key.ts'
 import { HttpError } from './http.ts'
 
 /*
@@ -17,25 +18,18 @@ import { HttpError } from './http.ts'
   limite de requisição na frente"). As decisões continuam de pé; o que faltava
   era a defesa que elas citavam existir de verdade.
 
-  O que continua deste lado: extrair a identidade de quem chama e traduzir a
-  recusa em HTTP 429. A contagem, que precisa ser vista por todos os isolates,
-  é do banco.
+  O que continua deste lado: traduzir a recusa em HTTP 429. A contagem, que
+  precisa ser vista por todos os isolates, é do banco; e a identidade de quem
+  chama saiu daqui para `./client-key.ts`, onde ela pode ser conferida sozinha
+  (ela ERRAVA, e o cabeçalho daquele arquivo conta como). As duas metades do
+  limite já falharam uma vez cada, em momentos diferentes: a contagem até a
+  0027, e a identidade até agora.
 
   Falha do contador FECHA a porta, não abre. Se o Postgres não responde, as duas
   funções públicas não teriam o que fazer de qualquer forma — as duas terminam
   em chamada de banco. Deixar passar "porque o contador caiu" seria transformar
   indisponibilidade em via livre.
 */
-
-function clientKey(req: Request): string {
-  /*
-    A plataforma preenche x-forwarded-for. Só o PRIMEIRO valor interessa: o
-    resto da lista é escrito por quem chama e não vale nada como identidade.
-  */
-  const forwarded = req.headers.get('x-forwarded-for') ?? ''
-  const first = forwarded.split(',')[0]?.trim()
-  return first || req.headers.get('cf-connecting-ip') || 'desconhecido'
-}
 
 export async function enforceRateLimit(
   req: Request,

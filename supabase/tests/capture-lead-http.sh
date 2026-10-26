@@ -11,6 +11,9 @@
 #     - corpo acima de 64 KB para antes de ser parseado;
 #     - o limite de requisicoes e real: a 11a no minuto volta 429 (ate a 0027
 #       esse contador vivia na memoria do isolate e o teto nunca era alcancado);
+#     - e a identidade que ele conta NAO e escolha de quem chama: doze
+#       `X-Forwarded-For` forjados caem num balde so. Ate a correcao de
+#       `clientKey` davam doze baldes, doze leads e nenhuma recusa;
 #     - anon batendo DIRETO no PostgREST - sem passar por esta funcao - leva
 #       42501 na funcao de banco e nas duas tabelas.
 #
@@ -52,7 +55,9 @@ if [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X OPTIONS "$URL")"
 fi
 
 DB() { docker exec "$CONTAINER" psql -U postgres -d postgres -At -c "$1"; }
-ZERA() { DB "delete from public.public_endpoint_hits where scope = 'capture-lead';" >/dev/null; }
+# Os DOIS escopos: o do limite e o contador da armadilha. Deixar o segundo para
+# tras faria o caso da armadilha passar na primeira rodada e falhar na segunda.
+ZERA() { DB "delete from public.public_endpoint_hits where scope like 'capture-lead%';" >/dev/null; }
 LIMPA() { DB "delete from public.product_leads where email like '%@http.test';" >/dev/null; }
 
 OK=0; FAIL=0
@@ -60,7 +65,20 @@ caso() {
   if [[ "$2" == "$3" ]]; then printf 'PASS  %-48s %s\n' "$1" "$2"; OK=$((OK+1))
   else printf 'FAIL  %-48s esperado=%s observado=%s\n' "$1" "$2" "$3"; FAIL=$((FAIL+1)); fi
 }
-post() { curl -s -w '|%{http_code}' --max-time 10 -X POST "$URL" -H 'Content-Type: application/json' -d "$1"; }
+# `--cabecalho <valor>` repetido acrescenta cabecalho a requisicao, e e o que
+# permite sondar a identidade que o limite conta.
+post() {
+  local corpo="$1"; shift
+  local extras=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --cabecalho) extras+=(-H "$2"); shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  curl -s -w '|%{http_code}' --max-time 10 -X POST "$URL" \
+    -H 'Content-Type: application/json' "${extras[@]}" -d "$corpo"
+}
 corpo() { python3 -c 'import json,sys; print(json.loads(sys.argv[1].rsplit("|",1)[0])["error"]["message"])' "$1"; }
 codigo_pg() { python3 -c 'import json,sys; print(json.loads(sys.argv[1])["code"])' "$1"; }
 
@@ -77,9 +95,13 @@ caso "e a mensagem e de campo, nao de servidor" 'Informe um e-mail válido.' "$(
 
 # Dizer "voce e um robo" ensina o robo a contornar: a resposta e a de sucesso.
 caso "armadilha de robo responde sucesso" '{"status":"captured"}|200' \
-  "$(post '{"email":"robo@http.test","site":"http://spam.example"}')"
+  "$(post '{"email":"robo@http.test","observacao_extra":"http://spam.example"}')"
 caso "armadilha de robo NAO grava nada" '0' \
   "$(DB "select count(*) from public.product_leads where email='robo@http.test';")"
+# Queda de armadilha nao pode ser invisivel: falso positivo custa o lead que a
+# pagina existe para pegar, e log rotaciona.
+caso "armadilha de robo fica CONTADA" '1' \
+  "$(DB "select hit_count from public.public_endpoint_hits where scope='capture-lead-armadilha';")"
 
 caso "bloco fora da lista fechada: 400" '400' \
   "$(post '{"email":"bloco@http.test","placement":"rodape-novo"}' | sed 's/.*|//')"
@@ -108,6 +130,38 @@ caso "corpo acima de 64 KB e recusado" '413' \
 ZERA
 for i in $(seq 1 10); do post "{\"email\":\"teto$i@http.test\"}" >/dev/null; done
 caso "a 11a requisicao do minuto leva 429" '429' "$(post '{"email":"teto11@http.test"}' | sed 's/.*|//')"
+
+# QUEM ESTA CHAMANDO NAO PODE SER ESCOLHA DE QUEM CHAMA.
+#
+# Ate a correcao, `clientKey` lia o PRIMEIRO valor de `x-forwarded-for`, que e
+# justamente o que o cliente escreve: proxy acrescenta ao FIM da lista. Medido
+# aqui antes de corrigir: 25 requisicoes de um unico host, cada uma com um
+# cabecalho diferente, deram 25 baldes separados, 25 leads gravados e ZERO
+# recusas. O teto de 10 por minuto nunca era alcancado.
+#
+# O prefixo do `client_key` (`cf:`, `xri:`, `xff:`) diz qual cabecalho venceu, e
+# e assim que se descobre, em cada ambiente, qual degrau esta em uso. No stack
+# local quem informa e o `x-real-ip` do kong.
+ZERA; LIMPA
+for i in $(seq 1 12); do
+  ultimo="$(post "{\"email\":\"forjado$i@http.test\"}" --cabecalho "X-Forwarded-For: 9.9.9.$i")"
+done
+caso "doze cabecalhos forjados caem em UM balde so" '1' \
+  "$(DB "select count(distinct client_key) from public.public_endpoint_hits where scope='capture-lead';")"
+caso "e a 11a leva 429, apesar do cabecalho novo" '429' "${ultimo##*|}"
+caso "so dez leads entraram, e nao doze" '10' \
+  "$(DB "select count(*) from public.product_leads where email like 'forjado%@http.test';")"
+
+ZERA; LIMPA
+for i in $(seq 1 12); do
+  ultimo="$(post "{\"email\":\"borda$i@http.test\"}" \
+    --cabecalho 'CF-Connecting-IP: 203.0.113.50' --cabecalho "X-Forwarded-For: 9.9.9.$i")"
+done
+caso "com a borda informando, o balde e o dela" 'cf:203.0.113.50' \
+  "$(DB "select client_key from public.public_endpoint_hits where scope='capture-lead';")"
+caso "e o forjado continua nao comprando balde novo" '429' "${ultimo##*|}"
+
+ZERA; LIMPA
 
 # A tranca que NAO depende desta funcao. Se ela caisse, seria aqui que a tabela
 # viraria porta anonima - e e aqui que ela continua fechada.

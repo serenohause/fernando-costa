@@ -1,0 +1,64 @@
+-- A identidade que o limite da porta publica conta - correcao de texto.
+--
+-- NADA DE SCHEMA MUDA AQUI. Este arquivo existe porque o COMMENT que a 0027
+-- deixou em public_endpoint_hits.client_key descreve uma regra que estava
+-- ERRADA, e que acabou de ser corrigida no codigo da edge function. Migration
+-- aplicada nao se edita (docs/ARCHITECTURE.md, "Ambiente de banco"), entao a
+-- correcao do texto vem aqui - exatamente como a 0027 fez com o COMMENT que a
+-- 0025 havia deixado falso.
+--
+-- O QUE ESTAVA ERRADO
+--   A 0027 escreveu, na coluna: "Identidade de quem chama, extraida do PRIMEIRO
+--   valor de x-forwarded-for pela edge function (o resto da lista e escrito por
+--   quem chama e nao vale como identidade)."
+--
+--   Esta invertido. Proxy ACRESCENTA ao fim da lista, nunca ao comeco: quem
+--   escreve o primeiro valor e o CLIENTE, e por isso o primeiro valor e o unico
+--   que nao serve. A frase entre parenteses descreve corretamente o problema, e
+--   aponta para o lado errado da lista.
+--
+--   Medido contra a funcao local, antes da correcao: 25 requisicoes de um unico
+--   host, cada uma com um `X-Forwarded-For` diferente, produziram 25 baldes de
+--   contagem separados, 25 leads gravados e ZERO recusas. O teto de 10 por
+--   minuto nunca era alcancado porque o atacante escolhia a propria identidade
+--   a cada requisicao.
+--
+--   E A SEGUNDA VEZ QUE ESTE LIMITE NAO LIMITAVA NADA, por motivos diferentes:
+--   a 0027 corrigiu a CONTAGEM, que vivia na memoria do isolate; esta corrige a
+--   IDENTIDADE que a contagem usava. As duas metades do mecanismo falharam, cada
+--   uma no seu tempo, e as duas vezes o texto afirmava que a defesa existia.
+--
+--   Isso nao era so do modulo de LP. O mesmo codigo serve open-client-intake e
+--   submit-client-intake, e as migrations 0025, 0026 e 0027 justificam decisoes
+--   apoiadas em "ha limite de requisicao na frente". Nenhuma das decisoes muda;
+--   o que muda e a premissa voltar a ser verdadeira.
+--
+-- O QUE PASSA A VALER
+--   supabase/functions/_shared/client-key.ts escolhe, nesta ordem:
+--     1. cf-connecting-ip, escrito pelo proxy de borda, que SUBSTITUI o que o
+--        cliente mandar - o unico que o cliente nao controla;
+--     2. x-real-ip, mesma ideia para borda do tipo nginx;
+--     3. o ULTIMO item de x-forwarded-for, que e o endereco que o proxy mais
+--        proximo acrescentou. E o degrau mais fraco, e esta em ultimo por isso.
+--   Sem nenhum dos tres, todo mundo cai no balde 'desconhecido': limita demais,
+--   que e o lado certo para errar.
+--
+--   O VALOR PASSA A VIR COM PREFIXO - `cf:`, `xri:`, `xff:` - e isso nao e
+--   enfeite. Nao da para saber, de fora, qual desses cabecalhos a plataforma
+--   hospedada entrega, e chutar seria repetir o erro de documentar uma defesa
+--   sem conferir. Com o prefixo gravado junto, a propria tabela responde:
+--
+--     select distinct split_part(client_key, ':', 1), count(*)
+--       from public.public_endpoint_hits group by 1;
+--
+--   No stack local quem informa e o x-real-ip do kong (`xri:`). CONFERIR ISSO
+--   EM DEV E EM PROD depois do deploy: se o que aparecer for `xff:`, o degrau 3
+--   e o que esta em uso, e vale confirmar que ha proxy acrescentando de verdade.
+--
+-- EFEITO COLATERAL, E ELE E INOFENSIVO
+--   O prefixo muda a identidade dos baldes, entao a contagem em curso no minuto
+--   do deploy reinicia uma vez. A janela e de 1 minuto e a limpeza apaga o que
+--   passou de 10; nao ha dado a preservar.
+
+comment on column public.public_endpoint_hits.client_key is
+  'Identidade de quem chama, resolvida por supabase/functions/_shared/client-key.ts na ordem cf-connecting-ip, x-real-ip e ULTIMO item de x-forwarded-for, com prefixo que diz qual deles venceu (cf:, xri:, xff:). O PRIMEIRO valor de x-forwarded-for NAO e usado, e e esta a correcao desta migration: proxy acrescenta ao fim da lista, entao o primeiro valor e escrito pelo cliente e seria identidade escolhida por quem o limite deveria barrar. Ate esta correcao era o primeiro que valia, e por isso o teto nunca era alcancado - 25 requisicoes de um host com 25 cabecalhos diferentes davam 25 baldes e nenhuma recusa. Sem nenhum dos tres cabecalhos, todo mundo cai no balde "desconhecido": limita demais, que e o lado certo para errar. O prefixo existe para que `select distinct split_part(client_key, '':'', 1)` diga qual degrau esta em uso em cada ambiente, sem precisar de log. Nao e dado pessoal de cliente do escritorio: e o IP de quem bate na porta, e some junto com a janela na limpeza.';
