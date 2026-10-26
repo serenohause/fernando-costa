@@ -215,22 +215,22 @@ const abrir = async () => {
    com overflow hidden, numa página sem rolagem horizontal. */
 {
   const { ctx, p } = await abrir()
-  const box = await p.locator('#site-hero').boundingBox()
+  const box = await p.locator('#observacao-hero').boundingBox()
   caso('armadilha: a caixa está inteira fora da tela', 'true', box.x + box.width <= 0)
   caso(
     'armadilha: a página não rola para alcançá-la',
     '0',
     await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
   )
-  caso('armadilha: fora da ordem de tabulação', '-1', await p.getAttribute('#site-hero', 'tabindex'))
+  caso('armadilha: fora da ordem de tabulação', '-1', await p.getAttribute('#observacao-hero', 'tabindex'))
   caso(
     'armadilha: escondida do leitor de tela',
     'true',
-    await p.evaluate(() => !!document.querySelector('#site-hero').closest('[aria-hidden="true"]')),
+    await p.evaluate(() => !!document.querySelector('#observacao-hero').closest('[aria-hidden="true"]')),
   )
 
   await p.evaluate(() => {
-    document.querySelector('#site-hero').value = 'http://spam.example'
+    document.querySelector('#observacao-hero').value = 'http://spam.example'
   })
   await p.fill('#email-hero', 'robo@navegador.test')
   await p.click('#hero-form button[type=submit]')

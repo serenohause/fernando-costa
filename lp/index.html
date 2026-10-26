@@ -746,12 +746,20 @@
                   robô" ensina o robô a contornar. Não é a defesa principal (essa é o
                   limite de requisições por origem); é o que evita a fila encher de
                   lixo sem pôr captcha na frente de quem está comprando.
+
+                  O NOME DO CAMPO NÃO PODE SER `site`, E ESTE FOI UM ACHADO DE
+                  AUDITORIA. Gerenciador de senha trata `site`, `url` e `website`
+                  como campo de endereço e preenche sozinho — e aí o arquiteto que
+                  estava comprando vê "Recebemos seu e-mail" enquanto o lead é
+                  descartado. O custo do falso positivo aqui é exatamente o lead que
+                  a página existe para pegar, então o nome é um que nenhum
+                  preenchedor reconhece. Não troque de volta.
                 -->
                 <div class="pote" aria-hidden="true">
-                  <label for="site-hero">Não preencha este campo</label>
+                  <label for="observacao-hero">Não preencha este campo</label>
                   <input
-                    id="site-hero"
-                    name="site"
+                    id="observacao-hero"
+                    name="observacao_extra"
                     type="text"
                     tabindex="-1"
                     autocomplete="off"
@@ -2078,18 +2086,15 @@
               <form id="cta-form" class="mt-8 max-w-4xl" novalidate data-form data-origem="cta-final">
                 <div data-form-entrada>
                   <!--
-                    ARMADILHA DE ROBÔ. Fora da tela (.pote), nunca com `display: none`:
-                    robô que respeita display:none é robô que pula o campo. Preenchido, a
-                    edge function responde sucesso e não grava nada — dizer "você é um
-                    robô" ensina o robô a contornar. Não é a defesa principal (essa é o
-                    limite de requisições por origem); é o que evita a fila encher de
-                    lixo sem pôr captcha na frente de quem está comprando.
+                    ARMADILHA DE ROBÔ. Igual à do hero, e o nome do campo não pode
+                    ser `site`: gerenciador de senha preenche campo com esse nome, e o
+                    falso positivo custa o lead. Ver a nota no formulário do hero.
                   -->
                   <div class="pote" aria-hidden="true">
-                    <label for="site-cta">Não preencha este campo</label>
+                    <label for="observacao-cta">Não preencha este campo</label>
                     <input
-                      id="site-cta"
-                      name="site"
+                      id="observacao-cta"
+                      name="observacao_extra"
                       type="text"
                       tabindex="-1"
                       autocomplete="off"

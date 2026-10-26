@@ -184,8 +184,10 @@ document.querySelectorAll('[data-form]').forEach((form) => {
           office_name: escritorio ? escritorio.value.trim() : undefined,
           placement: form.dataset.origem,
           /* O campo da armadilha viaja SEMPRE, cheio ou vazio: mandar
-             só quando preenchido diria ao robô qual campo evitar. */
-          site: pote ? pote.value : '',
+             só quando preenchido diria ao robô qual campo evitar. O nome não
+             pode ser `site`: gerenciador de senha preenche campo com esse nome
+             e o falso positivo custa o lead. Ver a nota no HTML. */
+          observacao_extra: pote ? pote.value : '',
         }),
       })
 

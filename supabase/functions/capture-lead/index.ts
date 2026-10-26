@@ -33,7 +33,7 @@
     tela, com sessão.
 */
 
-import { z } from 'npm:zod@4.4.3'
+import { z } from 'npm:zod@4.6.7'
 import {
   assertPost,
   errorResponse,
@@ -82,9 +82,30 @@ const BodySchema = z.object({
     Não é a defesa principal — essa é o limite de requisições. É o que evita a
     fila encher de lixo em operação normal, sem pôr captcha na frente de quem
     está comprando.
+
+    O NOME NÃO PODE SER `site`, E ISSO FOI UM ACHADO DE AUDITORIA. Gerenciador
+    de senha trata `site`, `url` e `website` como campo de endereço e preenche
+    sozinho, mesmo fora da tela. Aí a armadilha fecha em cima de quem estava
+    comprando: a pessoa vê "Recebemos seu e-mail" e o lead é descartado. O custo
+    do falso positivo é exatamente o lead que a página existe para pegar, então
+    o nome é um que nenhum preenchedor reconhece.
   */
-  site: z.preprocess(blankToUndefined, z.string().max(200).optional()),
+  observacao_extra: z.preprocess(blankToUndefined, z.string().max(200).optional()),
 })
+
+/*
+  O teto da armadilha é alto de propósito: ela não existe para RECUSAR, e sim
+  para ser CONTADA. `hit_public_endpoint` é o único contador que este projeto
+  tem, e usá-lo com um teto que ninguém alcança transforma a queda silenciosa em
+  número que se consulta:
+
+    select scope, window_start, hit_count from public.public_endpoint_hits
+     where scope like '%-armadilha';
+
+  Sem isso, o único vestígio de um lead perdido por falso positivo seria uma
+  linha de log, e log rotaciona.
+*/
+const ARMADILHA = { scope: `${FN}-armadilha`, limite: 1_000_000, janelaSegundos: 3600 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return preflightResponse(req)
@@ -112,8 +133,29 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (parsed.data.site !== undefined) {
-      console.warn(`[${FN}] armadilha de robo preenchida; nada gravado`)
+    if (parsed.data.observacao_extra !== undefined) {
+      /*
+        A contagem não pode derrubar a resposta: se o contador falhar, a
+        armadilha continua fechando. `catch` vazio é deliberado aqui, e é o
+        oposto da regra do limite de requisições — lá, falha do contador FECHA a
+        porta; aqui ela só apaga uma estatística.
+      */
+      await admin
+        .rpc('hit_public_endpoint', {
+          p_scope: ARMADILHA.scope,
+          p_client_key: 'total',
+          p_limit: ARMADILHA.limite,
+          p_window_seconds: ARMADILHA.janelaSegundos,
+        })
+        .then(() => {})
+        .catch(() => {})
+
+      console.warn(
+        `[${FN}] armadilha de robo preenchida; nada gravado. ` +
+          `Se isto repetir sem ataque, pode ser preenchedor automatico fechando a ` +
+          `armadilha em cima de lead de verdade: conferir o scope ${ARMADILHA.scope} ` +
+          `em public_endpoint_hits.`,
+      )
       return jsonResponse(req, { status: 'captured' })
     }
 
