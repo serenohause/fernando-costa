@@ -4324,6 +4324,11 @@ export type Database = {
       increment_contract_number: { Args: { p_atual: string }; Returns: string }
       is_active_collaborator: { Args: never; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
+      revoke_platform_admin: { Args: { p_user_id: string }; Returns: boolean }
+      grant_platform_admin: {
+        Args: { p_note?: string; p_user_id: string }
+        Returns: boolean
+      }
       is_financial_overdue: {
         Args: {
           p_due_date: string

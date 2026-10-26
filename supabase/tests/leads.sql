@@ -321,6 +321,65 @@ select pg_temp.rec('4.5', 'e-mail acima de 254 caracteres e recusado', 'ERR:2351
   pg_temp.chk(format($$select public.capture_product_lead(%L)$$,
     repeat('a', 250) || '@leads.test')));
 
+-- 5. Conceder e retirar o acesso (migration 0114) ------------------------------
+--
+-- A 0112 fechou platform_admins para todo mundo, inclusive para service_role:
+-- tabela nova neste projeto nao e auto-exposta as roles da Data API (padrao
+-- novo do Supabase, registrado em supabase/config.toml). Medido: PostgREST
+-- devolve 42501 ate com a chave de servico. Por isso conceder passou a ser uma
+-- funcao security definer, como a 0013 e a propria 0112 ja fazem para escrita
+-- que a RLS nao pode decidir.
+--
+-- O que estes casos afirmam e a fronteira dela: operador alcanca, navegador
+-- nao. Se um dia alguem conceder EXECUTE para authenticated, 5.6 e 5.7 acusam -
+-- e a consequencia seria qualquer pessoa logada em qualquer escritorio poder se
+-- promover e ler e-mail e telefone de quem nao e cliente de ninguem.
+
+select pg_temp.rec('5.1', 'conceder a usuario que nao existe levanta erro', 'ERR:22023',
+  pg_temp.chk(format($$select public.grant_platform_admin(%L)$$,
+    '00000000-0000-4000-8000-000000000000')));
+
+select pg_temp.rec('5.2', 'CONTROLE: conceder ao Arquiteto devolve true', 'true',
+  (select public.grant_platform_admin((select user_arq_a from ids), 'posto pela suite')::text));
+
+select pg_temp.rec('5.3', 'e agora ele le a fila', '3',
+  pg_temp.como((select user_arq_a from ids), (select tenant_a from ids),
+    $$select count(*)::text from public.product_leads where email like '%@leads.test'$$));
+
+/* Rodar de novo e inofensivo, e nao apaga a anotacao de quem a tinha: o comando
+   existe para ser repetido sem medo em ambiente novo. */
+select pg_temp.rec('5.4', 'CONTROLE: conceder de novo passa, sem erro', 'true',
+  (select public.grant_platform_admin((select user_arq_a from ids))::text));
+
+select pg_temp.rec('5.4b', 'e a segunda concessao, sem anotacao, NAO apagou a primeira',
+  'posto pela suite',
+  (select note from public.platform_admins where user_id = (select user_arq_a from ids)));
+
+select pg_temp.rec('5.5', 'retirar devolve true, e false na segunda vez', 'true|false',
+  (select public.revoke_platform_admin((select user_arq_a from ids))::text || '|' ||
+          public.revoke_platform_admin((select user_arq_a from ids))::text));
+
+select pg_temp.rec('5.6', 'e ele volta a nao ler lead nenhum', '0',
+  pg_temp.como((select user_arq_a from ids), (select tenant_a from ids),
+    $$select count(*)::text from public.product_leads where email like '%@leads.test'$$));
+
+/* A fronteira. Ninguem logado no sistema se promove, nem promove outro. */
+select pg_temp.rec('5.7', 'Diretora do escritorio NAO concede a si mesma', 'ERR:42501',
+  pg_temp.como((select user_dir_a from ids), (select tenant_a from ids),
+    format($$select public.grant_platform_admin(%L)::text$$, (select user_dir_a from ids))));
+
+select pg_temp.rec('5.8', 'admin da plataforma tambem NAO concede a outro', 'ERR:42501',
+  pg_temp.como((select user_plat from ids), null,
+    format($$select public.grant_platform_admin(%L)::text$$, (select user_arq_a from ids))));
+
+select pg_temp.rec('5.9', 'anon NAO concede', 'ERR:42501',
+  pg_temp.como_anon(format($$select public.grant_platform_admin(%L)::text$$,
+    (select user_arq_a from ids))));
+
+select pg_temp.rec('5.10', 'anon NAO retira', 'ERR:42501',
+  pg_temp.como_anon(format($$select public.revoke_platform_admin(%L)::text$$,
+    (select user_plat from ids))));
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;
