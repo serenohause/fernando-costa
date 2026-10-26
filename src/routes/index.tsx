@@ -24,6 +24,7 @@ import DashboardExecutivo from '@/features/dashboards/components/DashboardExecut
 import Home from '@/features/dashboards/components/Home'
 import Settings from '@/features/settings/components/Settings'
 import Perfil from '@/features/profile/components/Perfil'
+import Leads from '@/features/leads/components/Leads'
 
 /*
   O shell já está de pé; as telas de conteúdo entram módulo a módulo, na ordem
@@ -97,6 +98,23 @@ export function AppRoutes() {
             Todo mundo edita o próprio perfil, então não há menu a permissionar
             — e uma entrada na barra seria uma linha a mais para todos. */}
         <Route path="/Perfil" element={<Perfil />} />
+        {/*
+          A FILA DE LEADS DA LANDING PAGE, e a única tela do sistema que não é
+          de um escritório: o dado dela é de quem ainda NÃO é cliente, e quem lê
+          é a equipe que faz o produto.
+
+          Sem item na barra lateral, e não por discrição: a barra é montada a
+          partir de `menus` e da matriz de permissão do escritório, e este
+          acesso não cabe nessa matriz — não é acesso que um Diretor possa
+          conceder, porque não é dele para dar. Chega-se aqui pela URL, como em
+          /RelatorioProdutividade.
+
+          DENTRO do AppLayout de propósito: quem abre esta tela tem sessão, e a
+          sessão é de algum escritório (a conta de suporte). Fora do layout a
+          tela ficaria sem sessão, e sem sessão a policy não tem o que casar.
+          Quem nega o dado é a RLS (migration 0112), não esta linha.
+        */}
+        <Route path="/Leads" element={<Leads />} />
         <Route path="*" element={<PagePlaceholder />} />
       </Route>
     </Routes>

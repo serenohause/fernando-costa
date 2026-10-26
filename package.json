@@ -22,6 +22,7 @@
     "seed:crm": "node supabase/seed/02-crm.mjs",
     "test:pattern": "supabase/tests/run-sql.sh supabase/tests/pattern-invariants.sql",
     "test:leads": "supabase/tests/run-sql-local.sh supabase/tests/leads.sql",
+    "test:leads-fila": "node tests/leads-fila.mjs",
     "test:capture-lead": "supabase/tests/capture-lead-http.sh",
     "test:lp": "node tests/lp-formulario.mjs",
     "test:lp-fidelidade": "node tests/lp-fidelidade.mjs",

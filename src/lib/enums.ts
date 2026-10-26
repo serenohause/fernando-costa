@@ -961,6 +961,26 @@ export const OPERATIONAL_TAG = {
 
 export type OperationalTag = keyof typeof OPERATIONAL_TAG
 
+// ── Leads do produto ────────────────────────────────────────────────────
+
+/*
+  Situação do lead na fila de contato (migration 0112). É o único enum deste
+  arquivo que NÃO descreve dado de escritório: a fila é da equipe do produto, e
+  o rótulo aparece só no painel de /Leads.
+
+  Não existe valor para "respondeu" nem para "virou cliente": o primeiro é
+  conversa, não estado de fila, e o segundo passa a ser um tenant, que é outra
+  tabela.
+*/
+export const PRODUCT_LEAD_STATUS = {
+  new: 'Novo',
+  contacted: 'Contatado',
+  qualified: 'Qualificado',
+  discarded: 'Descartado',
+} as const satisfies LabelMap<Enums<'product_lead_status'>>
+
+export type ProductLeadStatus = keyof typeof PRODUCT_LEAD_STATUS
+
 /*
   Funções que enxergam apenas as próprias atividades. Vem do Layout.jsx do
   original, que redireciona Arquiteto e Estagiário para MinhasAtividades e
