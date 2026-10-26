@@ -45,10 +45,26 @@ const ALLOWED_HEADERS = 'authorization, x-client-info, apikey, content-type'
   a rede de baixo: um ambiente esquecido cai em algo que funciona, em vez de
   cair numa lista que nao inclui a propria casa.
 */
+/*
+  A ORIGEM DE DEV ENTROU NA LISTA, E E A MESMA LICAO DE CIMA chegando um
+  ambiente antes.
+
+  O ambiente de desenvolvimento e o projeto `fernando-costa-development` da
+  Vercel, cuja URL estavel nao e nenhuma das de cima. Sem ela aqui, o formulario
+  da landing page em /lp responderia 200 e o navegador descartaria a resposta:
+  a tela diria "nao foi possivel enviar agora" e nada no servidor pareceria
+  errado. E exatamente o bug que o paragrafo anterior conta, e seria a segunda
+  vez.
+
+  CUIDADO COM URL DE PREVIEW: a Vercel tambem publica um endereco por deploy
+  (`...-development-<hash>-...vercel.app`), e esse NUNCA vai casar com esta
+  lista. Testar o formulario na URL estavel do projeto, nao na do deploy.
+*/
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://www.hausone.com.br',
   'https://hausone.com.br',
   'https://fernando-costa.vercel.app',
+  'https://fernando-costa-development-serenohause-8780s-projects.vercel.app',
   'http://localhost:5173',
 ]
 
