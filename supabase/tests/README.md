@@ -57,9 +57,9 @@ existência dela é uma asserção de catálogo (`11.4` no `crm-rls.sql`, `5.6` 
 
 ## Módulo de LP: captura de lead do produto
 
-Quatro arquivos, e eles cobrem elos diferentes porque o módulo tem três
-superfícies: o banco, uma porta pública sem credencial nenhuma, e uma página
-HTML que não passa pelo React.
+Cinco arquivos, e eles cobrem elos diferentes porque o módulo tem quatro
+superfícies: o banco, uma porta pública sem credencial nenhuma, uma página HTML
+que não passa pelo React, e um painel interno atrás de login.
 
 | Arquivo | O que exercita | O que NÃO cobre |
 |---|---|---|
@@ -67,6 +67,7 @@ HTML que não passa pelo React.
 | `capture-lead-http.sh` | a porta pública pela HTTP: o corpo é recortado (estado e contador gravados vieram do banco, não da requisição), 64 KB param antes do parse, a 11ª requisição do minuto leva 429, e `anon` batendo direto no PostgREST leva 42501 | a tela |
 | `../../tests/lp-formulario.mjs` | o formulário num navegador real: o painel de sucesso recebe o FOCO, cada formulário manda o próprio bloco, e as três recusas têm texto diferente e certo | fidelidade visual |
 | `../../tests/lp-fidelidade.mjs` | zero pixel de diferença entre a página construída e `prototypes/lp-hausone.html`, em 1280, 768 e 375 | comportamento |
+| `../../tests/leads-painel.mjs` | o painel em `/Leads` com login REAL: Auth Hook, JWT assinado, PostgREST, GRANT, policy, React Query e tela. Diretora e admin da plataforma são colaboradores iguais do mesmo escritório, e a única diferença entre eles é uma linha em `platform_admins` | a página de venda |
 
 A FIDELIDADE É TESTE, E NÃO PROMESSA, por um motivo específico deste módulo: o
 protótipo roda no CDN do Tailwind v3 e a página roda no v4, e as duas versões
@@ -92,6 +93,7 @@ npm run test:capture-lead  # a porta pública pela HTTP, contra o stack LOCAL
 npm run test:leads-fila    # a lógica pura da fila (sem banco, sem rede)
 npm run test:lp            # o formulário da LP num navegador
 npm run test:lp-fidelidade # a LP contra o protótipo, pixel a pixel
+npm run test:leads-painel  # o painel /Leads com login real, nas duas pontas do acesso
 ```
 
 Todos saem com código 1 se qualquer caso falhar. `run-sql.sh` é o runner genérico
