@@ -825,6 +825,93 @@ Aberto e registrado como decisão:
   clientes. É o recorte aprovado e é o que o original faz. O caso 6.C2 de
   `crm-rls.sql` é o que vai acusar se alguém apertar isso um dia.
 
+### Módulo de LP: auditoria e o que ficou registrado
+
+Auditoria rodada antes do deploy, com escopo no módulo inteiro: banco, porta
+pública, página e painel. Dois achados altos, zero críticos. O desenho de banco
+passou sem achado: não há caminho de vazamento da fila, nem por Realtime (as
+duas tabelas não estão na publication, e ela não é `FOR ALL TABLES`), nem por
+view, nem por mensagem de erro, nem pelo OpenAPI do `anon`.
+
+**O limite da porta pública não limitava nada: a identidade era escolha de quem
+chamava.** `clientKey` lia o PRIMEIRO valor de `x-forwarded-for`, com o
+comentário "o resto da lista é escrito por quem chama". Está invertido: proxy
+acrescenta ao FIM, então o primeiro valor é o único que o cliente controla.
+Medido: 25 requisições de um host, cada uma com um cabeçalho diferente, deram 25
+baldes de contagem, 25 leads gravados e ZERO recusas.
+
+Não era só deste módulo. O mesmo código serve `open-client-intake` e
+`submit-client-intake`, e as migrations 0025, 0026 e 0027 justificam decisões
+apoiadas em "há limite de requisição na frente". **É a segunda vez que este
+mecanismo não funcionava, e por metades diferentes: a 0027 corrigiu a CONTAGEM,
+que vivia na memória do isolate, e isto corrigiu a IDENTIDADE que a contagem
+usava.** Nas duas vezes o texto afirmava que a defesa existia.
+
+A ordem passou a ser `cf-connecting-ip`, `x-real-ip` e o ÚLTIMO item de
+`x-forwarded-for`, e o valor gravado leva prefixo dizendo qual venceu. O prefixo
+não é enfeite: não dá para saber de fora qual cabeçalho a plataforma hospedada
+entrega, e chutar seria repetir o erro de documentar defesa sem conferir. A
+própria tabela responde:
+
+```sql
+select split_part(client_key, ':', 1) as fonte, count(*)
+  from public.public_endpoint_hits group by 1;
+```
+
+No stack local quem informa é o `x-real-ip` do kong. **Conferir isso em dev e em
+prod depois do deploy:** se aparecer `xff:`, o degrau mais fraco é o que está em
+uso. O texto da coluna foi corrigido pela migration 0113, porque migration
+aplicada não se edita.
+
+**Teto global, não feito, e é decisão pendente.** Com identidade confiável, o
+teto por IP volta a valer. O que ele não cobre é atacante com muitos IPs, e a
+defesa para isso seria um teto por função que não dependa de identidade
+nenhuma. Ele tem contrapartida real: um atacante pode se grudar no teto e deixar
+o formulário fora do ar, trocando "a fila enche de lixo" por "lead de verdade
+não entra". É escolha de quem vende, não de quem implementa.
+
+**CSP só na LP.** A página de venda é servida na MESMA origem do backoffice, e a
+sessão do Supabase mora no `localStorage` dessa origem. Hoje a LP não carrega
+script de terceiro nenhum e não renderiza nada vindo do usuário, então o risco é
+o próximo passo, não o de hoje: no dia em que alguém puser um pixel de campanha
+ali, ele roda com acesso ao token de quem está logado no sistema. A política está
+em `vercel.json` (que não aceita comentário, e é por isso que o raciocínio está
+aqui), vale para `/lp` e `/lp/*`, e bloqueia script de outra origem.
+
+`script-src` leva `'unsafe-inline'` porque a página tem um script em linha no
+`<head>` que precisa rodar antes da primeira pintura. Tirá-lo exigiria nonce, que
+host estático não gera, ou script externo bloqueante, que custa uma ida à rede
+antes de pintar. A parte que importa continua valendo: origem de fora é
+recusada. **`tests/lp-fidelidade.mjs` manda a CSP lida do `vercel.json` na página
+e afirma que ela chegou, que recusa script de outra origem, e que a tela
+continua idêntica ao protótipo**. CSP que bloqueie a folha de estilo mudaria a
+página inteira, e o diff de pixel acusaria.
+
+A alternativa mais forte é servir a LP num domínio separado, aí a origem da
+sessão nunca encosta na página pública. Fica registrada como opção, não feita.
+
+**A armadilha de robô se chamava `site`.** Gerenciador de senha trata `site`,
+`url` e `website` como campo de endereço e preenche sozinho, mesmo fora da tela.
+O custo do falso positivo é exatamente o lead que a página existe para pegar: a
+pessoa vê "Recebemos seu e-mail" e o lead é descartado. O campo passou a ter
+nome que nenhum preenchedor reconhece, e a queda passou a ser CONTADA em
+`public_endpoint_hits` (escopo `capture-lead-armadilha`), porque o único
+vestígio antes era uma linha de log, e log rotaciona.
+
+**Dependências.** `npm audit` apontava 1 crítica e 4 altas. A que tocava este
+módulo era `zod < 4.6.6`, e é o único lugar onde entrada anônima encontra zod;
+estava mitigada de fato pelo teto de 64 KB do corpo. Corrigidas todas, e o piso
+declarado em `package.json` subiu junto com o lock, porque intervalo que ainda
+permitisse a versão vulnerável deixaria a correção só no lock. Os oito `pin` de
+`npm:zod@` das edge functions foram para a mesma versão, para schema
+compartilhado não divergir.
+
+**O que ficou aberto, e é decisão de quem vende:** os números e os depoimentos
+simulados da página, a política de privacidade que os três links do rodapé ainda
+não têm, o `noindex` do `<head>`, e a confirmação de que nome, telefone e
+endereço das capturas de tela são fictícios. Nenhum deles é falha técnica, e
+nenhum deles pode ir ao ar sem decisão explícita.
+
 ### Obrigatório antes da importação do dado real
 
 > **A importação já aconteceu** (`scripts/import-base44.mjs`, tenant
