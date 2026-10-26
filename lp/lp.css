@@ -1,0 +1,877 @@
+/*
+  TEMA DA LANDING PAGE, PORTADO DO PROTÓTIPO (prototypes/lp-hausone.html).
+
+  O protótipo roda no CDN do Tailwind v3 e declara as cores em
+  `tailwind.config.colors` como `hsl(var(--x) / <alpha-value>)`. Aqui elas
+  entram no `@theme` do v4, com os MESMOS nomes de utilitário e os mesmos
+  valores. Nada de visual foi decidido neste arquivo: o protótipo aprovado é a
+  fonte da verdade (CLAUDE.md), e divergência sutil conta como bug.
+
+  `@theme inline` NÃO É DETALHE, É O QUE FAZ A PÁGINA FUNCIONAR.
+
+    Sem `inline`, o v4 emite `--color-background: hsl(var(--background))` no
+    `:root` e cada utilitário vira `background-color: var(--color-background)`.
+    Variável CSS é substituída onde é DECLARADA, não onde é usada: o valor
+    congelaria no `:root` e `.sec-dark`/`.sec-light` deixariam de trocar cor
+    alguma — a página inteira sairia clara. Com `inline`, o v4 escreve
+    `hsl(var(--background))` dentro do utilitário, que é exatamente o que o v3
+    fazia, e a troca por seção volta a valer. Mesma razão pela qual
+    src/index.css usa `@theme inline` para o modo escuro do app.
+
+  `source(none)` + `@source` explícito: sem isso o v4 varre o projeto inteiro e
+  o CSS da LP sairia com os utilitários de `src/**` (e o do app com os da LP).
+  Os dois `@source` são os dois arquivos onde há nome de classe — inclusive
+  lp.js, que escreve `bg-elevated/90`, `backdrop-blur`, `border-b` e
+  `border-border` na nav ao rolar. Se lp.js saísse da lista, essas quatro
+  classes não existiriam e a nav não mudaria de cor ao rolar: é falha silenciosa,
+  e o Tailwind não avisa.
+*/
+@import 'tailwindcss' source(none);
+@source './index.html';
+@source './lp.js';
+
+@theme inline {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-border: hsl(var(--border));
+  --color-ring: hsl(var(--ring));
+  --color-soft: hsl(var(--text-soft));
+  --color-faint: hsl(var(--text-faint));
+  --color-destructive: hsl(var(--destructive));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-elevated: hsl(var(--elevated));
+  --color-brand: hsl(var(--brand));
+  --color-auth-panel: hsl(var(--auth-panel));
+  --color-auth-panel-foreground: hsl(var(--auth-panel-foreground));
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --container-container: 75rem;
+}
+
+/* ---------------------------------------------------------------------------
+   DAQUI PARA BAIXO É O <style> DO PROTÓTIPO, INTEGRAL E NA MESMA ORDEM.
+   Ele fica FORA de qualquer @layer, como estava: no v3 ele vinha depois do CSS
+   do CDN e ganhava por ordem de origem; no v4, CSS sem camada ganha de
+   utilitário em camada. Mesmo desfecho, e é o que o protótipo assume.
+   --------------------------------------------------------------------------- */
+      /* ======================================================================
+         TOKENS — valores idênticos aos de src/index.css.
+         Dois escopos de seção em vez de :root/.dark, porque a página usa os
+         dois temas do app ao mesmo tempo, um por seção.
+         ====================================================================== */
+      :root {
+        --radius: 0.5rem;
+        --destructive: 0 84.2% 60.2%;
+
+        /*
+          MOVIMENTO — uma curva só e três durações, para a página inteira ter
+          o mesmo temperamento. Curva de saída suave: começa rápido, encosta
+          devagar. Nada aqui passa de 600ms e nada se repete.
+        */
+        --mov-curva: cubic-bezier(0.22, 0.61, 0.36, 1);
+        --mov-rapido: 200ms;
+        --mov-medio: 320ms;
+        --mov-revela: 480ms;
+      }
+
+      /*
+        CADA ESCOPO REPINTA O PRÓPRIO `color`, e isso não é redundância.
+        `color` é herdado como VALOR COMPUTADO: sem esta linha, todo texto que
+        não tem classe de cor explícita herda o branco resolvido lá no <body>,
+        e os títulos das seções claras saem brancos sobre slate-50. Pego no
+        render, não na leitura do código.
+      */
+      .sec-dark,
+      .sec-light {
+        color: hsl(var(--foreground));
+      }
+
+      /* Valores do bloco .dark de src/index.css */
+      .sec-dark {
+        --background: 210 40% 9%;
+        --foreground: 210 40% 98%;
+        --card: 210 36% 14%;
+        --elevated: 210 32% 19%;
+        --auth-panel: 210 38% 16%;
+        --auth-panel-foreground: 210 40% 98%;
+        --primary: 210 40% 98%;
+        --primary-foreground: 210 40% 12%;
+        --muted: 210 34% 15%;
+        --muted-foreground: 210 16% 70%;
+        --border: 210 24% 26%;
+        --ring: 210 24% 72%;
+        --text-soft: 210 22% 84%;
+        --text-faint: 210 14% 58%;
+        /* O latão clareia no escuro, senão some: 3,43 contra o fundo na versão
+           escura, 7,47 nesta. Mesma regra da porta da logo invertida. */
+        --brand: 45.6 67.5% 47.1%;
+        --destructive: 0 62% 48%;
+        /* o degrau do título sem destaque: 67% contra 96% = 29 pontos */
+        --titulo-apagado: var(--muted-foreground);
+      }
+
+      /* Valores do :root de src/index.css */
+      .sec-light {
+        --background: 210 40% 98%;
+        --foreground: 210 40% 12%;
+        --card: 0 0% 100%;
+        --elevated: 210 40% 98%;
+        --auth-panel: 210 38% 16%;
+        --auth-panel-foreground: 210 40% 98%;
+        --primary: 210 40% 15.7%;
+        --primary-foreground: 210 40% 98%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --border: 214.3 31.8% 91.4%;
+        --ring: 210 40% 15.7%;
+        --text-soft: 215.3 19.3% 34.5%;
+        --text-faint: 215 20.2% 65.1%;
+        --destructive: 0 84.2% 60.2%;
+        /* O latão da porta da logo, medido: 5,03 sobre o papel. */
+        --brand: 44 69.4% 30.8%;
+        /* o degrau do título sem destaque: 34,5% contra 4,9% = 30 pontos */
+        --titulo-apagado: var(--text-soft);
+      }
+
+      /* Seção clara que roda sobre a superfície BRANCA (--card de ponta a
+         ponta), com os cartões em slate-50. Mesmo tema, outro respiro. */
+      .sec-light-inverted {
+        background-color: hsl(0 0% 100%);
+      }
+
+      html {
+        scroll-behavior: smooth;
+        /* a nav fixa não pode cobrir o título da seção ancorada */
+        scroll-padding-top: 5.5rem;
+      }
+
+      body {
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ======================================================================
+         ESCALA TIPOGRÁFICA — definida aqui, nunca improvisada no markup.
+         ====================================================================== */
+      .t-eyebrow {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        line-height: 1.3;
+      }
+      .t-h1 {
+        font-size: clamp(1.75rem, 6.2vw, 3.5rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+      }
+      .t-h2 {
+        font-size: clamp(1.5rem, 3.6vw, 2.5rem);
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        line-height: 1.12;
+      }
+      .t-h3 {
+        font-size: clamp(1.375rem, 2.6vw, 2rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+      .t-lead {
+        font-size: clamp(0.9375rem, 1.1vw, 1.125rem);
+        line-height: 1.65;
+      }
+      .t-body {
+        font-size: 0.9375rem;
+        line-height: 1.65;
+      }
+      @media (min-width: 640px) {
+        .t-body {
+          font-size: 1rem;
+        }
+      }
+
+      /*
+        O DESTAQUE É DE VALOR, NÃO DE MATIZ. O título que tem expressão
+        destacada recebe .titulo-duplo e cai um degrau inteiro; só a expressão
+        volta ao --foreground cheio. Título sem destaque não leva a classe e
+        fica em --foreground, como sempre esteve.
+      */
+      .titulo-duplo {
+        color: hsl(var(--titulo-apagado));
+      }
+      .destaque {
+        color: hsl(var(--foreground));
+      }
+
+      /* ======================================================================
+         BORDA ENTRE SEÇÕES — linha sólida de 1px, no --border da seção que
+         CHEGA. Era uma banda de degradê de 4rem copiada das referências; saiu
+         porque degradê é vocabulário delas, não do sistema. O app separa
+         tabela, cartão, lista e rodapé com exatamente isto: uma linha de 1px
+         em --border. A LP passa a separar do mesmo jeito.
+
+         O --border vem do escopo da própria seção, então a linha troca de tom
+         junto com o tema sem uma classe condicional. Onde os dois fundos já
+         são muito diferentes (escuro contra claro), quem separa é a troca de
+         cor e a linha quase não aparece — e é na fronteira da seção 8 para a
+         9, branco contra slate-50, que ela faz todo o trabalho.
+         ====================================================================== */
+      .borda-secao {
+        border-top: 1px solid hsl(var(--border));
+      }
+
+      /* ======================================================================
+         HERO — dois halos radiais, ambos grafite: o painel de entrada e a
+         superfície elevada do tema escuro.
+         ====================================================================== */
+      /*
+        Os dois halos são GRAFITE, não cor: o painel de entrada (--auth-panel,
+        16%) e a superfície elevada (--elevated, 12%) do próprio tema escuro.
+        É o que dá volume ao hero sem acender matiz nenhum.
+      */
+      .hero-halo {
+        background:
+          radial-gradient(
+            60rem 34rem at 78% 18%,
+            hsl(var(--auth-panel) / 0.9),
+            hsl(var(--auth-panel) / 0) 70%
+          ),
+          radial-gradient(44rem 30rem at 8% 0%, hsl(var(--elevated)), hsl(var(--elevated) / 0) 65%);
+      }
+
+      /* ======================================================================
+         MOLDURA DE SCREENSHOT — a janela em volta da captura. Mesmo rounded-2xl
+         do bloco do ícone da marca, em escala de janela.
+         ====================================================================== */
+      .mockup {
+        border-radius: 1rem;
+        border: 1px solid hsl(var(--border));
+        background-color: hsl(var(--card));
+        box-shadow:
+          0 1px 2px hsl(222 8% 4.5% / 0.1),
+          0 24px 60px -24px hsl(222 8% 4.5% / 0.45);
+        overflow: hidden;
+      }
+      .mockup-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 0.875rem;
+        border-bottom: 1px solid hsl(var(--border));
+        background-color: hsl(var(--background));
+      }
+      .mockup-dot {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 9999px;
+        background-color: hsl(var(--text-faint) / 0.5);
+      }
+      /*
+        O MIOLO DA JANELA É A CAPTURA. Até aqui era uma moldura vazia com grade
+        tracejada e uma etiqueta ("Screenshot 1"), porque as imagens ainda não
+        existiam. Agora existem, e saíram do AMBIENTE DE DEV, com dado simulado
+        — nunca de produção. Ver o bloco "AS CAPTURAS" no cabeçalho.
+
+        `aspect-ratio` fica no contêiner, e não só no <img>, para a altura da
+        janela ser a mesma antes e depois de a imagem carregar: sem isso cada
+        bloco do tour salta quando a captura chega, e a revelação ao rolar é
+        medida em cima de uma altura que ainda vai mudar.
+      */
+      .mockup-body {
+        aspect-ratio: 16 / 10;
+        display: block;
+        background-color: hsl(var(--muted));
+      }
+      .mockup-body img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: top left;
+      }
+
+      /*
+        A perspectiva só existe onde há margem para sangrar. Os valores de
+        --mx/--my (-1 a 1) são escritos pelo JS quando há ponteiro fino; sem
+        eles, o fallback é 0 e a transformação é exatamente a estática de
+        antes. Amplitude pequena de propósito: 2,5° em Y, 2° em X e 6px de
+        deslocamento — o quadro responde, não dança.
+      */
+      @media (min-width: 1024px) {
+        .tilt {
+          transform: perspective(1600px) rotateY(calc(-13deg + var(--mx, 0) * 2.5deg))
+            rotateX(calc(3deg + var(--my, 0) * -2deg)) rotate(-1.2deg)
+            translate3d(calc(var(--mx, 0) * 6px), calc(var(--my, 0) * 4px), 0);
+          transform-origin: left center;
+        }
+      }
+      @media (min-width: 1024px) and (pointer: fine) {
+        .anim .tilt {
+          transition: transform 300ms var(--mov-curva);
+        }
+      }
+
+      /* ======================================================================
+         ASSINATURA — A TRILHA DAS SEIS FASES.
+         Horizontal a partir de md, lista vertical abaixo disso.
+         ====================================================================== */
+      .trilha {
+        display: grid;
+        gap: 1.25rem;
+      }
+      .trilha-no {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+      }
+      .trilha-bolinha {
+        flex: none;
+        width: 0.875rem;
+        height: 0.875rem;
+        border-radius: 9999px;
+        border: 2px solid hsl(var(--text-faint));
+        background-color: hsl(var(--background));
+      }
+      /* PREENCHIDO CONTRA VAZADO: é assim que a fase acesa se distingue agora. */
+      /* O NÓ ACESO É A PORTA DA LOGO. Único ponto de latão da seção, do mesmo
+         jeito que a logo tem uma porta dourada e mais nada colorido. */
+      .trilha-no[data-ativa] .trilha-bolinha {
+        border-color: hsl(var(--brand));
+        background-color: hsl(var(--brand));
+        box-shadow: 0 0 0 6px hsl(var(--brand) / 0.18);
+      }
+      .trilha-no[data-ativa] .trilha-rotulo {
+        color: hsl(var(--foreground));
+        font-weight: 700;
+      }
+      /* vertical: a linha liga um nó ao seguinte */
+      .trilha-no:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        left: 0.375rem;
+        top: 1.25rem;
+        width: 2px;
+        height: 1.25rem;
+        background-color: hsl(var(--border));
+      }
+      @media (min-width: 768px) {
+        .trilha {
+          grid-auto-flow: column;
+          grid-auto-columns: 1fr;
+          gap: 0;
+        }
+        .trilha-no {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.75rem;
+        }
+        .trilha-no:not(:last-child)::after {
+          left: 0.875rem;
+          top: 0.375rem;
+          width: calc(100% - 0.875rem);
+          height: 2px;
+        }
+        /* o degradê da linha vai do cinza da borda ao verde da marca */
+        .trilha-no:nth-child(4):not(:last-child)::after {
+          background: linear-gradient(to right, hsl(var(--border)), hsl(var(--foreground) / 0.35));
+        }
+        .trilha-no:nth-child(5):not(:last-child)::after {
+          background: linear-gradient(to right, hsl(var(--foreground) / 0.35), hsl(var(--foreground)));
+        }
+      }
+
+      /* O mesmo motivo da trilha, sublinhando a expressão destacada do hero. */
+      .sublinhado-trilha {
+        position: relative;
+        display: inline-block;
+      }
+      .sublinhado-trilha::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -0.15em;
+        height: 3px;
+        border-radius: 9999px;
+        /* Mesma geometria de antes, agora em latão: é o segundo e último ponto
+           de cor da página, e fica embaixo da frase que o olho já procura. */
+        background: linear-gradient(
+          to right,
+          hsl(var(--brand) / 0.25),
+          hsl(var(--brand)) 45%,
+          hsl(var(--brand) / 0.25)
+        );
+      }
+
+      /* ======================================================================
+         FOCO VISÍVEL — em tudo que recebe foco, com o --ring do escopo.
+         ====================================================================== */
+      a:focus-visible,
+      button:focus-visible,
+      input:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid hsl(var(--ring));
+        outline-offset: 2px;
+        border-radius: var(--radius);
+      }
+
+      /*
+        O PAINEL DE SUCESSO RECEBE FOCO POR PROGRAMA, para o leitor de tela
+        anunciar o resultado no lugar de deixar o foco num botão que sumiu. Ele
+        não é um controle, então o contorno automático do navegador (branco,
+        grosso) o faria parecer um — apareceu assim no primeiro render. O
+        indicativo visual é o próprio painel verde, que acabou de tomar o lugar
+        do formulário.
+      */
+      [data-form-sucesso]:focus,
+      [data-form-sucesso]:focus-visible {
+        outline: none;
+      }
+
+      /* ======================================================================
+         ACCORDION NATIVO — <details>/<summary>, teclado de graça.
+         ====================================================================== */
+      summary {
+        cursor: pointer;
+        list-style: none;
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      details[open] .faq-chevron {
+        transform: rotate(180deg);
+      }
+      .faq-chevron {
+        transition: transform 0.18s ease-out;
+      }
+
+      /* ======================================================================
+         WORDMARK ESTOURADO DO RODAPÉ — cortado pela borda inferior, poucos
+         pontos mais claro que o fundo.
+         ====================================================================== */
+      .wordmark {
+        font-size: clamp(5rem, 21vw, 18rem);
+        font-weight: 800;
+        letter-spacing: -0.045em;
+        line-height: 0.78;
+        /* sobre fundo a 4,5%, isto resulta em ~10% de luminância */
+        color: hsl(210 14% 96% / 0.06);
+        user-select: none;
+        white-space: nowrap;
+      }
+
+      .campo {
+        background-color: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        color: hsl(var(--foreground));
+      }
+      .campo::placeholder {
+        color: hsl(var(--text-faint));
+      }
+      .campo[aria-invalid='true'] {
+        border-color: hsl(var(--destructive));
+      }
+
+      /* ======================================================================
+         MOVIMENTO · 1 — REVELAÇÃO AO ROLAR
+         O estado escondido SÓ existe sob .anim, que o próprio JS escreve no
+         <html> antes da primeira pintura. Sem JS, nenhuma destas regras casa e
+         a página nasce inteira.
+         ====================================================================== */
+      .anim [data-revelar] {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      .anim [data-revelar].revelado {
+        opacity: 1;
+        transform: translateY(0);
+        transition:
+          opacity var(--mov-revela) var(--mov-curva),
+          transform var(--mov-revela) var(--mov-curva);
+        transition-delay: var(--atraso, 0ms);
+      }
+
+      /* ======================================================================
+         MOVIMENTO · 2 — A TRILHA SE DESENHA (a animação principal da página)
+         Uma vez, quando a seção entra. Nunca em laço.
+         ====================================================================== */
+      @keyframes trilha-linha-y {
+        from {
+          transform: scaleY(0);
+        }
+        to {
+          transform: scaleY(1);
+        }
+      }
+      @keyframes trilha-linha-x {
+        from {
+          transform: scaleX(0);
+        }
+        to {
+          transform: scaleX(1);
+        }
+      }
+      @keyframes trilha-no {
+        from {
+          opacity: 0;
+          transform: scale(0.4);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      @keyframes trilha-rotulo {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      /* o índice do nó vira o atraso dele: 170ms por fase */
+      .trilha-no:nth-child(1) {
+        --i: 0;
+      }
+      .trilha-no:nth-child(2) {
+        --i: 1;
+      }
+      .trilha-no:nth-child(3) {
+        --i: 2;
+      }
+      .trilha-no:nth-child(4) {
+        --i: 3;
+      }
+      .trilha-no:nth-child(5) {
+        --i: 4;
+      }
+      .trilha-no:nth-child(6) {
+        --i: 5;
+      }
+
+      .anim .trilha .trilha-no::after {
+        transform-origin: top;
+      }
+      .anim .trilha:not(.desenhada) .trilha-bolinha,
+      .anim .trilha:not(.desenhada) .trilha-rotulo {
+        opacity: 0;
+      }
+      .anim .trilha:not(.desenhada) .trilha-no::after {
+        transform: scaleY(0);
+      }
+      .anim .trilha.desenhada .trilha-bolinha {
+        animation: trilha-no 260ms var(--mov-curva) both;
+        animation-delay: calc(var(--i) * 170ms);
+      }
+      .anim .trilha.desenhada .trilha-rotulo {
+        animation: trilha-rotulo 260ms var(--mov-curva) both;
+        animation-delay: calc(var(--i) * 170ms + 80ms);
+      }
+      .anim .trilha.desenhada .trilha-no::after {
+        animation: trilha-linha-y 300ms var(--mov-curva) both;
+        animation-delay: calc(var(--i) * 170ms + 120ms);
+      }
+      @media (min-width: 768px) {
+        .anim .trilha .trilha-no::after {
+          transform-origin: left;
+        }
+        .anim .trilha:not(.desenhada) .trilha-no::after {
+          transform: scaleX(0);
+        }
+        .anim .trilha.desenhada .trilha-no::after {
+          animation-name: trilha-linha-x;
+        }
+      }
+
+      /* ======================================================================
+         MOVIMENTO · 3 — NAV: densidade e link da seção visível
+         ====================================================================== */
+      .nav-linha {
+        height: 4rem;
+      }
+      .anim [data-nav] .nav-linha {
+        transition: height var(--mov-medio) var(--mov-curva);
+      }
+      .anim [data-nav].encolhida .nav-linha {
+        height: 3.5rem;
+      }
+      .nav-link {
+        position: relative;
+      }
+      .nav-link::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -0.4rem;
+        height: 1px;
+        background-color: hsl(var(--foreground));
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform var(--mov-medio) var(--mov-curva);
+      }
+      .nav-link:hover::after,
+      .nav-link[aria-current='true']::after {
+        transform: scaleX(1);
+      }
+
+      /* ======================================================================
+         MOVIMENTO · 4 — CARTÃO E BOTÃO EM HOVER
+         Vocabulário monocromático: sobe 2px, a borda ganha um degrau, a sombra
+         aparece. Sem cor, sem escala.
+         O segundo seletor existe porque, enquanto o elemento ainda carrega o
+         marcador da revelação, aquela regra tem mais peso que .cartao:hover.
+         ====================================================================== */
+      .cartao {
+        transition:
+          transform var(--mov-rapido) var(--mov-curva),
+          border-color var(--mov-rapido) var(--mov-curva),
+          box-shadow var(--mov-rapido) var(--mov-curva);
+      }
+      .cartao:hover,
+      .anim [data-revelar].revelado.cartao:hover {
+        transform: translateY(-2px);
+        border-color: hsl(var(--text-faint));
+        box-shadow: 0 10px 28px -16px hsl(222 8% 4.5% / 0.5);
+      }
+      .btn-seta svg {
+        transition: transform var(--mov-rapido) var(--mov-curva);
+      }
+      .btn-seta:hover svg,
+      .btn-seta:focus-visible svg {
+        transform: translateX(3px);
+      }
+      .btn-seta-baixo:hover svg,
+      .btn-seta-baixo:focus-visible svg {
+        transform: translateY(3px);
+      }
+
+      /* ======================================================================
+         MOVIMENTO · 5 — ACCORDION COM ALTURA ANIMADA, SEM PERDER O <details>
+         grid-template-rows de 0fr a 1fr é a única forma limpa de animar altura
+         desconhecida. O <details> continua nativo: teclado e leitor de tela
+         vêm dele. O fechamento precisa do JS, que segura o `open` até a
+         transição terminar.
+         ====================================================================== */
+      .faq-corpo {
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows var(--mov-medio) var(--mov-curva);
+      }
+      .faq-corpo > div {
+        overflow: hidden;
+      }
+      details[open] .faq-corpo {
+        grid-template-rows: 1fr;
+      }
+      details.fechando .faq-corpo {
+        grid-template-rows: 0fr;
+      }
+
+      /* ======================================================================
+         NÚMEROS (seção 5-A)
+         A contagem crescente muda a quantidade de dígitos, e dígito que muda
+         de largura faz a linha sacudir. Duas travas, não uma:
+         · `tabular-nums` dá a todos os algarismos a MESMA largura, então 1 e 8
+           ocupam o mesmo espaço;
+         · uma CÓPIA INVISÍVEL do valor final (.numero-reserva) segura a
+           largura da caixa, e o valor que está contando flutua por cima dela
+           em posição absoluta. Assim a reserva é exatamente a do texto final,
+           em qualquer fonte.
+
+         A primeira tentativa foi `min-width` em `ch`, e ela não serve: `ch` é
+         o avanço do algarismo "0" PROPORCIONAL, e aqui os algarismos são
+         tabulares. Medido nesta fonte: 2ch = 66px, mas "94" tabular ocupa
+         72,8px — ou seja, a reserva era MENOR que o texto e o "%" ao lado
+         pulava 6,8px no instante em que a contagem passava de 9 para 10. Com a
+         cópia invisível não pula, porque a largura reservada é a largura real.
+         Como cada número vive numa coluna de grade de largura fixa e está
+         alinhado à esquerda, nada ao redor se move enquanto ele conta.
+         ====================================================================== */
+      .numero {
+        font-size: clamp(2.25rem, 5vw, 3.25rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1;
+      }
+      .numero-valor {
+        position: relative;
+        display: inline-block;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: 'tnum';
+      }
+      /* a cópia invisível segura a largura; o valor que conta flutua por cima */
+      .numero-reserva {
+        visibility: hidden;
+      }
+      .numero-atual {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+
+      /* ======================================================================
+         CARROSSEL DE DEPOIMENTOS (seção 10-A)
+         O trilho é um container de rolagem com encaixe. A barra de rolagem
+         some porque os controles e o arrasto já dão o mesmo acesso — e ela
+         continua rolável por teclado, que é o que importa.
+         ====================================================================== */
+      .carrossel-trilho {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 100%;
+        gap: 1rem;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        border-radius: calc(var(--radius) + 4px);
+      }
+      .carrossel-trilho::-webkit-scrollbar {
+        display: none;
+      }
+      .carrossel-slide {
+        scroll-snap-align: start;
+      }
+      .citacao {
+        font-size: clamp(1.125rem, 2vw, 1.5rem);
+        font-weight: 500;
+        line-height: 1.5;
+        letter-spacing: -0.015em;
+        color: hsl(var(--foreground));
+      }
+
+      /* Os controles só existem com JavaScript: é ele que os faz funcionar. */
+      .js-apenas {
+        display: none;
+      }
+      .js .js-apenas {
+        display: flex;
+      }
+
+      .ponto {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 9999px;
+        background-color: hsl(var(--text-faint) / 0.45);
+        /* cor e sombra só: nada aqui mexe em layout */
+        transition:
+          background-color var(--mov-rapido) var(--mov-curva),
+          box-shadow var(--mov-rapido) var(--mov-curva);
+      }
+      .ponto:hover {
+        background-color: hsl(var(--text-faint));
+      }
+      .ponto[aria-current='true'] {
+        background-color: hsl(var(--foreground));
+        box-shadow: 0 0 0 4px hsl(var(--foreground) / 0.12);
+      }
+      .seta-carrossel {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 9999px;
+        border: 1px solid hsl(var(--border));
+        color: hsl(var(--text-soft));
+        transition:
+          background-color var(--mov-rapido) var(--mov-curva),
+          color var(--mov-rapido) var(--mov-curva),
+          border-color var(--mov-rapido) var(--mov-curva);
+      }
+      .seta-carrossel:hover {
+        background-color: hsl(var(--card));
+        border-color: hsl(var(--text-faint));
+        color: hsl(var(--foreground));
+      }
+
+      /* ======================================================================
+         prefers-reduced-motion — sem transição, sem animação, sem rolagem
+         suave. A perspectiva do mockup fica: é estática, não é movimento.
+         ====================================================================== */
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.001ms !important;
+          animation-duration: 0.001ms !important;
+          animation-iteration-count: 1 !important;
+        }
+        /*
+          CINTO E SUSPENSÓRIO. O JS já não escreve .anim quando o usuário pede
+          menos movimento, mas se a preferência mudar com a página aberta, nada
+          pode ficar invisível: revelação que não dispara é conteúdo que some.
+        */
+        [data-revelar] {
+          opacity: 1 !important;
+          transform: none !important;
+        }
+        .trilha .trilha-bolinha,
+        .trilha .trilha-rotulo,
+        .trilha .trilha-no::after {
+          opacity: 1 !important;
+          transform: none !important;
+          animation: none !important;
+        }
+        .anim [data-nav].encolhida .nav-linha {
+          height: 4rem;
+        }
+        /*
+          O número nasce pronto no valor final. Ele já está escrito no HTML; o
+          JS só conta quando há movimento, então aqui não há nada a desligar —
+          esta regra existe para o caso de a preferência mudar com a página
+          aberta no meio de uma contagem.
+        */
+        .numero {
+          opacity: 1 !important;
+        }
+      }
+
+/* ---------------------------------------------------------------------------
+   O QUE NÃO VEIO DO PROTÓTIPO, E POR QUÊ
+   --------------------------------------------------------------------------- */
+
+/*
+  ARMADILHA DE ROBÔ. Campo fora da tela, que pessoa nenhuma vê e preenchedor
+  automático preenche. Fora da tela, e não `display: none`: robô que respeita
+  `display: none` também é robô que pula o campo, e aí a armadilha não pega
+  ninguém. `position: absolute` tira do fluxo, então não desloca nada.
+*/
+.pote {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/*
+  ESTADO DE ENVIO. O protótipo não tinha: lá o submit não ia a lugar nenhum e
+  era instantâneo. Com rede no meio existe um intervalo entre clicar e saber, e
+  sem marca nele a pessoa clica de novo. Sem trocar o rótulo do botão de
+  propósito — o texto é mais largo que "Enviando" e a linha inteira saltaria.
+*/
+form[data-form][aria-busy='true'] [data-form-entrada] {
+  opacity: 0.6;
+  pointer-events: none;
+}

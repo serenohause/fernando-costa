@@ -1,0 +1,2376 @@
+<!doctype html>
+<!--
+  ============================================================================
+  PROTÓTIPO · LANDING PAGE DE CAPTAÇÃO · HausOne
+  Fonte da verdade visual desta peça. Página pública, objetivo único: capturar
+  o e-mail de dono/sócio de escritório de arquitetura.
+  ============================================================================
+
+  AS CAPTURAS — REGRA SEM EXCEÇÃO, E ELA JÁ FOI CUMPRIDA
+  As quatro imagens de `prototypes/lp-hausone/` saíram do AMBIENTE DE DEV, do
+  escritório de teste `fernando-costa-teste`, onde nenhuma linha é importada:
+  cliente, projeto, contrato e parcela são todos simulados. Captura de produção
+  tem nome de cliente real, CPF, endereço de obra e valor de contrato, e não
+  entra em página pública — nem aqui, nem quando esta peça virar rota React.
+
+  Quem for refazer alguma: mesma origem, mesmo escritório de teste. O retrato
+  da conta do escritório que usa o sistema de verdade não serve, por mais
+  bonita que a tela esteja naquele dia.
+
+    01-fluxo-do-projeto.png        quadro por fase (hero)
+    02-conferencia-do-briefing.png o diff campo a campo do briefing
+    03-diario-de-obra.png          aba Obra, com visita e pendências
+    04-contas-a-receber.png        recebíveis do mês, com os totais
+    05-mapa-de-projetos.jpg        pins, filtros e o botão de satélite
+
+  Todas em 2880×1800 (16:10 a 2x), capturadas em 1440×900.
+
+  ---------------------------------------------------------------------------
+  A LOGO, E DE ONDE SAIU A PALETA DESTA PÁGINA
+  ---------------------------------------------------------------------------
+  A marca existe desde 26/10/2026 e substituiu o ícone Building2 que segurava o
+  posto. Duas casas sobrepostas em traço contínuo, com a porta em latão, e o
+  wordmark ao lado.
+
+  O ARQUIVO VEM COM FUNDO CHAPADO. Os quatro PNG de `prototypes/lp-hausone/`
+  são o recorte: alfa pela luminância, com rampa entre 192 e 226 para a borda
+  ficar suave, mais um passe que apaga pixel parcial sem vizinho opaco.
+
+  ESSE SEGUNDO PASSE É CONTRA SOMBRA PROJETADA, e está aqui por causa da
+  primeira versão da logo, que tinha uma. Limiar de claridade não separava as
+  duas coisas, porque a sombra e o fundo tinham quase a mesma claridade, então
+  ou sobrava um fantasma ao lado do wordmark ou a borda das letras era comida.
+  O que separa é a natureza: o traço tem borda dura, e todo pixel de borda dele
+  encosta num pixel 100% opaco; a sombra é um borrão inteiro de alfa baixo, sem
+  núcleo sólido. Na primeira versão esse passe tirou 763 pixels. A versão atual
+  do arquivo não tem sombra nenhuma, e o passe tira zero. Fica no caminho
+  mesmo assim, para a próxima versão da logo não precisar descobrir isso de
+  novo.
+
+    logo-hausone-claro.png      lockup, navy + latão, para fundo claro
+    logo-hausone-escuro.png     lockup, papel + latão claro, para fundo escuro
+    simbolo-hausone-claro.png   só a casa, para favicon e espaço apertado
+    simbolo-hausone-escuro.png  idem, invertido
+
+  POR QUE DUAS VERSÕES, E NÃO UMA: o navy da logo dá 1,30 de contraste contra o
+  fundo escuro desta página. Some. E o latão escuro sobre o navy dá 2,85, que
+  também reprova. Na versão escura o traço vira papel e o latão clareia.
+
+  A PALETA DA PÁGINA PASSOU A SER A DA LOGO, e isso coube bem porque a logo é
+  uma escala de um matiz só:
+
+    navy do traço   #182838   hsl(210 40% 15.7%)
+    papel do fundo  #F8FAFC   hsl(210 40% 98%)
+
+  Mesmo matiz, mesma saturação, dois extremos de luminosidade. Então o escuro
+  desta página deixou de ser o grafite neutro e passou a ser esse mesmo 210 40%
+  em degraus: fundo 9%, cartão 14%, painel 16%, elevado 19%, borda 26%.
+
+  O LATÃO É O ÚNICO PONTO DE COR, e aparece em dois lugares, pela mesma razão
+  que a logo tem uma porta dourada e mais nada: o nó aceso da trilha das fases e
+  o sublinhado da expressão destacada do hero. Medido: #856818 dá 5,03 sobre o
+  papel, e #C9A227 dá 7,47 sobre o fundo escuro.
+
+  ---------------------------------------------------------------------------
+
+  A DO MAPA É JPEG, E AS OUTRAS SÃO PNG, de propósito. PNG é formato de tela
+  de sistema: pouca cor, texto fino, bordas duras, e comprime muito bem. O
+  mapa é imagem fotográfica (relevo, vegetação, sombreado), e em PNG ele saiu
+  com 1,37 MB, quatro vezes qualquer uma das outras. Em JPEG a 82 cai para
+  330 KB sem diferença visível nesse tamanho de exibição.
+
+  O QUE O E-MAIL SIGNIFICA, e isso governa toda a microcopy: a pessoa está
+  dizendo "tenho interesse, me procurem". Ela NÃO recebe nada automático — nem
+  material, nem e-mail de boas-vindas, nem acesso. É contato humano depois.
+  Nenhum texto desta página pode sugerir entrega automática, inclusive o texto
+  do estado de sucesso.
+
+  ---------------------------------------------------------------------------
+  AS SEÇÕES DESTA PÁGINA
+  A numeração de 1 a 12 é a original e NÃO foi refeita quando as duas seções
+  simuladas entraram: as decisões registradas aqui e nos comentários do markup
+  citam "seção 4", "seção 8" o tempo todo, e renumerar tudo faria cada uma
+  dessas referências apontar para o lugar errado. As novas entram como 5-A e
+  10-A, no ponto da página em que de fato estão.
+  ---------------------------------------------------------------------------
+     1 · Navegação — transparente sobre o hero, sólida ao rolar. Nav curta
+         (quatro links), porque é um produto só e não uma família de produtos.
+     2 · Hero (escuro) — olho, título, subtítulo, formulário de e-mail acima da
+         dobra, CTA secundário, e o mockup do Fluxo do Projeto sangrando à
+         direita.
+   2-A · As três perguntas (claro) — a SEÇÃO DE DOR, que não existia. Três
+         perguntas que o escritório ouve toda semana, com o custo de hoje
+         descrito sem adjetivo. Entra antes dos módulos porque lista de
+         funcionalidade não serve a quem ainda não reconheceu o problema.
+     3 · Os módulos (claro) — oito cards, quatro colunas no desktop. Divide a
+         mesma superfície clara da 2-A, sem borda entre as duas: é um
+         movimento só, problema e resposta.
+     4 · As fases (escuro) — a trilha das seis fases. OCUPA O LUGAR da faixa de
+         métricas das referências.
+     5 · O tour (claro) — quatro blocos alternados, texto de um lado, moldura
+         de screenshot do outro. A ordem segue o ciclo do escritório: briefing,
+         obra, dinheiro, mapa.
+   5-A · Números (claro, superfície branca) — quatro indicadores com contagem
+         crescente. CONTEÚDO SIMULADO.
+   5-B · Gestão da equipe (claro, slate-50) — produtividade por pessoa,
+         projetos por colaborador e os dois responsáveis de cada projeto. Tudo
+         sai de tela existente; falta só a captura, que o banco de dev fora do
+         ar impediu.
+   5-C · Cobrança automática (claro, superfície branca) — ROADMAP, marcado como
+         "em desenvolvimento". Não existe no sistema.
+     6 · Origem (escuro) — bloco editorial. OCUPA O LUGAR do depoimento em
+         vídeo das referências. Fala do escritório que usa o sistema SEM
+         nomeá-lo, sob o olho "Validado por arquitetos", e o que está escrito
+         nela é verdade.
+     7 · Permissões (escuro) — seis cartões, um por função.
+     8 · Segurança (claro, superfície branca) — quatro cards.
+     9 · Como começa (claro) — quatro passos numerados.
+    10 · Perguntas frequentes (claro) — accordion.
+  10-A · Depoimentos (escuro) — carrossel de quatro depoimentos, um por função
+         do sistema. CONTEÚDO SIMULADO. Traz a nota de protótipo que cobre as
+         duas seções simuladas.
+    11 · CTA final (escuro, largo) — o mesmo formulário, com "nome do
+         escritório" opcional ao lado.
+    12 · Rodapé (escuro, denso) — quatro colunas, linha de assinatura e o
+         wordmark gigante cortado pela borda inferior.
+    + ÁREA DE DEMONSTRAÇÃO, depois do rodapé: os três estados do formulário
+      lado a lado. Não faz parte da página.
+
+  ---------------------------------------------------------------------------
+  CONTEÚDO SIMULADO — LEIA ANTES DE PUBLICAR
+  ---------------------------------------------------------------------------
+  DUAS SEÇÕES DESTA PÁGINA SÃO INVENTADAS, DE PONTA A PONTA:
+
+    5-A · Números     12 escritórios, 180 projetos, 430 contratos, 94% de
+                      adesão. NENHUM desses números existe. O HausOne está em
+                      UM escritório.
+   10-A · Depoimentos Marina Toledo (Escritório Pedra & Vidro), Rafael Nunes
+                      (Atelier Travessa), Carla Beltrão (Oficina Varanda) e
+                      Juliana Prado (Arquitetura Pátio Norte). Nenhuma dessas
+                      pessoas existe e nenhum desses escritórios existe.
+
+  POR QUE ELAS ESTÃO AQUI, se o brief original proibia número de cliente e
+  depoimento: a proibição continua valendo PARA A PÁGINA PUBLICADA. O que o
+  protótipo precisa é deixar julgar o layout — o ritmo, o peso visual e o
+  espaço que cada bloco pede —, e para isso o conteúdo tem que parecer real na
+  tela. Fora da tela, o caráter simulado está registrado em três lugares: aqui,
+  na nota de protótipo visível ao fim da seção 10-A, e no item 2 da lista "o
+  que falta para esta página ir ao ar".
+
+  A TRAVA QUE NÃO TEM EXCEÇÃO: nenhum depoimento é atribuído ao escritório que
+  usa o sistema de verdade nem a quem trabalha nele. É escritório real, são
+  pessoas reais, e texto fictício na boca delas é falsificação, não
+  placeholder.
+
+  E NENHUM ESCRITÓRIO REAL É NOMEADO NA PÁGINA. A seção 6 (ORIGEM) conta a
+  procedência sem dizer de quem — "Validado por arquitetos", e o corpo fala em
+  "um escritório de arquitetura". Foi decisão do dono do produto em 22/10/2026:
+  a credencial vende, o nome do cliente não, e nomear expõe o escritório a quem
+  nunca pediu para aparecer.
+
+  E NENHUM ROSTO, NENHUMA MARCA: não há foto de pessoa nem logo de escritório
+  no carrossel, porque não temos nem uma coisa nem outra — e retrato de banco
+  de imagens apresentado como cliente é o mesmo problema vestido de outro
+  jeito. No lugar do retrato vai o crachá do app: a inicial num quadrado de
+  canto arredondado, que é como a tela de Equipe já identifica uma pessoa.
+
+  ---------------------------------------------------------------------------
+  PLANO DE DESIGN
+  ---------------------------------------------------------------------------
+
+  COR — nenhum hex inventado. Todos os valores saem de src/index.css e estão
+  repetidos aqui com os MESMOS valores HSL. A página não tem toggle de tema:
+  ela usa os DOIS temas do app ao mesmo tempo, um por seção. Por isso os
+  tokens não ficam em :root/.dark, e sim em dois escopos de seção:
+
+    .sec-dark   (valores do bloco .dark de src/index.css)
+      --background        222 8% 4.5%     fundo da seção escura
+      --card              222 8% 8%       cartão sobre o escuro
+      --foreground        210 14% 96%     texto principal
+      --text-soft         215 11% 81%     apoio com peso
+      --muted-foreground  215 9% 67%      apoio
+      --text-faint        215 8% 55%      terciário
+      --border            222 8% 20%
+      --ring              213 12% 70%     foco visível no escuro
+
+    .sec-light  (valores do :root de src/index.css)
+      --background        210 40% 98%     slate-50 — a página NÃO é branca
+      --card              0 0% 100%       cartão branco, é isso que faz cartão
+      --foreground        222.2 84% 4.9%
+      --text-soft         215.3 19.3% 34.5%
+      --muted-foreground  215.4 16.3% 46.9%
+      --text-faint        215 20.2% 65.1%
+      --border            214.3 31.8% 91.4%
+      --ring              222.2 84% 4.9%
+
+      --radius            0.5rem          (igual, nos dois escopos)
+
+  Escopo em vez de :root/.dark porque assim `bg-card`, `text-soft` e
+  `border-border` significam a coisa certa dentro de qualquer seção, sem uma
+  única classe condicional no markup — e porque quem portar para React vai
+  encontrar exatamente os tokens que já existem, não um par de paletas novas.
+
+  NÃO HÁ COR DE DESTAQUE, E ISSO É A DECISÃO DE DESIGN DESTA PÁGINA.
+
+  A primeira versão usava --chart-emerald (emerald-500) como cor de marca,
+  copiando o verde das duas referências. Estava errado, e o dono do produto
+  apontou: aquilo é COR DE SÉRIE DE GRÁFICO — o verde das pendências do diário
+  de obra —, não identidade. É a mesma confusão contra a qual o cabeçalho de
+  prototypes/impersonacao.html já avisa: no StatusBadge, cor significa ESTADO.
+  Importar o verde da Octor e da ValidaPix era vestir a marca dos outros.
+
+  A IDENTIDADE DO HAUSONE É A AUSÊNCIA DE COR. A prova está escrita no próprio
+  src/index.css, no comentário de --auth-panel (linhas 166-171): o painel da
+  tela de entrada ganhou token próprio, grafite neutro, em vez de --primary,
+  porque "pede uma superfície calma, que não dispute com a marca no centro
+  dele". Um produto que escolhe grafite para o único lugar onde a marca aparece
+  sozinha não tem cor de destaque — tem hierarquia por VALOR, PESO e
+  SUPERFÍCIE. A LP passa a ler como o sistema lê.
+
+  Nenhuma cor cromática na página: nenhum --chart-*, nenhum verde, nenhum
+  violeta. Uma única exceção, e ela é de ESTADO, não de identidade — ver
+  "O VERMELHO QUE FICOU", abaixo.
+
+  OS QUATRO TRABALHOS QUE O VERDE FAZIA, E QUEM FAZ CADA UM AGORA:
+
+  1 · EXPRESSÃO DESTACADA DO TÍTULO → contraste de VALOR, não de matiz.
+      Todo título que tem destaque recebe .titulo-duplo: a frase inteira cai um
+      degrau de texto e só a expressão destacada volta a --foreground cheio.
+      O degrau é diferente em cada tema, de propósito, para a DISTÂNCIA
+      percebida ser a mesma nos dois:
+        escuro  --muted-foreground (67%)   → --foreground (96%)   = 29 pontos
+        claro   --text-soft (34,5%)        → --foreground (4,9%)  = 30 pontos
+      Usar --text-soft nos dois daria 15 pontos no escuro (81% contra 96%), que
+      em corpo de 56px some. Os dois valores já existem no index.css; o que é
+      novo é só o pareamento, que vive em --titulo-apagado por escopo.
+      O sublinhado continua, agora em --foreground com opacidade.
+
+  2 · CTA PRIMÁRIO → --primary, que é literalmente o botão do sistema, em
+      pílula. No claro é slate-900 com texto slate-50; no escuro o próprio
+      index.css inverte (--primary vira 210 14% 96% e --primary-foreground
+      222 10% 10%), então vira pílula quase branca com texto quase preto. Como
+      toda pílula desta página está sobre seção escura, o que se vê é a pílula
+      clara. Hover por opacidade do MESMO token (/90 sobre fundo escuro
+      escurece), sem inventar um segundo tom.
+
+  3 · ÍCONE DOS CARDS → o quadrado continua (ele ecoa o bloco da marca), mas
+      sai do tingido para --muted com o traço em --foreground. No claro é
+      slate-100 sobre cartão branco; no escuro, 13% sobre cartão de 8%. A forma
+      permanece, a cor sai.
+
+  4 · NÓ DA FASE ATIVA → PREENCHIMENTO CONTRA CONTORNO. Os cinco primeiros são
+      círculos vazados em --text-faint; o último é sólido em --foreground, com
+      halo de --foreground/0.12. A linha vai de --border a --foreground. É a
+      mesma leitura de antes (a fase acesa), sem matiz nenhum.
+
+  A SUPERFÍCIE NOVA — --auth-panel (222 9% 16% no escuro). Era o ativo da
+  identidade que a página ainda não tinha usado, e é justamente o fundo do
+  painel de login. Ela dá o TERCEIRO degrau que o monocromático precisava para
+  não achatar: fundo 4,5% → cartão 8% → elevado 12% → painel 16%. Entra em dois
+  lugares: o bloco do CTA final (que antes só se destacava pelo halo verde) e,
+  junto de --elevated, os dois halos radiais do hero, que agora são grafite.
+
+  O VERMELHO QUE FICOU — --destructive, e só no e-mail inválido (borda do
+  campo, ícone e linha de erro). Não é identidade: é a mesma cor que o app já
+  usa para erro e para "Em atraso", e trocá-la por cinza tiraria do formulário
+  o único sinal que não depende de ler o texto. Está isolado em um estado que
+  só existe depois de um erro do usuário. Se o dono quiser a página 100%
+  acromática, este é o ponto a vetar — e aí o estado de erro passa a se apoiar
+  só em ícone, texto e espessura de borda.
+
+  TIPOGRAFIA — UMA webfont só: Plus Jakarta Sans (Google Fonts, pesos fixos
+  400/500/600/700/800, display=swap). Pedido explícito de pesos em vez de faixa
+  variável, para que uma mudança futura no eixo do arquivo não mude a página.
+
+  Por que ela, e por que webfont. O app não carrega webfont nenhuma — o
+  `font-family: Inter` do projeto-original está comentado e o index.html não
+  tem link de fonte. Isto é desvio DELIBERADO e limitado a esta peça: LP é
+  marketing e precisa de voz própria; tela do sistema não. Plus Jakarta Sans
+  tem o esqueleto geométrico das duas referências (o, c, e circulares), mas foi
+  desenhada para interface — aguenta os parágrafos longos em português das
+  seções 5, 6 e 7, onde Poppins e Outfit, geométricas "puras", ficam largas e
+  cansativas. E ela tem 800, que o wordmark estourado do rodapé precisa.
+  A escolha também preserva a marca: `font-semibold tracking-tight` em Plus
+  Jakarta Sans é o mesmo gesto do `HausOne` do painel de login.
+
+  ESCALA TIPOGRÁFICA — definida uma vez em .t-*, nunca improvisada no markup:
+    .t-eyebrow  0.75rem / 600 / uppercase / tracking .12em   olho, etiqueta de
+                screenshot, cabeçalho de coluna do rodapé (a mesma utilitária
+                que a DataTable do app usa)
+    .t-h1       clamp(1.75rem, 6.2vw, 3.5rem) / 800 / -0.03em / 1.05
+                28px no celular → 56px no desktop, o teto das referências
+    .t-h2       clamp(1.5rem, 3.6vw, 2.5rem)  / 700 / -0.025em / 1.12
+    .t-h3       clamp(1.375rem, 2.6vw, 2rem)  / 700 / -0.02em  / 1.15
+    .t-lead     clamp(0.9375rem, 1.1vw, 1.125rem) / 400 / 1.65
+    .t-body     1rem / 1.65   (0.9375rem abaixo de sm)
+    card título 1rem / 600 · card apoio 0.875rem / 1.55
+
+  ESPAÇAMENTO — container max-w 75rem (1200px), padding lateral 1.25rem no
+  celular e 2rem a partir de sm. Seção: py clamp(4.5rem, 9vw, 8rem). Grid gap
+  1rem (cards densos) e 1.5rem a 4rem (blocos do tour). Raio: cards em
+  rounded-xl (--radius + 4px = 12px), pílulas rounded-full, e rounded-2xl
+  RESERVADO para duas coisas — o bloco do ícone da marca (literal do app) e a
+  moldura dos screenshots, que é o mesmo gesto em escala de janela.
+
+  BREAKPOINTS — testado em 375, 768 e 1280. O ponto que mais quebra é o hero
+  com mockup sangrando: abaixo de lg o mockup vai ABAIXO do texto, sem sangria
+  e sem rotação, e o título cai para 28px com entrelinha 1.05 — o campo de
+  e-mail fecha em ~500px de altura a 375px de largura, ou seja, nunca sai da
+  primeira tela. A sangria e a perspectiva só existem a partir de lg, onde há
+  margem para sacrificar.
+
+  ---------------------------------------------------------------------------
+  A MARCA, QUE JÁ EXISTE E NÃO FOI REINVENTADA
+  ---------------------------------------------------------------------------
+  Não há logo gráfico. O app desenha a marca em Login.tsx:157-161 e a LP repete
+  isso ao pixel: ícone `Building2` da Lucide dentro de um quadrado rounded-2xl
+  com fundo e borda translúcidos sobre o escuro, e ao lado a palavra `HausOne`
+  em font-semibold tracking-tight. Na nav o conjunto é pequeno (36px). No
+  rodapé, o wordmark gigante é a MESMA palavra na mesma fonte e peso, só em
+  escala de parede.
+
+  ---------------------------------------------------------------------------
+  ASSINATURA
+  ---------------------------------------------------------------------------
+  A TRILHA DAS SEIS FASES. Briefing, Layout, Perspectivas, Projeto Legal,
+  Executivo, Alvará virou objeto gráfico: régua horizontal de seis nós, linha
+  que vai de --border a --foreground, último nó sólido contra cinco vazados. É
+  o elemento pelo qual a página é lembrada porque é a única coisa aqui que
+  nenhum outro SaaS poderia usar — é o vocabulário do cliente, não um gráfico
+  decorativo. Ela volta como motivo: a linha que sublinha a expressão destacada
+  do hero é um segmento dela.
+
+  E ELA É A ANIMAÇÃO PRINCIPAL DA PÁGINA. Quando a seção entra na tela, a
+  trilha SE DESENHA uma vez: cada linha cresce da esquerda para a direita
+  (de cima para baixo no celular) e o nó seguinte acende logo atrás. Uma vez
+  só, nunca em laço. O que é assinatura parada vira assinatura que acontece.
+
+  ---------------------------------------------------------------------------
+  O QUE FOI DELIBERADAMENTE **NÃO** COPIADO DAS REFERÊNCIAS (Octor, ValidaPix)
+  ---------------------------------------------------------------------------
+  · FAIXA DE MÉTRICAS NO LUGAR DA REFERÊNCIA ("+500 clínicas", "99,9%",
+    "R$ 5 bi"), logo abaixo do hero e com números de escala. Esse lugar continua
+    sendo da seção 4 (as fases), e é uma troca boa: no lugar de um número que
+    impressiona, o argumento que realmente converte este comprador (o quadro já
+    fala a língua dele). A seção 5-A existe e tem números, mas é outra coisa em
+    outro ponto: vem depois do tour, é modesta de propósito (12, 180, 430, 94%
+    — nada de "+10.000", que seria inverossímil) e é SIMULADA, com data para
+    sair. Ver "CONTEÚDO SIMULADO".
+  · MAPA DO BRASIL com estados/cidades/profissionais. Mesmo motivo.
+  · LOGOS DE CLIENTES E DE PARCEIROS. Não existem.
+  · DEPOIMENTO EM VÍDEO, ESTRELAS DE AVALIAÇÃO, LOGO E ROSTO DE CLIENTE. Não
+    existem e não vão existir inventados. A seção 6 (origem) continua sendo a
+    prova por PROCEDÊNCIA, sem foto, sem aspas e sem nome de pessoa. O
+    carrossel da 10-A é prova por ELOGIO e está ali simulado, para dar para
+    julgar quanto espaço o bloco pede — e mesmo simulado ele não tem rosto nem
+    marca. Ver "CONTEÚDO SIMULADO".
+  · NAV COM MÚLTIPLOS PRODUTOS. É um produto só.
+  · Nada de preço, teste grátis, trial de 14 dias, cancelamento a qualquer
+    momento, app mobile ou integração — nenhum deles existe para ser prometido.
+  · Nada no plural sobre clientes, e NENHUM nome de escritório. A procedência
+    aparece como credencial ("Validado por arquitetos"), não como referência
+    nomeada.
+
+  ---------------------------------------------------------------------------
+  DECISÕES DE RITMO (alternância de fundo)
+  ---------------------------------------------------------------------------
+  escuro(2) → claro(3) → escuro(4) → claro(5) → BRANCO(5-A) → escuro(6+7)
+  → branco(8) → claro(9+10) → ESCURO(10-A + 11 + 12)
+
+  · 6 e 7 ficam JUNTAS no escuro, como um movimento só. ORIGEM é texto
+    editorial, quase sem objeto gráfico; são os seis cartões de função da 7 que
+    dão densidade a esse trecho. E o argumento da 7 ("é regra no banco de
+    dados") é a deixa da SEGURANÇA, que aterrissa no claro — a quebra de fundo
+    cai no lugar certo da leitura, não no meio do raciocínio.
+  · 8, 9 e 10 são três claras seguidas, e isso é intencional: nenhuma delas tem
+    conteúdo para sustentar um bloco escuro inteiro. A alternância continua
+    acontecendo, só que por SUPERFÍCIE em vez de por tema: 8 roda sobre
+    superfície BRANCA (--card) de ponta a ponta com cards em slate-50; 9 volta
+    para slate-50 com cards brancos; 10 fica em slate-50 sem card. Três
+    respiros distintos dentro do mesmo tema.
+  · 5-A (números) entra CLARA, sobre a superfície branca, e não escura. A
+    trilha da seção 4 é uma fileira horizontal de itens sobre fundo escuro;
+    quatro números em fila sobre fundo escuro seriam a mesma geometria no mesmo
+    tema, e as duas disputariam a mesma atenção. A assinatura da página é a
+    trilha. Sobre branco, a faixa de números usa o recurso que o monocromático
+    tem de mais forte — preto cheio sobre a superfície mais clara — sem imitar
+    a trilha. De quebra, o trecho claro do meio ganha três respiros em vez de
+    dois: slate-50 (tour) → branco (números) → escuro (origem).
+  · 10-A (depoimentos) entra ESCURA e ABRE o movimento escuro do fim
+    (depoimentos → CTA final → rodapé). Com isso a sequência clara do fim deixa
+    de ser três seções seguidas (8, 9 e 10) e passa a ser branco(8) → claro(9 e
+    10) → escuro. E a ordem de leitura fica na sequência que converte: as
+    perguntas tiram a objeção, o depoimento dá o último empurrão, o CTA pede o
+    e-mail.
+  · BORDA SÓLIDA entre seções (.borda-secao): 1px no --border da seção que
+    chega. A primeira versão usava uma banda de degradê de 4rem com a cor da
+    seção anterior, copiada das referências — e degradê é vocabulário delas,
+    não do sistema. O app separa tabela, cartão, lista e rodapé com uma linha
+    de 1px em --border, e a página passa a separar do mesmo jeito.
+
+  ---------------------------------------------------------------------------
+  OS TRÊS ESTADOS DO FORMULÁRIO — escolha e por quê
+  ---------------------------------------------------------------------------
+  Os DOIS mecanismos, e não um:
+  1. Os formulários reais (hero e CTA final) FUNCIONAM: validam, mostram erro,
+     trocam para sucesso. Sem backend — o submit só troca o estado. Isso é o
+     que permite julgar a TRANSIÇÃO, que é metade da sensação.
+  2. A ÁREA DE DEMONSTRAÇÃO no fim da página mostra os três estados LADO A
+     LADO, estáticos.
+  Um controle de alternância sozinho não resolveria: os três estados precisam
+  ser COMPARADOS (altura do bloco, cor da borda, deslocamento do texto de
+  apoio), e comparar exige ver ao mesmo tempo. Um formulário real sozinho
+  também não: obrigaria a digitar um e-mail errado para descobrir o estado de
+  erro. A área de demonstração está fora do <main> e marcada como não sendo
+  parte da página.
+
+  ---------------------------------------------------------------------------
+  COPY — O QUE É DO BRIEF E O QUE EU ESCREVI
+  ---------------------------------------------------------------------------
+  Todo o texto de conteúdo é literal do brief, sem corte e sem reescrita.
+  Quatro textos de INTERFACE não existiam no brief e precisaram existir para a
+  tela funcionar. Estão listados aqui para serem aprovados ou trocados:
+    a) mensagem de erro do campo: "Digite um e-mail válido."
+    b) estado de sucesso: "Recebemos seu e-mail." + "A gente entra em contato
+       para mostrar o sistema. Você não recebe nada automático." (a segunda
+       frase é a microcopy do hero, repetida de propósito: é o único lugar onde
+       alguém poderia achar que vai receber algo, então a negativa aparece
+       exatamente ali)
+    c) consentimento LGPD junto do botão: "Ao enviar, você autoriza o contato
+       do HausOne sobre o sistema. Seu e-mail não é usado para mais nada."
+    d) rótulos das colunas Empresa / Ajuda / Privacidade do rodapé e os links
+       dentro delas — PLACEHOLDER, ver a lista do fim do arquivo.
+
+  ---------------------------------------------------------------------------
+  ESTA É A PÁGINA DE PRODUÇÃO, PORTADA DO PROTÓTIPO APROVADO
+  ---------------------------------------------------------------------------
+  A fonte da verdade visual é prototypes/lp-hausone.html (CLAUDE.md). Esta
+  página é aquele arquivo, com as mudanças abaixo e NENHUMA outra. Divergência
+  sutil — espaçamento diferente, cor "parecida", breakpoint que não bate — é
+  bug de implementação, não polimento. Mudança de layout aqui começa no
+  protótipo, aprovada, e desce para cá.
+
+  O QUE MUDOU NO CAMINHO, E POR QUÊ
+  · Tailwind: o protótipo usa o CDN do v3 e declara o tema em
+    `tailwind.config`; aqui o tema está no `@theme inline` do v4, em lp/lp.css,
+    com os mesmos valores. Onde o v3 escreve `outline-none`, o v4 escreve
+    `outline-hidden`: mesmo valor renderizado, nome diferente.
+  · Lucide: mesma versão (1.61.0), vinda do pacote em vez do CDN, com os 30
+    ícones usados importados por nome. O `data-lucide="..."` continua sendo o
+    que resolve cada um.
+  · Formulário: no protótipo o submit só trocava de estado. Aqui ele envia para
+    a edge function `capture-lead`, e existe um quarto estado ("enviando") que
+    o protótipo não tinha, porque agora há rede no meio.
+  · Saiu a ÁREA DE DEMONSTRAÇÃO do fim da página: ela existia para comparar os
+    estados do formulário lado a lado sem devtools, e é aparato de revisão, não
+    design.
+  · Foco visível em tudo que recebe foco, com --ring do escopo da seção.
+  · Zero React. Sem biblioteca de animação: nem GSAP, nem AOS, nem Framer —
+    CSS e JS puro. O accordion continua <details>/<summary> nativo (é de lá que
+    vêm o teclado e o leitor de tela); o JS só segura o fechamento para a
+    altura poder animar.
+
+  O QUE AINDA NÃO ESTÁ RESOLVIDO PARA ESTA PÁGINA SER PÚBLICA
+  Três coisas, e todas são decisão de quem vende, não de quem implementa. Ver
+  a lista completa no fim do arquivo:
+  · `noindex, nofollow` continua no <head>, e continua até a decisão de apontar
+    um domínio para cá.
+  · Os números da seção "O sistema hoje" e os quatro depoimentos são
+    SIMULADOS, e a nota que diz isso na própria página fica enquanto forem.
+  · Os links de Empresa, Ajuda e Privacidade do rodapé não têm destino, e a
+    nota de protótipo do rodapé fica enquanto não tiverem.
+
+  ---------------------------------------------------------------------------
+  MOVIMENTO
+  ---------------------------------------------------------------------------
+  O MOVIMENTO É DA MESMA FAMÍLIA DO VISUAL. Página monocromática e calma não
+  combina com elástico, salto ou rotação chamativa: tudo aqui é distância curta
+  (8 a 16px), duração entre 200 e 600ms, curva de saída única
+  (cubic-bezier(0.22, 0.61, 0.36, 1)) e NADA em laço — repetição infinita vira
+  ruído e come bateria. Só `transform` e `opacity`, com duas exceções
+  justificadas mais abaixo.
+
+    movimento                    distância / de → para        duração
+    revelação ao rolar           12px para cima + opacidade   480ms
+      escalonamento no grid      70ms por item, teto 280ms
+    trilha: linha                scaleX 0 → 1                 300ms
+    trilha: nó + rótulo          scale 0.4 → 1 + opacidade    260ms
+      sequência da trilha        170ms por nó (6 nós ≈ 1,1s, uma vez)
+    nav: densidade               4rem → 3,5rem de altura      320ms
+    nav: sublinhado do link      scaleX 0 → 1                 320ms
+    mockup do hero (ponteiro)    ±2,5° em Y, ±2° em X, ±6px   300ms de alcance
+    cartão em hover              2px para cima + borda        200ms
+    seta do botão em hover       3px para a direita           200ms
+    accordion                    grid-template-rows 0fr → 1fr 320ms
+    contagem dos números         0 → valor final, desacelerando  1200ms
+    carrossel: troca de slide    rolagem com encaixe do navegador
+                                 (a duração é dele, ~300-500ms, não se controla)
+    carrossel: intervalo         6000ms entre trocas automáticas
+    carrossel: indicador         só cor e halo (nada de layout)   200ms
+
+  AS DUAS PROPRIEDADES QUE NÃO SÃO transform/opacity, e por quê:
+  · `height` na nav. É o pedido de "densidade", e não dá para fazer com
+    transform sem deformar o texto. O custo é contido: a nav é `position:
+    fixed`, está fora do fluxo, então nada embaixo dela reflui — o layout
+    recalculado são os poucos nós da própria barra.
+  · `grid-template-rows` no accordion. É a técnica limpa para animar altura
+    desconhecida sem perder o <details> nativo, que é de onde vêm o teclado e o
+    leitor de tela.
+
+  A ÚNICA COISA QUE SE REPETE EM LAÇO É O CARROSSEL, e isso contraria a regra
+  escrita acima. A exceção é deliberada e vale dizer por quê: rotação de
+  CONTEÚDO não é enfeite — é o que faz o segundo, o terceiro e o quarto
+  depoimento serem vistos por quem não ia rolar até o fim. E o que tornaria
+  isso defeito (continuar girando enquanto alguém lê) não acontece: ele para
+  com o ponteiro em cima, com o foco dentro, com a aba escondida e com a seção
+  fora da tela. Com `prefers-reduced-motion` ele não chega a começar.
+
+  prefers-reduced-motion: reduce DESLIGA, não reduz. Com ele ativo não há
+  revelação (todo conteúdo nasce visível e no lugar final), a trilha nasce
+  desenhada, a nav não muda de altura, o mockup não responde ao ponteiro, o
+  accordion abre instantâneo, os números aparecem prontos no valor final (nunca
+  em zero, nunca contando devagar) e O CARROSSEL NÃO ANDA SOZINHO — aqui não é
+  só desligar a transição, é desligar a automação. As setas e os indicadores
+  continuam funcionando: a pessoa navega, nada se move sozinho. A perspectiva estática do mockup permanece: é uma
+  transformação parada, não um movimento.
+
+  DUAS MARCAS NO <html>, E NÃO UMA: `js` significa "existe JavaScript" e serve
+  para mostrar o que sem ele não funcionaria (as setas e os indicadores do
+  carrossel). `anim` significa "existe JavaScript E a pessoa não pediu menos
+  movimento". Quem pede menos movimento continua com os controles do carrossel,
+  só sem a automação — por isso as duas marcas são separadas.
+
+  SEM JAVASCRIPT, A PÁGINA ESTÁ INTEIRA. O estado inicial escondido da
+  revelação só existe sob a classe `.anim`, que o PRÓPRIO JS escreve no <html>
+  antes da primeira pintura (e só escreve se o usuário não pediu menos
+  movimento). Sem JS, sem `.anim`: nada some, nada depende de
+  IntersectionObserver — os números já vêm escritos no HTML com o valor final e
+  o carrossel vira o que ele é por baixo, uma tira que rola na horizontal com
+  os quatro depoimentos legíveis. Nenhuma das duas seções fica em branco.
+  Depois que um elemento revela, o JS remove o marcador `data-revelar` — assim
+  a transição longa da revelação não fica pendurada no elemento atrapalhando o
+  hover de 200ms do cartão.
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>HausOne · Gestão para escritório de arquitetura</title>
+    <meta
+      name="description"
+      content="Do primeiro contato com o lead até a última parcela recebida. Cliente, proposta, contrato, obra, equipe e dinheiro no mesmo lugar."
+    />
+
+    <!--
+      OS ARQUIVOS DE IMAGEM FICAM EM prototypes/lp-hausone/, E NÃO AQUI.
+      São as mesmas capturas do sistema e os mesmos arquivos de logo que o
+      protótipo usa. Duplicar 1,6 MB de PNG no repositório para evitar um `../`
+      no caminho seria troca ruim: duas cópias divergem, e a que ninguém está
+      olhando é a que fica velha. O Vite resolve o caminho relativo em tempo de
+      build, põe hash no nome e entrega tudo em /assets, que é o único caminho
+      com cache longo no vercel.json.
+    -->
+    <!-- O símbolo da logo, sem o wordmark: em 16px a palavra viraria borrão. -->
+    <link rel="icon" type="image/png" href="../prototypes/lp-hausone/simbolo-hausone-claro.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- O tema do protótipo, portado para o Tailwind v4. Ver lp/lp.css. -->
+    <link rel="stylesheet" href="./lp.css" />
+
+    <script>
+      /*
+        A MARCA DO MOVIMENTO É ESCRITA PELO PRÓPRIO JS, E AQUI NO <head>, antes
+        da primeira pintura. Dois motivos, nessa ordem:
+        1. Sem JS, `.anim` não existe, nenhuma regra de revelação casa e a
+           página nasce inteira. Conteúdo nunca depende de JavaScript.
+        2. No fim do <body> seria tarde: o conteúdo pintaria visível e sumiria
+           em seguida para ser revelado — pior do que não animar.
+        Quem pediu menos movimento não recebe a marca, então não há o que
+        desligar depois.
+      */
+      ;(function () {
+        /* `js` é só "existe JavaScript", e serve para mostrar controles que
+           sem ele não fariam nada (as setas e os indicadores do carrossel).
+           É diferente de `anim`, que é "existe JavaScript E a pessoa não pediu
+           menos movimento": com menos movimento os controles continuam, só a
+           automação some. */
+        document.documentElement.classList.add('js')
+        try {
+          if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.documentElement.classList.add('anim')
+          }
+        } catch (e) {
+          /* navegador sem matchMedia: fica sem movimento, com a página inteira */
+        }
+      })()
+    </script>
+  </head>
+
+  <body class="sec-dark font-sans">
+    <a
+      href="#hero-form"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
+    >
+      Ir para o formulário de interesse
+    </a>
+
+    <!-- ===================================================================
+         1 · NAVEGAÇÃO — transparente sobre o hero, sólida ao rolar.
+         Nav curta: é um produto só.
+         =================================================================== -->
+    <header
+      id="nav"
+      class="sec-dark fixed inset-x-0 top-0 z-40 transition-colors duration-200"
+      data-nav
+    >
+      <div
+        class="nav-linha mx-auto flex max-w-container items-center justify-between gap-4 px-5 sm:px-8"
+      >
+        <!--
+          A MARCA DE VERDADE, no lugar do ícone Building2 que segurava o posto
+          enquanto ela não existia. Versão escura do lockup, porque a nav vive
+          sobre o hero: o navy da logo dá 1,30 de contraste contra o fundo
+          escuro, ou seja, desaparece. Ver "A LOGO" no cabeçalho.
+        -->
+        <a href="#hero" class="flex flex-none items-center" aria-label="HausOne, início">
+          <img
+            src="../prototypes/lp-hausone/logo-hausone-escuro.png"
+            width="1200"
+            height="312"
+            class="h-7 w-auto sm:h-8"
+            alt="HausOne"
+          />
+        </a>
+
+        <nav class="hidden items-center gap-7 lg:flex" aria-label="Seções da página">
+          <a href="#sistema" class="nav-link text-sm text-soft transition-colors hover:text-foreground"
+            >O sistema</a
+          >
+          <a href="#tour" class="nav-link text-sm text-soft transition-colors hover:text-foreground"
+            >Como funciona</a
+          >
+          <a href="#seguranca" class="nav-link text-sm text-soft transition-colors hover:text-foreground"
+            >Segurança</a
+          >
+          <a href="#perguntas" class="nav-link text-sm text-soft transition-colors hover:text-foreground"
+            >Perguntas</a
+          >
+        </nav>
+
+        <div class="flex items-center gap-2">
+          <a
+            href="#hero-form"
+            class="btn-seta hidden rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:inline-flex"
+          >
+            Quero ver funcionando
+          </a>
+          <button
+            type="button"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-foreground lg:hidden"
+            aria-expanded="false"
+            aria-controls="menu-mobile"
+            data-menu-botao
+          >
+            <i data-lucide="menu" class="h-5 w-5"></i>
+            <span class="sr-only">Abrir menu</span>
+          </button>
+        </div>
+      </div>
+
+      <div
+        id="menu-mobile"
+        class="hidden border-t border-border bg-card/95 backdrop-blur lg:hidden"
+        data-menu-painel
+      >
+        <nav class="mx-auto grid max-w-container gap-1 px-5 py-4 sm:px-8" aria-label="Menu">
+          <a href="#sistema" class="rounded-lg px-2 py-2.5 text-sm text-soft">O sistema</a>
+          <a href="#tour" class="rounded-lg px-2 py-2.5 text-sm text-soft">Como funciona</a>
+          <a href="#seguranca" class="rounded-lg px-2 py-2.5 text-sm text-soft">Segurança</a>
+          <a href="#perguntas" class="rounded-lg px-2 py-2.5 text-sm text-soft">Perguntas</a>
+          <a
+            href="#hero-form"
+            class="mt-2 rounded-full bg-primary px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground sm:hidden"
+            >Quero ver funcionando</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- ===================================================================
+           2 · HERO (escuro) — texto à esquerda, mockup sangrando à direita.
+           Abaixo de lg o mockup desce e o campo de e-mail fica na 1ª tela.
+           =================================================================== -->
+      <section id="hero" class="sec-dark hero-halo relative overflow-hidden bg-background">
+        <div
+          class="mx-auto grid max-w-container items-center gap-12 px-5 pb-20 pt-24 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-8 lg:pb-32 lg:pt-36"
+        >
+          <div class="lg:max-w-[34rem]" data-grupo>
+            <p class="t-eyebrow text-muted-foreground" data-revelar>Gestão para escritório de arquitetura</p>
+
+            <h1 class="titulo-duplo t-h1 mt-5" data-revelar>
+              Seu escritório inteiro num sistema que já fala<br class="hidden sm:inline" />
+              <span class="destaque sublinhado-trilha">Layout, Projeto Legal e Alvará.</span>
+            </h1>
+
+            <p class="t-lead mt-6 text-soft" data-revelar>
+              Do lead que chegou no direct até a última parcela recebida. Cliente, proposta,
+              contrato, obra, equipe e dinheiro no mesmo lugar, com as fases que o seu escritório já
+              usa. Nenhum "status genérico" de CRM.
+            </p>
+
+            <!-- FORMULÁRIO DO HERO — UM campo, nada mais. -->
+            <form
+              id="hero-form"
+              class="mt-8 scroll-mt-28"
+              data-revelar
+              novalidate
+              data-form
+              data-origem="hero"
+              aria-labelledby="hero-form-rotulo"
+            >
+              <h2 id="hero-form-rotulo" class="sr-only">Deixar meu e-mail para contato</h2>
+
+              <div data-form-entrada>
+                <!--
+                  ARMADILHA DE ROBÔ. Fora da tela (.pote), nunca com `display: none`:
+                  robô que respeita display:none é robô que pula o campo. Preenchido, a
+                  edge function responde sucesso e não grava nada — dizer "você é um
+                  robô" ensina o robô a contornar. Não é a defesa principal (essa é o
+                  limite de requisições por origem); é o que evita a fila encher de
+                  lixo sem pôr captcha na frente de quem está comprando.
+                -->
+                <div class="pote" aria-hidden="true">
+                  <label for="site-hero">Não preencha este campo</label>
+                  <input
+                    id="site-hero"
+                    name="site"
+                    type="text"
+                    tabindex="-1"
+                    autocomplete="off"
+                    data-pote
+                  />
+                </div>
+                <div class="flex flex-col gap-2.5 sm:flex-row">
+                  <div class="flex-1">
+                    <label for="email-hero" class="sr-only">Seu e-mail profissional</label>
+                    <input
+                      id="email-hero"
+                      name="email"
+                      type="email"
+                      inputmode="email"
+                      autocomplete="email"
+                      placeholder="seu e-mail profissional"
+                      class="campo t-body h-12 w-full rounded-full px-5 outline-hidden"
+                      aria-describedby="erro-hero consent-hero"
+                      data-email
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    class="btn-seta inline-flex h-12 flex-none items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    Quero ver funcionando
+                    <i data-lucide="arrow-right" class="h-4 w-4"></i>
+                  </button>
+                </div>
+
+                <p
+                  id="erro-hero"
+                  class="mt-2.5 hidden items-center gap-1.5 text-sm text-destructive"
+                  data-erro
+                  role="alert"
+                >
+                  <i data-lucide="circle-alert" class="h-4 w-4 flex-none"></i>
+                  <span data-erro-texto>Digite um e-mail válido.</span>
+                </p>
+
+                <p class="mt-3 text-sm text-muted-foreground" data-microcopy>
+                  A gente entra em contato para mostrar o sistema rodando no caso do seu escritório.
+                  Sem compromisso, e nada automático na sua caixa de entrada.
+                </p>
+                <p id="consent-hero" class="mt-2 text-xs text-faint">
+                  Ao enviar, você autoriza o contato do HausOne sobre o sistema. Seu e-mail não é
+                  usado para mais nada.
+                </p>
+              </div>
+
+              <!-- ESTADO DE SUCESSO -->
+              <div
+                class="hidden rounded-xl border border-foreground/25 bg-foreground/[0.06] p-5"
+                data-form-sucesso
+                hidden
+              >
+                <div class="flex items-start gap-3">
+                  <span
+                    class="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-primary text-primary-foreground"
+                  >
+                    <i data-lucide="check" class="h-4 w-4"></i>
+                  </span>
+                  <div>
+                    <p class="font-semibold">Recebemos seu e-mail.</p>
+                    <p class="mt-1 text-sm text-soft">
+                      A gente entra em contato para mostrar o sistema. Você não recebe nada
+                      automático.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </form>
+
+            <a
+              href="#tour"
+              data-revelar
+              class="btn-seta-baixo mt-5 inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-foreground/[0.04] px-5 py-2.5 text-sm font-medium text-soft transition-colors hover:bg-foreground/[0.08] hover:text-foreground"
+            >
+              Ver as telas
+              <i data-lucide="arrow-down" class="h-4 w-4"></i>
+            </a>
+          </div>
+
+          <!-- SCREENSHOT 1 — sangra para fora da margem direita a partir de lg -->
+          <div class="lg:-mr-[14vw] lg:pl-6" data-revelar>
+            <figure class="tilt mockup">
+              <div class="mockup-bar">
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="ml-2 truncate text-xs text-faint">HausOne · Fluxo do Projeto</span>
+              </div>
+              <div class="mockup-body">
+                <img
+                  src="../prototypes/lp-hausone/01-fluxo-do-projeto.png"
+                  width="2880"
+                  height="1800"
+                  fetchpriority="high"
+                  decoding="async"
+                  alt="Quadro do Fluxo do Projeto no HausOne, com as colunas Não iniciado, Levantamento, Briefing e Estudo preliminar, cada uma com o cartão de uma etapa e o nome do projeto embaixo."
+                />
+              </div>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           2-A · AS TRÊS PERGUNTAS (claro) — a seção de dor.
+           Entra ANTES dos módulos porque quem ainda não reconheceu o próprio
+           problema não tem o que fazer com uma lista de funcionalidades. Cada
+           bloco é uma pergunta que o escritório ouve toda semana, e a resposta
+           descreve o estado de hoje sem adjetivo nenhum: o leitor concorda ou
+           não concorda, e quem concorda já está vendendo a solução sozinho.
+           =================================================================== -->
+      <section class="sec-light borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]">
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-2xl" data-revelar>
+            <h2 class="titulo-duplo t-h2">
+              A resposta existe. <span class="destaque">Ela só não está no mesmo lugar.</span>
+            </h2>
+            <p class="t-lead mt-4 text-soft">
+              Três perguntas que o seu escritório responde toda semana, e o tempo que cada uma custa
+              hoje.
+            </p>
+          </div>
+
+          <ul class="mt-12 grid gap-4 lg:grid-cols-3">
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <h3 class="t-body font-semibold">"Em que fase está o projeto?"</h3>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                A fase mora no WhatsApp do coordenador e numa planilha que alguém esqueceu de
+                atualizar. O cliente liga, e a resposta leva meia hora e três mensagens.
+              </p>
+            </li>
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <h3 class="t-body font-semibold">"O cliente já passou o briefing?"</h3>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                Passou por áudio, por PDF e por print. Alguém redigita tudo no cadastro, e o
+                endereço da obra chega errado no contrato.
+              </p>
+            </li>
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <h3 class="t-body font-semibold">"Quanto já entrou desse contrato?"</h3>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                O contrato está num lugar, as parcelas em outro. Para somar, alguém abre duas
+                planilhas e confere na mão.
+              </p>
+            </li>
+          </ul>
+
+          <p class="t-body mt-8 max-w-3xl text-soft" data-revelar>
+            Nenhuma das três é falta de organização. É o mesmo dado morando em quatro lugares que
+            não se falam.
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           3 · OS MÓDULOS (claro) — oito cards, quatro colunas no desktop.
+           =================================================================== -->
+      <section
+        id="sistema"
+        class="sec-light bg-background pb-[clamp(4.5rem,9vw,8rem)]"
+      >
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-2xl" data-revelar>
+            <h2 class="titulo-duplo t-h2">
+              Tudo que o escritório faz, <span class="destaque">num lugar só</span>.
+            </h2>
+            <p class="t-lead mt-4 text-soft">
+              Do lead ao recebimento, da obra ao fornecedor. Oito módulos que conversam entre si,
+              sem planilha paralela do lado.
+            </p>
+          </div>
+
+          <ul class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-grupo>
+            <!-- ícone em quadrado rounded-lg, ecoando o bloco da marca -->
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="users" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">CRM</h3>
+              <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Cliente duplicado para de nascer. O sistema barra por CPF, CNPJ e telefone.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="trending-up" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Pipeline</h3>
+              <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Lead recebido, Qualificado, Proposta, Negociação, Fechamento. Quando perde, fica
+                registrado o porquê.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="link" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Briefing do cliente</h3>
+              <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                O próprio cliente preenche, por um link que vale 24h. Sem login e sem instalar
+                nada.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="file-text" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Contratos</h3>
+              <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Numeração na série do escritório, e parcelas que nascem do contrato em vez da sua
+                memória.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="kanban" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Fluxo do projeto</h3>
+              <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Quadro por fase, com as colunas que você mesmo define na tela de configurações.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="hard-hat" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Diário de obra</h3>
+              <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Visita, foto e pendência com histórico, mais o relatório em PDF para mandar ao
+                cliente.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="wallet" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Financeiro</h3>
+              <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                A receber ligado ao contrato, a pagar com categoria, recorrência e centro de custo.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="map-pin" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Mapa</h3>
+              <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Terrenos e obras no mapa, para saber onde cada projeto está de verdade.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           4 · AS FASES (escuro) — ocupa o lugar da faixa de métricas das
+           referências. Aqui vive a assinatura da página.
+           =================================================================== -->
+      <section class="sec-dark borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]">
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-3xl" data-revelar>
+            <h2 class="titulo-duplo t-h2">
+              O quadro já vem com as fases que você usa.
+              <span class="destaque">E você muda as que quiser.</span>
+            </h2>
+            <p class="t-lead mt-4 text-soft">
+              Briefing, Layout, Perspectivas, Projeto Legal, Executivo, Alvará. As colunas do fluxo,
+              os tipos de serviço e as etiquetas ficam na tela de configurações, à mão do
+              escritório. Nada disso precisa de desenvolvedor.
+            </p>
+          </div>
+
+          <ol class="trilha mt-14 rounded-xl border border-border bg-card p-6 sm:p-10">
+            <li class="trilha-no">
+              <span class="trilha-bolinha" aria-hidden="true"></span>
+              <span class="trilha-rotulo text-sm font-medium text-soft">Briefing</span>
+            </li>
+            <li class="trilha-no">
+              <span class="trilha-bolinha" aria-hidden="true"></span>
+              <span class="trilha-rotulo text-sm font-medium text-soft">Layout</span>
+            </li>
+            <li class="trilha-no">
+              <span class="trilha-bolinha" aria-hidden="true"></span>
+              <span class="trilha-rotulo text-sm font-medium text-soft">Perspectivas</span>
+            </li>
+            <li class="trilha-no">
+              <span class="trilha-bolinha" aria-hidden="true"></span>
+              <span class="trilha-rotulo text-sm font-medium text-soft">Projeto Legal</span>
+            </li>
+            <li class="trilha-no">
+              <span class="trilha-bolinha" aria-hidden="true"></span>
+              <span class="trilha-rotulo text-sm font-medium text-soft">Executivo</span>
+            </li>
+            <li class="trilha-no" data-ativa>
+              <span class="trilha-bolinha" aria-hidden="true"></span>
+              <span class="trilha-rotulo text-sm font-medium text-soft">Alvará</span>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           5 · O TOUR (claro) — três blocos alternados.
+           =================================================================== -->
+      <section id="tour" class="sec-light borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]">
+        <div class="mx-auto grid max-w-container gap-20 px-5 sm:px-8 lg:gap-28">
+          <!-- BLOCO A -->
+          <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+            <div data-revelar>
+              <h3 class="titulo-duplo t-h3">
+                O cliente preenche o briefing.
+                <span class="destaque">Você confere campo a campo.</span>
+              </h3>
+              <p class="t-body mt-4 text-soft">
+                O link vale 24h e não exige login. Quando o briefing volta, o sistema põe lado a
+                lado o que está no cadastro e o que o cliente respondeu, e você decide item por
+                item o que entra. Nada entra sozinho, nem passa por cima do que você já corrigiu à
+                mão.
+              </p>
+            </div>
+            <figure class="mockup" data-revelar>
+              <div class="mockup-bar">
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="ml-2 truncate text-xs text-faint"
+                  >HausOne · Conferência do briefing</span
+                >
+              </div>
+              <div class="mockup-body">
+                <img
+                  src="../prototypes/lp-hausone/02-conferencia-do-briefing.png"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Conferência do briefing: o cadastro do CRM no topo, o endereço da obra do projeto e, abaixo, cada campo que difere com o valor atual, o valor que o cliente respondeu e os botões Manter cadastro e Aplicar."
+                />
+              </div>
+            </figure>
+          </div>
+
+          <!-- BLOCO B — imagem à esquerda no desktop -->
+          <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+            <div class="lg:order-2" data-revelar>
+              <h3 class="titulo-duplo t-h3">
+                Aprovou a proposta? <span class="destaque">O projeto já nasce.</span>
+              </h3>
+              <p class="t-body mt-4 text-soft">
+                O contrato aprovado cria o projeto e o primeiro cartão do fluxo na mesma hora, já
+                com o número da série do escritório. Na obra, o diário registra visita, foto e
+                pendência, com histórico de quem resolveu o quê, e gera o relatório em PDF para
+                mandar ao cliente.
+              </p>
+            </div>
+            <figure class="mockup lg:order-1" data-revelar>
+              <div class="mockup-bar">
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="ml-2 truncate text-xs text-faint">HausOne · Diário de obra</span>
+              </div>
+              <div class="mockup-body">
+                <img
+                  src="../prototypes/lp-hausone/03-diario-de-obra.png"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Diário do projeto aberto na aba Obra: contadores de visitas e pendências e o registro de uma vistoria, com descrição, data, responsável e as duas pendências abertas naquela visita."
+                />
+              </div>
+            </figure>
+          </div>
+
+          <!-- BLOCO C -->
+          <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+            <div data-revelar>
+              <h3 class="titulo-duplo t-h3">Quanto já entrou <span class="destaque">deste contrato?</span></h3>
+              <p class="t-body mt-4 text-soft">
+                As parcelas a receber nascem do contrato e ficam ligadas ao projeto e ao cliente. As
+                contas a pagar têm categoria, recorrência e centro de custo. O orçamento por cliente
+                guarda valor estimado, aprovado e comissão prevista.
+              </p>
+            </div>
+            <figure class="mockup" data-revelar>
+              <div class="mockup-bar">
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="ml-2 truncate text-xs text-faint">HausOne · Contas a receber</span>
+              </div>
+              <div class="mockup-body">
+                <img
+                  src="../prototypes/lp-hausone/04-contas-a-receber.png"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Tela de Recebíveis: os totais de recebido, previsto e em atraso, o seletor de mês e a lista de parcelas com projeto, vencimento, valor e situação."
+                />
+              </div>
+            </figure>
+          </div>
+
+          <!-- BLOCO D — imagem à esquerda, alternando com o C -->
+          <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+            <div class="lg:order-2" data-revelar>
+              <h3 class="titulo-duplo t-h3">
+                Todo terreno e toda obra, <span class="destaque">num mapa só.</span>
+              </h3>
+              <p class="t-body mt-4 text-soft">
+                Cada propriedade vira um pin, e o endereço é resolvido sozinho a partir do ponto que
+                você marcou. Dá para filtrar por cliente, por nome do projeto, por status e por
+                cidade, e trocar para satélite quando a conversa é sobre o terreno. O pin também se
+                liga ao projeto, então o mapa responde onde cada coisa está sem ninguém abrir
+                planilha de endereço.
+              </p>
+            </div>
+            <figure class="mockup lg:order-1" data-revelar>
+              <div class="mockup-bar">
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="ml-2 truncate text-xs text-faint">HausOne · Mapa de Projetos</span>
+              </div>
+              <div class="mockup-body">
+                <img
+                  src="../prototypes/lp-hausone/05-mapa-de-projetos.jpg"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Mapa de Projetos: pins das propriedades sobre o mapa, o painel de filtros por cliente, nome do projeto, status, cidade e finalidade, e o botão que troca o mapa para satélite."
+                />
+              </div>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           5-A · NÚMEROS (claro, superfície BRANCA) — CONTEÚDO SIMULADO.
+           Os quatro valores são INVENTADOS. Ver o bloco "CONTEÚDO SIMULADO"
+           no cabeçalho e a nota de protótipo ao fim da seção 10-A.
+
+           POR QUE AQUI: fecha a demonstração do produto (o tour) com escala,
+           logo antes de a ORIGEM explicar de onde ele veio. E POR QUE CLARA,
+           sobre superfície branca: a trilha das seis fases (seção 4) é uma
+           fileira horizontal de itens sobre fundo escuro, e uma faixa de
+           quatro números sobre fundo escuro seria a MESMA geometria no MESMO
+           tema — as duas competiriam, e a assinatura da página é a trilha.
+           Clara e sobre branco, esta faixa tem peso sem disputar: é o preto
+           cheio sobre a superfície mais clara da página, que é o contraste
+           máximo que o monocromático tem para oferecer.
+           =================================================================== -->
+      <section class="sec-light sec-light-inverted borda-secao py-[clamp(3.5rem,7vw,6rem)]">
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <p class="t-eyebrow text-faint" data-revelar>O sistema hoje</p>
+
+          <ul class="mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0" data-grupo>
+            <!--
+              A régua vertical entre as colunas só existe no arranjo de quatro
+              (lg). Em duas colunas ela cairia no meio de uma linha e pareceria
+              erro. É a mesma linha de 1px em --border que separa as seções.
+            -->
+            <li data-revelar class="lg:border-l lg:border-border lg:pl-6 lg:first:border-l-0 lg:first:pl-0">
+              <p class="numero">
+                <span class="numero-valor">
+                  <span class="numero-reserva" aria-hidden="true">12</span>
+                  <span class="numero-atual" data-numero="12">12</span>
+                </span>
+              </p>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                escritórios usando o HausOne
+              </p>
+            </li>
+            <li data-revelar class="lg:border-l lg:border-border lg:pl-6 lg:first:border-l-0 lg:first:pl-0">
+              <p class="numero">
+                <span class="numero-valor">
+                  <span class="numero-reserva" aria-hidden="true">180</span>
+                  <span class="numero-atual" data-numero="180">180</span>
+                </span>
+              </p>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                projetos em andamento no sistema
+              </p>
+            </li>
+            <li data-revelar class="lg:border-l lg:border-border lg:pl-6 lg:first:border-l-0 lg:first:pl-0">
+              <p class="numero">
+                <span class="numero-valor">
+                  <span class="numero-reserva" aria-hidden="true">430</span>
+                  <span class="numero-atual" data-numero="430">430</span>
+                </span>
+              </p>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                contratos gerados desde o primeiro escritório
+              </p>
+            </li>
+            <li data-revelar class="lg:border-l lg:border-border lg:pl-6 lg:first:border-l-0 lg:first:pl-0">
+              <!-- O sufixo fica FORA do span que conta: `min-width` em `ch` reserva
+                   algarismo, não o "%". Com o % dentro, a caixa ia de "0%" a "88%"
+                   e o próprio símbolo escorregava para o lado durante a contagem.
+                   Medido antes de separar. -->
+              <p class="numero">
+                <span class="numero-valor">
+                  <span class="numero-reserva" aria-hidden="true">94</span>
+                  <span class="numero-atual" data-numero="94">94</span>
+                </span
+                >%
+              </p>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                da equipe cadastrada entra toda semana
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           5-B · GESTÃO DA EQUIPE (claro, slate-50).
+           Pedido do escritório: o dono precisa ver na página que enxerga a
+           produtividade de quem trabalha com ele, o que cada um está fazendo,
+           os projetos em andamento e quem responde por cada um.
+
+           CADA NÚMERO CITADO AQUI SAI DE UMA TELA QUE EXISTE. O relatório de
+           produtividade mede atividades concluídas, horas somadas, média por
+           atividade e percentual fora do prazo, com filtro de período,
+           colaborador, projeto e prioridade (RelatorioProdutividade.tsx e
+           productivity.ts). O painel executivo tem "Projetos por Colaborador"
+           com gaveta ao clicar, distribuição por fase, progresso médio e os
+           recortes abaixo de 30% e acima de 80% (DashboardExecutivo.tsx). Os
+           dois responsáveis por projeto vêm do schema, não de promessa.
+
+           SEM CAPTURA POR ORA: o banco de dev estava fora do ar quando esta
+           seção foi escrita. Quando voltar, ela vira o quinto bloco do tour,
+           com a tela do relatório do lado.
+
+           Fica depois dos números (superfície branca) e antes da origem
+           (escura): três respiros claros seguidos, alternando por superfície.
+           =================================================================== -->
+      <section
+        id="equipe"
+        class="sec-light bg-background pb-[clamp(4.5rem,9vw,8rem)] pt-[clamp(4.5rem,9vw,8rem)]"
+      >
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-3xl" data-revelar>
+            <h2 class="titulo-duplo t-h2">
+              Você sabe quem está fazendo o quê,
+              <span class="destaque">sem perguntar no grupo.</span>
+            </h2>
+            <p class="t-lead mt-4 text-soft">
+              O escritório não precisa parar para te dar status. Quem coordena abre o sistema e a
+              resposta já está lá, por pessoa, por projeto e por período.
+            </p>
+          </div>
+
+          <ul class="mt-12 grid gap-4 lg:grid-cols-3">
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="bar-chart-3" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Produtividade por pessoa</h3>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Quantas atividades cada um concluiu no período, quantas horas somaram, a média por
+                atividade e quanto saiu do prazo. Filtra por colaborador, por projeto e por
+                prioridade.
+              </p>
+            </li>
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="users" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Projetos por colaborador</h3>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                No painel executivo, clicar num nome abre os projetos daquela pessoa. Do lado,
+                a distribuição por fase, o progresso médio e quais projetos estão abaixo de 30 por
+                cento.
+              </p>
+            </li>
+            <li class="rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="user-check" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <h3 class="mt-4 font-semibold">Dois responsáveis por projeto</h3>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Quem vendeu e quem executa são pessoas diferentes, e o sistema trata assim. No
+                quadro, cada cartão mostra a inicial de quem responde por ele.
+              </p>
+            </li>
+          </ul>
+
+          <p class="t-body mt-8 max-w-3xl text-soft" data-revelar>
+            E a fila de cada um fica do lado dela: o arquiteto abre "Minhas Atividades" e vê o que é
+            dele, com prazo e coordenador.
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           5-C · COBRANÇA AUTOMÁTICA (claro, superfície branca).
+           NÃO EXISTE AINDA. É roadmap, e está marcado como tal em letra que
+           ninguém perde: tarja "em desenvolvimento" e a frase "ainda não faz".
+
+           A ideia e a pergunta são do escritório. O que o sistema faz HOJE é
+           controlar a parcela: ela nasce do contrato, tem vencimento, e fica
+           prevista, paga ou em atraso. Emitir boleto e cobrar o cliente é o
+           passo seguinte, com integração de meio de pagamento.
+
+           POR QUE NÃO ESCREVI COMO SE JÁ FUNCIONASSE: a página captura e-mail
+           para um vendedor ligar depois. Promessa que não se sustenta na
+           demonstração queima o contato e a reputação junto. Ver o item 3c da
+           lista do fim do arquivo.
+           =================================================================== -->
+      <section class="sec-light sec-light-inverted pb-[clamp(4.5rem,9vw,8rem)]">
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div
+            class="rounded-xl border border-dashed border-border bg-background p-6 sm:p-10"
+            data-revelar
+          >
+            <span
+              class="t-eyebrow inline-flex items-center gap-2 rounded-full border border-brand/40 px-3 py-1 text-brand"
+            >
+              <i data-lucide="hammer" class="h-3.5 w-3.5"></i>
+              Em desenvolvimento
+            </span>
+            <h2 class="titulo-duplo t-h3 mt-5 max-w-3xl">
+              Já pensou alguém cobrando seu cliente
+              <span class="destaque">e enviando boleto sozinho?</span>
+            </h2>
+            <p class="t-body mt-4 max-w-3xl text-soft">
+              Hoje o sistema já sabe quem deve o quê e quando vence: a parcela nasce do contrato e
+              fica prevista, paga ou em atraso. O que ainda não faz é emitir o boleto e cobrar por
+              você. É o próximo passo do financeiro, com integração de meio de pagamento.
+            </p>
+            <p class="mt-4 text-sm text-faint">
+              Deixe seu e-mail e a gente avisa quando entrar no ar.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           6 · ORIGEM (escuro) — ocupa o lugar do depoimento em vídeo.
+           Sem foto, sem aspas, sem nome de pessoa. Peso editorial.
+           =================================================================== -->
+      <section
+        id="origem"
+        class="sec-dark borda-secao bg-background pb-[clamp(3rem,6vw,5rem)] pt-[clamp(4.5rem,9vw,8rem)]"
+      >
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-3xl" data-revelar>
+            <p class="t-eyebrow text-faint">Validado por arquitetos</p>
+            <h2 class="titulo-duplo t-h2 mt-5">
+              Não nasceu numa reunião de produto.
+              <span class="destaque">Nasceu num escritório.</span>
+            </h2>
+            <div class="mt-8 border-l-2 border-foreground/20 pl-6 sm:pl-8" data-revelar>
+              <p class="t-lead text-soft">
+                O HausOne roda todo dia dentro de um escritório de arquitetura. Foi construído tela
+                por tela na rotina dele, com arquitetos, coordenação e administrativo usando
+                enquanto era feito, e com cada ajuste saindo de um problema real de quem entrega
+                projeto.
+              </p>
+              <p class="t-lead mt-5 text-soft">
+                É por isso que o quadro fala em Projeto Legal e Alvará, e não em "etapa 3". E é por
+                isso que a conferência do briefing existe: porque alguém estava digitando briefing
+                duas vezes.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           7 · PERMISSÕES (escuro) — segue no mesmo movimento da 6.
+           Ver "decisões de ritmo" no cabeçalho.
+           =================================================================== -->
+      <section class="sec-dark bg-background pb-[clamp(4.5rem,9vw,8rem)] pt-[clamp(3rem,6vw,5rem)]">
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-3xl" data-revelar>
+            <h2 class="titulo-duplo t-h2">
+              O arquiteto abre o sistema e vê <span class="destaque">o trabalho dele</span>. Só.
+            </h2>
+            <p class="t-lead mt-4 text-soft">
+              Permissão por menu, por função. O estagiário não vê o financeiro. O arquiteto vê os
+              projetos onde é responsável. O diretor vê tudo. E o recorte não é menu escondido no
+              navegador: é regra no banco de dados, aplicada antes de o dado sair de lá.
+            </p>
+          </div>
+
+          <ul class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-grupo>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground"
+                >
+                  <i data-lucide="crown" class="h-4 w-4"></i>
+                </span>
+                <h3 class="font-semibold">Diretor</h3>
+              </div>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                Tudo, inclusive financeiro e equipe.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground"
+                >
+                  <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
+                </span>
+                <h3 class="font-semibold">Coordenador</h3>
+              </div>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                Painel executivo, projetos, atividades do time que coordena.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground"
+                >
+                  <i data-lucide="briefcase" class="h-4 w-4"></i>
+                </span>
+                <h3 class="font-semibold">Administrativo</h3>
+              </div>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                Operação + financeiro + equipe.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground"
+                >
+                  <i data-lucide="banknote" class="h-4 w-4"></i>
+                </span>
+                <h3 class="font-semibold">Financeiro</h3>
+              </div>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                Recebíveis, pagamentos, painel executivo.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground"
+                >
+                  <i data-lucide="ruler" class="h-4 w-4"></i>
+                </span>
+                <h3 class="font-semibold">Arquiteto</h3>
+              </div>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                Apenas as próprias atividades e os projetos onde é responsável.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-5" data-revelar>
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground"
+                >
+                  <i data-lucide="graduation-cap" class="h-4 w-4"></i>
+                </span>
+                <h3 class="font-semibold">Estagiário</h3>
+              </div>
+              <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
+                Mesmo recorte do Arquiteto.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           8 · SEGURANÇA (claro, sobre superfície BRANCA) — primeiro dos três
+           respiros do movimento claro. Cards em slate-50.
+           =================================================================== -->
+      <section
+        id="seguranca"
+        class="sec-light sec-light-inverted borda-secao py-[clamp(4.5rem,9vw,8rem)]"
+      >
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-2xl" data-revelar>
+            <h2 class="titulo-duplo t-h2">
+              O dado do seu escritório <span class="destaque">é só do seu escritório</span>.
+            </h2>
+          </div>
+
+          <ul class="mt-12 grid gap-4 sm:grid-cols-2" data-grupo>
+            <li class="cartao flex gap-4 rounded-xl border border-border bg-background p-5 sm:p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="database" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <p class="t-body text-soft">
+                Cada escritório é separado no banco de dados, não na tela. E a separação é
+                verificada por teste automatizado, não por confiança.
+              </p>
+            </li>
+            <li class="cartao flex gap-4 rounded-xl border border-border bg-background p-5 sm:p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="key-round" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <p class="t-body text-soft">
+                Cada colaborador entra com o próprio login e troca a senha provisória na primeira
+                entrada.
+              </p>
+            </li>
+            <li class="cartao flex gap-4 rounded-xl border border-border bg-background p-5 sm:p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="shield-check" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <p class="t-body text-soft">
+                Banco e hospedagem em plataforma gerenciada, com backup automático.
+              </p>
+            </li>
+            <li class="cartao flex gap-4 rounded-xl border border-border bg-background p-5 sm:p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-muted text-foreground"
+              >
+                <i data-lucide="user-check" class="h-[1.125rem] w-[1.125rem]"></i>
+              </span>
+              <p class="t-body text-soft">
+                Fila de aprovação de acesso: quem tenta entrar e não é colaborador ativo fica
+                esperando, não entra.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           9 · COMO COMEÇA (claro, slate-50) — quatro passos. Mesma geometria
+           de nó + linha da trilha da seção 4.
+           =================================================================== -->
+      <section
+        class="sec-light borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]"
+      >
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <h2 class="t-h2 max-w-2xl" data-revelar>Como começa</h2>
+
+          <ol class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-grupo>
+            <li class="cartao rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground"
+                >1</span
+              >
+              <p class="t-body mt-4 font-medium">Seu escritório é cadastrado.</p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground"
+                >2</span
+              >
+              <p class="t-body mt-4 font-medium">
+                Sua equipe recebe login e permissão por função.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground"
+                >3</span
+              >
+              <p class="t-body mt-4 font-medium">Trazemos o que você já tem.</p>
+              <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                A migração do seu cadastro de clientes, contratos e projetos faz parte da
+                implantação, venha de planilha ou de outra plataforma.
+              </p>
+            </li>
+            <li class="cartao rounded-xl border border-border bg-card p-6" data-revelar>
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground"
+                >4</span
+              >
+              <p class="t-body mt-4 font-medium">A equipe começa a usar.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           10 · PERGUNTAS FREQUENTES (claro) — <details>/<summary> nativo.
+           =================================================================== -->
+      <section id="perguntas" class="sec-light bg-background pb-[clamp(4.5rem,9vw,8rem)]">
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <h2 class="t-h2 max-w-2xl" data-revelar>Perguntas frequentes</h2>
+
+          <div class="mt-10 max-w-3xl divide-y divide-border border-y border-border" data-grupo>
+            <!--
+              "QUANTO CUSTA" É A PRIMEIRA PERGUNTA, e ela abre a lista de
+              propósito. Não responder preço numa página de captação é padrão
+              em venda consultiva, mas FUGIR da pergunta custa confiança: quem
+              não acha a pergunta na página assume que o preço é alto e sai.
+              Dizer de que o preço depende já é meia resposta.
+
+              O TEXTO DESTA RESPOSTA PRECISA DE APROVAÇÃO. Ele compromete
+              política comercial que ainda não foi definida. Ver a lista do fim
+              do arquivo.
+            -->
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold">Quanto custa?</span>
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    Depende do tamanho da equipe e do que o escritório vai usar. É a primeira coisa
+                    que a gente trata na conversa, antes de qualquer demonstração.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <!--
+              A PERGUNTA DO BOLETO, respondida sem rodeio. A seção 5-C usa a
+              pergunta como chamariz e diz que é roadmap; aqui ela aparece
+              outra vez, do lado defensivo, porque quem desconfia procura na
+              lista de perguntas e não no bloco bonito.
+            -->
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold">O sistema emite boleto e cobra o cliente?</span>
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    Ainda não. Hoje ele controla a parcela: ela nasce do contrato, tem vencimento e
+                    fica prevista, paga ou em atraso, ligada ao projeto e ao cliente. Emitir boleto
+                    e cobrar automaticamente está em desenvolvimento.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold">Funciona para escritório pequeno?</span>
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    Sim. Funções e permissões são configuradas por escritório, e uma pessoa pode
+                    acumular papéis.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold"
+                  >Meu dado fica junto com o de outro escritório?</span
+                >
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    Não. Cada escritório é separado no banco, e a separação é verificada por teste
+                    automatizado.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold">Posso mudar as fases do meu fluxo?</span>
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    Sim. Colunas do quadro, tipos de serviço e etiquetas operacionais são definidos pelo
+                    escritório, na tela de configurações.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold">Quem não é de tecnologia consegue usar?</span>
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    O sistema foi construído dentro da rotina de um escritório de arquitetura, tela
+                    por tela, com a equipe usando enquanto era feito. Quem não é de tecnologia foi
+                    justamente quem testou primeiro.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold">E o que eu já tenho hoje em planilha?</span>
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    A migração faz parte da implantação: levamos o seu cadastro de clientes, contratos e
+                    projetos para dentro do sistema antes de a equipe começar.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <details class="group" data-revelar>
+              <summary class="flex items-center justify-between gap-4 py-5 text-left">
+                <span class="t-body font-semibold"
+                  >O que acontece depois que eu deixo meu e-mail?</span
+                >
+                <i data-lucide="chevron-down" class="faq-chevron h-5 w-5 flex-none text-faint"></i>
+              </summary>
+              <div class="faq-corpo">
+                <div>
+                  <p class="t-body pb-5 pr-10 text-soft">
+                    A gente entra em contato para entender o seu escritório e mostrar o sistema
+                    funcionando. Nada é enviado automaticamente.
+                  </p>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           10-A · DEPOIMENTOS (escuro) — CONTEÚDO SIMULADO.
+           Os quatro depoimentos são FICTÍCIOS: escritórios inventados e
+           pessoas inventadas. Nenhuma palavra aqui é atribuída ao escritório
+           que usa o sistema de verdade nem a quem trabalha nele — escritório
+           real e pessoas reais, e texto fictício na boca delas seria
+           falsificação, não simulação. Esse escritório não é nomeado em lugar
+           nenhum da página: a procedência vive na seção 6 (ORIGEM), como
+           credencial. Ver o bloco "CONTEÚDO SIMULADO" no cabeçalho e a nota de
+           protótipo ao fim desta seção.
+
+           POR QUE AQUI: depois das PERGUNTAS, que tiram a objeção, e colado no
+           CTA final, que é a última chance de conversão — prova social é o
+           último empurrão, não a abertura. Entra ESCURA e abre o movimento
+           escuro do fim da página (depoimentos → CTA → rodapé), quebrando a
+           sequência de três seções claras (8, 9 e 10).
+
+           POR QUE SCROLL-SNAP E NÃO UM CARROSSEL DE JAVASCRIPT: o trilho é um
+           container de rolagem com `scroll-snap-type`. Arrastar no toque,
+           inércia e rolagem por teclado vêm do navegador, de graça e melhores
+           do que qualquer reimplementação. E sem JavaScript isto não é um
+           carrossel quebrado: é uma tira que rola com os quatro depoimentos
+           legíveis. O JS que sobra é ESTADO (qual é o atual, avanço
+           automático, pausa, ARIA), não animação.
+           =================================================================== -->
+      <section
+        class="sec-dark borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]"
+        aria-labelledby="depoimentos-titulo"
+      >
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <div class="max-w-4xl">
+            <h2 class="titulo-duplo t-h2" id="depoimentos-titulo" data-revelar>
+              Seis funções, seis recortes.
+              <span class="destaque">Cada um fala do que é dele.</span>
+            </h2>
+
+            <div class="carrossel mt-10" data-carrossel data-revelar>
+              <div
+                class="carrossel-trilho"
+                data-carrossel-trilho
+                role="group"
+                aria-roledescription="carrossel"
+                aria-label="Depoimentos de quem usa o HausOne"
+                tabindex="0"
+              >
+            <article
+              class="carrossel-slide"
+              role="group"
+              aria-roledescription="depoimento"
+              aria-label="1 de 4"
+            >
+              <div class="h-full rounded-xl border border-border bg-card p-6 sm:p-10">
+                <i data-lucide="quote" class="h-6 w-6 text-faint" aria-hidden="true"></i>
+                <blockquote class="citacao mt-5">Antes eu só sabia quanto tinha entrado quando a contadora fechava o mês. Agora cada parcela
+                nasce do contrato, e eu abro o projeto e vejo quanto ainda falta receber dele. A planilha
+                de controle morreu em duas semanas.</blockquote>
+                <div class="mt-8 flex items-center gap-3">
+                  <!-- O crachá do app (a inicial em quadrado) no lugar do retrato:
+                       não há foto de ninguém, e banco de imagem seria o mesmo
+                       problema com outra roupa. -->
+                  <span
+                    class="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-muted text-sm font-semibold text-foreground"
+                    aria-hidden="true"
+                    >M</span
+                  >
+                  <p class="text-sm leading-snug">
+                    <span class="font-semibold">Marina Toledo</span><br />
+                    <span class="text-muted-foreground">Diretora · Escritório Pedra &amp; Vidro</span>
+                  </p>
+                </div>
+              </div>
+            </article>
+            <article
+              class="carrossel-slide"
+              role="group"
+              aria-roledescription="depoimento"
+              aria-label="2 de 4"
+            >
+              <div class="h-full rounded-xl border border-border bg-card p-6 sm:p-10">
+                <i data-lucide="quote" class="h-6 w-6 text-faint" aria-hidden="true"></i>
+                <blockquote class="citacao mt-5">Eu entro e vejo a minha fila: as atividades que são minhas e os projetos onde sou
+                responsável. Parei de perguntar no grupo em que fase está o Projeto Legal. Está no
+                quadro.</blockquote>
+                <div class="mt-8 flex items-center gap-3">
+                  <!-- O crachá do app (a inicial em quadrado) no lugar do retrato:
+                       não há foto de ninguém, e banco de imagem seria o mesmo
+                       problema com outra roupa. -->
+                  <span
+                    class="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-muted text-sm font-semibold text-foreground"
+                    aria-hidden="true"
+                    >R</span
+                  >
+                  <p class="text-sm leading-snug">
+                    <span class="font-semibold">Rafael Nunes</span><br />
+                    <span class="text-muted-foreground">Arquiteto · Atelier Travessa</span>
+                  </p>
+                </div>
+              </div>
+            </article>
+            <article
+              class="carrossel-slide"
+              role="group"
+              aria-roledescription="depoimento"
+              aria-label="3 de 4"
+            >
+              <div class="h-full rounded-xl border border-border bg-card p-6 sm:p-10">
+                <i data-lucide="quote" class="h-6 w-6 text-faint" aria-hidden="true"></i>
+                <blockquote class="citacao mt-5">O cliente preenche o briefing pelo link e eu confiro campo a campo antes de entrar no
+                cadastro. Parei de digitar a mesma informação duas vezes, e parei de descobrir CPF
+                trocado na hora de emitir o contrato.</blockquote>
+                <div class="mt-8 flex items-center gap-3">
+                  <!-- O crachá do app (a inicial em quadrado) no lugar do retrato:
+                       não há foto de ninguém, e banco de imagem seria o mesmo
+                       problema com outra roupa. -->
+                  <span
+                    class="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-muted text-sm font-semibold text-foreground"
+                    aria-hidden="true"
+                    >C</span
+                  >
+                  <p class="text-sm leading-snug">
+                    <span class="font-semibold">Carla Beltrão</span><br />
+                    <span class="text-muted-foreground">Administrativo · Oficina Varanda</span>
+                  </p>
+                </div>
+              </div>
+            </article>
+            <article
+              class="carrossel-slide"
+              role="group"
+              aria-roledescription="depoimento"
+              aria-label="4 de 4"
+            >
+              <div class="h-full rounded-xl border border-border bg-card p-6 sm:p-10">
+                <i data-lucide="quote" class="h-6 w-6 text-faint" aria-hidden="true"></i>
+                <blockquote class="citacao mt-5">As colunas do quadro são as fases que a gente já usava: Layout, Perspectivas, Alvará.
+                Ninguém da equipe teve que aprender o vocabulário de outra pessoa para usar o sistema.</blockquote>
+                <div class="mt-8 flex items-center gap-3">
+                  <!-- O crachá do app (a inicial em quadrado) no lugar do retrato:
+                       não há foto de ninguém, e banco de imagem seria o mesmo
+                       problema com outra roupa. -->
+                  <span
+                    class="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-muted text-sm font-semibold text-foreground"
+                    aria-hidden="true"
+                    >J</span
+                  >
+                  <p class="text-sm leading-snug">
+                    <span class="font-semibold">Juliana Prado</span><br />
+                    <span class="text-muted-foreground">Coordenadora · Arquitetura Pátio Norte</span>
+                  </p>
+                </div>
+              </div>
+            </article>
+              </div>
+
+              <!-- Controles: só aparecem quando há JavaScript, porque é o JS
+                   que os faz funcionar. Sem ele, a tira continua rolável. -->
+              <div class="js-apenas mt-6 items-center justify-between gap-4">
+                <div class="flex items-center gap-2" role="group" aria-label="Escolher depoimento">
+              <button
+                type="button"
+                class="ponto"
+                data-carrossel-ponto="0"
+                aria-label="Ir para o depoimento 1"
+              ></button>
+              <button
+                type="button"
+                class="ponto"
+                data-carrossel-ponto="1"
+                aria-label="Ir para o depoimento 2"
+              ></button>
+              <button
+                type="button"
+                class="ponto"
+                data-carrossel-ponto="2"
+                aria-label="Ir para o depoimento 3"
+              ></button>
+              <button
+                type="button"
+                class="ponto"
+                data-carrossel-ponto="3"
+                aria-label="Ir para o depoimento 4"
+              ></button>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button type="button" class="seta-carrossel" data-carrossel-anterior>
+                    <i data-lucide="chevron-left" class="h-5 w-5" aria-hidden="true"></i>
+                    <span class="sr-only">Depoimento anterior</span>
+                  </button>
+                  <button type="button" class="seta-carrossel" data-carrossel-proximo>
+                    <i data-lucide="chevron-right" class="h-5 w-5" aria-hidden="true"></i>
+                    <span class="sr-only">Próximo depoimento</span>
+                  </button>
+                </div>
+              </div>
+
+              <!--
+                O ANÚNCIO PARA LEITOR DE TELA. Só é escrito quando a troca foi
+                PEDIDA (seta, indicador, teclado) ou quando a rotação está
+                pausada. Durante o avanço automático ele fica em silêncio: um
+                carrossel que fala sozinho a cada seis segundos é exatamente o
+                "agressivo" que se quer evitar. E como a rotação para ao
+                receber foco, quem navega por teclado nunca é interrompido.
+              -->
+              <p class="sr-only" aria-live="polite" data-carrossel-aviso></p>
+            </div>
+
+            <!-- ===============================================================
+                 NOTA DE PROTÓTIPO — cobre as DUAS seções simuladas. Fica aqui,
+                 depois da segunda, porque as duas estão longe uma da outra na
+                 página e este é o único ponto em que a nota vem DEPOIS das
+                 duas, sem cortar a leitura de nenhuma.
+                 =============================================================== -->
+            <p
+              class="mt-10 rounded-lg border border-dashed border-border px-4 py-3 text-xs leading-relaxed text-faint"
+            >
+              Nota de protótipo: os quatro indicadores da seção "O sistema hoje" e os quatro
+              depoimentos deste carrossel são simulados: números inventados, escritórios e pessoas
+              fictícios, desenhados só para dar peso visual à página. Nenhum deles pode ir ao ar:
+              antes de publicar, saem ou são trocados por dado real. Nenhum escritório é nomeado em
+              lugar nenhum desta página, nem o que de fato usa o sistema.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           11 · CTA FINAL (escuro, largo) — mesmo formulário, com o nome do
+           escritório opcional ao lado.
+           =================================================================== -->
+      <section
+        id="interesse"
+        class="sec-dark borda-secao bg-background py-[clamp(4.5rem,9vw,8rem)]"
+      >
+        <div class="mx-auto max-w-container px-5 sm:px-8">
+          <!--
+            A SUPERFÍCIE GRAFITE DO PAINEL DE LOGIN (--auth-panel, 222 9% 16%).
+            É o terceiro degrau acima do cartão (8%) e do elevado (12%), e é o
+            que levanta este bloco agora que não há mais halo verde para
+            destacá-lo. Mesma superfície que o app usa no único lugar onde a
+            marca aparece sozinha.
+          -->
+          <div
+            class="rounded-xl border border-border bg-auth-panel px-6 py-12 text-auth-panel-foreground sm:px-10 sm:py-16 lg:px-16"
+            data-revelar
+          >
+            <div>
+              <h2 class="titulo-duplo t-h2 max-w-2xl">
+                Seu escritório inteiro<br />
+                <span class="destaque">em um sistema só.</span>
+              </h2>
+              <p class="t-lead mt-4 max-w-2xl text-soft">
+                Deixe seu e-mail. A gente entra em contato para entender como o seu escritório
+                trabalha hoje e mostrar o sistema rodando nesse caso.
+              </p>
+
+              <!--
+                O FORMULÁRIO É MAIS LARGO QUE O TEXTO (max-w-4xl contra
+                max-w-2xl) e só vira três colunas em lg. Com os três elementos
+                lado a lado dentro de 42rem, o placeholder "nome do escritório
+                (opcional)" era cortado no meio — pego no render. Entre sm e lg
+                os dois campos dividem a linha e o botão ocupa a seguinte
+                inteira; abaixo de sm, tudo empilha.
+              -->
+              <form id="cta-form" class="mt-8 max-w-4xl" novalidate data-form data-origem="cta-final">
+                <div data-form-entrada>
+                  <!--
+                    ARMADILHA DE ROBÔ. Fora da tela (.pote), nunca com `display: none`:
+                    robô que respeita display:none é robô que pula o campo. Preenchido, a
+                    edge function responde sucesso e não grava nada — dizer "você é um
+                    robô" ensina o robô a contornar. Não é a defesa principal (essa é o
+                    limite de requisições por origem); é o que evita a fila encher de
+                    lixo sem pôr captcha na frente de quem está comprando.
+                  -->
+                  <div class="pote" aria-hidden="true">
+                    <label for="site-cta">Não preencha este campo</label>
+                    <input
+                      id="site-cta"
+                      name="site"
+                      type="text"
+                      tabindex="-1"
+                      autocomplete="off"
+                      data-pote
+                    />
+                  </div>
+                  <div
+                    class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto]"
+                  >
+                    <div>
+                      <label for="email-cta" class="sr-only">Seu e-mail profissional</label>
+                      <input
+                        id="email-cta"
+                        name="email"
+                        type="email"
+                        inputmode="email"
+                        autocomplete="email"
+                        placeholder="seu e-mail profissional"
+                        class="campo t-body h-12 w-full rounded-full px-5 outline-hidden"
+                        aria-describedby="erro-cta consent-cta"
+                        data-email
+                      />
+                    </div>
+                    <div>
+                      <label for="escritorio-cta" class="sr-only"
+                        >Nome do escritório (opcional)</label
+                      >
+                      <input
+                        id="escritorio-cta"
+                        name="escritorio"
+                        type="text"
+                        autocomplete="organization"
+                        placeholder="nome do escritório (opcional)"
+                        class="campo t-body h-12 w-full rounded-full px-5 outline-hidden"
+                        data-escritorio
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      class="btn-seta inline-flex h-12 flex-none items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:col-span-2 lg:col-span-1"
+                    >
+                      Quero ver funcionando
+                      <i data-lucide="arrow-right" class="h-4 w-4"></i>
+                    </button>
+                  </div>
+
+                  <p
+                    id="erro-cta"
+                    class="mt-2.5 hidden items-center gap-1.5 text-sm text-destructive"
+                    data-erro
+                    role="alert"
+                  >
+                    <i data-lucide="circle-alert" class="h-4 w-4 flex-none"></i>
+                    <span data-erro-texto>Digite um e-mail válido.</span>
+                  </p>
+
+                  <p class="mt-3 text-sm text-muted-foreground" data-microcopy>
+                    A gente entra em contato para mostrar o sistema rodando no caso do seu
+                    escritório. Sem compromisso, e nada automático na sua caixa de entrada.
+                  </p>
+                  <p id="consent-cta" class="mt-2 text-xs text-faint">
+                    Ao enviar, você autoriza o contato do HausOne sobre o sistema. Seu e-mail não é
+                    usado para mais nada.
+                  </p>
+                </div>
+
+                <div
+                  class="hidden rounded-xl border border-foreground/25 bg-foreground/[0.06] p-5"
+                  data-form-sucesso
+                  hidden
+                >
+                  <div class="flex items-start gap-3">
+                    <span
+                      class="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-primary text-primary-foreground"
+                    >
+                      <i data-lucide="check" class="h-4 w-4"></i>
+                    </span>
+                    <div>
+                      <p class="font-semibold">Recebemos seu e-mail.</p>
+                      <p class="mt-1 text-sm text-soft">
+                        A gente entra em contato para mostrar o sistema. Você não recebe nada
+                        automático.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ===================================================================
+         12 · RODAPÉ (escuro, denso) — quatro colunas, assinatura do app e o
+         wordmark gigante cortado pela borda inferior.
+         =================================================================== -->
+    <footer class="sec-dark relative overflow-hidden bg-background pt-[clamp(3rem,6vw,5rem)]">
+      <div class="mx-auto max-w-container px-5 sm:px-8">
+        <div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
+          <div>
+            <img
+              src="../prototypes/lp-hausone/logo-hausone-escuro.png"
+              width="1200"
+              height="312"
+              loading="lazy"
+              decoding="async"
+              class="h-9 w-auto"
+              alt="HausOne"
+            />
+            <!-- A frase que o painel de login do app já usa (Login.tsx:164) -->
+            <p class="t-body mt-4 max-w-xs text-soft">
+              Tudo do seu escritório de arquitetura em um só lugar.
+            </p>
+            <a
+              href="#hero-form"
+              class="btn-seta mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Quero ver funcionando
+              <i data-lucide="arrow-right" class="h-4 w-4"></i>
+            </a>
+          </div>
+
+          <div>
+            <p class="t-eyebrow text-faint">O sistema</p>
+            <ul class="mt-4 space-y-2.5 text-sm text-soft">
+              <li><a href="#sistema" class="hover:text-foreground">CRM</a></li>
+              <li><a href="#sistema" class="hover:text-foreground">Pipeline</a></li>
+              <li><a href="#sistema" class="hover:text-foreground">Briefing do cliente</a></li>
+              <li><a href="#sistema" class="hover:text-foreground">Contratos</a></li>
+              <li><a href="#sistema" class="hover:text-foreground">Fluxo do projeto</a></li>
+              <li><a href="#sistema" class="hover:text-foreground">Diário de obra</a></li>
+              <li><a href="#sistema" class="hover:text-foreground">Financeiro</a></li>
+              <li><a href="#equipe" class="hover:text-foreground">Atividades da equipe</a></li>
+              <li><a href="#sistema" class="hover:text-foreground">Mapa</a></li>
+            </ul>
+          </div>
+
+          <!-- PLACEHOLDER: as três colunas abaixo não têm destino definido. -->
+          <div>
+            <p class="t-eyebrow text-faint">Empresa</p>
+            <ul class="mt-4 space-y-2.5 text-sm text-soft">
+              <li><a href="#origem" class="hover:text-foreground">Como o HausOne nasceu</a></li>
+              <li><a href="#interesse" class="hover:text-foreground">Falar com a gente</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <p class="t-eyebrow text-faint">Ajuda</p>
+            <ul class="mt-4 space-y-2.5 text-sm text-soft">
+              <li><a href="#perguntas" class="hover:text-foreground">Perguntas frequentes</a></li>
+              <li><a href="#interesse" class="hover:text-foreground">Suporte</a></li>
+            </ul>
+            <p class="t-eyebrow mt-8 text-faint">Privacidade</p>
+            <ul class="mt-4 space-y-2.5 text-sm text-soft">
+              <li>
+                <a href="#" class="underline decoration-dotted hover:text-foreground"
+                  >Política de privacidade</a
+                >
+              </li>
+              <li>
+                <a href="#" class="underline decoration-dotted hover:text-foreground"
+                  >Tratamento de dados</a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- NOTA DE PROTÓTIPO — sai quando os destinos existirem. -->
+        <p
+          class="mt-10 rounded-lg border border-dashed border-border px-4 py-3 text-xs text-faint"
+        >
+          Nota de protótipo: os links de Empresa, Ajuda e Privacidade são placeholders, nenhum
+          destino existe ainda. Ver a lista do fim do arquivo.
+        </p>
+
+        <div
+          class="mt-10 flex flex-col gap-3 border-t border-border py-8 text-xs text-faint sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p>© 2026 HausOne. Todos os direitos reservados.</p>
+          <a href="#" class="underline decoration-dotted hover:text-foreground"
+            >Política de privacidade</a
+          >
+        </div>
+      </div>
+
+      <!-- wordmark estourado, cortado pela borda inferior -->
+      <div class="pointer-events-none select-none overflow-hidden" aria-hidden="true">
+        <p class="wordmark -mb-[0.22em] px-5 sm:px-8">HausOne</p>
+      </div>
+    </footer>
+
+    <script type="module" src="./lp.js"></script>
+
+    <!--
+      ========================================================================
+      O QUE FALTA PARA ESTA PÁGINA IR AO AR
+      ========================================================================
+
+      CONTEÚDO
+       1. FEITO: as cinco capturas estão em `prototypes/lp-hausone/`, tiradas
+          do ambiente de DEV, escritório de teste, 2880×1800. O que resta é
+          servi-las em formato moderno (AVIF/WebP com PNG de reserva) e numa
+          largura adequada ao telefone: hoje vai o mesmo arquivo de 2880px para
+          todo mundo, e isso é peso à toa em rede lenta. Ver o item 15.
+       2. TIRAR OU TROCAR O CONTEÚDO SIMULADO. Os quatro indicadores da seção
+          5-A ("O sistema hoje") e os quatro depoimentos do carrossel da 10-A
+          são inventados — números que não existem, escritórios e pessoas que
+          não existem. NENHUM DELES PODE IR AO AR COMO ESTÁ: ou saem da página,
+          ou são substituídos por dado real, com autorização de quem for
+          citado. Junto com eles sai a nota de protótipo que fica ao fim da
+          10-A. Enquanto a decisão não vier, as duas seções seguem marcadas na
+          própria tela.
+       3. Aprovação dos textos de interface que não vieram do brief: mensagem
+          de erro, texto do estado de sucesso, consentimento LGPD e os
+          rótulos/links das colunas Empresa, Ajuda e Privacidade do rodapé.
+       3b. APROVAR A RESPOSTA DE "QUANTO CUSTA?", que é a primeira das
+          perguntas frequentes. Hoje ela diz que o preço depende do tamanho da
+          equipe e do que o escritório vai usar, e que o assunto é tratado na
+          conversa antes da demonstração. Isso é POLÍTICA COMERCIAL, não fato
+          técnico, e foi escrito por falta: página de captação sem a pergunta
+          de preço faz o leitor supor que é caro. Trocar pelo que o dono do
+          produto decidir, ou tirar a pergunta.
+       3c. A SEÇÃO 5-C PROMETE COBRANÇA AUTOMÁTICA, e ela não existe. Está
+          marcada como "em desenvolvimento" na tarja e dita em texto ("o que
+          ainda não faz"), mais a pergunta frequente que responde o mesmo sem
+          rodeio. Isso é o mínimo honesto, mas continua sendo compromisso:
+          quem atender o lead precisa saber que o assunto vai aparecer, e
+          precisa responder a mesma coisa. Se a integração de pagamento for
+          adiada sem data, o bloco sai da página em vez de envelhecer nela.
+       3d. A seção 5-B (gestão da equipe) está sem captura de tela. Quando o
+          banco de dev voltar, capturar o Relatório de Produtividade e
+          promovê-la a quinto bloco do tour.
+       4. Destino real para os links de rodapé que hoje são placeholder:
+          Política de privacidade, Tratamento de dados, Suporte, "Falar com a
+          gente", "Como o HausOne nasceu". Enquanto não existirem, a nota de
+          protótipo do rodapé fica — e ela também precisa sair antes de
+          publicar.
+       5. Texto da política de privacidade em si, com a base legal do
+          tratamento do e-mail captado (LGPD).
+
+      TÉCNICO
+       5. Destino do formulário. Hoje não há backend: o submit só troca de
+          estado. Falta decidir onde o e-mail cai (tabela do Supabase com
+          política própria, ou serviço externo) e quem é notificado — e é
+          contato humano, então alguém precisa receber o aviso.
+       6. Proteção contra robô no formulário (campo honeypot ou equivalente).
+          Formulário público sem isso enche de lixo no primeiro dia.
+       7. Tailwind sai do CDN e vira build. O CDN não serve produção: pesa, não
+          purga e bloqueia a primeira pintura.
+       8. Lucide sai do `@latest` e vira versão fixa, ou os ícones viram SVG
+          inline. `@latest` em página pública é mudança de terceiro sem aviso.
+          Medido: sem JavaScript o CONTEÚDO está inteiro e no lugar, mas os
+          ícones não desenham — eles dependem do script do CDN. Com SVG inline
+          isso também deixa de ser verdade.
+       9. Fonte auto-hospedada com subset latin, em vez do CSS do Google Fonts
+          — menos uma conexão de terceiro e menos uma questão de LGPD.
+      10. Metadados sociais: og:title, og:description, og:image (1200x630),
+          twitter:card, canonical e manifest. O favicon já está, apontando para
+          o símbolo da logo; falta o .ico e os tamanhos de ícone de aplicativo.
+      11. Tirar `noindex, nofollow` do <head>, que está aqui porque é protótipo.
+      12. Analytics, se for usado, com consentimento de cookie. Hoje não há
+          nenhum script de medição, e sem medição não dá para saber se a página
+          converte.
+      13. Decidir onde a página mora: rota do app (/) com o login em /login, ou
+          domínio separado. Isso muda o roteamento do React.
+      14. Revisão de acessibilidade com leitor de tela e verificação de
+          contraste medida, não estimada, em cada par de texto/fundo das seções
+          escuras.
+      15. Performance das capturas. width/height e loading="lazy" (menos a do
+          hero, que é fetchpriority="high") já estão. Falta o formato moderno e
+          o `srcset` por largura: são ~1,1 MB de PNG hoje, e no telefone se
+          baixa a imagem de 2880px para exibir em 343px.
+      16. Medir o movimento em aparelho fraco de verdade. Aqui ele foi
+          conferido em navegador de mesa: a revelação e a trilha só mexem em
+          transform/opacity, o ponteiro do hero está preso a
+          requestAnimationFrame e cada observador se desconecta depois de
+          disparar — mas celular antigo é outra conversa, e a decisão de
+          manter ou cortar a inclinação do mockup deve sair de medição, não
+          de palpite.
+    -->
+  </body>
+</html>
