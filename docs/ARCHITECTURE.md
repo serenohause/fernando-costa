@@ -240,7 +240,7 @@ anteriores, e construí-los antes significaria refazê-los a cada módulo novo.
 
 ### Fora da escada: a landing page do produto e a fila de leads
 
-Os dez módulos acima são o backoffice — o que um escritório usa. A landing
+Os dez módulos acima são o backoffice, o que um escritório usa. A landing
 page é outra coisa: é a página que VENDE o backoffice, e o dado dela é de quem
 ainda não é cliente de ninguém. Ela não tem número na escada porque não compete
 com nenhum módulo por ordem: podia ter sido feita antes do 1 ou depois do 10.
@@ -259,7 +259,7 @@ O que ela traz de novo para a arquitetura, e é o que importa registrar:
   que um Diretor possa conceder na tela de Colaboradores, porque não é acesso
   dele para dar. Linha entra por migration ou pelo painel da Supabase.
   `public.is_platform_admin()` responde sobre quem pergunta e sobre mais
-  ninguém — não recebe parâmetro.
+  ninguém, porque não recebe parâmetro.
 - **A terceira porta pública, e a primeira sem credencial.**
   `capture-lead` é a terceira edge function com `verify_jwt = false`. As duas do
   módulo 3 têm o token do link; esta não tem nada, porque a página de venda é

@@ -32,7 +32,7 @@ nova-versao
 
 # Capturas que tests/lp-fidelidade.mjs deixa na raiz QUANDO a landing page
 # divergir do protótipo. Sao imagens de depuracao, da largura que falhou, e
-# existem para serem abertas e comparadas — nao para serem versionadas.
+# existem para serem abertas e comparadas, nao para serem versionadas.
 lp-divergencia-*.png
 
 # Exportacao do base44 com DADO REAL DE CLIENTE (CPF/CNPJ, endereco, telefone,

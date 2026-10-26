@@ -55,7 +55,7 @@ existência dela é uma asserção de catálogo (`11.4` no `crm-rls.sql`, `5.6` 
 `crm-schema.sql`), não um caso de comportamento — está registrado na migration
 `0018`.
 
-## Módulo de LP — captura de lead do produto
+## Módulo de LP: captura de lead do produto
 
 Quatro arquivos, e eles cobrem elos diferentes porque o módulo tem três
 superfícies: o banco, uma porta pública sem credencial nenhuma, e uma página
@@ -63,7 +63,7 @@ HTML que não passa pelo React.
 
 | Arquivo | O que exercita | O que NÃO cobre |
 |---|---|---|
-| `leads.sql` | o banco por dentro: a policy que exige `is_platform_admin()`, o `grant update` de COLUNA, a dedup por citext, os checks da linha, e as negações todas com controle positivo ao lado | o que acontece no caminho HTTP — corpo recortado, teto de tamanho, limite de requisição |
+| `leads.sql` | o banco por dentro: a policy que exige `is_platform_admin()`, o `grant update` de COLUNA, a dedup por citext, os checks da linha, e as negações todas com controle positivo ao lado | o que acontece no caminho HTTP: corpo recortado, teto de tamanho, limite de requisição |
 | `capture-lead-http.sh` | a porta pública pela HTTP: o corpo é recortado (estado e contador gravados vieram do banco, não da requisição), 64 KB param antes do parse, a 11ª requisição do minuto leva 429, e `anon` batendo direto no PostgREST leva 42501 | a tela |
 | `../../tests/lp-formulario.mjs` | o formulário num navegador real: o painel de sucesso recebe o FOCO, cada formulário manda o próprio bloco, e as três recusas têm texto diferente e certo | fidelidade visual |
 | `../../tests/lp-fidelidade.mjs` | zero pixel de diferença entre a página construída e `prototypes/lp-hausone.html`, em 1280, 768 e 375 | comportamento |
@@ -75,7 +75,7 @@ de utilitário: `@theme` sem `inline` congelaria as cores no `:root` e as seçõ
 escuras sairiam claras. Isso não falha em teste de unidade nenhum.
 
 Os dois primeiros rodam contra o banco LOCAL, e é a primeira vez que isso
-acontece neste projeto — ver a nota no fim de "Pré-requisitos".
+acontece neste projeto. Ver a nota no fim de "Pré-requisitos".
 
 ## Rodar
 
@@ -105,7 +105,7 @@ está, com o arquivo do módulo 1 fixo.
   6.15 falha de propósito se alguém fizer isso).
 - **`SUPABASE_ACCESS_TOKEN`** no ambiente (vem do `direnv`), para os testes SQL
   que vão pela Management API. Eles usam esse caminho porque não há `psql` nesta
-  máquina — **mas há Docker**, e desde o módulo de LP existe um segundo canal,
+  máquina. **Mas há Docker**, e desde o módulo de LP existe um segundo canal,
   descrito logo abaixo.
 - **Auth Hook ligado** em Authentication > Hooks > Customize Access Token (JWT)
   Claims, apontando para `public.custom_access_token_hook`. Sem ele o JWT sai
@@ -123,19 +123,19 @@ supabase functions serve capture-lead       # em outro terminal, para test:captu
 ```
 
 `run-sql-local.sh` é o runner `.sql` desse canal: mesmo contrato de saída de
-`run-sql.sh`, outro caminho — `psql` DENTRO do container, em vez da Management
-API.
+`run-sql.sh`, outro caminho. Ele chama `psql` DENTRO do container, em vez de
+passar pela Management API.
 
 ELE EXISTE PORQUE O OUTRO CANAL TEM DOIS PONTOS CEGOS, e os dois apareceram no
 mesmo dia: a conta não tem privilégio de query no projeto de **dev**, e quando o
 projeto de dev está pausado não há onde rodar teste algum. O banco local não
 depende de nenhum dos dois, aplica as migrations **do zero** (verificação mais
-forte, não mais fraca — ela pega migration que só funciona em banco que já
+forte, não mais fraca: ela pega migration que só funciona em banco que já
 existia) e não encosta em dado de cliente.
 
 Se a porta 54322 estiver ocupada por outro projeto Supabase na mesma máquina,
 `supabase start` recusa. Trocar as portas do `[db]`/`[api]` em
-`supabase/config.toml` resolve — e o arquivo precisa voltar ao que era antes do
+`supabase/config.toml` resolve, e o arquivo precisa voltar ao que era antes do
 commit, porque aquelas portas são as que todo mundo usa.
 
 ## Como ler o resultado
