@@ -75,7 +75,31 @@ const TIPOS = {
   '.svg': 'image/svg+xml',
 }
 
-function servir(diretorio) {
+/*
+  A CSP DA LP SAI DO vercel.json, E NÃO DE UMA CÓPIA AQUI.
+
+  O servidor de teste manda na página o mesmo cabeçalho que a Vercel vai mandar,
+  e isso faz este teste cobrir uma coisa que ele não cobria: CSP que bloqueie a
+  folha de estilo ou a fonte muda a tela inteira, e o diff de pixel acusa. Sem
+  isto, uma CSP errada só apareceria em produção.
+
+  Ler do vercel.json em vez de repetir o valor é o ponto: cópia diverge, e a que
+  ninguém está olhando é a que fica velha.
+*/
+function cspDaLp() {
+  const vercel = JSON.parse(readFileSync(join(RAIZ, 'vercel.json'), 'utf8'))
+  const regra = (vercel.headers ?? []).find((h) => h.source === '/lp')
+  const csp = regra?.headers?.find((h) => h.key === 'Content-Security-Policy')?.value
+  if (!csp) {
+    console.error('não achei a Content-Security-Policy de /lp no vercel.json')
+    process.exit(2)
+  }
+  return csp
+}
+
+const CSP = cspDaLp()
+
+function servir(diretorio, { comCsp = false } = {}) {
   const s = createServer((req, res) => {
     /* `normalize` e o prefixo conferido depois: nem servidor de teste deve
        entregar o disco inteiro por causa de um `..` no caminho. */
@@ -86,13 +110,18 @@ function servir(diretorio) {
       res.writeHead(404).end('nao encontrado')
       return
     }
-    res.writeHead(200, { 'Content-Type': TIPOS[extname(caminho)] ?? 'application/octet-stream' })
+    const cabecalhos = { 'Content-Type': TIPOS[extname(caminho)] ?? 'application/octet-stream' }
+    /* Só no documento: a CSP dele é que governa os subrecursos, onde quer que
+       eles estejam. O protótipo NÃO recebe a CSP — ele carrega o Tailwind pelo
+       CDN, que a política bloquearia de propósito. */
+    if (comCsp && extname(caminho) === '.html') cabecalhos['Content-Security-Policy'] = CSP
+    res.writeHead(200, cabecalhos)
     createReadStream(caminho).pipe(res)
   })
   return new Promise((pronto) => s.listen(0, '127.0.0.1', () => pronto({ s, porta: s.address().port })))
 }
 
-const alvoLp = await servir(construido)
+const alvoLp = await servir(construido, { comCsp: true })
 const alvoProto = await servir(RAIZ)
 
 const PAGINAS = [
@@ -115,17 +144,34 @@ for (const [nome, url] of PAGINAS) {
     p.on('console', (m) => m.type() === 'error' && problemas.push(m.text()))
     p.on('pageerror', (e) => problemas.push(String(e)))
     p.on('requestfailed', (r) => problemas.push(`requisição falhou: ${r.url()}`))
-    await p.goto(url, { waitUntil: 'networkidle' })
+    const resposta = await p.goto(url, { waitUntil: 'networkidle' })
     await p.evaluate(() => document.fonts.ready)
     await p.waitForTimeout(600)
     medidas[`${nome}-${w}`] = {
+      csp: (await resposta.headerValue('content-security-policy')) ?? '',
       estouro: await p.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       ),
       iconesNaoTrocados: await p.locator('i[data-lucide]').count(),
-      problemas,
+      /* CÓPIA, e tirada ANTES da sonda da CSP: a sonda provoca uma recusa de
+         propósito, e ela não pode contar como "algo falhou ao carregar". */
+      problemas: [...problemas],
     }
     await p.screenshot({ path: join(temporario, `${nome}-${w}.png`), fullPage: true })
+
+    /*
+      A SONDA DA CSP VEM POR ÚLTIMO, depois da captura.
+
+      Injetar um script de OUTRA origem tem que ser recusado, e é isso que prova
+      que a política está sendo APLICADA, e não apenas enviada: CSP malformada o
+      navegador ignora com um aviso, e aí "nada foi recusado" passaria vazio
+      justamente quando não houvesse política nenhuma.
+    */
+    medidas[`${nome}-${w}`].scriptDeFora = await p
+      .addScriptTag({ url: 'https://cdn.tailwindcss.com' })
+      .then(() => 'carregou')
+      .catch(() => 'recusado')
+
     await ctx.close()
   }
 }
@@ -151,9 +197,16 @@ const ler = (arquivo) => PNG.sync.read(readFileSync(join(temporario, arquivo)))
 
 for (const w of LARGURAS) {
   const m = medidas[`lp-${w}`]
+  caso(`${w}: a CSP do vercel.json chegou na página`, CSP, m.csp)
+  caso(`${w}: e ela recusa script de outra origem`, 'recusado', m.scriptDeFora)
   caso(`${w}: sem rolagem horizontal`, '0', m.estouro)
   caso(`${w}: todo <i data-lucide> virou svg`, '0', m.iconesNaoTrocados)
   caso(`${w}: nada falhou ao carregar`, '', m.problemas.join(' | '))
+  caso(
+    `${w}: a CSP não recusou nada`,
+    '',
+    m.problemas.filter((t) => /content security policy|refused to/i.test(t)).join(' | '),
+  )
 
   const a = ler(`proto-${w}.png`)
   const b = ler(`lp-${w}.png`)
