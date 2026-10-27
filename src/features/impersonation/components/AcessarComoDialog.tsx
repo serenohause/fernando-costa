@@ -102,7 +102,8 @@ export default function AcessarComoDialog({
 
         <p className="flex items-center gap-2 text-xs text-faint">
           <TerminalSquare className="w-3.5 h-3.5 shrink-0" aria-hidden />
-          Disponível só para o Diretor e só no ambiente de desenvolvimento.
+          Disponível só para o Diretor. Cada acesso fica registrado em auditoria,
+          com quem assumiu, quem foi assumido e quando.
         </p>
 
         <AlertDialogFooter>

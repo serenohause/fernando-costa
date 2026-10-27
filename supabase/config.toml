@@ -537,12 +537,21 @@ enabled = true
 enabled = true
 verify_jwt = false
 
-# Edge Function de "Acessar como" (0109) - SO NO PROJETO DE DEV.
+# Edge Function de "Acessar como" (0109). ESTA EM PRODUCAO, e este comentario
+# dizia o contrario.
 #
-# A funcao devolve uma credencial de login completa do colaborador alvo, e por
-# isso ela tem uma fechadura que nao depende de onde esta publicada: o segredo
-# IMPERSONATION_ENABLED. Sem ele a funcao recusa toda requisicao, mesmo que
-# alguem a publique em producao por engano.
+# Ele afirmava "SO NO PROJETO DE DEV" e que o segredo IMPERSONATION_ENABLED
+# protegia "mesmo que alguem a publique em producao por engano". As migrations
+# 0109 e 0110 estao em main, VITE_IMPERSONATION esta no ambiente Production da
+# Vercel, e a feature esta no ar. Nao foi engano: foi decisao, e manter o texto
+# antigo fez uma auditoria concluir que a feature nao estava em producao.
+#
+# A funcao devolve uma credencial de login completa do colaborador alvo. Com ela
+# em producao, o que protege nao sao travas de ambiente, e sim: credencial
+# amarrada ao user_id de auth.users e alvo Diretor recusado (migration 0118),
+# conferencia do dono da credencial e teto de 10 emissoes por 5 minutos por
+# usuario (edge function), e a chave de volta com dono no navegador. O segredo
+# IMPERSONATION_ENABLED continua sendo o unico botao de desligar que existe.
 
 [functions.impersonate-collaborator]
 enabled = true

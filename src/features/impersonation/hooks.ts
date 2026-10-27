@@ -45,9 +45,18 @@ type RespostaAcessarComo = {
 }
 
 /*
-  A FEATURE EXISTE NESTA TELA? Terceira das quatro fechaduras: a variável só
-  existe no .env.dev. As outras três são o segredo IMPERSONATION_ENABLED na edge
-  function, a função só publicada em dev e a migration 0109 só aplicada em dev.
+  A FEATURE É DESENHADA NESTA TELA? É só isso que esta função responde.
+
+  O texto aqui descrevia "quatro fechaduras de ambiente" que manteriam a feature
+  fora de produção. Três delas não existem mais como fato: a migration está em
+  main, a função está publicada em produção e a variável está no ambiente
+  Production da Vercel. A feature está no ar por decisão do usuário, e o
+  cabeçalho da 0109 ficou mentindo (a correção está na migration 0118 e em
+  docs/ARCHITECTURE.md; migration aplicada não se edita).
+
+  Então isto aqui é CONVENIÊNCIA DE INTERFACE, e não barreira. Quem recusa de
+  verdade é `start_impersonation`, e o segredo IMPERSONATION_ENABLED na edge
+  function segue sendo o único botão de desligar.
 */
 export function acessarComoDisponivel(): boolean {
   return impersonationHabilitada

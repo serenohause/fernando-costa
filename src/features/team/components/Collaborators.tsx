@@ -290,9 +290,11 @@ export default function Collaborators() {
                 Permissões
               </DropdownMenuItem>
               {/*
-                "ACESSAR COMO" só existe no ambiente de desenvolvimento (ver
-                acessarComoDisponivel). Entra entre Permissões e Remover: ação
-                destrutiva fica por último.
+                "ACESSAR COMO" aparece quando `acessarComoDisponivel()` diz que
+                sim. O comentário aqui dizia "só existe no ambiente de
+                desenvolvimento", e isso é falso: a feature está em produção, por
+                decisão. Entra entre Permissões e Remover: ação destrutiva fica
+                por último.
 
                 QUANDO NÃO DÁ, O ITEM FICA VISÍVEL E DESABILITADO, com o motivo
                 escrito. Esconder faria o Diretor procurar o que não está lá;

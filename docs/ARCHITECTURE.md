@@ -668,6 +668,79 @@ compara antes e depois.
 "Diretor e Administrativo" — erro de leitura do original, onde `admin` é
 papel de plataforma do base44 e não o `Administrativo` do escritório.
 
+### "Acessar como" em produção: reauditoria de 27/10/2026
+
+A auditoria original da feature rodou com o escopo escrito "deploy só em dev", e
+as conclusões dela sobre as travas de ambiente estavam vazias: as migrations
+0109 e 0110 estão em `main`, a função está publicada em produção e
+`VITE_IMPERSONATION` está no ambiente Production da Vercel. A feature está no ar
+em hausone.com.br, com cliente real, **por decisão do usuário**. Perguntado
+entre desligar e corrigir, ele escolheu manter ligado e corrigir.
+
+Os textos que afirmavam o contrário foram corrigidos onde era possível
+(`config.toml`, `src/lib/env.ts`, o diálogo que o cliente abre, o comentário em
+`Collaborators.tsx`) e, onde não era, registrados em migration nova: o cabeçalho
+da 0109 continua dizendo "SO NO AMBIENTE DE DESENVOLVIMENTO", porque migration
+aplicada não se edita, e a 0118 carrega a correção.
+
+**Quatro achados críticos, os quatro fechados:**
+
+1. **O e-mail decidia quem entra, a linha decidia quem autoriza.** A credencial
+   saía de `collaborators.email`, que é contato interno e o Diretor edita na tela
+   Equipe (`has_column_privilege('authenticated', ..., 'email', 'UPDATE')` é
+   `true`, com a policy `collaborators_update_director`, e a unicidade é por
+   tenant). Um Diretor punha ali o endereço de uma conta de outro escritório, ou
+   de um platform admin, e recebia a sessão dela; a trilha registrava o
+   colaborador original. Fechado na **0118**: o e-mail vem de `auth.users` pelo
+   `user_id` do alvo, e a edge function ainda compara `link.user.id` com o
+   `target_user_id` autorizado.
+2. **Diretor assumia Diretor**, e o encadeamento só estava barrado no navegador.
+   Fechado na 0118, recusando alvo `role = 'director'`: como só Diretor é ator,
+   não existe segunda volta. O caso de teste 2.9, que afirmava o contrário, foi
+   invertido.
+3. **A chave de volta sobrevivia ao logout**, com o token do Diretor dentro, e a
+   faixa aparecia para quem logasse depois naquele navegador. Fechado dando dono
+   à chave (`alvoUserId`), exigindo esse dono para desenhar a faixa e para
+   voltar, e apagando a chave no `useSignOut`.
+4. **Senha trocada antes da recusa**, em `create-collaborator-login` (achado fora
+   do escopo pedido, mesma família). Fechado na **0119**, extraindo as
+   validações para `check_collaborator_login_link`, que só lê.
+
+A emissão também ganhou teto (10 por 5 minutos, por usuário e não por IP), que
+não existia.
+
+**O que continua aberto, e o usuário escolheu conviver:**
+
+- **A sessão assumida não expira e não há como encerrar pelo sistema.** O único
+  encerramento é o clique opcional na faixa. `[auth.sessions]` está comentado no
+  `config.toml` (sem `timebox`, sem `inactivity_timeout`) e
+  `impersonation_events` não tem `ended_at`, então a trilha não responde "até
+  quando valeu".
+- **De dentro da sessão assumida dá para criar via de acesso permanente:** trocar
+  a senha e provavelmente o e-mail do alvo. `secure_password_change` exige ter
+  entrado recentemente, e a sessão assumida acabou de nascer. Falta medir em dev:
+  se `updateUser({ password })` passa sem nonce, e se `generateLink` para e-mail
+  inexistente cria conta. Agravante: o projeto não tem provedor de e-mail, então
+  o alvo não é avisado de nada.
+- **A trilha existe no banco e não existe no produto.** Nenhum arquivo em `src/`
+  lê `impersonation_events`. O Diretor, que a policy elegeu como auditor, não tem
+  tela por onde abrir. Ela é à prova de apagamento por quem está impersonando
+  (sem policy de escrita, e a chave de serviço não vive no navegador), mas não
+  registra IP, nem agente, nem marca as linhas escritas: correlacionar "quem fez
+  esta escrita" é a olho, por horário.
+- **Sobrou uma trava de servidor**, `IMPERSONATION_ENABLED`, global, sem escopo
+  por escritório, prazo, motivo ou aprovação. É o único botão de desligar.
+- **A parede da senha provisória** é dispensada quando a chave de impersonação
+  existe no `localStorage` (`AppLayout`), e a chave é item de navegador.
+
+Nada disso tem leitura de produção por trás: leitura direta do banco de produção
+está bloqueada pela camada de permissão, e a análise foi por código e por git.
+Quatro perguntas só a produção responderia, e estão registradas como pendentes:
+se `IMPERSONATION_ENABLED` está realmente setado lá, quais os valores reais do
+painel de Auth, se existe linha de `collaborators` com `email` divergindo do
+`auth.users` apontado pelo `user_id`, e quantas linhas `impersonation_events`
+existem sobre o cliente real.
+
 ### Aberto por decisão do usuário
 
 **Cadastro aberto (`disable_signup: false`).** Qualquer pessoa cria conta no

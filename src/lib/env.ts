@@ -18,9 +18,15 @@ const envSchema = z.object({
   VITE_GOOGLE_MAPS_API_KEY: z.string().min(1).optional(),
 
   /*
-    "ACESSAR COMO" — a terceira das quatro fechaduras da feature (migration
-    0109). Só existe no .env.dev: sem ela o gatilho não é desenhado em lugar
-    nenhum, e um merge distraído para main não liga nada.
+    "ACESSAR COMO". O texto aqui dizia que esta variável "só existe no .env.dev"
+    e que por isso um merge distraído para main não ligaria nada. As duas coisas
+    são falsas: ela está no ambiente Production do projeto Vercel de produção, e
+    as migrations 0109 e 0110 estão em main. A feature está no ar, por decisão,
+    e as travas que valem agora são as do servidor (migration 0118 e a edge
+    function), não as de ambiente.
+
+    O que esta variável ainda faz: decidir se o gatilho é DESENHADO nesta tela.
+    É conveniência de interface, não barreira. Quem recusa de verdade é o banco.
 
     `z.string()` e não `z.literal('true')` de propósito: valor estranho aqui
     precisa significar "desligado", nunca "app não sobe". Uma variável de
