@@ -1,0 +1,1741 @@
+<!doctype html>
+<!--
+  ============================================================================
+  PROTÓTIPO: SINO DE NOTIFICAÇÕES  (tela genuinamente nova)
+  ============================================================================
+
+  POR QUE ESTE ARQUIVO EXISTE, sendo que o CLAUDE.md diz que `projeto-original/`
+  ocupa o lugar de `prototypes/`:
+  o sistema original não tem notificação nenhuma (nenhum arquivo), então não há
+  original a copiar. A regra de fidelidade continua valendo por outro caminho:
+  cada decisão abaixo foi tirada de um arquivo que JÁ EXISTE no app, e está
+  anotada com o arquivo de origem. Nada aqui é linguagem visual nova.
+
+  ESCOPO DECIDIDO PELO USUÁRIO (não reabrir):
+  - Canal: sino dentro do sistema. Não há provedor de e-mail
+    (docs/ARCHITECTURE.md). O desenho precisa caber numa evolução futura para
+    e-mail sem reviravolta, e cabe: cada aviso é uma LINHA persistida, com data e
+    estado de leitura. Mandar e-mail depois é outro canal lendo a mesma linha.
+  - "Tarefa em atraso" vem de varredura diária que GRAVA a notificação, não de
+    cálculo na hora. Daí vêm três consequências visuais: a lista agrupa por dia,
+    cada aviso é marcável como lido um a um, e existe histórico.
+
+  ----------------------------------------------------------------------------
+  PALETA  (nenhum hex inventado)
+  ----------------------------------------------------------------------------
+  Superfícies e texto: os próprios tokens de src/index.css, nos mesmos valores
+  HSL, claro e escuro: --background, --card, --popover, --muted,
+  --muted-foreground, --text-soft, --text-faint, --border, --accent, --ring,
+  --elevated, --radius.
+
+  Contador de não lidas: rose-500 com texto branco. Cópia literal do badge de
+  atividades atrasadas em src/components/header/QuickActions.tsx, inclusive o
+  detalhe de `text-white` fixo (o comentário de lá explica: rose-500 é escuro o
+  bastante nos dois temas, e --primary-foreground inverteria no escuro).
+
+  Espécie "nova tarefa": família blue (50/200/700 no claro, 950/900/400 no
+  escuro). É a mesma família da caixa informativa de
+  src/features/team/components/AprovacoesAcesso.tsx.
+
+  Espécie "tarefa em atraso": família rose (50/200/600 no claro, 950/900/400 no
+  escuro). É exatamente o tratamento de prazo vencido de
+  src/features/projects/components/TaskDetailDialog.tsx ("text-rose-600
+  dark:text-rose-400" na linha Prazo, "bg-rose-50 dark:bg-rose-950/40" no
+  objetivo atrasado).
+
+  ----------------------------------------------------------------------------
+  TIPOGRAFIA
+  ----------------------------------------------------------------------------
+  SEM Google Fonts, de propósito, e isso é a única regra de protótipo que este
+  arquivo quebra: o app não carrega webfont nenhuma (index.html não tem link de
+  fonte, o Tailwind v4 fica com o stack padrão). Carregar uma fonte aqui faria o
+  protótipo parecer diferente do sistema em que ele vai morar, o que é o oposto
+  de validar layout. Stack: ui-sans-serif, system-ui.
+
+  Papéis, todos já usados no app:
+  - frase do aviso: text-sm, cor foreground  (padrão do ActivityFeed)
+  - nome do projeto: text-xs, --text-soft    (linha de apoio com peso)
+  - data/hora: text-xs, --muted-foreground   (ActivityFeed, "dd/MM 'às' HH:mm")
+  - rótulo de seção e faixa de dia: text-xs, uppercase, tracking-wider,
+    --muted-foreground  (TaskDetailDialog.tsx:593)
+  - contador: text-xs font-semibold tabular-nums
+
+  ----------------------------------------------------------------------------
+  ELEMENTO DE ASSINATURA
+  ----------------------------------------------------------------------------
+  A FAIXA DE DIA. A lista é um diário: "Hoje", "Ontem", "23/10". É o que torna
+  visível a varredura diária (vários atrasos chegam juntos, de madrugada, e sem
+  agrupamento isso leria como spam) e é o que dá sentido ao rodapé de histórico.
+  Nenhum outro painel do sistema agrupa lista por dia, então é também o que faz
+  este painel ser reconhecível.
+
+  ----------------------------------------------------------------------------
+  O QUE FOI DESCARTADO, e por que (autocrítica)
+  ----------------------------------------------------------------------------
+  - Avatar de quem atribuiu em cada linha: o assunto do aviso é a TAREFA, não a
+    pessoa. Avatar puxaria a hierarquia para o lado errado e ainda brigaria com o
+    ladrilho de espécie pelo mesmo canto.
+  - Abas "Todas / Não lidas" dentro do painel: filtro é feature que ninguém
+    pediu, e com duas espécies e dois estados a lista já se lê.
+  - Barra colorida vertical na borda da linha: viraria decoração. A espécie já
+    está dita pelo ladrilho de ícone, que é a mesma solução do EmptyState.tsx.
+
+  ----------------------------------------------------------------------------
+  REPRODUTÍVEL COM OS COMPONENTES QUE JÁ EXISTEM
+  ----------------------------------------------------------------------------
+  Desktop: Button variant="ghost" size="icon" (gatilho) + Badge (contador) +
+  Popover/PopoverContent (painel, z-index 99999).
+  Mobile: Sheet side="bottom" (o painel de 24rem não cabe em 360px).
+  Linhas: hover bg-muted e focus-visible:ring-1 ring-ring, iguais ao DetailRow
+  de TaskDetailDialog.tsx. Estado vazio: a estrutura de
+  src/components/shared/EmptyState.tsx, em escala de painel.
+  Ícones: Lucide, mesma família do lucide-react do app.
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Protótipo · Sino de notificações · HausOne</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+      /* ===================================================================
+         TOKENS — valores copiados de src/index.css, sem alteração.
+         =================================================================== */
+      :root {
+        --background: 210 40% 98%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+        --primary: 222.2 47.4% 11.2%;
+        --primary-foreground: 210 40% 98%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --accent: 210 40% 96.1%;
+        --accent-foreground: 222.2 47.4% 11.2%;
+        --border: 214.3 31.8% 91.4%;
+        --ring: 222.2 84% 4.9%;
+        --elevated: 210 40% 98%;
+        --text-soft: 215.3 19.3% 34.5%;
+        --text-faint: 215 20.2% 65.1%;
+        --radius: 0.5rem;
+
+        /* Espécie "nova tarefa" — família blue de AprovacoesAcesso.tsx. */
+        --species-new-surface: 213.8 100% 96.9%; /* blue-50  */
+        --species-new-border: 213.3 96.9% 87.3%; /* blue-200 */
+        --species-new-ink: 226.2 70.7% 48.4%; /* blue-700 */
+
+        /* Espécie "tarefa em atraso" — família rose de TaskDetailDialog.tsx. */
+        --species-late-surface: 355.7 100% 97.3%; /* rose-50  */
+        --species-late-border: 352.7 96.1% 90%; /* rose-200 */
+        --species-late-ink: 346.8 77.2% 49.8%; /* rose-600 */
+
+        /* O contador. rose-500, o mesmo de QuickActions.tsx. */
+        --counter: 349.7 89.2% 60.2%;
+      }
+
+      .dark {
+        --background: 222 8% 4.5%;
+        --foreground: 210 14% 96%;
+        --card: 222 8% 8%;
+        --popover: 222 8% 10%;
+        --popover-foreground: 210 14% 96%;
+        --primary: 210 14% 96%;
+        --primary-foreground: 222 10% 10%;
+        --muted: 222 7% 13%;
+        --muted-foreground: 215 9% 67%;
+        --accent: 222 7% 16%;
+        --accent-foreground: 210 14% 96%;
+        --border: 222 8% 20%;
+        --ring: 213 12% 70%;
+        --elevated: 222 8% 12%;
+        --text-soft: 215 11% 81%;
+        --text-faint: 215 8% 55%;
+
+        /* Mesma lógica dos dark: do app: superfície de tom profundo com opacidade
+           (bg-blue-950/40), borda no 900, tinta no 400. */
+        --species-new-surface: 226.2 57% 21%;
+        --species-new-border: 224.4 64.3% 32.9%;
+        --species-new-ink: 213.1 93.9% 67.8%;
+        --species-late-surface: 343.1 87.7% 15.9%;
+        --species-late-border: 341.5 74.6% 30.4%;
+        --species-late-ink: 351 95% 71%;
+        /* O contador NÃO dessatura: ele é o alerta, e a saturação é o significado
+           (mesmo argumento do comentário de --destructive no .dark). */
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        border-color: hsl(var(--border));
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+      }
+
+      :focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 1px hsl(var(--ring));
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
+      /* ===================================================================
+         CHROME DO PROTÓTIPO — tudo que NÃO é produto.
+         Borda tracejada de propósito: ninguém deve confundir moldura de
+         protótipo com superfície do sistema.
+         =================================================================== */
+      .proto-page {
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 2rem 1rem 6rem;
+      }
+
+      .proto-title {
+        font-size: 1.125rem;
+        font-weight: 300;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin: 0;
+      }
+
+      .proto-kicker {
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        color: hsl(var(--muted-foreground));
+        margin: 0.25rem 0 0;
+      }
+
+      .proto-topbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+
+      .proto-lede {
+        max-width: 46rem;
+        font-size: 0.875rem;
+        color: hsl(var(--muted-foreground));
+        margin: 1rem 0 0;
+      }
+
+      .proto-section {
+        margin-top: 3rem;
+      }
+
+      .proto-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--muted-foreground));
+        margin: 0 0 0.25rem;
+      }
+
+      .proto-note {
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+        margin: 0 0 1rem;
+        max-width: 46rem;
+      }
+
+      /*
+        A MOLDURA ROLA POR DENTRO, e a pagina nunca rola de lado.
+
+        As secoes mostram o painel de desktop no tamanho natural dele, 24rem.
+        Num telefone isso e mais largo que a tela, e a pagina inteira passava a
+        rolar na horizontal: medido, 44px de estouro em 390px e 74px em 360px.
+        Nao e defeito do componente (no celular ele e folha de baixo, e ocupa a
+        largura toda); e desta pagina de revisao, que precisa caber no telefone
+        de quem vai aprovar.
+      */
+      .proto-frame {
+        border: 1px dashed hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        padding: 1rem;
+        background: hsl(var(--background));
+        max-width: 100%;
+        overflow-x: auto;
+      }
+
+      .proto-grid {
+        display: grid;
+        gap: 1.5rem;
+      }
+
+      @media (min-width: 60rem) {
+        .proto-grid--two {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      /* ===================================================================
+         CABEÇALHO DO APP — src/components/layout/AppLayout.tsx:550-567.
+         h-16, bg-card, border-b, px-4 (lg:px-8), grupo de ações com gap-2.
+         =================================================================== */
+      .app-header {
+        height: 4rem;
+        background: hsl(var(--card));
+        border-bottom: 1px solid hsl(var(--border));
+        border-radius: var(--radius) var(--radius) 0 0;
+      }
+
+      .app-header__inner {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 1rem;
+      }
+
+      @media (min-width: 64rem) {
+        .app-header__inner {
+          padding: 0 2rem;
+        }
+      }
+
+      .app-header__spacer {
+        flex: 1;
+      }
+
+      .app-header__actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      /* Button variant="ghost" size="icon" — h-9 w-9, rounded-md,
+         hover:bg-accent. src/components/ui/button.tsx. */
+      .icon-button {
+        position: relative;
+        height: 2.25rem;
+        width: 2.25rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: hsl(var(--foreground));
+        border-radius: calc(var(--radius) - 2px);
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      .icon-button:hover {
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+      }
+
+      .icon-button svg {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      /* Badge do contador: absolute -top-1 -right-1, h-5 w-5, rounded-md,
+         bg-rose-500, text-white, text-xs. Literal de QuickActions.tsx.
+         `min-width` em vez de largura fixa é o único acréscimo, para "9+"
+         caber sem deformar o quadrado. */
+      .counter-badge {
+        position: absolute;
+        top: -0.25rem;
+        right: -0.25rem;
+        height: 1.25rem;
+        min-width: 1.25rem;
+        padding: 0 0.25rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid transparent;
+        border-radius: calc(var(--radius) - 2px);
+        background: hsl(var(--counter));
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      /* `display` numa classe vence a regra [hidden] do navegador, e sem isto o
+         badge não some quando a contagem chega a zero. No React a condição é a
+         de QuickActions.tsx: a Badge nem é renderizada. */
+      .counter-badge[hidden] {
+        display: none;
+      }
+
+      /* ===================================================================
+         O PAINEL — PopoverContent com className de largura.
+         rounded-md, border, bg-popover, shadow-lg. src/components/ui/popover.tsx
+         e o shadow-lg do dropdown-menu.tsx.
+         =================================================================== */
+      .panel {
+        width: 24rem;
+        max-width: 100%;
+        background: hsl(var(--popover));
+        color: hsl(var(--popover-foreground));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) - 2px);
+        box-shadow:
+          0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -4px rgb(0 0 0 / 0.1);
+        overflow: hidden;
+      }
+
+      .panel__head {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 0.75rem 0.75rem 1rem;
+        border-bottom: 1px solid hsl(var(--border));
+      }
+
+      .panel__title {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.875rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+
+      .panel__title-count {
+        font-weight: 400;
+        color: hsl(var(--muted-foreground));
+      }
+
+      /* Button variant="ghost" size="sm" — h-8, px-3, text-xs, rounded-md. */
+      .ghost-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        height: 2rem;
+        padding: 0 0.75rem;
+        border: 0;
+        background: transparent;
+        border-radius: calc(var(--radius) - 2px);
+        font-size: 0.75rem;
+        font-weight: 500;
+        font-family: inherit;
+        color: hsl(var(--text-soft));
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background-color 0.15s ease;
+      }
+
+      .ghost-button:hover {
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+      }
+
+      .ghost-button svg {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+
+      .ghost-button[disabled] {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      .panel__list {
+        max-height: 24rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+
+      .panel__foot {
+        border-top: 1px solid hsl(var(--border));
+        padding: 0.375rem;
+      }
+
+      .panel__foot .ghost-button {
+        width: 100%;
+        justify-content: center;
+      }
+
+      /* FAIXA DE DIA — o elemento de assinatura.
+         Tipografia do rótulo de seção de TaskDetailDialog.tsx:593. Fundo
+         `elevated`, que existe no tema justamente para barra de filtro e
+         cabeçalho grudado (ver comentário em src/index.css). */
+      .day-strip {
+        position: sticky;
+        top: 0;
+        /* Acima do z-index 1 de .notif__side, senão o visto de uma linha passa
+           por cima da faixa grudada durante a rolagem. */
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.375rem 1rem;
+        background: hsl(var(--elevated));
+        border-bottom: 1px solid hsl(var(--border));
+        font-size: 0.6875rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .day-strip__count {
+        letter-spacing: 0.02em;
+        font-variant-numeric: tabular-nums;
+        color: hsl(var(--text-faint));
+      }
+
+      /* ===================================================================
+         A LINHA DE AVISO.
+         Hover bg-muted e focus ring-1 ring-ring são os do DetailRow em
+         TaskDetailDialog.tsx.
+
+         A LINHA NÃO É UMA ÂNCORA, e isso é estrutura, não estilo: dentro dela
+         existe o botão de marcar como lida, e botão dentro de link é HTML
+         inválido (e, no React, um <Link> que engole o clique do <Button>). O
+         link é o corpo do texto, esticado por ::after para cobrir a linha
+         inteira; o botão fica numa camada acima. Resultado: a linha toda é
+         clicável, existe um único alvo de teclado para "ir para a tarefa", e o
+         visto continua sendo um controle separado.
+         =================================================================== */
+      .notif {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid hsl(var(--border));
+        color: inherit;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+
+      .notif:last-child {
+        border-bottom: 0;
+      }
+
+      .notif:hover {
+        background: hsl(var(--muted));
+      }
+
+      /* O anel de foco é da LINHA, e não do texto: o alvo de clique é a linha,
+         e o foco precisa mostrar o alvo real. ring-1 ring-ring, como o
+         DetailRow, em versão interna para não vazar sobre a linha vizinha. */
+      .notif:has(.notif__body:focus-visible) {
+        box-shadow: inset 0 0 0 1px hsl(var(--ring));
+      }
+
+      .notif__body:focus-visible {
+        box-shadow: none;
+      }
+
+      .notif:hover .notif__chevron {
+        opacity: 1;
+      }
+
+      .notif:hover .notif__read-toggle,
+      .notif:focus-within .notif__read-toggle {
+        opacity: 1;
+      }
+
+      /* LADRILHO DE ESPÉCIE. É o que distingue "nova" de "em atraso" sem ler
+         texto: cor + ícone. Tamanho e forma do ladrilho do EmptyState.tsx,
+         reduzido para caber numa linha de lista. */
+      .notif__tile {
+        flex-shrink: 0;
+        width: 2rem;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: calc(var(--radius) - 2px);
+        border: 1px solid transparent;
+      }
+
+      .notif__tile svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .notif--new .notif__tile {
+        background: hsl(var(--species-new-surface));
+        border-color: hsl(var(--species-new-border));
+        color: hsl(var(--species-new-ink));
+      }
+
+      .notif--late .notif__tile {
+        background: hsl(var(--species-late-surface));
+        border-color: hsl(var(--species-late-border));
+        color: hsl(var(--species-late-ink));
+      }
+
+      .notif__body {
+        flex: 1;
+        min-width: 0;
+        display: block;
+        text-decoration: none;
+        color: inherit;
+      }
+
+      /* O alvo esticado: é ele que torna a linha inteira clicável. */
+      .notif__body::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+      }
+
+      /* Linha 1: a espécie, dita em texto curto, no tom da espécie.
+         Serve de redundância ao ladrilho (cor sozinha não é acessível). */
+      .notif__kind {
+        display: block;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin: 0 0 0.125rem;
+      }
+
+      .notif--new .notif__kind {
+        color: hsl(var(--species-new-ink));
+      }
+
+      .notif--late .notif__kind {
+        color: hsl(var(--species-late-ink));
+      }
+
+      /* Linha 2: o nome da TAREFA. É o assunto do aviso, e por isso é o único
+         texto em peso de destaque. */
+      .notif__task {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: hsl(var(--foreground));
+        margin: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Linha 3: projeto e data, lado a lado. Ícone de pasta é o `FolderOpen`
+         que TaskDetailDialog.tsx usa na linha "Projeto". */
+      .notif__meta {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        margin: 0.1875rem 0 0;
+        font-size: 0.75rem;
+        color: hsl(var(--text-soft));
+        min-width: 0;
+      }
+
+      .notif__meta svg {
+        width: 0.75rem;
+        height: 0.75rem;
+        flex-shrink: 0;
+        color: hsl(var(--text-faint));
+      }
+
+      .notif__project {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .notif__dot {
+        color: hsl(var(--text-faint));
+      }
+
+      .notif__when {
+        color: hsl(var(--muted-foreground));
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Acima do alvo esticado, senão o link engoliria o clique do visto. */
+      .notif__side {
+        position: relative;
+        z-index: 1;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.125rem;
+        align-self: center;
+      }
+
+      /* O ladrilho NÃO sobe de camada: ele precisa ficar sob o alvo esticado
+         para que clicar nele também leve à tarefa. */
+
+      /* MARCA DE NÃO LIDA: ponto cheio no tom do contador, do mesmo lado em que
+         o olho termina a linha. */
+      .notif__unread {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 9999px;
+        background: hsl(var(--counter));
+      }
+
+      /* MARCAR UMA COMO LIDA: botão de 1,75rem que aparece no hover/foco no
+         desktop. Em tela de toque não existe hover, então fica sempre visível
+         (ver a regra em @media (hover: none) mais abaixo). */
+      .notif__read-toggle {
+        height: 1.75rem;
+        width: 1.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: hsl(var(--muted-foreground));
+        border-radius: calc(var(--radius) - 4px);
+        cursor: pointer;
+        opacity: 0;
+        transition:
+          opacity 0.15s ease,
+          background-color 0.15s ease;
+      }
+
+      .notif__read-toggle:hover {
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+      }
+
+      .notif__read-toggle svg {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+
+      .notif__chevron {
+        color: hsl(var(--text-faint));
+        opacity: 0;
+        transition: opacity 0.15s ease;
+      }
+
+      .notif__chevron svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      @media (hover: none) {
+        .notif__read-toggle {
+          opacity: 1;
+        }
+        .notif__chevron {
+          opacity: 1;
+        }
+      }
+
+      /* ===================================================================
+         ESTADO LIDO.
+         Nada de fundo diferente: a diferença é PESO e COR, igual ao que o app
+         faz entre texto principal e texto de apoio. O ladrilho dessatura para
+         muted/faint, que é como o app pinta ícone secundário.
+         =================================================================== */
+      .notif--read .notif__tile {
+        background: hsl(var(--muted));
+        border-color: hsl(var(--border));
+        color: hsl(var(--text-faint));
+      }
+
+      .notif--read .notif__kind {
+        color: hsl(var(--muted-foreground));
+      }
+
+      .notif--read .notif__task {
+        font-weight: 400;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .notif--read .notif__meta {
+        color: hsl(var(--text-faint));
+      }
+
+      .notif--read .notif__when {
+        color: hsl(var(--text-faint));
+      }
+
+      /* ===================================================================
+         ESTADO VAZIO — estrutura de src/components/shared/EmptyState.tsx
+         (ladrilho rounded-2xl bg-muted, ícone text-faint, título
+         text-lg font-semibold, descrição muted), em escala de painel.
+         =================================================================== */
+      .empty {
+        padding: 2.5rem 1.5rem;
+        text-align: center;
+      }
+
+      .empty__tile {
+        width: 3rem;
+        height: 3rem;
+        margin: 0 auto 1rem;
+        border-radius: calc(var(--radius) + 4px);
+        background: hsl(var(--muted));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .empty__tile svg {
+        width: 1.5rem;
+        height: 1.5rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .empty__title {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        margin: 0 0 0.375rem;
+      }
+
+      .empty__text {
+        font-size: 0.8125rem;
+        color: hsl(var(--muted-foreground));
+        margin: 0 auto;
+        max-width: 18rem;
+      }
+
+      /* ===================================================================
+         DEMONSTRAÇÃO DO CABEÇALHO: o painel aparece ancorado à direita do
+         sino, como o Popover align="end" sideOffset={4} faria.
+         =================================================================== */
+      .anchor-demo {
+        position: relative;
+        padding-bottom: 1rem;
+      }
+
+      .anchor-demo__panel {
+        position: absolute;
+        top: calc(4rem + 0.25rem);
+        right: 1rem;
+        z-index: 5;
+      }
+
+      @media (min-width: 64rem) {
+        .anchor-demo__panel {
+          right: 2rem;
+        }
+      }
+
+      /* Alta o bastante para o painel de ~30rem caber dentro da moldura do
+         protótipo em vez de transbordar sobre as notas abaixo. */
+      .anchor-demo__canvas {
+        height: 31rem;
+        background: hsl(var(--background));
+        border-radius: 0 0 var(--radius) var(--radius);
+        border: 1px solid hsl(var(--border));
+        border-top: 0;
+      }
+
+      .anchor-demo__shell {
+        border: 1px solid hsl(var(--border));
+        border-bottom: 0;
+        border-radius: var(--radius) var(--radius) 0 0;
+        overflow: visible;
+      }
+
+      /* Cartão fantasma só para a área de conteúdo não ficar vazia atrás do
+         painel. Não é parte do desenho do sino. */
+      .ghost-card {
+        margin: 1rem;
+        height: 6rem;
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+      }
+
+      /* ===================================================================
+         CELULAR — Sheet side="bottom": inset-x-0 bottom-0, border-t.
+         O painel de 24rem não cabe em 360px, então no celular o mesmo conteúdo
+         sobe do rodapé em folha de largura total. src/components/ui/sheet.tsx.
+         =================================================================== */
+      .phone {
+        width: 22.5rem;
+        max-width: 100%;
+        height: 40rem;
+        position: relative;
+        background: hsl(var(--background));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .phone__header {
+        height: 4rem;
+        flex-shrink: 0;
+        background: hsl(var(--card));
+        border-bottom: 1px solid hsl(var(--border));
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 1rem;
+      }
+
+      .phone__content {
+        flex: 1;
+        position: relative;
+      }
+
+      .phone__scrim {
+        position: absolute;
+        inset: 0;
+        background: rgb(0 0 0 / 0.2);
+        backdrop-filter: blur(2px);
+      }
+
+      .phone__sheet {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-height: 85%;
+        display: flex;
+        flex-direction: column;
+        background: hsl(var(--popover));
+        color: hsl(var(--popover-foreground));
+        border-top: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px) calc(var(--radius) + 4px) 0 0;
+        box-shadow: 0 -10px 15px -3px rgb(0 0 0 / 0.1);
+      }
+
+      /* `min-height: 0` é o que faz a lista rolar dentro da folha: sem isso o
+         filho de flex cresce além do container e a folha inteira estica. */
+      .phone__sheet .panel__list {
+        max-height: none;
+        flex: 1;
+        min-height: 0;
+      }
+
+      /* Alça de arraste: a folha do shadcn não tem, mas o gesto de fechar
+         puxando para baixo é o que a pessoa tenta no celular, e sem a alça a
+         folha parece uma tela presa. A sinalização é só visual. */
+      .phone__grip {
+        width: 2.5rem;
+        height: 0.25rem;
+        border-radius: 9999px;
+        background: hsl(var(--border));
+        margin: 0.5rem auto 0;
+        flex-shrink: 0;
+      }
+
+      /* Em tela estreita a linha perde o chevron e aperta o padding lateral:
+         a área de toque continua inteira (a linha toda é o alvo), e o que sai é
+         só enfeite. */
+      .phone .notif {
+        padding-left: 0.875rem;
+        padding-right: 0.5rem;
+      }
+
+      .phone .notif__chevron {
+        display: none;
+      }
+
+      .phone .day-strip {
+        padding-left: 0.875rem;
+      }
+
+      .proto-callouts {
+        margin: 1rem 0 0;
+        padding-left: 1.25rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .proto-callouts li + li {
+        margin-top: 0.375rem;
+      }
+
+      .proto-open-questions {
+        margin-top: 3rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        background: hsl(var(--card));
+        padding: 1.5rem;
+      }
+
+      .proto-open-questions h2 {
+        font-size: 0.9375rem;
+        margin: 0 0 0.75rem;
+      }
+
+      .proto-open-questions ol {
+        margin: 0;
+        padding-left: 1.25rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .proto-open-questions li + li {
+        margin-top: 0.5rem;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="proto-page">
+      <!-- ============================================================
+           CHROME DO PROTÓTIPO
+           ============================================================ -->
+      <div class="proto-topbar">
+        <div>
+          <h1 class="proto-title">Sino de notificações</h1>
+          <p class="proto-kicker">HAUSONE · PROTÓTIPO</p>
+        </div>
+        <button
+          class="icon-button"
+          type="button"
+          id="themeToggle"
+          aria-label="Alternar tema claro e escuro"
+        >
+          <i data-lucide="moon" id="themeIcon"></i>
+        </button>
+      </div>
+
+      <p class="proto-lede">
+        Dois avisos, e só dois: alguém te atribuiu uma tarefa, ou um prazo seu venceu. O segundo é
+        gravado por uma varredura diária, então cada aviso é uma linha com data, se marca como lido
+        um a um e fica no histórico. Toda cor e tipografia abaixo vem dos tokens do sistema; a origem
+        de cada escolha está anotada no topo do arquivo.
+      </p>
+
+      <!-- ============================================================
+           1. O SINO NO CABEÇALHO
+           ============================================================ -->
+      <section class="proto-section">
+        <p class="proto-label">1 · O sino no cabeçalho</p>
+        <p class="proto-note">
+          Mesmo cabeçalho de 4rem do AppLayout, mesmo botão fantasma de 2,25rem do ThemeToggle e do
+          QuickActions. O sino entra como primeiro item do grupo da direita, antes do tema e dos
+          atalhos: é o item que muda de estado sozinho, e quem procura notificação procura na ponta.
+        </p>
+
+        <div class="proto-grid proto-grid--two">
+          <div class="proto-frame">
+            <div class="app-header">
+              <div class="app-header__inner">
+                <div class="app-header__spacer"></div>
+                <div class="app-header__actions">
+                  <button class="icon-button" type="button" aria-label="Notificações, 3 não lidas">
+                    <i data-lucide="bell"></i>
+                    <span class="counter-badge" aria-hidden="true">3</span>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Alternar tema">
+                    <i data-lucide="moon"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Busca global">
+                    <i data-lucide="search"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Painel executivo">
+                    <i data-lucide="trending-up"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Criar">
+                    <i data-lucide="plus"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>Com não lidas: badge rose-500, o mesmo das atividades atrasadas no QuickActions.</li>
+              <li>A contagem é limitada a <strong>9+</strong>: acima disso o número deixa de informar e passa a deformar o quadrado.</li>
+            </ul>
+          </div>
+
+          <div class="proto-frame">
+            <div class="app-header">
+              <div class="app-header__inner">
+                <div class="app-header__spacer"></div>
+                <div class="app-header__actions">
+                  <button class="icon-button" type="button" aria-label="Notificações, nenhuma não lida">
+                    <i data-lucide="bell"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Alternar tema">
+                    <i data-lucide="moon"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Busca global">
+                    <i data-lucide="search"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Painel executivo">
+                    <i data-lucide="trending-up"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Criar">
+                    <i data-lucide="plus"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>Tudo lido: o badge <strong>desaparece</strong>, o sino não muda de desenho.</li>
+              <li>
+                Sem badge cinza de zero e sem sino riscado: ausência de aviso é ausência de marca, e
+                qualquer marca permanente treina o olho a ignorar o canto.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           2 a 4 e 6 e 7. O PAINEL ABERTO
+           ============================================================ -->
+      <section class="proto-section">
+        <p class="proto-label">2 · O painel aberto, ancorado no sino</p>
+        <p class="proto-note">
+          Popover alinhado à direita, 24rem, com lista de altura máxima 24rem e rolagem. A faixa de
+          dia fica grudada no topo enquanto a lista rola, que é o que faz a varredura de madrugada
+          ler como um lote e não como quinze avisos soltos. Os botões de marcar como lida só aparecem
+          no hover ou no foco de teclado no desktop, e ficam sempre visíveis em tela de toque.
+        </p>
+
+        <div class="proto-frame anchor-demo">
+          <div class="anchor-demo__shell">
+            <div class="app-header">
+              <div class="app-header__inner">
+                <div class="app-header__spacer"></div>
+                <div class="app-header__actions">
+                  <button
+                    class="icon-button"
+                    type="button"
+                    aria-label="Notificações, 3 não lidas"
+                    aria-expanded="true"
+                    style="background: hsl(var(--accent))"
+                  >
+                    <i data-lucide="bell"></i>
+                    <span class="counter-badge" id="headerCounter" aria-hidden="true">3</span>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Alternar tema">
+                    <i data-lucide="moon"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Busca global">
+                    <i data-lucide="search"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Criar">
+                    <i data-lucide="plus"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="anchor-demo__canvas">
+            <div class="ghost-card"></div>
+            <div class="ghost-card"></div>
+          </div>
+
+          <div class="anchor-demo__panel">
+            <div class="panel" role="dialog" aria-label="Notificações">
+              <div class="panel__head">
+                <h2 class="panel__title">
+                  Notificações <span class="panel__title-count" id="panelCount">· 3 não lidas</span>
+                </h2>
+                <button class="ghost-button" type="button" id="markAllButton">
+                  <i data-lucide="check-check"></i>
+                  Marcar todas como lidas
+                </button>
+              </div>
+
+              <div class="panel__list" id="panelList">
+                <!-- FAIXA DE DIA: o elemento de assinatura. -->
+                <div class="day-strip">
+                  <span>Hoje</span>
+                  <span class="day-strip__count">3 avisos</span>
+                </div>
+
+                <!-- ESPÉCIE "EM ATRASO", NÃO LIDA.
+                     Veio da varredura das 6h, por isso o horário é o mesmo nas
+                     duas linhas de atraso de hoje. -->
+                <div class="notif notif--late" data-notif>
+                  <span class="notif__tile" aria-hidden="true">
+                    <i data-lucide="calendar-clock"></i>
+                  </span>
+                  <a class="notif__body" href="#">
+                    <span class="notif__kind">Tarefa em atraso</span>
+                    <span class="notif__task">Aprovação na prefeitura: protocolar projeto legal</span>
+                    <span class="notif__meta">
+                      <i data-lucide="folder-open" aria-hidden="true"></i>
+                      <span class="notif__project">Residência Alto da Boa Vista</span>
+                      <span class="notif__dot" aria-hidden="true">·</span>
+                      <span class="notif__when">venceu 24/10</span>
+                    </span>
+                  </a>
+                  <span class="notif__side">
+                    <button
+                      class="notif__read-toggle"
+                      type="button"
+                      aria-label="Marcar como lida"
+                      data-mark-read
+                    >
+                      <i data-lucide="check"></i>
+                    </button>
+                    <span class="notif__unread" data-unread-dot aria-label="Não lida" role="img"></span>
+                    <span class="notif__chevron" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+                  </span>
+                </div>
+
+                <!-- ESPÉCIE "NOVA TAREFA", NÃO LIDA. -->
+                <div class="notif notif--new" data-notif>
+                  <span class="notif__tile" aria-hidden="true">
+                    <i data-lucide="user-plus"></i>
+                  </span>
+                  <a class="notif__body" href="#">
+                    <span class="notif__kind">Nova tarefa</span>
+                    <span class="notif__task">Humanização: render externo da fachada</span>
+                    <span class="notif__meta">
+                      <i data-lucide="folder-open" aria-hidden="true"></i>
+                      <span class="notif__project">Clínica Odontológica Setor Oeste</span>
+                      <span class="notif__dot" aria-hidden="true">·</span>
+                      <span class="notif__when">hoje às 09:12</span>
+                    </span>
+                  </a>
+                  <span class="notif__side">
+                    <button
+                      class="notif__read-toggle"
+                      type="button"
+                      aria-label="Marcar como lida"
+                      data-mark-read
+                    >
+                      <i data-lucide="check"></i>
+                    </button>
+                    <span class="notif__unread" data-unread-dot aria-label="Não lida" role="img"></span>
+                    <span class="notif__chevron" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+                  </span>
+                </div>
+
+                <div class="notif notif--late" data-notif>
+                  <span class="notif__tile" aria-hidden="true">
+                    <i data-lucide="calendar-clock"></i>
+                  </span>
+                  <a class="notif__body" href="#">
+                    <span class="notif__kind">Tarefa em atraso</span>
+                    <span class="notif__task">Projeto executivo: detalhamento de esquadrias</span>
+                    <span class="notif__meta">
+                      <i data-lucide="folder-open" aria-hidden="true"></i>
+                      <span class="notif__project">Loja Conceito Rua 9</span>
+                      <span class="notif__dot" aria-hidden="true">·</span>
+                      <span class="notif__when">venceu 21/10</span>
+                    </span>
+                  </a>
+                  <span class="notif__side">
+                    <button
+                      class="notif__read-toggle"
+                      type="button"
+                      aria-label="Marcar como lida"
+                      data-mark-read
+                    >
+                      <i data-lucide="check"></i>
+                    </button>
+                    <span class="notif__unread" data-unread-dot aria-label="Não lida" role="img"></span>
+                    <span class="notif__chevron" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+                  </span>
+                </div>
+
+                <div class="day-strip">
+                  <span>Ontem</span>
+                  <span class="day-strip__count">2 avisos</span>
+                </div>
+
+                <!-- LIDAS: mesma estrutura, peso e cor de texto de apoio. -->
+                <div class="notif notif--new notif--read" data-notif>
+                  <span class="notif__tile" aria-hidden="true">
+                    <i data-lucide="user-plus"></i>
+                  </span>
+                  <a class="notif__body" href="#">
+                    <span class="notif__kind">Nova tarefa</span>
+                    <span class="notif__task">Layout: estudo preliminar do pavimento térreo</span>
+                    <span class="notif__meta">
+                      <i data-lucide="folder-open" aria-hidden="true"></i>
+                      <span class="notif__project">Residência Alto da Boa Vista</span>
+                      <span class="notif__dot" aria-hidden="true">·</span>
+                      <span class="notif__when">ontem às 17:40</span>
+                    </span>
+                  </a>
+                  <span class="notif__side">
+                    <span class="notif__chevron" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+                  </span>
+                </div>
+
+                <div class="notif notif--late notif--read" data-notif>
+                  <span class="notif__tile" aria-hidden="true">
+                    <i data-lucide="calendar-clock"></i>
+                  </span>
+                  <a class="notif__body" href="#">
+                    <span class="notif__kind">Tarefa em atraso</span>
+                    <span class="notif__task">Compatibilização com o projeto elétrico</span>
+                    <span class="notif__meta">
+                      <i data-lucide="folder-open" aria-hidden="true"></i>
+                      <span class="notif__project">Edifício Vila Nova, 4 pavimentos</span>
+                      <span class="notif__dot" aria-hidden="true">·</span>
+                      <span class="notif__when">venceu 23/10</span>
+                    </span>
+                  </a>
+                  <span class="notif__side">
+                    <span class="notif__chevron" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+                  </span>
+                </div>
+
+                <div class="day-strip">
+                  <span>23/10</span>
+                  <span class="day-strip__count">1 aviso</span>
+                </div>
+
+                <div class="notif notif--new notif--read" data-notif>
+                  <span class="notif__tile" aria-hidden="true">
+                    <i data-lucide="user-plus"></i>
+                  </span>
+                  <a class="notif__body" href="#">
+                    <span class="notif__kind">Nova tarefa</span>
+                    <span class="notif__task">Levantamento no local e registro fotográfico</span>
+                    <span class="notif__meta">
+                      <i data-lucide="folder-open" aria-hidden="true"></i>
+                      <span class="notif__project">Reforma Apartamento Parque Flamboyant</span>
+                      <span class="notif__dot" aria-hidden="true">·</span>
+                      <span class="notif__when">23/10 às 11:05</span>
+                    </span>
+                  </a>
+                  <span class="notif__side">
+                    <span class="notif__chevron" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="panel__foot">
+                <button class="ghost-button" type="button">
+                  Ver todas as notificações
+                  <i data-lucide="arrow-right"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ul class="proto-callouts">
+          <li>
+            <strong>Espécie sem ler texto (item 3):</strong> ladrilho azul com
+            <code>user-plus</code> para atribuição, ladrilho rosa com
+            <code>calendar-clock</code> para prazo vencido. O rosa é o mesmo do prazo atrasado no
+            cartão da tarefa, então quem já usa o sistema reconhece sem aprender nada novo. O rótulo
+            em caixa alta repete a informação em texto, porque cor sozinha não é acessível.
+          </li>
+          <li>
+            <strong>O que cada linha diz (item 2):</strong> espécie, nome da tarefa, projeto e
+            quando. O prazo vencido mostra a data do vencimento, não a da varredura: o que interessa
+            é há quanto tempo a tarefa está parada.
+          </li>
+          <li>
+            <strong>Lido e não lido (item 4):</strong> ponto rosa à direita, nome da tarefa em peso
+            médio e ladrilho colorido quando não lida; sem ponto, peso normal, texto e ladrilho em
+            tom de apoio quando lida. A linha não muda de altura nem de fundo, então marcar como
+            lida não reorganiza a lista debaixo do dedo.
+          </li>
+          <li>
+            <strong>Marcar uma e marcar todas (item 6):</strong> o visto na própria linha marca uma
+            (funciona nesta demonstração, e o contador do sino acompanha); "Marcar todas como lidas"
+            fica no cabeçalho do painel e desabilita quando não há mais nenhuma não lida.
+          </li>
+          <li>
+            <strong>Clicar leva à tarefa (item 7):</strong> a linha inteira é o alvo, com cursor de
+            mão, fundo <code>muted</code> no hover e seta surgindo à direita. O visto é um botão
+            dentro da linha, com área própria, para marcar como lida sem navegar.
+          </li>
+        </ul>
+      </section>
+
+      <!-- ============================================================
+           5. ESTADO VAZIO
+           ============================================================ -->
+      <section class="proto-section">
+        <p class="proto-label">5 · Estado vazio, que é o estado mais comum</p>
+        <p class="proto-note">
+          Duas situações diferentes, e misturar as duas é o erro clássico. Quem nunca recebeu nada
+          precisa entender o que vai aparecer ali; quem já leu tudo precisa de confirmação, e de uma
+          porta para o histórico, já que os avisos lidos não desaparecem.
+        </p>
+
+        <div class="proto-grid proto-grid--two">
+          <div class="proto-frame">
+            <div class="panel" role="dialog" aria-label="Notificações, nenhuma">
+              <div class="panel__head">
+                <h2 class="panel__title">Notificações</h2>
+                <button class="ghost-button" type="button" disabled>
+                  <i data-lucide="check-check"></i>
+                  Marcar todas como lidas
+                </button>
+              </div>
+              <div class="empty">
+                <div class="empty__tile" aria-hidden="true"><i data-lucide="bell"></i></div>
+                <p class="empty__title">Nada por aqui</p>
+                <p class="empty__text">
+                  Quando alguém te atribuir uma tarefa, ou um prazo seu vencer, o aviso aparece
+                  nesta lista.
+                </p>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>Primeira vez: o texto diz as duas espécies, que é a única coisa que falta saber.</li>
+              <li>"Marcar todas" aparece desabilitada, não escondida: o lugar do botão não muda.</li>
+            </ul>
+          </div>
+
+          <div class="proto-frame">
+            <div class="panel" role="dialog" aria-label="Notificações, tudo lido">
+              <div class="panel__head">
+                <h2 class="panel__title">
+                  Notificações <span class="panel__title-count">· tudo lido</span>
+                </h2>
+                <button class="ghost-button" type="button" disabled>
+                  <i data-lucide="check-check"></i>
+                  Marcar todas como lidas
+                </button>
+              </div>
+              <div class="empty">
+                <div class="empty__tile" aria-hidden="true"><i data-lucide="bell-off"></i></div>
+                <p class="empty__title">Nenhum aviso novo</p>
+                <p class="empty__text">Você está em dia. Os avisos anteriores ficam no histórico.</p>
+              </div>
+              <div class="panel__foot">
+                <button class="ghost-button" type="button">
+                  Ver todas as notificações
+                  <i data-lucide="arrow-right"></i>
+                </button>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>
+                Decisão a confirmar: o painel mostra lidas e não lidas juntas (como na seção 2) ou só
+                não lidas, empurrando o resto para o histórico? Este cartão desenha a segunda opção.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           8. CELULAR
+           ============================================================ -->
+      <section class="proto-section">
+        <p class="proto-label">8 · Celular, 360px</p>
+        <p class="proto-note">
+          O painel de 24rem não cabe em 360px, então no celular o mesmo conteúdo sobe do rodapé numa
+          folha de largura total, que é o Sheet side="bottom" que o sistema já usa. Sem hover em tela
+          de toque, o visto de "marcar como lida" fica sempre visível, e a seta sai porque a linha
+          inteira já é o alvo de toque.
+        </p>
+
+        <div class="proto-frame" style="display: flex; gap: 1.5rem; flex-wrap: wrap">
+          <div class="phone">
+            <div class="phone__header">
+              <button class="icon-button" type="button" aria-label="Abrir menu">
+                <i data-lucide="menu"></i>
+              </button>
+              <div class="app-header__actions">
+                <button class="icon-button" type="button" aria-label="Notificações, 3 não lidas">
+                  <i data-lucide="bell"></i>
+                  <span class="counter-badge" aria-hidden="true">3</span>
+                </button>
+                <button class="icon-button" type="button" aria-label="Alternar tema">
+                  <i data-lucide="moon"></i>
+                </button>
+                <button class="icon-button" type="button" aria-label="Criar">
+                  <i data-lucide="plus"></i>
+                </button>
+              </div>
+            </div>
+            <div class="phone__content">
+              <div class="ghost-card" style="height: 4rem"></div>
+              <div class="ghost-card" style="height: 4rem"></div>
+            </div>
+            <p
+              style="
+                margin: 0;
+                padding: 0.5rem 1rem 1rem;
+                font-size: 0.75rem;
+                color: hsl(var(--muted-foreground));
+              "
+            >
+              Fechado: o sino divide o cabeçalho com tema e criar, e o badge continua no mesmo canto.
+            </p>
+          </div>
+
+          <div class="phone">
+            <div class="phone__header">
+              <button class="icon-button" type="button" aria-label="Abrir menu">
+                <i data-lucide="menu"></i>
+              </button>
+              <div class="app-header__actions">
+                <button
+                  class="icon-button"
+                  type="button"
+                  aria-label="Notificações, 3 não lidas"
+                  aria-expanded="true"
+                  style="background: hsl(var(--accent))"
+                >
+                  <i data-lucide="bell"></i>
+                  <span class="counter-badge" aria-hidden="true">3</span>
+                </button>
+                <button class="icon-button" type="button" aria-label="Alternar tema">
+                  <i data-lucide="moon"></i>
+                </button>
+                <button class="icon-button" type="button" aria-label="Criar">
+                  <i data-lucide="plus"></i>
+                </button>
+              </div>
+            </div>
+            <div class="phone__content">
+              <div class="ghost-card" style="height: 4rem"></div>
+              <div class="phone__scrim" aria-hidden="true"></div>
+
+              <div class="phone__sheet" role="dialog" aria-label="Notificações">
+                <div class="phone__grip" aria-hidden="true"></div>
+                <div class="panel__head">
+                  <h2 class="panel__title">
+                    Notificações <span class="panel__title-count">· 3</span>
+                  </h2>
+                  <!-- No celular o texto longo não cabe ao lado do título, então
+                       sobra o ícone com rótulo acessível. Mesma ação. -->
+                  <button class="icon-button" type="button" aria-label="Marcar todas como lidas">
+                    <i data-lucide="check-check"></i>
+                  </button>
+                  <button class="icon-button" type="button" aria-label="Fechar">
+                    <i data-lucide="x"></i>
+                  </button>
+                </div>
+
+                <div class="panel__list">
+                  <div class="day-strip">
+                    <span>Hoje</span>
+                    <span class="day-strip__count">3 avisos</span>
+                  </div>
+
+                  <div class="notif notif--late">
+                    <span class="notif__tile" aria-hidden="true">
+                      <i data-lucide="calendar-clock"></i>
+                    </span>
+                    <a class="notif__body" href="#">
+                      <span class="notif__kind">Tarefa em atraso</span>
+                      <span class="notif__task">Aprovação na prefeitura: protocolar projeto legal</span>
+                      <span class="notif__meta">
+                        <i data-lucide="folder-open" aria-hidden="true"></i>
+                        <span class="notif__project">Residência Alto da Boa Vista</span>
+                      </span>
+                      <span class="notif__meta">
+                        <span class="notif__when">venceu 24/10</span>
+                      </span>
+                    </a>
+                    <span class="notif__side">
+                      <button class="notif__read-toggle" type="button" aria-label="Marcar como lida">
+                        <i data-lucide="check"></i>
+                      </button>
+                      <span class="notif__unread" aria-label="Não lida" role="img"></span>
+                    </span>
+                  </div>
+
+                  <div class="notif notif--new">
+                    <span class="notif__tile" aria-hidden="true">
+                      <i data-lucide="user-plus"></i>
+                    </span>
+                    <a class="notif__body" href="#">
+                      <span class="notif__kind">Nova tarefa</span>
+                      <span class="notif__task">Humanização: render externo da fachada</span>
+                      <span class="notif__meta">
+                        <i data-lucide="folder-open" aria-hidden="true"></i>
+                        <span class="notif__project">Clínica Odontológica Setor Oeste</span>
+                      </span>
+                      <span class="notif__meta">
+                        <span class="notif__when">hoje às 09:12</span>
+                      </span>
+                    </a>
+                    <span class="notif__side">
+                      <button class="notif__read-toggle" type="button" aria-label="Marcar como lida">
+                        <i data-lucide="check"></i>
+                      </button>
+                      <span class="notif__unread" aria-label="Não lida" role="img"></span>
+                    </span>
+                  </div>
+
+                  <div class="notif notif--late">
+                    <span class="notif__tile" aria-hidden="true">
+                      <i data-lucide="calendar-clock"></i>
+                    </span>
+                    <a class="notif__body" href="#">
+                      <span class="notif__kind">Tarefa em atraso</span>
+                      <span class="notif__task">Projeto executivo: detalhamento de esquadrias</span>
+                      <span class="notif__meta">
+                        <i data-lucide="folder-open" aria-hidden="true"></i>
+                        <span class="notif__project">Loja Conceito Rua 9</span>
+                      </span>
+                      <span class="notif__meta">
+                        <span class="notif__when">venceu 21/10</span>
+                      </span>
+                    </a>
+                    <span class="notif__side">
+                      <button class="notif__read-toggle" type="button" aria-label="Marcar como lida">
+                        <i data-lucide="check"></i>
+                      </button>
+                      <span class="notif__unread" aria-label="Não lida" role="img"></span>
+                    </span>
+                  </div>
+
+                  <div class="day-strip">
+                    <span>Ontem</span>
+                    <span class="day-strip__count">2 avisos</span>
+                  </div>
+
+                  <div class="notif notif--new notif--read">
+                    <span class="notif__tile" aria-hidden="true">
+                      <i data-lucide="user-plus"></i>
+                    </span>
+                    <a class="notif__body" href="#">
+                      <span class="notif__kind">Nova tarefa</span>
+                      <span class="notif__task">Layout: estudo preliminar do pavimento térreo</span>
+                      <span class="notif__meta">
+                        <i data-lucide="folder-open" aria-hidden="true"></i>
+                        <span class="notif__project">Residência Alto da Boa Vista</span>
+                      </span>
+                      <span class="notif__meta">
+                        <span class="notif__when">ontem às 17:40</span>
+                      </span>
+                    </a>
+                    <span class="notif__side"></span>
+                  </div>
+                </div>
+
+                <div class="panel__foot">
+                  <button class="ghost-button" type="button">
+                    Ver todas as notificações
+                    <i data-lucide="arrow-right"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ul class="proto-callouts">
+          <li>
+            Projeto e data quebram em duas linhas: numa largura de 360px o nome do projeto já ocupa a
+            linha inteira, e cortar o nome para caber a data perde a informação que identifica a
+            tarefa.
+          </li>
+          <li>
+            "Marcar todas" vira ícone com rótulo acessível, e a folha ganha fechar explícito, porque
+            toque fora de área é gesto que não se descobre.
+          </li>
+        </ul>
+      </section>
+
+      <!-- ============================================================
+           PERGUNTAS ABERTAS
+           ============================================================ -->
+      <div class="proto-open-questions">
+        <h2>O que ficou para você decidir</h2>
+        <ol>
+          <li>
+            <strong>Quem atribuiu aparece na linha?</strong> Deixei de fora: o assunto do aviso é a
+            tarefa, e o nome de quem atribuiu já está na atividade do cartão. Se fizer diferença para
+            a equipe saber de quem veio, cabe no lugar do rótulo de espécie.
+          </li>
+          <li>
+            <strong>O painel mostra lidas ou só não lidas?</strong> A seção 2 mostra as duas juntas,
+            agrupadas por dia; o segundo cartão da seção 5 mostra a versão que esconde as lidas.
+          </li>
+          <li>
+            <strong>Posição do sino no cabeçalho:</strong> propus à esquerda do tema, primeiro do
+            grupo. Pode ir para a direita de tudo, encostado no canto.
+          </li>
+          <li>
+            <strong>Existe a tela "Ver todas"?</strong> O rodapé pressupõe uma página de histórico. Se
+            ela não entra agora, o rodapé sai e o painel fica sendo o histórico inteiro, com rolagem.
+          </li>
+          <li>
+            <strong>Uma tarefa atrasada repete o aviso a cada varredura?</strong> É decisão de
+            comportamento, não de desenho, mas muda a tela: repetindo todo dia, a linha "venceu 21/10"
+            volta a aparecer em cada faixa de dia.
+          </li>
+        </ol>
+      </div>
+    </div>
+
+    <script>
+      lucide.createIcons()
+
+      /* Alternância de tema: a mesma classe `dark` no elemento raiz que o
+         next-themes usa no app. Aqui é só para conferir o painel nos dois temas. */
+      const themeToggle = document.getElementById('themeToggle')
+      themeToggle.addEventListener('click', () => {
+        const dark = document.documentElement.classList.toggle('dark')
+        themeToggle.innerHTML = `<i data-lucide="${dark ? 'sun' : 'moon'}"></i>`
+        lucide.createIcons()
+      })
+
+      /* Demonstração de leitura: marcar uma, marcar todas, e o contador do sino
+         acompanhando. Sem estado real, só o afeto visual do gesto. */
+      const panelList = document.getElementById('panelList')
+      const headerCounter = document.getElementById('headerCounter')
+      const panelCount = document.getElementById('panelCount')
+      const markAllButton = document.getElementById('markAllButton')
+
+      function sincronizarContador() {
+        const naoLidas = panelList.querySelectorAll('[data-notif]:not(.notif--read)').length
+        if (naoLidas === 0) {
+          headerCounter.hidden = true
+          panelCount.textContent = '· tudo lido'
+          markAllButton.disabled = true
+          return
+        }
+        headerCounter.hidden = false
+        headerCounter.textContent = naoLidas > 9 ? '9+' : String(naoLidas)
+        panelCount.textContent = `· ${naoLidas} ${naoLidas === 1 ? 'não lida' : 'não lidas'}`
+        markAllButton.disabled = false
+      }
+
+      function marcarComoLida(linha) {
+        linha.classList.add('notif--read')
+        linha.querySelector('[data-mark-read]')?.remove()
+        linha.querySelector('[data-unread-dot]')?.remove()
+        sincronizarContador()
+      }
+
+      panelList.addEventListener('click', (evento) => {
+        const botao = evento.target.closest('[data-mark-read]')
+        if (botao) {
+          evento.preventDefault()
+          marcarComoLida(botao.closest('[data-notif]'))
+          return
+        }
+        /* Clicar na linha levaria à tarefa. No protótipo só impede a navegação. */
+        if (evento.target.closest('[data-notif]')) evento.preventDefault()
+      })
+
+      markAllButton.addEventListener('click', () => {
+        panelList
+          .querySelectorAll('[data-notif]:not(.notif--read)')
+          .forEach((linha) => marcarComoLida(linha))
+      })
+
+      sincronizarContador()
+    </script>
+  </body>
+</html>
