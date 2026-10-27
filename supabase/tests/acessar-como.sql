@@ -204,15 +204,21 @@ select pg_temp.rec('2.7', 'nenhuma tentativa recusada deixou linha de auditoria'
 select pg_temp.rec('2.8', 'CONTROLE: Diretora ativa assume arquiteta do mesmo escritorio', 'OK:Arquiteta A',
   pg_temp.assumir((select u_dir_a from ids), (select c_arq_a from ids)));
 
-/* Regra simples vence excecao: um Diretor assume outro Diretor, e fica
-   registrado igual. */
-select pg_temp.rec('2.9', 'Diretor assume outro Diretor ATIVO do mesmo escritorio', 'OK:Diretor Socio',
+/* ESTE CASO FOI INVERTIDO, e a inversao e o registro de uma decisao.
+   Ele afirmava o contrario ("regra simples vence excecao: um Diretor assume
+   outro Diretor, e fica registrado igual"), e isso virou achado critico na
+   reauditoria: com alvo Diretor permitido, o encadeamento de sessoes assumidas
+   so estava barrado no navegador, e a trilha ficava falsificavel sem apagar uma
+   linha. A 0118 recusa no servidor. A secao 8 explica a cadeia inteira. */
+select pg_temp.rec('2.9', 'alvo Diretor ATIVO do mesmo escritorio e RECUSADO', 'ERR:target_is_director',
   pg_temp.assumir((select u_dir_a from ids), (select c_dir2_a from ids)));
 
 -- 3. O QUE A TRILHA GUARDA ------------------------------------------------------------
 
-/* As duas aceitas (2.8 e 2.9), e nada das dez recusadas. */
-select pg_temp.rec('3.1', 'as duas tentativas aceitas deixaram duas linhas', '2',
+/* A unica aceita (2.8), e nada das ONZE recusadas. O numero caiu de duas para
+   uma quando a 0118 passou a recusar alvo Diretor, e o que o caso prova continua
+   igual: tentativa recusada nao grava. */
+select pg_temp.rec('3.1', 'a tentativa aceita deixou uma linha, e as recusadas nenhuma', '1',
   (select count(*)::text from public.impersonation_events where tenant_id = (select tenant_a from ids)));
 
 select pg_temp.rec('3.2', 'a linha guarda o NOME de quem assumiu', 'Diretora A',
@@ -231,7 +237,7 @@ select pg_temp.rec('3.4', 'guarda os dois ids de login', 'true',
 delete from public.collaborator_permissions where collaborator_id = (select c_arq_a from ids);
 delete from public.collaborators where id = (select c_arq_a from ids);
 
-select pg_temp.rec('3.5', 'apagar o colaborador nao apaga a trilha', '2',
+select pg_temp.rec('3.5', 'apagar o colaborador nao apaga a trilha', '1',
   (select count(*)::text from public.impersonation_events where tenant_id = (select tenant_a from ids)));
 
 select pg_temp.rec('3.6', 'o nome sobrevive ao cadastro, o id vira nulo', 'Arquiteta A|(nulo)',
@@ -266,7 +272,7 @@ select pg_temp.rec('4.4', 'e SECURITY DEFINER com search_path fixo', 'true',
 
 -- 5. QUEM LE A TRILHA --------------------------------------------------------------------
 
-select pg_temp.rec('5.1', 'Diretora le a trilha do proprio escritorio', 'OK:2',
+select pg_temp.rec('5.1', 'Diretora le a trilha do proprio escritorio', 'OK:1',
   pg_temp.probe('authenticated', pg_temp.claims((select u_dir_a from ids), (select tenant_a from ids)),
     'select * from public.impersonation_events'));
 
@@ -322,6 +328,75 @@ select pg_temp.rec('7.2', 'e continua assumindo no escritorio dela', 'OK:Coorden
 select pg_temp.rec('7.3', 'a trilha do evento novo ficou no escritorio A', 'true',
   (select (tenant_id = (select tenant_a from ids))::text from public.impersonation_events
     where target_user_id = (select u_coord_a from ids)));
+
+-- 8. OS DOIS CRITICOS DA REAUDITORIA, FECHADOS NA 0118 -----------------------------------
+--
+-- Estes casos morrem se a 0118 for revertida, e e para isso que eles existem.
+-- Nenhum dos 34 casos anteriores pegava nenhum dos dois furos: a secao 2 prova o
+-- isolamento pela LINHA do alvo, e os furos nao estavam na linha.
+
+/* A sonda de cima devolve o NOME. Para o critico 1 o que importa e o E-MAIL que
+   a funcao entrega, porque e com ele que a edge function emite a sessao. */
+create or replace function pg_temp.assumir_email(p_ator uuid, p_alvo uuid)
+returns text language plpgsql as $$
+declare v jsonb; msg text;
+begin
+  begin
+    select public.start_impersonation(p_ator, p_alvo) into v;
+    return 'OK:' || (v ->> 'target_email');
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    return 'ERR:' || msg;
+  end;
+end; $$;
+
+-- 8a. CRITICO 3: Diretor nao assume Diretor, e e isso que fecha o encadeamento.
+--
+-- Sem esta recusa, o Diretor A assume o Diretor B, sai do navegador (ou chama a
+-- funcao por fora dele, com o JWT de B, que e legitimo) e assume C. A trilha
+-- registra que B pediu, e B nao fez nada.
+
+select pg_temp.rec('8.1', 'alvo Diretor do mesmo escritorio e RECUSADO', 'ERR:target_is_director',
+  pg_temp.assumir((select u_dir_a from ids), (select c_dir2_a from ids)));
+
+/* Coordenador A, e nao a Arquiteta: a linha dela foi apagada no caso 3.5, de
+   proposito, para provar que a trilha sobrevive ao cadastro. */
+select pg_temp.rec('8.2', 'CONTROLE: o mesmo ator assume quem NAO e Diretor', 'OK:Coordenador A',
+  pg_temp.assumir((select u_dir_a from ids), (select c_coord_a from ids)));
+
+-- 8b. CRITICO 1: a credencial sai do e-mail de auth.users, nunca de collaborators.
+--
+-- `collaborators.email` e contato interno e o Diretor edita ele na tela Equipe
+-- (medido: authenticated tem GRANT UPDATE na coluna, com a policy
+-- collaborators_update_director). A unicidade e por tenant, entao o endereco de
+-- OUTRO escritorio entra sem colidir. Antes da 0118, era esse campo que decidia
+-- qual conta recebia a sessao: o Diretor de A punha ali o e-mail de alguem de B
+-- e saia logado como aquela pessoa, com a trilha registrando o colaborador de A.
+
+update public.collaborators
+   set email = 'imp-arq-b@example.test'
+ where id = (select c_coord_a from ids);
+
+select pg_temp.rec('8.3', 'e-mail do contato aponta para OUTRO escritorio agora', 'imp-arq-b@example.test',
+  (select email from public.collaborators where id = (select c_coord_a from ids)));
+
+select pg_temp.rec('8.4', 'e a funcao devolve o e-mail do LOGIN, nao o do contato', 'OK:imp-coord-a@example.test',
+  pg_temp.assumir_email((select u_dir_a from ids), (select c_coord_a from ids)));
+
+/* CONTROLE do controle: a sonda realmente le o campo que mudou. Sem este caso,
+   um `target_email` que a funcao parasse de devolver (null) passaria no 8.4
+   apenas por nao ser o e-mail estrangeiro. */
+select pg_temp.rec('8.5', 'CONTROLE: o e-mail devolvido e o de auth.users daquele user_id', 'true',
+  (select (pg_temp.assumir_email((select u_dir_a from ids), (select c_coord_a from ids))
+           = 'OK:' || (select email from auth.users where id = (select u_coord_a from ids)))::text));
+
+/* Login sem e-mail passa a ser recusado pelo estado de auth.users, e nao pelo
+   campo de contato, que aqui segue preenchido (com o endereco estrangeiro do
+   8.3). Prova que quem decide e o outro lado. */
+update auth.users set email = null where id = (select u_coord_a from ids);
+
+select pg_temp.rec('8.6', 'login sem e-mail e recusado mesmo com contato preenchido', 'ERR:target_without_email',
+  pg_temp.assumir((select u_dir_a from ids), (select c_coord_a from ids)));
 
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
