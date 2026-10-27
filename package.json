@@ -89,7 +89,8 @@
     "env:prod": "node scripts/env-switch.mjs prod",
     "env:dev": "node scripts/env-switch.mjs dev",
     "env:which": "node scripts/env-switch.mjs which",
-    "env:check": "node scripts/env-check.mjs"
+    "env:check": "node scripts/env-check.mjs",
+    "test:contador": "supabase/tests/run-sql.sh supabase/tests/contador-da-porta-publica.sql"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
