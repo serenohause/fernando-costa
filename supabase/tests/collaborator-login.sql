@@ -199,6 +199,80 @@ select pg_temp.rec('5.1', 'acha o login pelo e-mail, sem diferenciar maiuscula',
 select pg_temp.rec('5.2', 'e-mail sem conta devolve nulo', '(nulo)',
   coalesce(public.find_auth_user_by_email('ninguem@example.test')::text, '(nulo)'));
 
+-- 6. A RECUSA CHEGA ANTES DA SENHA (0119) ------------------------------------------------
+--
+-- A edge function trocava a senha da conta encontrada por e-mail e SO DEPOIS
+-- chamava link_collaborator_login, que e quem recusa. Como
+-- find_auth_user_by_email varre auth.users inteiro, sem recorte de escritorio, a
+-- senha de alguem de OUTRO tenant ja estava trocada quando a recusa chegava.
+--
+-- A 0119 extraiu as validacoes para check_collaborator_login_link, que SO LE, e
+-- a edge function chama ela antes de tocar na senha. Estes casos provam as tres
+-- coisas que a correcao precisa ter: a recusa certa, a ausencia de escrita, e o
+-- contrato de erro intacto.
+
+create or replace function pg_temp.conferir(p_colaborador uuid, p_login uuid, p_ator uuid)
+returns text language plpgsql as $$
+declare msg text;
+begin
+  begin
+    perform public.check_collaborator_login_link(p_colaborador, p_login, p_ator);
+    return 'OK';
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    return 'ERR:' || msg;
+  end;
+end; $$;
+
+select pg_temp.rec('6.1', 'conferir recusa login de OUTRO escritorio', 'ERR:user_in_other_tenant',
+  pg_temp.conferir((select c_outro_sem_login from ids), (select u_outro from ids),
+                   (select u_dir_a from ids)));
+
+select pg_temp.rec('6.2', 'e a recusa NAO escreveu nada: o colaborador segue sem login', '(nulo)',
+  (select coalesce(user_id::text, '(nulo)') from public.collaborators
+    where id = (select c_outro_sem_login from ids)));
+
+select pg_temp.rec('6.3', 'nem criou linha de escritorio para aquele login', '0',
+  (select count(*)::text from public.tenant_users
+    where user_id = (select u_outro from ids)
+      and tenant_id = (select tenant_a from ids)));
+
+select pg_temp.rec('6.4', 'CONFERIR e LIGAR levantam o MESMO erro', 'true',
+  (select (pg_temp.conferir((select c_outro_sem_login from ids), (select u_outro from ids),
+                            (select u_dir_a from ids))
+           = pg_temp.ligar((select c_outro_sem_login from ids), (select u_outro from ids),
+                           (select u_dir_a from ids)))::text));
+
+select pg_temp.rec('6.5', 'quem nao e Diretor ativo nao passa pela conferencia', 'ERR:not_authorized',
+  pg_temp.conferir((select c_outro_sem_login from ids), (select u_novo from ids),
+                   (select u_coord_a from ids)));
+
+/* LOGIN LIVRE, criado aqui: todos os da fixture ja foram vinculados pelas secoes
+   anteriores, e um login ja vinculado cairia em user_already_linked, que nao e o
+   que este controle quer medir. Sem linha em tenant_users, de proposito. */
+insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+values ('daa00000-0000-4000-8000-00000000009c'::uuid,
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        'authenticated', 'authenticated', 'login-livre@example.test', now(), now());
+
+select pg_temp.rec('6.6', 'CONTROLE: par legitimo passa na conferencia', 'OK',
+  pg_temp.conferir((select c_outro_sem_login from ids),
+                   'daa00000-0000-4000-8000-00000000009c'::uuid,
+                   (select u_dir_a from ids)));
+
+/* E o controle do controle: passar na conferencia continua NAO vinculando nada.
+   Se ela escrevesse, o 6.2 teria passado por acidente nos casos de recusa. */
+select pg_temp.rec('6.7', 'conferencia aprovada tambem nao vincula', '(nulo)',
+  (select coalesce(user_id::text, '(nulo)') from public.collaborators
+    where id = (select c_outro_sem_login from ids)));
+
+select pg_temp.rec('6.8', 'e so service_role executa a conferencia', 'false|false|true',
+  (select has_function_privilege('anon', p.oid, 'EXECUTE')::text || '|' ||
+          has_function_privilege('authenticated', p.oid, 'EXECUTE')::text || '|' ||
+          has_function_privilege('service_role', p.oid, 'EXECUTE')::text
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'check_collaborator_login_link'));
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;

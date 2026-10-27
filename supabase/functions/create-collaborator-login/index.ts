@@ -137,6 +137,38 @@ Deno.serve(async (req) => {
     let createdHere = false
 
     if (authUserId) {
+      /*
+        CONFERIR O VÍNCULO ANTES DE TOCAR NA SENHA.
+
+        Achado crítico. `find_auth_user_by_email` varre `auth.users` INTEIRO,
+        sem recorte de escritório, e a ordem aqui era: achar o e-mail, trocar a
+        senha, e só então chamar `link_collaborator_login`, que é quem recusa com
+        `user_in_other_tenant`. Ou seja, a senha de alguém de OUTRO escritório já
+        estava trocada quando a recusa chegava: a pessoa ficava trancada fora da
+        própria conta, com `senha_provisoria` no metadado dela, e quem pediu
+        sabia a senha nova.
+
+        `check_collaborator_login_link` (migration 0119) só lê e levanta
+        exatamente os mesmos erros, então o mapa abaixo e a mensagem da tela não
+        mudam. Não é uma segunda cópia da autorização: a função de vínculo passou
+        a chamar a MESMA checagem antes de escrever, e continua sendo a
+        autoridade final, porque entre esta leitura e aquela escrita o mundo pode
+        mudar.
+      */
+      const { error: checkError } = await admin.rpc('check_collaborator_login_link', {
+        p_collaborator_id: collaborator.id,
+        p_auth_user_id: authUserId,
+        p_actor_user_id: user.id,
+      })
+
+      if (checkError) {
+        const mapped = RPC_ERRORS[checkError.message?.trim() ?? '']
+        if (mapped) throw new HttpError(mapped.status, mapped.code, mapped.message)
+
+        console.error(`[${FN}] rpc check_collaborator_login_link falhou:`, checkError)
+        throw new HttpError(500, 'internal_error', 'Não foi possível concluir a operação.')
+      }
+
       const { error: updateError } = await admin.auth.admin.updateUserById(authUserId, {
         password: input.password,
         user_metadata: { senha_provisoria: true },
