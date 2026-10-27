@@ -294,24 +294,38 @@ export default function TaskForm({
             </div>
           </div>
 
+          {/*
+            AS DUAS DATAS SÃO EXIGIDAS AO CRIAR, e não ao editar.
+
+            Tarefa nasce com as duas pontas: quando o responsável começa e quando
+            entrega. Mas exigir na EDIÇÃO travaria quem abriu o formulário só para
+            trocar o título de uma tarefa antiga, e tarefa antiga sem data existe
+            aos montes. Então `initialData` decide: criar exige, editar não.
+
+            Nada disso substitui o banco. É ele que recusa prazo antes do início
+            (`tasks_due_date_not_before_start_check`), e a frase dessa recusa já
+            existe em describeTaskError.
+          */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="start_date">Início</Label>
+              <Label htmlFor="start_date">Início{initialData ? '' : ' *'}</Label>
               <Input
                 id="start_date"
                 type="date"
                 value={values.start_date}
                 onChange={(e) => set('start_date', e.target.value)}
+                required={!initialData}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="due_date">Prazo</Label>
+              <Label htmlFor="due_date">Prazo{initialData ? '' : ' *'}</Label>
               <Input
                 id="due_date"
                 type="date"
                 value={values.due_date}
                 onChange={(e) => set('due_date', e.target.value)}
+                required={!initialData}
               />
             </div>
           </div>

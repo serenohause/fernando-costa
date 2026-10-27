@@ -942,6 +942,11 @@ export function useToggleChecklistItem() {
 export type TaskFieldsPatch = {
   title?: string
   description?: string | null
+  /* As DUAS datas, e não só o prazo: o painel passou a mostrar quando a pessoa
+     deve começar, não só quando deve entregar. Esta lista é branca de
+     propósito, então um campo que não esteja aqui não chega ao banco mesmo que
+     a tela mande. */
+  start_date?: string | null
   due_date?: string | null
 }
 
@@ -958,6 +963,7 @@ export function useUpdateTaskFields() {
       /* Descrição apagada vira nulo, e não string vazia: é o que o formulário
          grava, e as duas formas de "sem descrição" não devem coexistir. */
       if (limpo.description !== undefined) limpo.description = limpo.description?.trim() || null
+      if (limpo.start_date !== undefined) limpo.start_date = limpo.start_date || null
       if (limpo.due_date !== undefined) limpo.due_date = limpo.due_date || null
 
       const { data, error } = await supabase.from('tasks').update(limpo).eq('id', id).select('id')

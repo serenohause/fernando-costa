@@ -475,6 +475,43 @@ function OpenCard({
                 </DetailRow>
               )}
 
+              {/*
+                INÍCIO E PRAZO, OS DOIS. O campo já existia em `tasks` e no
+                formulário, e o histórico já registrava mudança nele; só o painel
+                não mostrava. Quem abre o cartão precisa das duas pontas: quando
+                começar e quando entregar.
+
+                O rótulo é "Início" porque é assim que o sistema original chama
+                (TaskForm.jsx:198), e não uma palavra nova escolhida aqui.
+
+                Sem a marca de atraso que o prazo tem: começar tarde não é o
+                mesmo que entregar tarde, e inventar um segundo vermelho na tela
+                diria algo que ninguém decidiu.
+              */}
+              <DetailRow label="Início" canEdit={canEdit} value={
+                task.start_date ? (
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                    {format(parseISO(task.start_date), 'dd/MM/yyyy')}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Sem data</span>
+                )
+              }>
+                {(fechar) => (
+                  <DuePicker
+                    value={task.start_date}
+                    onSave={(inicio) => {
+                      salvar(
+                        { start_date: inicio },
+                        inicio ? 'Início atualizado' : 'Início removido',
+                      )
+                      fechar()
+                    }}
+                  />
+                )}
+              </DetailRow>
+
               <DetailRow label="Prazo" canEdit={canEdit} value={
                 task.due_date ? (
                   <span
