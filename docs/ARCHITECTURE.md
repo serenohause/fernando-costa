@@ -339,6 +339,65 @@ Consequências que precisam ser respeitadas:
   lado da policy, e de um teste que prove com a chave publicável que a tabela
   não responde.
 
+### Como se prova que dev tem tudo que prod tem, sem ler produção
+
+Leitura direta do banco de produção está bloqueada pela camada de permissão do
+Claude Code. A diferença entre os ambientes se responde pelo git (`main` é o que
+está em produção) e, quando precisa de prova de schema, por um **banco de
+referência descartável**. Feito em 27/10/2026, e a receita fica registrada
+porque ela tem três pedras no caminho:
+
+1. `git worktree add --detach <tmp> main`, e no worktree trocar `project_id` e
+   deslocar as portas do `config.toml`. Assim o repositório principal não é
+   tocado e nenhum container colide com outro projeto Supabase da máquina.
+2. `supabase start` **não consegue** aplicar a migration 0052: o
+   `comment on policy ... on storage.objects` exige ser dono da tabela, e o papel
+   que a CLI usa não é. Então subir a base com a pasta de migrations vazia e
+   aplicar os arquivos à mão, por `psql` dentro do container.
+3. Aplicar **como `postgres`**, não como `supabase_admin`. O segundo é o
+   superusuário da imagem e resolveria o erro acima, mas trocaria o dono de cada
+   objeto criado e falsearia justamente os grants que se quer comparar. O certo
+   é dar a `postgres` filiação em `supabase_storage_admin`, imitando o
+   hospedado.
+
+A comparação é de catálogo, não de `pg_dump`: uma consulta que lista tabela,
+coluna, restrição, índice, função, policy, RLS, enum, gatilho, visão e grant,
+rodada nos dois bancos, e `comm` nas duas saídas. Sai objeto por objeto, sem
+ruído de ordem nem de dono. Ela **não** compara corpo de função, então mudança
+de corpo (como a da 0115) precisa de conferência à parte, por `md5(prosrc)`.
+
+Resultado da primeira execução: 111 migrations de main aplicadas do zero sem um
+erro, e **zero objetos existindo só na referência**. Tudo que as migrations de
+main constroem está em dev. A diferença era exatamente o módulo de leads
+(0112 a 0115) e os grants abaixo.
+
+**Dois achados, e o primeiro desmentiu a 0114.**
+
+A tabela `supabase_migrations.schema_migrations` do banco de dev estava
+**errada, não atrasada**: registrava topo `0092` enquanto os objetos de até
+`0111` estavam todos aplicados. Consertada por insert das 19 linhas que
+faltavam. Lição operacional: para saber se uma migration foi aplicada, conferir
+o objeto que ela cria, extraindo o nome do próprio arquivo. Chutar o nome do
+objeto produz falso negativo, e produziu.
+
+Os privilégios padrão de `service_role` em `public` divergiam entre o hospedado
+(`arwdDxtm`) e um banco reconstruído só pelas migrations (`Dxtm`, sem escrita de
+dado). A causa não é desvio: o bootstrap hospedado concede tudo, a 0007
+desarmou o default só para `anon` e `authenticated` e deixou `service_role`
+intacto de propósito, e a imagem local da CLI tem outro bootstrap. A
+consequência é concreta: num banco reconstruído, `scripts/criar-usuario.mjs`
+falha, porque escreve em `tenant_users` e `collaborators` com a chave de
+serviço. A **0117** escreve essa postura em migration (no-op medido nos
+ambientes hospedados: 427 grants antes e depois).
+
+Fica **aberto por decisão do usuário**: fechar `service_role` (manter `Dxtm` e
+conceder tabela por tabela) é a postura mais restritiva e é a que o desenho da
+0114 presumia, mas quebra os scripts de operador e muda o comportamento de
+produção. E o default de **sequences**, onde `anon` e `authenticated` seguem com
+`rwU` no hospedado: a 0007 fechou tabelas e não sequences. Hoje é inofensivo
+porque não existe uma sequence em `public` (medido: zero), mas a primeira que
+nascer nasce alcançável pela chave publicável.
+
 ## A restrição distingue dado importado de dado nascido aqui
 
 Decisão do usuário na etapa de importação, implementada pelas migrations
