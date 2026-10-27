@@ -121,13 +121,19 @@ console.log(`\n  banco: ${URL}`)
   neste banco, createUser funcionaria e a autorizacao falharia depois, deixando
   um login orfao que ninguem pediu.
 
-  POR QUE UMA FUNCAO, E NAO UM INSERT NA TABELA: service_role NAO tem privilegio
-  em platform_admins. Nao e esquecimento da 0112 — e o padrao novo do Supabase,
-  registrado em supabase/config.toml, de tabela nova nao ser auto-exposta as
-  roles da Data API. Medido: PostgREST devolve 42501. O caminho e
-  public.grant_platform_admin, security definer, com EXECUTE so para
-  service_role (migration 0114). `anon` e `authenticated` continuam de fora, e
-  por isso ninguem logado no sistema se promove.
+  POR QUE UMA FUNCAO, E NAO UM INSERT NA TABELA, e a resposta corrigida.
+  O texto antigo daqui dizia que service_role nao tem privilegio em
+  platform_admins. Isso e FALSO nos ambientes hospedados: medido em dev,
+  has_table_privilege('service_role','public.platform_admins','INSERT') devolve
+  true, e o papel ainda tem bypassrls. O 42501 que eu citei era real, mas de um
+  Postgres local, onde o privilegio padrao de service_role no schema public e
+  `Dxtm` e nao inclui escrita de dado. A migration 0116 registra a medicao.
+
+  A funcao continua sendo o caminho certo, por motivo que nao depende de
+  privilegio: parametro nomeado em vez de linha inteira, usuario inexistente
+  levanta 22023 em vez de deixar login orfao, e existe o par que retira o
+  acesso. E `anon` e `authenticated` seguem sem EXECUTE (migration 0114), que e
+  a parte que de fato tranca: ninguem logado no sistema se promove.
 
   A sonda usa um uuid que nao existe: a funcao levanta 22023 ("nao existe
   usuario"), que PROVA que ela esta la e executavel. Erro de funcao ausente diz

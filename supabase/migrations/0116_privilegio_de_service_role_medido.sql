@@ -1,0 +1,61 @@
+-- O COMMENT de grant_platform_admin afirmava privilegio que service_role TEM.
+--
+-- Nada de schema muda aqui, nem corpo de funcao, nem GRANT. So o texto que
+-- descreve a funcao no banco. A 0114 continua como esta, porque migration
+-- aplicada nao se edita, e a 0113 ja abriu este precedente no projeto.
+--
+-- O QUE A 0114 AFIRMA, E E FALSO
+--   "service_role NAO tem privilegio de leitura nem de escrita em
+--    platform_admins - nem nela, nem em product_leads, nem em tabela nova
+--    nenhuma deste projeto. (...) Medido: PostgREST com a chave de servico
+--    devolve 42501 em platform_admins, product_leads e collaborators."
+--
+--   Medido hoje no projeto de desenvolvimento HOSPEDADO:
+--     has_table_privilege('service_role','public.platform_admins','INSERT') = true
+--     has_table_privilege('service_role','public.product_leads','INSERT')   = true
+--     has_table_privilege('service_role','public.clients','INSERT')         = true
+--     service_role tambem tem rolbypassrls = true
+--
+--   O 42501 era real, mas veio de OUTRO banco: o modulo de leads foi construido
+--   num Postgres local enquanto o projeto de dev estava pausado, e a medicao
+--   local foi escrita como se fosse verdade geral.
+--
+-- POR QUE OS DOIS BANCOS DIVERGEM, QUE E O ACHADO QUE IMPORTA
+--   A diferenca esta nos privilegios PADRAO do schema public, em pg_default_acl,
+--   e nenhuma migration deste projeto os define:
+--
+--     hospedado:  service_role = arwdDxtm   (insert, select, update, delete)
+--     reconstruido so a partir das migrations:
+--                 service_role = Dxtm       (truncate, references, trigger,
+--                                            maintain; nenhuma escrita de dado)
+--
+--   Isso foi medido comparando o banco de dev contra um banco descartavel com as
+--   111 migrations de main aplicadas do zero. Consequencias praticas:
+--
+--     1. nos ambientes hospedados, service_role escreve direto em qualquer
+--        tabela de public, e falta de GRANT nao protege nada;
+--     2. num banco reconstruido so pelas migrations, service_role nao escreve
+--        em nada, e scripts/criar-usuario.mjs (que grava em tenant_users e
+--        collaborators com a chave de servico) FALHA;
+--     3. portanto a postura de privilegio hoje depende do ambiente, nao do
+--        codigo. Tornar isso explicito numa migration e decisao pendente do
+--        usuario, porque as duas escolhas tem custo: a permissiva registra
+--        escrita ampla, e a restritiva quebra os scripts que dependem dela.
+--
+-- A FUNCAO CONTINUA VALENDO, POR OUTROS MOTIVOS
+--   Ela nao e mais "o unico caminho possivel" nos ambientes hospedados, e e bom
+--   nao fingir que e. O que ela entrega de verdade:
+--     - parametro nomeado em vez de linha inteira, entao quem chama nao escolhe
+--       coluna que nao devia escolher;
+--     - confere que o usuario existe (22023) em vez de deixar login orfao
+--       quando alguem aponta para o ambiente errado;
+--     - nasceu com o par que RETIRA o acesso;
+--     - `anon` e `authenticated` seguem sem EXECUTE, e isso nao mudou: nenhuma
+--       sessao de navegador alcanca a funcao, e ninguem logado se promove. Os
+--       casos 5.7 a 5.10 de supabase/tests/leads.sql provam essa parte, e ela e
+--       a que realmente tranca a fila;
+--     - num banco reconstruido pelas migrations ela VOLTA a ser o unico caminho,
+--       pelo item 2 acima.
+
+comment on function public.grant_platform_admin(uuid, text) is
+  'Poe um usuario em public.platform_admins, que e a unica coisa que a policy product_leads_select_platform olha. E o caminho de OPERADOR (scripts/criar-admin-plataforma.mjs), nao de tela: anon e authenticated nao tem EXECUTE, entao nenhuma sessao de navegador alcanca esta funcao e ninguem logado no sistema pode se promover nem promover outro. CORRECAO DA 0114 (ver migration 0116): o COMMENT anterior dizia que a funcao existe porque service_role nao tem privilegio em platform_admins. Isso e FALSO nos ambientes hospedados, onde service_role tem INSERT/SELECT/UPDATE/DELETE em public e ainda tem bypassrls; o 42501 citado foi medido num Postgres local. A funcao vale por outras razoes: parametro nomeado em vez de linha inteira, usuario inexistente levanta 22023 em vez de deixar login orfao, nasceu com o par que retira o acesso, e num banco reconstruido so pelas migrations ela volta a ser o unico caminho, porque la o privilegio padrao de service_role e Dxtm e nao inclui escrita. Rodar duas vezes e inofensivo e nao apaga a anotacao existente.';
