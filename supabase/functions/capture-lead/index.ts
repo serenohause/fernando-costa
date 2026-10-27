@@ -136,19 +136,38 @@ Deno.serve(async (req) => {
     if (parsed.data.observacao_extra !== undefined) {
       /*
         A contagem não pode derrubar a resposta: se o contador falhar, a
-        armadilha continua fechando. `catch` vazio é deliberado aqui, e é o
-        oposto da regra do limite de requisições — lá, falha do contador FECHA a
-        porta; aqui ela só apaga uma estatística.
+        armadilha continua fechando. É o oposto da regra do limite de
+        requisições: lá, falha do contador FECHA a porta; aqui ela só apaga uma
+        estatística, e por isso o erro vira log em vez de resposta de erro.
       */
-      await admin
-        .rpc('hit_public_endpoint', {
-          p_scope: ARMADILHA.scope,
-          p_client_key: 'total',
-          p_limit: ARMADILHA.limite,
-          p_window_seconds: ARMADILHA.janelaSegundos,
-        })
-        .then(() => {})
-        .catch(() => {})
+      const { error: erroDaContagem } = await admin.rpc('hit_public_endpoint', {
+        p_scope: ARMADILHA.scope,
+        p_client_key: 'total',
+        p_limit: ARMADILHA.limite,
+        p_window_seconds: ARMADILHA.janelaSegundos,
+      })
+
+      /*
+        `.catch()` NAO FUNCIONAVA AQUI, e foi por isso que esta contagem ficou
+        morta sem ninguem notar: o builder do supabase-js resolve com
+        {data, error} em vez de rejeitar, entao falha nenhuma virava excecao e o
+        `.then(() => {})` que estava no lugar jogava o erro fora. Medido no
+        ambiente de desenvolvimento: a armadilha fechava certo (o lead do robo
+        nao entrava) e `public_endpoint_hits` nao ganhava nem uma linha de
+        `capture-lead-armadilha`.
+
+        A regra de cima continua valendo: contagem que falha NAO derruba a
+        resposta, porque a armadilha ja fechou. O que muda e que a falha agora
+        aparece no log, em vez de desaparecer. `code` e `message` so, nunca
+        `details` nem `hint` (regra de _shared/http.ts).
+      */
+      if (erroDaContagem) {
+        console.error(
+          `[${FN}] contador da armadilha falhou:`,
+          erroDaContagem.code,
+          erroDaContagem.message,
+        )
+      }
 
       console.warn(
         `[${FN}] armadilha de robo preenchida; nada gravado. ` +
