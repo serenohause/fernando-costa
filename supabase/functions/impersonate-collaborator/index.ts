@@ -50,6 +50,7 @@ import {
   preflightResponse,
   readJsonBody,
 } from '../_shared/http.ts'
+import { enforceRateLimit } from '../_shared/rate-limit.ts'
 import { requireUser, serviceClient } from '../_shared/supabase.ts'
 
 const FN = 'impersonate-collaborator'
@@ -93,12 +94,22 @@ const RPC_ERRORS: Record<string, { status: number; code: string; message: string
   target_without_email: {
     status: 409,
     code: 'target_without_email',
-    message: 'Este colaborador não tem e-mail cadastrado, e o e-mail é o login.',
+    message: 'O login deste colaborador não tem e-mail, e o e-mail é o que abre a sessão.',
   },
   target_is_self: {
     status: 409,
     code: 'target_is_self',
     message: 'Você já está na sua própria conta.',
+  },
+  /*
+    ALVO DIRETOR, recusado pela migration 0118. A mensagem diz o motivo de
+    verdade em vez de "não é possível": quem lê precisa entender que não é falha
+    momentânea e que não há o que tentar de novo.
+  */
+  target_is_director: {
+    status: 409,
+    code: 'target_is_director',
+    message: 'Não é possível acessar como outro Diretor.',
   },
 }
 
@@ -123,6 +134,27 @@ Deno.serve(async (req) => {
 
     const admin = serviceClient()
     const user = await requireUser(req, admin)
+
+    /*
+      TETO DE EMISSAO, contado pelo id de quem pede e nao pelo IP.
+
+      Achado da reauditoria (alto 4): esta funcao emitia sessao sem teto nenhum.
+      Um login de Diretor comprometido rodava um laco e saia com sessao viva de
+      TODOS os colaboradores ativos do escritorio em segundos, e o unico teto
+      por perto, `token_verifications` do GoTrue, atinge o `verifyOtp` por IP e
+      nao a emissao.
+
+      10 em 5 minutos: ninguem assume dez pessoas diferentes em cinco minutos
+      trabalhando. Contar pelo `user.id` e nao pelo IP importa aqui nos dois
+      sentidos: o escritorio inteiro atras do mesmo NAT nao divide o teto, e
+      quem tem a sessao nao escapa dele trocando de rede.
+    */
+    await enforceRateLimit(req, admin, {
+      limit: 10,
+      windowSeconds: 300,
+      scope: FN,
+      identidade: user.id,
+    })
 
     const parsed = bodySchema.safeParse(await readJsonBody(req))
     if (!parsed.success) {
@@ -149,6 +181,7 @@ Deno.serve(async (req) => {
     }
 
     const target = data as {
+      target_user_id: string
       target_email: string
       target_name: string
       target_role: string
@@ -173,6 +206,35 @@ Deno.serve(async (req) => {
     }
 
     /*
+      A SESSÃO EMITIDA É DA CONTA QUE O BANCO AUTORIZOU, e não de quem por acaso
+      tem aquele endereço.
+
+      Segunda barreira do crítico 1. A primeira é a migration 0118, que passou a
+      tirar o e-mail de `auth.users` pelo `user_id` do alvo, em vez de
+      `collaborators.email` (contato interno, editável pelo Diretor na tela
+      Equipe). Com a 0118 aplicada, divergir aqui já não deveria ser possível.
+
+      Esta checagem fica de todo jeito, e por um motivo concreto: `generateLink`
+      resolve por e-mail, então qualquer caminho futuro que volte a montar esse
+      e-mail de outra fonte reabre o furo inteiro, em silêncio e sem tocar nesta
+      função. O dado para fechar sempre esteve aqui: `link.user` diz de quem é a
+      credencial, e a RPC já devolve de quem ela deveria ser.
+
+      Falha aqui é 500 genérico de propósito. Se os dois divergirem, algo está
+      errado no servidor, não no pedido, e quem pediu não precisa saber o quê.
+    */
+    const donoDaCredencial = link?.user?.id
+
+    if (!donoDaCredencial || donoDaCredencial !== target.target_user_id) {
+      console.error(
+        `[${FN}] credencial emitida para usuario diferente do autorizado; nada devolvido.`,
+        `autorizado=${target.target_user_id}`,
+        `emitido=${donoDaCredencial ?? 'desconhecido'}`,
+      )
+      throw new HttpError(500, 'internal_error', 'Não foi possível abrir a sessão.')
+    }
+
+    /*
       O E-MAIL DO ALVO NÃO VOLTA. O navegador não precisa dele: `verifyOtp` com
       `token_hash` basta. Devolvê-lo seria espalhar dado pessoal por um caminho
       que não precisa dele.
@@ -180,8 +242,16 @@ Deno.serve(async (req) => {
       O nome e a função voltam porque é o que a faixa do topo mostra — e mostrar
       quem se está representando é a razão de a faixa existir.
     */
+    /*
+      `targetUserId` volta porque a faixa do navegador precisa saber de quem é a
+      sessão assumida. Sem isso, a chave do localStorage não tem dono, e a faixa
+      aparece para qualquer um que logue depois naquele navegador (crítico 2).
+      Não é dado novo exposto: é o id do usuário cuja sessão o navegador está
+      recebendo nesta mesma resposta.
+    */
     return jsonResponse(req, {
       tokenHash,
+      targetUserId: target.target_user_id,
       targetName: target.target_name,
       targetRole: target.target_role,
     })

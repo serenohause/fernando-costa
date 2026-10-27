@@ -31,15 +31,32 @@ import { HttpError } from './http.ts'
   indisponibilidade em via livre.
 */
 
+/*
+  `identidade` existe para a funcao AUTENTICADA, e e opcional de proposito.
+
+  Nas portas publicas nao ha quem perguntar, entao a identidade e o IP, e
+  `clientKey` cuida de escolher o cabecalho em que se pode confiar. Numa funcao
+  com `verify_jwt = true` existe coisa melhor: o id do usuario. Contar por IP ali
+  seria pior nos dois sentidos, porque um escritorio inteiro atras do mesmo NAT
+  dividiria o teto, e um atacante com uma sessao trocaria de IP para dobrar o
+  dele.
+
+  Quem nao passa `identidade` continua contando por IP, exatamente como antes.
+*/
 export async function enforceRateLimit(
   req: Request,
   admin: SupabaseClient,
-  { limit, windowSeconds, scope }: { limit: number; windowSeconds: number; scope: string },
+  { limit, windowSeconds, scope, identidade }: {
+    limit: number
+    windowSeconds: number
+    scope: string
+    identidade?: string
+  },
 ): Promise<void> {
   const { data, error } = await admin
     .rpc('hit_public_endpoint', {
       p_scope: scope,
-      p_client_key: clientKey(req),
+      p_client_key: identidade ?? clientKey(req),
       p_limit: limit,
       p_window_seconds: windowSeconds,
     })
