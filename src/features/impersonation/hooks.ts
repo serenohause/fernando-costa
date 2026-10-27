@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { impersonationHabilitada } from '@/lib/env'
 import { EdgeFunctionError, invokeEdgeFunction } from '@/lib/edge-functions'
 import { COLLABORATOR_ROLE, labelOf, type CollaboratorRole } from '@/lib/enums'
+import { useSession } from '@/features/auth/hooks'
 import { guardarEstado, lerEstado, limparEstado, type EstadoAcessarComo } from './storage'
 
 /*
@@ -36,6 +37,9 @@ import { guardarEstado, lerEstado, limparEstado, type EstadoAcessarComo } from '
 
 type RespostaAcessarComo = {
   tokenHash: string
+  /* De quem é a sessão que está sendo entregue. É o que dá dono à chave do
+     localStorage, e sem dono a faixa aparecia para quem logasse depois. */
+  targetUserId: string
   targetName: string
   targetRole: string
 }
@@ -53,6 +57,18 @@ export function acessarComoDisponivel(): boolean {
   A SESSÃO ASSUMIDA DE AGORA, lida uma vez. Não é estado reativo de propósito:
   as duas transições terminam em recarga da página, então nada muda debaixo de
   quem já está renderizando.
+
+  A CHAVE SÓ VALE SE FOR DESTA SESSÃO, e esse é o conserto de um achado crítico.
+  Antes, a existência da chave bastava, e ela sobrevive ao logout (`useSignOut`
+  não a apagava, e agora apaga). O resultado era que a próxima pessoa a entrar
+  naquele navegador via a faixa com o nome do Diretor e um botão que entregava a
+  conta dele, sem senha e sem registro na trilha.
+
+  ENQUANTO A SESSÃO ESTÁ CARREGANDO, devolve null: a faixa aparece um instante
+  depois, e isso é de longe o lado certo para errar. E NÃO apaga a chave em caso
+  de divergência, de propósito: apagar enquanto a sessão apenas ainda não
+  chegou destruiria a passagem de volta de quem está legitimamente dentro de uma
+  sessão assumida. Quem apaga é o logout, que sabe que acabou.
 */
 export function useAcessarComoAtivo(): EstadoAcessarComo | null {
   /* Lido no primeiro render e mantido: devolver objeto novo a cada render faria
@@ -61,6 +77,13 @@ export function useAcessarComoAtivo(): EstadoAcessarComo | null {
   const [estado] = useState<EstadoAcessarComo | null>(() =>
     impersonationHabilitada ? lerEstado() : null,
   )
+
+  const usuarioAtual = useSession().data?.user ?? null
+
+  if (!estado) return null
+  if (!usuarioAtual) return null
+  if (usuarioAtual.id !== estado.alvoUserId) return null
+
   return estado
 }
 
@@ -116,6 +139,7 @@ export function useAcessarComo() {
           refresh_token: atual.session.refresh_token,
         },
         diretorNome: eu?.name ?? 'sua conta',
+        alvoUserId: resposta.targetUserId,
         alvoNome: resposta.targetName,
         alvoFuncao: labelOf(COLLABORATOR_ROLE, resposta.targetRole as CollaboratorRole),
         iniciadoEm: new Date().toISOString(),
@@ -158,6 +182,31 @@ export function useVoltarParaMinhaConta() {
       const estado = lerEstado()
       if (!estado) {
         throw new Error('Não há sessão guardada para voltar.')
+      }
+
+      /*
+        A VOLTA SÓ VALE PARA QUEM ESTÁ DENTRO DA SESSÃO ASSUMIDA.
+
+        Mesmo achado crítico da faixa, conferido aqui também porque esta é a
+        função que de fato entrega a conta do Diretor: `setSession` com o que
+        estiver guardado, sem perguntar de quem é. A faixa já não aparece para
+        outra sessão, mas a faixa é tela, e tela não é barreira: a mutação é
+        alcançável por quem chamar ela direto.
+
+        Aqui a sessão é lida com `getSession`, e não por query, então ou ela
+        existe agora ou não existe. Divergência apaga a chave: diferente da
+        faixa, neste ponto já se sabe que a pessoa sentada na frente não é a
+        dona da passagem, e deixar o token do Diretor ali seria guardar a
+        escalada para a próxima tentativa.
+      */
+      const { data: sessaoAgora } = await supabase.auth.getSession()
+      const quemEstaAqui = sessaoAgora.session?.user?.id ?? null
+
+      if (!quemEstaAqui || quemEstaAqui !== estado.alvoUserId) {
+        limparEstado()
+        throw new Error(
+          'Esta sessão não é a que foi assumida. Entre com a sua própria senha.',
+        )
       }
 
       /*

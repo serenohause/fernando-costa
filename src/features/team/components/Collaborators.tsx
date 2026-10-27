@@ -297,9 +297,13 @@ export default function Collaborators() {
                 QUANDO NÃO DÁ, O ITEM FICA VISÍVEL E DESABILITADO, com o motivo
                 escrito. Esconder faria o Diretor procurar o que não está lá;
                 desabilitar sem dizer por quê faria ele clicar duas vezes e
-                desistir. Os três motivos são de verdade e vêm do banco
-                (`start_impersonation`, 0109): sem login não há sessão, fora de
-                atividade não se assume, e a própria conta já é a dele.
+                desistir. Os quatro motivos são de verdade e vêm do banco
+                (`start_impersonation`, 0109 e 0110, mais a 0118): sem login não
+                há sessão, fora de atividade não se assume, a própria conta já é
+                a dele, e Diretor não assume Diretor. O último entrou na 0118, e
+                é o que fecha no servidor o encadeamento de sessões assumidas:
+                se nenhum Diretor pode ser alvo, e só Diretor pode ser ator, não
+                existe segunda volta.
               */}
               {acessarComoDisponivel() &&
                 (() => {
@@ -309,7 +313,9 @@ export default function Collaborators() {
                       ? 'Só é possível acessar como quem está em atividade.'
                       : row.id === currentCollaborator?.id
                         ? 'Esta é a sua própria conta.'
-                        : null
+                        : row.role === 'director'
+                          ? 'Não é possível acessar como outro Diretor.'
+                          : null
 
                   return (
                     <>

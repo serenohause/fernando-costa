@@ -45,6 +45,19 @@ export type EstadoAcessarComo = {
   /* A sessão de volta. É o que `supabase.auth.setSession` recebe. */
   diretor: SessaoGuardada
   diretorNome: string
+  /*
+    DE QUEM É ESTA CHAVE. Sem este campo a chave não tinha dono, e esse foi um
+    achado crítico da reauditoria: `limparEstado` nunca rodava no logout, então
+    a chave sobrevivia a sair pelo botão "Sair", com o refresh token do Diretor
+    dentro. A próxima pessoa a entrar naquele navegador (o da recepção, o da
+    reunião, o da obra) via a faixa violeta dizendo "Sua conta: <Diretor>" e,
+    num clique, ERA o Diretor, sem senha e sem deixar linha na trilha, porque
+    esse caminho não passa por `start_impersonation`.
+
+    Com o campo, quem lê a chave pode exigir que a sessão corrente seja esta
+    pessoa. Chave que sobra de outra sessão deixa de significar coisa alguma.
+  */
+  alvoUserId: string
   alvoNome: string
   /* Rótulo já em português — a faixa não tem de onde traduzir sozinha. */
   alvoFuncao: string
@@ -74,7 +87,15 @@ export function lerEstado(): EstadoAcessarComo | null {
     if (
       !estado?.diretor?.access_token ||
       !estado.diretor.refresh_token ||
-      !estado.alvoNome
+      !estado.alvoNome ||
+      /*
+        `alvoUserId` entrou depois, e exigir ele aqui é deliberado: chave escrita
+        antes desta correção não tem dono, e chave sem dono é exatamente o
+        problema. Ela é apagada, e o efeito é o certo: quem estiver no meio de
+        uma sessão assumida quando isto subir perde a passagem de volta e entra
+        de novo com a própria senha. Uma vez, e nunca mais.
+      */
+      !estado.alvoUserId
     ) {
       limparEstado()
       return null

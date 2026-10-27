@@ -3,6 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { WriteError } from '@/lib/db-errors'
+/* Só o módulo de armazenamento, nunca os hooks de impersonação: este arquivo é
+   importado por eles, e importar de volta fecharia um ciclo. */
+import { limparEstado } from '@/features/impersonation/storage'
 import { buildNavigation } from './navigation'
 import type { MenuRow, PermissionRow, Tenant } from './types'
 
@@ -302,6 +305,24 @@ export function useSignOut() {
 
   return useMutation({
     mutationFn: async () => {
+      /*
+        A CHAVE DE "ACESSAR COMO" É APAGADA NO LOGOUT, e isso é o conserto de um
+        achado crítico da reauditoria.
+
+        Ela guarda o access e o refresh token DO DIRETOR, para a volta. O
+        `signOut` abaixo derruba a sessão corrente, que é a do colaborador
+        assumido, e não toca nessa chave. Então sair pelo botão deixava o token
+        do Diretor no localStorage daquele navegador, válido e sem expiração
+        configurada, e a próxima pessoa a entrar ali recebia a faixa com um
+        botão que entregava a conta dele, sem senha e sem registro na trilha.
+
+        Apagar ANTES do `signOut`: se o `signOut` falhar e lançar, a chave já
+        foi. Perder a passagem de volta quando a pessoa pediu para sair é
+        inofensivo, porque ela tem a própria senha; deixar o token para trás
+        não é.
+      */
+      limparEstado()
+
       const { error } = await supabase.auth.signOut()
       if (error) throw error
     },
