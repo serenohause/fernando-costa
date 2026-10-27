@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router'
+import { Navigate, useLocation } from 'react-router'
 import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import LoadingPage from '@/components/shared/LoadingPage'
@@ -43,9 +43,17 @@ import Leads from './Leads'
 export default function LeadsShell() {
   const { data: usuario, isLoading } = useCurrentUser()
   const sair = useSignOut()
+  const local = useLocation()
 
   if (isLoading) return <LoadingPage />
-  if (!usuario) return <Navigate to="/login" replace />
+  /*
+    O DESTINO VIAJA JUNTO. Sem isso, quem abre /Leads sem sessão entra pelo
+    login e cai na raiz, que mora dentro do AppLayout. Para a conta da equipe do
+    produto, que não é colaboradora de escritório nenhum, a raiz é a tela
+    "Aguardando Liberação": um beco sem saída, no único login que existe para
+    ler a fila.
+  */
+  if (!usuario) return <Navigate to="/login" replace state={{ de: local.pathname }} />
 
   return (
     <div className="min-h-screen bg-background">

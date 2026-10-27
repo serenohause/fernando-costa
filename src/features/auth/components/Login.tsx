@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate } from 'react-router'
+import { Navigate, useLocation } from 'react-router'
 import { Building2, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,12 +39,29 @@ import { useSession, useSignInWithPassword } from '../hooks'
 export default function Login() {
   const sessionQuery = useSession()
   const signIn = useSignInWithPassword()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
   if (sessionQuery.data) {
-    return <Navigate to="/" replace />
+    /*
+      VOLTA PARA ONDE A PESSOA QUERIA IR, e a raiz é só o padrão.
+
+      Mandar todo mundo para "/" quebrava a única conta que não é de escritório:
+      a da equipe do produto, que lê a fila de leads em /Leads e não tem
+      colaborador em lugar nenhum. Ela entrava e caía em "Aguardando Liberação",
+      esperando uma liberação que ninguém pode dar, porque não é acesso de
+      escritório para um Diretor conceder.
+
+      Só caminho interno é aceito: `de` chega pelo state da navegação, e um valor
+      que não comece com uma barra (ou que comece com duas, que o navegador lê
+      como outro domínio) vira a raiz. Destino de redirecionamento é entrada, e
+      entrada não se obedece sem conferir.
+    */
+    const de = (location.state as { de?: string } | null)?.de
+    const destino = typeof de === 'string' && /^\/(?!\/)/.test(de) ? de : '/'
+    return <Navigate to={destino} replace />
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
