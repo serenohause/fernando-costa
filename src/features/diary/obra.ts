@@ -98,11 +98,12 @@ export function filterProjectIssues(
   Aqui a comparação é entre DATAS, texto com texto no formato do banco
   (`yyyy-MM-dd` ordena como data), e vencido é "o prazo é anterior a hoje".
 
-  POR QUE AQUI SIM E EM `isTaskOverdue` NÃO: aquele crachá está no ar desde o
-  módulo 5, e corrigir só um lado faria o Painel Executivo dizer "3 projetos em
-  risco" com o quadro mostrando 4 cartões vermelhos (ver o comentário em
-  projects/list.ts). Esta tela é nova e não tem par para desencontrar; nascer com
-  o erro seria plantá-lo.
+  AGORA `isTaskOverdue` FAZ O MESMO, e este parágrafo registrava o contrário.
+  Ele dizia "aqui sim e lá não", porque o crachá do kanban estava no ar desde o
+  módulo 5 com a comparação literal do original. O usuário mandou alinhar as
+  duas réguas depois de uma usuária ver o crachá vermelho e não receber aviso
+  nenhum: a tarefa vencia naquele mesmo dia, e o aviso só nasce no dia seguinte.
+  Ver o comentário em projects/list.ts.
 */
 export function isIssueOverdue(
   issue: Pick<ProjectIssueRow, 'due_date' | 'status'>,

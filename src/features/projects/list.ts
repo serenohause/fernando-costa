@@ -1,3 +1,4 @@
+import { isBefore, parseISO, startOfDay } from 'date-fns'
 import type { ProjectStatus } from '@/lib/enums'
 import type { ProjectRow, TaskRow } from './types'
 
@@ -5,23 +6,41 @@ import type { ProjectRow, TaskRow } from './types'
   "Tarefa atrasada" — a mesma expressão em três lugares do original: o crachá
   vermelho do cartão do kanban (TaskKanban.jsx:213), o cálculo de "projeto em
   risco" do Painel Executivo (flowProjectsQuery.jsx:75-83) e o bloco de tarefas
-  atrasadas daquele mesmo painel. Fica em UM lugar antes de o módulo 10 criar a
-  quarta cópia.
+  atrasadas daquele mesmo painel. Fica em UM lugar, e é por isso que esta
+  correção alcança os três de uma vez.
 
-  A COMPARAÇÃO É A LITERAL DO ORIGINAL, e é a exceção deste projeto: `due_date` é
-  coluna `date`, `new Date("2026-08-04")` é meia-noite EM UTC, e em Goiânia isso
-  faz a tarefa que vence hoje contar como atrasada desde as 21h de ontem. As
-  outras portas do mesmo erro foram corrigidas (src/lib/format.ts,
-  activities/list.ts, migration 0043) — esta NÃO, porque o crachá do kanban já
-  está no ar com este comportamento desde o módulo 5. Corrigir aqui e não lá faria
-  o painel dizer "3 projetos em risco" com o quadro mostrando 4 cartões vermelhos.
-  Corrigir os dois é decisão do usuário, e está no relatório do módulo 10.
+  A COMPARAÇÃO DEIXOU DE SER A LITERAL DO ORIGINAL, por decisão do usuário, e a
+  razão veio de um relato do escritório.
+
+  Era `new Date(task.due_date) < now`. `due_date` é coluna `date`, e
+  `new Date("2026-10-28")` é meia-noite EM UTC: em Goiânia isso fazia a tarefa
+  que vence HOJE contar como atrasada desde as 21h de ontem. O comentário
+  anterior registrava isso como dívida consciente, porque o crachá já estava no
+  ar assim desde o módulo 5 e corrigir só um lado faria o painel dizer "3
+  projetos em risco" com o quadro mostrando 4 cartões vermelhos.
+
+  O QUE MUDOU: o módulo de notificações criou uma quarta régua, essa no banco
+  (`due_date < current_date`, migration 0120), e com ela o desencontro saiu do
+  invisível. Uma usuária relatou estar atrasada numa atividade do Fluxo do
+  Projeto e não ter recebido aviso: ela via o crachá vermelho de uma tarefa que
+  vencia naquele mesmo dia, e o aviso só nasce no dia seguinte ao vencimento.
+  Ver vermelho e não receber nada é a confusão que esta linha produzia.
+
+  A FORMA NOVA É A QUE O PROJETO JÁ USA nas outras três portas do mesmo erro:
+  `src/lib/format.ts`, `activities/list.ts` e a migration 0043. Tarefa que vence
+  hoje NÃO está atrasada; ela fica vermelha amanhã, no mesmo dia em que o aviso
+  chega.
+
+  E como `isTaskOverdue` é uma função só, o crachá do quadro e o painel
+  executivo mudam juntos: o desencontro que o comentário antigo temia não
+  acontece porque não há dois lugares para corrigir.
 */
 export function isTaskOverdue(
   task: Pick<TaskRow, 'status' | 'due_date'>,
   now: Date = new Date(),
 ): boolean {
-  return Boolean(task.status !== 'completed' && task.due_date && new Date(task.due_date) < now)
+  if (task.status === 'completed' || !task.due_date) return false
+  return isBefore(parseISO(task.due_date), startOfDay(now))
 }
 
 /*
