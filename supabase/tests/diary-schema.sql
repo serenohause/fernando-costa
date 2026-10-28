@@ -10,26 +10,30 @@
 --   elas entraram em pattern_tables. NADA disso se repete aqui.
 --
 -- POR QUE A SECAO 1 E A MAIS IMPORTANTE DO ARQUIVO
---   Ela guarda QUEM ESCREVE no diario, e essa regra mudou de eixo na migration
---   0107, a pedido do escritorio: "todos os usuarios podem ter acesso ao diario
---   do projeto, desde que tenham acesso ao modulo que aparece isso". Antes
---   (0070) era CARGO — so Diretor e Coordenador, como na versao nova do base44.
---   Agora e a permissao do menu de onde o diario e aberto,
---   can_edit_menu('project_flow'), que e a mesma regra do resto do sistema.
+--   Ela guarda QUEM ESCREVE no diario, e essa regra ja mudou de eixo duas vezes
+--   depois de nascer:
+--     0070  CARGO — so Diretor e Coordenador, como na versao nova do base44.
+--     0107  PERMISSAO DE MENU — can_edit_menu('project_flow'), a pedido do
+--           escritorio ("todos os usuarios podem ter acesso ao diario do
+--           projeto, desde que tenham acesso ao modulo que aparece isso").
+--     0123  VINCULO — qualquer colaborador com status active, a pedido do
+--           usuario ("todos os colaboradores possam ter acesso a registrar
+--           visita a obra"). E a 0123 partiu a regra em duas: APAGAR ficou onde
+--           a 0107 tinha posto a escrita inteira, em can_edit_menu('project_flow').
 --
---   O efeito pratico da troca, no dado real: os Arquitetos do escritorio, que
---   ja editam o Fluxo do Projeto, passam a escrever no diario dos cartoes que
---   movem; e Coordenador sem o menu deixa de escrever. Ninguem do escritorio
---   real cai nesse segundo caso — todo Coordenador ativo tem can_edit no modulo.
---
---   Os casos 1.1 a 1.4 sao o quadrado inteiro dessa decisao:
+--   O ALCANCE DO APAGAR, E O ISOLAMENTO DAS CINCO TABELAS, NAO ESTAO AQUI:
+--   estao em supabase/tests/diario-rls.sql (npm run test:rls:diario), que nasceu
+--   com a 0123. Esta secao continua sendo sobre o caminho da ESCRITA, e o que
+--   ela guarda hoje e a DIVERGENCIA que a 0123 reabriu entre os dois caminhos:
 --     1.1  Arquiteto COM o menu do fluxo escreve a mao
 --     1.2  o MESMO Arquiteto grava o evento automatico pela funcao
---     1.3  Coordenador SEM permissao de menu nenhuma NAO escreve a mao
+--     1.3  Coordenador SEM permissao de menu nenhuma TAMBEM escreve a mao
 --     1.4  o MESMO Coordenador NAO grava evento automatico pela funcao
---   Os dois caminhos — escrita a mao e evento automatico — passaram a ler a
---   MESMA autorizacao, e os quatro casos juntos sao o que prova isso. Antes
---   eram disjuntos, e era o ponto; a convergencia e o que a 0107 comprou.
+--   A 0107 tinha feito os dois caminhos convergirem para a mesma autorizacao; a
+--   0123 alargou so o manual, porque evento de sistema nasce de um gesto no
+--   Fluxo do Projeto e quem nao mexe no fluxo nao gera nenhum. O par 1.3/1.4 e o
+--   que mede essa assimetria — a mesma pessoa, os dois caminhos, respostas
+--   opostas.
 --
 -- POR QUE A SECAO 10 EXISTE
 --   Bucket novo, e nao existe suite de padrao para Storage: storage.objects nao
@@ -363,7 +367,11 @@ select pg_temp.val_as('1.2', 'CONTROLE: o MESMO arquiteto GRAVA evento automatic
     'layout', 'renderings') ->> 'outcome'
 $q$, (select proj_a from ids)));
 
-select pg_temp.chk_as('1.3', 'COORDENADOR sem permissao de menu nenhuma NAO escreve a mao', 'ERR:42501',
+-- A 0123 VIROU ESTE CASO DO AVESSO, e de proposito. Ate ela, o Coordenador sem
+-- permissao de menu era o negativo da escrita manual; agora ele escreve, porque
+-- escrever passou a depender so de ser colaborador ativo. O negativo da escrita
+-- nao desapareceu: mudou de eixo e virou o 1.11 (quem esta Afastado nao escreve).
+select pg_temp.chk_as('1.3', 'COORDENADOR sem permissao de menu nenhuma TAMBEM escreve a mao (0123)', 'OK:1',
   (select u_coord from ids), (select tenant_a from ids), format($q$
   insert into public.project_diary_entries (tenant_id, project_id, entry_type, title, occurrence_date)
   values (%L, %L, 'note', 'Anotacao do coordenador', current_date)
@@ -1071,7 +1079,10 @@ select pg_temp.chk_as('10.10', 'CONTROLE: ARQUITETO com o menu do fluxo envia ar
   values ('project-diary-files', 'd1111111-1111-4111-8111-111111111111/visit/z/arch.jpg')
 $q$);
 
-select pg_temp.chk_as('10.11', 'COORDENADOR sem o menu do fluxo NAO envia arquivo', 'ERR:42501',
+-- Virou controle positivo na 0123, pelo mesmo motivo do caso 1.3: enviar arquivo
+-- le is_project_diary_writer(), que alargou. Quem ainda NAO envia e quem nao
+-- esta ativo (10.13) e quem aponta para a pasta de outro escritorio (10.12).
+select pg_temp.chk_as('10.11', 'CONTROLE: COORDENADOR sem o menu do fluxo TAMBEM envia arquivo (0123)', 'OK:1',
   (select u_coord from ids), (select tenant_a from ids), $q$
   insert into storage.objects (bucket_id, name)
   values ('project-diary-files', 'd1111111-1111-4111-8111-111111111111/visit/z/coord.jpg')
@@ -1103,11 +1114,14 @@ $q$);
 -- Escrito assim, e nao com um chk_as esperando ERR:42501: um caso de negacao que
 -- passa porque OUTRA coisa negou antes e o tipo de asserção vazia que este
 -- projeto ja produziu cinco vezes.
-select pg_temp.val('10.14', 'existe policy de DELETE no bucket, e ela le escritorio E funcao', 'true', $q$
-  select (qual like '%auth_tenant_id%' and qual like '%is_project_diary_writer%')::text
+-- A funcao mudou na 0123: apagar o objeto nao e mais is_project_diary_writer()
+-- (que virou "colaborador ativo"), e sim can_delete_project_diary(). A policy
+-- mudou de nome junto, para nao dizer "writer" lendo outra coisa.
+select pg_temp.val('10.14', 'existe policy de DELETE no bucket, e ela le escritorio E a funcao do apagar', 'true', $q$
+  select (qual like '%auth_tenant_id%' and qual like '%can_delete_project_diary%')::text
     from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
-     and policyname = 'diary_files_delete_diary_writer'
+     and policyname = 'diary_files_delete_flow_editor'
 $q$);
 
 select pg_temp.val('10.15', 'CONTROLE: nenhuma das quatro policies do bucket vale para anon', '0', $q$

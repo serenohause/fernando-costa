@@ -93,7 +93,8 @@
     "test:contador": "supabase/tests/run-sql.sh supabase/tests/contador-da-porta-publica.sql",
     "test:notificacoes": "supabase/tests/run-sql.sh supabase/tests/notificacoes.sql",
     "test:rls:notificacoes": "supabase/tests/run-sql.sh supabase/tests/notificacoes-rls.sql",
-    "test:notificacoes-sino": "node tests/notificacoes-sino.mjs"
+    "test:notificacoes-sino": "node tests/notificacoes-sino.mjs",
+    "test:rls:diario": "supabase/tests/run-sql.sh supabase/tests/diario-rls.sql"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

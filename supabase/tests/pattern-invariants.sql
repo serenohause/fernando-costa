@@ -73,10 +73,29 @@ begin;
     contrario do desenho.
     Elas tem suite propria: supabase/tests/integrations-schema.sql.
 */
+--
+-- A COLUNA `escrita` E A UNICA EXCECAO DO REGISTRO, e ela existe desde a
+-- migration 0123. Ate ali, "escrita presa a can_edit_menu(menu_key)" valia para
+-- toda tabela listada aqui, e a coluna nao precisava existir. A 0123 separou as
+-- duas metades da escrita nas cinco tabelas do modulo 11, a pedido do usuario:
+-- CRIAR e EDITAR passaram a ser de qualquer colaborador ativo ("todos os
+-- colaboradores possam ter acesso a registrar visita a obra"), APAGAR continuou
+-- em can_edit_menu('project_flow').
+--
+--   'menu'              criar e apagar exigem can_edit_menu(menu_key).
+--   'colaborador_ativo' apagar exige can_edit_menu(menu_key); criar e editar
+--                       exigem apenas ser colaborador active do escritorio.
+--
+-- So o caso C3 muda de expectativa. Todo o resto do arquivo - catalogo,
+-- isolamento entre escritorios, escrita cruzada, chave do menu, anon - vale
+-- igual para as duas formas, e e por isso que as cinco continuam aqui em vez de
+-- sairem para uma suite propria. O que e SO delas vive em
+-- supabase/tests/diario-rls.sql.
 create temp table pattern_tables (
   modulo int,
   tabela text,
   menu_key text,
+  escrita text not null default 'menu',
   insert_cols text,
   insert_vals text,
   insert_vals_b text
@@ -403,21 +422,24 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
      'Finalidade Padrao ' || (select count(*) from public.map_property_purposes f
                               where f.map_property_id = 'eb900000-0000-4000-8000-000000000001')$$);
 
--- MODULO 11 (Diario do Projeto). As cinco tabelas escreviam por FUNCAO, e nao
--- por menu; desde a 0107 seguem o mesmo padrao do resto do arquivo.
+-- MODULO 11 (Diario do Projeto). As cinco tabelas sao as unicas com
+-- escrita = 'colaborador_ativo', e ja foram excecao deste arquivo tres vezes por
+-- tres motivos diferentes: nasceram escrevendo por CARGO (0070), entraram no
+-- padrao em 0107 (can_edit_menu) e sairam dele de novo em 0123, quando CRIAR e
+-- EDITAR passaram a ser de qualquer colaborador ativo e so o APAGAR ficou preso
+-- ao menu.
 --
--- O menu_key e 'project_flow', que e o menu onde o diario mora (a gaveta abre
--- pelo cartao do Fluxo do Projeto) E, agora, tambem o que governa a escrita:
--- `is_project_diary_writer()` e `can_edit_menu('project_flow')`. Quem prova que
--- as policies continuam lendo a funcao — e nao cada uma a sua regra — e a secao
--- 1 de supabase/tests/diary-schema.sql.
-insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, insert_vals_b) values
-  (11, 'project_diary_entries', 'project_flow',
+-- O menu_key continua sendo 'project_flow', e agora ele governa exatamente uma
+-- coisa nestas cinco: quem APAGA (`can_delete_project_diary()`). Quem prova que
+-- as policies de DELETE leem essa funcao, e que as de INSERT/UPDATE leem a
+-- outra, e a secao 11 de supabase/tests/diario-rls.sql.
+insert into pattern_tables (modulo, tabela, menu_key, escrita, insert_cols, insert_vals, insert_vals_b) values
+  (11, 'project_diary_entries', 'project_flow', 'colaborador_ativo',
    'project_id, entry_type, title, occurrence_date',
    $$'ea400000-0000-4000-8000-000000000001', 'note', 'Registro Padrao', current_date$$,
    $$'eb400000-0000-4000-8000-000000000001', 'note', 'Registro Padrao', current_date$$),
 
-  (11, 'project_site_visits', 'project_flow',
+  (11, 'project_site_visits', 'project_flow', 'colaborador_ativo',
    'project_id, visit_date, visit_type',
    $$'ea400000-0000-4000-8000-000000000001', current_date, 'follow_up'$$,
    $$'eb400000-0000-4000-8000-000000000001', current_date, 'follow_up'$$),
@@ -428,12 +450,12 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
   -- (project_id, issue_number) e o caso "quem escreve CRIA" passaria a afirmar que
   -- a unicidade existe - o mesmo motivo pelo qual contracts conta o proprio
   -- numero aqui em cima. A alocacao automatica tem teste proprio em diary-schema.
-  (11, 'project_issues', 'project_flow',
+  (11, 'project_issues', 'project_flow', 'colaborador_ativo',
    'project_id, description, category, identified_date',
    $$'ea400000-0000-4000-8000-000000000001', 'Pendencia Padrao', 'architecture', current_date$$,
    $$'eb400000-0000-4000-8000-000000000001', 'Pendencia Padrao', 'architecture', current_date$$),
 
-  (11, 'project_issue_events', 'project_flow',
+  (11, 'project_issue_events', 'project_flow', 'colaborador_ativo',
    'issue_id, event_type',
    $$'eab00000-0000-4000-8000-000000000001', 'updated'$$,
    $$'ebb00000-0000-4000-8000-000000000001', 'updated'$$),
@@ -447,7 +469,7 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
   -- (0071); aqui e so texto, e nenhum objeto e criado - o que esta sob teste e a
   -- tabela. A mae e a entrada de diario: das tres possiveis do arco exclusivo, e a
   -- unica que existe em todo escritorio da fixture.
-  (11, 'project_diary_files', 'project_flow',
+  (11, 'project_diary_files', 'project_flow', 'colaborador_ativo',
    'entry_id, file_kind, file_path, file_name',
    $$'eaa00000-0000-4000-8000-000000000001', 'photo',
      'e1111111-1111-4111-8111-111111111111/entry/eaa00000-0000-4000-8000-000000000001/pat-a-'
@@ -567,11 +589,10 @@ insert into public.collaborators (id, tenant_id, user_id, name, role, email, sta
 -- quatro sob 'pipeline') e a PK de collaborator_permissions e
 -- (collaborator_id, menu_key).
 --
--- OS DOIS COORDENADORES NAO RECEBEM PERMISSAO NENHUMA, e isso e o que da dente ao
--- caso C1 das tabelas do modulo 11: sem uma unica linha em
--- collaborator_permissions, o unico motivo pelo qual eles escrevem no diario e a
--- FUNCAO. Se alguem trocar is_project_diary_writer() por can_edit_menu em
--- qualquer das cinco policies, C1 cai na hora.
+-- OS DOIS COORDENADORES NAO RECEBEM PERMISSAO NENHUMA. A frase era do tempo em
+-- que o diario escrevia por CARGO (0070) e eles eram o ator das cinco tabelas do
+-- modulo 11; desde a 0107 o escritor de todas e o editor por menu, e eles ficaram
+-- como controle do C3 — gente sem can_edit em lugar nenhum.
 insert into public.collaborator_permissions (tenant_id, collaborator_id, menu_key, can_view, can_edit)
 select (select tenant_a from pat), (select c_editor_a from pat), m.menu_key, true, true from (select distinct menu_key from pattern_tables) m
 union all
@@ -851,11 +872,23 @@ begin
       pg_temp.probe('authenticated', pg_temp.claims(v_writer_a, p.tenant_a),
         format('delete from public.%I where id = %L', t.tabela, v_row_a)));
 
-    perform pg_temp.rec(v_pref || '/C3', 'quem tem apenas can_view NAO cria', 'ERR:42501',
+    -- O UNICO CASO QUE OLHA A COLUNA `escrita`. Nas tabelas do padrao, quem so
+    -- tem can_view nao cria. Nas cinco do modulo 11, desde a 0123, cria — e
+    -- continua sem apagar, que e o C4 logo abaixo e e a razao de a separacao
+    -- existir. O leitor e colaborador ATIVO do escritorio: e exatamente o perfil
+    -- do financeiro e do administrativo que o usuario pediu que registrassem
+    -- visita a obra.
+    perform pg_temp.rec(v_pref || '/C3',
+      case t.escrita
+        when 'colaborador_ativo' then 'quem tem apenas can_view CRIA (escrita por vinculo, 0123)'
+        else 'quem tem apenas can_view NAO cria' end,
+      case t.escrita when 'colaborador_ativo' then 'OK:1' else 'ERR:42501' end,
       pg_temp.probe('authenticated', pg_temp.claims(p.u_viewer_a, p.tenant_a),
         format('insert into public.%I (tenant_id, %s) values (%L, %s)',
                t.tabela, t.insert_cols, p.tenant_a, t.insert_vals)));
 
+    -- Vale para as duas formas de escrita, e nas cinco do modulo 11 e a linha
+    -- inteira da 0123: la o mesmo leitor acabou de CRIAR no C3 e aqui nao apaga.
     perform pg_temp.rec(v_pref || '/C4', 'quem tem apenas can_view NAO apaga', 'OK:0',
       pg_temp.probe('authenticated', pg_temp.claims(p.u_viewer_a, p.tenant_a),
         format('delete from public.%I where id = %L', t.tabela, v_row_a)));

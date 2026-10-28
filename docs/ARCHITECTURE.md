@@ -845,11 +845,30 @@ concordar: as policies de SELECT das cinco tabelas (migration 0070) **e** a
 policy de SELECT do bucket (0071). Mexer só numa das duas cria uma tela que lista
 o anexo e não abre, ou o contrário.
 
-**Escrita do diário não passa por `can_edit_menu`, e é a única do sistema.**
-Decisão do usuário ("mantém o fluxo como veio"): na versão nova do base44 as
-telas do diário perguntam a **função** — Diretor ou Coordenador — e não consultam
-`PermissoesUsuario` em lugar nenhum. A RLS reproduz isso com
-`is_project_diary_writer()` (migration 0070).
+**No diário, escrever e apagar são regras diferentes.** A regra de escrita já
+mudou três vezes, sempre a pedido do escritório:
+
+1. **0070, cargo.** Diretor ou Coordenador, porte literal das telas do base44,
+   que perguntam a **função** e não consultam `PermissoesUsuario` em lugar
+   nenhum.
+2. **0107, permissão de menu.** `can_edit_menu('project_flow')`, o menu de onde
+   a gaveta do diário é aberta ("todos os usuários podem ter acesso ao diário do
+   projeto, desde que tenham acesso ao módulo que aparece isso"). O diário entrou
+   no padrão do resto do sistema.
+3. **0123, vínculo.** Qualquer colaborador com status `active` escreve ("o que
+   nós queremos é que todos os colaboradores possam ter acesso a registrar visita
+   à obra"), e **apagar** passou para `can_delete_project_diary()`, que é a regra
+   da 0107 inteira, agora só para o DELETE. A separação existe porque
+   `can_edit_menu('project_flow')` não governa só o diário: ela governa também
+   criar, editar e apagar tarefa do quadro, então conceder esse menu ao
+   financeiro só para ele registrar uma visita daria junto o poder de apagar
+   tarefa.
+
+São duas funções, e as 18 policies do módulo se dividem entre elas:
+`is_project_diary_writer()` nas 12 de INSERT e UPDATE (as cinco tabelas mais o
+bucket), `can_delete_project_diary()` nas 6 de DELETE. O isolamento das cinco
+tabelas e a separação entre as duas funções têm suíte própria desde a 0123:
+`supabase/tests/diario-rls.sql` (`npm run test:rls:diario`).
 
 A consequência técnica é obrigatória e está na mesma migration: os eventos
 automáticos nascem dentro do arraste de cartão de um **Arquiteto**, e os sete
