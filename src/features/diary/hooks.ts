@@ -76,14 +76,18 @@ const DIARY_ERROR_MESSAGES: DatabaseErrorMessages = {
     O 42501 DESTE MÓDULO TEM DONO CERTO, e por isso ele sobrepõe o texto geral
     ("Você não tem permissão para executar esta ação").
 
-    Quem escreve no diário é quem edita o Fluxo do Projeto, que é o módulo de
-    onde a gaveta é aberta (migration 0107). Quem não tem essa edição continua
-    LENDO o diário inteiro — e é isso que a frase precisa dizer, senão a pessoa
-    lê "sem permissão" numa tela que ela está enxergando e conclui que perdeu
-    acesso ao módulo.
+    Desde a migration 0123 são DUAS recusas possíveis, e a frase precisa cobrir
+    as duas sem mentir sobre nenhuma: apagar exige edição no Fluxo do Projeto, e
+    escrever exige apenas estar em atividade no escritório. Mandar o Diretor
+    liberar uma permissão que já está certa, quando a causa era a pessoa estar
+    Afastada, é o engano que esta frase evita.
+
+    E ela continua dizendo que a LEITURA segue inteira, senão a pessoa lê "sem
+    permissão" numa tela que ela está enxergando e conclui que perdeu acesso ao
+    módulo.
   */
   '42501':
-    'Para escrever no Diário do Projeto é preciso ter edição no Fluxo do Projeto. Você continua lendo o histórico inteiro.',
+    'Apagar no Diário do Projeto exige edição no Fluxo do Projeto. Registrar e editar é liberado a todo colaborador em atividade. Você continua lendo o histórico inteiro.',
 
   '23503':
     'O projeto ou o responsável informado não existe mais neste escritório. Recarregue a página e tente de novo.',
@@ -189,7 +193,40 @@ function useTenantId() {
   inclusive registro marcado como interno. Não há hook para isso porque não há o
   que decidir — quem não pode ler recebe zero linha da RLS.
 */
+/*
+  ESCREVER NO DIÁRIO É DE TODO COLABORADOR EM ATIVIDADE, e apagar não.
+
+  Terceira regra desta feature, e o pedido do usuário foi literal: "o que nós
+  queremos é que todos os colaboradores possam ter acesso a registrar visita à
+  obra". Perguntado sobre o alcance, ele separou as duas coisas com a frase que
+  o desenho segue: diário de obra é registro, todo mundo escreve, nem todo mundo
+  apaga.
+
+  Antes era `can_edit_menu('project_flow')` (migration 0107), e isso deixava de
+  fora quem vai à obra: medido em produção, dois dos dez arquitetos, os dois
+  estagiários, o administrativo e o financeiro não conseguiam registrar visita.
+
+  POR QUE NÃO BASTAVA CONCEDER A PERMISSÃO NA MATRIZ: `can_edit_menu
+  ('project_flow')` não governa só o diário. Ela também governa criar, editar e
+  APAGAR tarefa, e os objetivos do checklist. Dar essa edição ao financeiro para
+  ele registrar uma visita daria junto o poder de apagar tarefa do quadro.
+
+  Espelha `is_project_diary_writer()` depois da migration 0123, como esta função
+  sempre espelhou a regra do banco. Quem recusa de verdade continua sendo a RLS.
+*/
 export function useCanWriteProjectDiary(): boolean {
+  return useCurrentCollaborator().data?.status === 'active'
+}
+
+/*
+  APAGAR continua sendo de quem edita o Fluxo do Projeto, que é a regra antiga
+  inteira, agora só para esta operação. Espelha a função de apagar da 0123.
+
+  Vale para a visita à obra e para a entrada da linha do tempo. Pendência não
+  tem botão de apagar em tela nenhuma: ela se resolve ou se cancela, e isso é
+  escrita.
+*/
+export function useCanDeleteProjectDiary(): boolean {
   return useMenuPermissions('project_flow').canEdit
 }
 

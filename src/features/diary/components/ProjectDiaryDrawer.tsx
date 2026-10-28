@@ -52,6 +52,7 @@ import {
 } from '@/lib/enums'
 import {
   describeDiaryError,
+  useCanDeleteProjectDiary,
   useCanWriteProjectDiary,
   useCreateDiaryEntry,
   useDeleteDiaryEntry,
@@ -188,6 +189,9 @@ export default function ProjectDiaryDrawer({
   })
 
   const canEdit = useCanWriteProjectDiary()
+  /* Apagar é a única coisa que continua exigindo edição no Fluxo do Projeto.
+     Ver o cabeçalho dos dois hooks e a migration 0123. */
+  const canDelete = useCanDeleteProjectDiary()
 
   const entriesQuery = useProjectDiaryEntries(project?.id, open)
   const visitsQuery = useProjectSiteVisits(project?.id, open)
@@ -546,12 +550,14 @@ export default function ProjectDiaryDrawer({
                                         >
                                           <Pencil className="w-3 h-3" />
                                         </button>
-                                        <button
-                                          onClick={() => setDeleteDialog({ open: true, entry })}
-                                          className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded text-faint hover:text-rose-500 transition-colors"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
+                                        {canDelete && (
+                                          <button
+                                            onClick={() => setDeleteDialog({ open: true, entry })}
+                                            className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded text-faint hover:text-rose-500 transition-colors"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -649,6 +655,7 @@ export default function ProjectDiaryDrawer({
                 }}
                 collaborators={collaboratorsQuery.data ?? []}
                 canEdit={canEdit}
+                canDelete={canDelete}
                 isEmObra={isEmObra}
                 onPhotoClick={handlePhotoClick}
               />

@@ -70,9 +70,19 @@ import type {
 
   ═══ O QUE MUDA EM RELAÇÃO À VERSÃO NOVA, E POR QUÊ ═══
 
-  1. QUEM PODE ESCREVER é `useCanWriteProjectDiary()`, que reproduz
-     `is_project_diary_writer()` (migration 0070) — a mesma regra do banco. Chega
-     por prop porque a gaveta inteira já a leu.
+  1. QUEM PODE ESCREVER é `useCanWriteProjectDiary()`, e desde a migration 0123
+     isso é TODO colaborador em atividade. Chega por prop porque a gaveta
+     inteira já a leu.
+
+     O comentário aqui dizia "migration 0070" e estava velho em duas gerações: a
+     0107 já tinha trocado a regra de cargo para permissão de menu, e a 0123
+     trocou de novo. Comentário que cita migration errada manda quem depura
+     procurar no lugar errado, e foi o que aconteceu ao investigar o erro que o
+     escritório relatou.
+
+  1b. QUEM PODE APAGAR é outra pergunta, e tem hook próprio
+     (`useCanDeleteProjectDiary`): continua exigindo edição no Fluxo do Projeto.
+     Diário de obra é registro, todo mundo escreve, nem todo mundo apaga.
   2. DEFEITO 11 DO PLANO: "Registrar visita à obra" exige projeto em obra, e
      "Nova pendência" (aba vizinha) NÃO exigia. As duas passam a exigir — mas só
      o BOTÃO DE CRIAR. Editar e resolver pendência já aberta continuam liberados
@@ -99,6 +109,7 @@ export default function ObraTab({
   onRetry,
   collaborators,
   canEdit,
+  canDelete,
   isEmObra,
   onPhotoClick,
 }: {
@@ -110,6 +121,10 @@ export default function ObraTab({
   onRetry: () => void
   collaborators: Collaborator[]
   canEdit: boolean
+  /* Separado de `canEdit` desde a migration 0123: registrar e corrigir visita é
+     de todo colaborador em atividade, apagar continua exigindo edição no Fluxo
+     do Projeto. */
+  canDelete: boolean
   isEmObra: boolean
   onPhotoClick: (photos: DiaryFile[], index: number, caption: PhotoCaption) => void
 }) {
@@ -399,12 +414,14 @@ export default function ObraTab({
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          onClick={() => setDeleteDialog({ open: true, visit })}
-                          className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded text-faint hover:text-rose-500 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={() => setDeleteDialog({ open: true, visit })}
+                            className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded text-faint hover:text-rose-500 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
