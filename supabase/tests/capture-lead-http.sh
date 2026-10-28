@@ -85,17 +85,41 @@ codigo_pg() { python3 -c 'import json,sys; print(json.loads(sys.argv[1])["code"]
 ZERA; LIMPA
 
 caso "CONTROLE: e-mail valido e gravado" '{"status":"captured"}|200' \
-  "$(post '{"email":"ok@http.test","name":"Bia","office_name":"Bia Arq","placement":"hero"}')"
-caso "origem, bloco, estado e contador iniciais" 'lp-hausone|hero|new|1' \
+  "$(post '{"email":"ok@http.test","name":"Bia","office_name":"Bia Arq","phone":"11999990000","placement":"cta-final"}')"
+caso "origem, bloco, estado e contador iniciais" 'lp-hausone|cta-final|new|1' \
   "$(DB "select source||'|'||placement||'|'||status||'|'||submission_count from public.product_leads where email='ok@http.test';")"
 
-r="$(post '{"email":"nao-e-email"}')"
+r="$(post '{"email":"nao-e-email","name":"Bia","office_name":"Bia Arq","phone":"11999990000"}')"
 caso "e-mail sem forma de e-mail: 400" '400' "${r##*|}"
 caso "e a mensagem e de campo, nao de servidor" 'Informe um e-mail válido.' "$(corpo "$r")"
 
+# OS QUATRO CAMPOS SAO OBRIGATORIOS (migration 0124), e cada um tem a SUA frase.
+# Num formulario de quatro campos, "um dos campos nao foi aceito" obriga quem
+# esta preenchendo a adivinhar qual. O nome do campo vem do zod, nunca do corpo
+# da requisicao, entao ninguem escolhe a mensagem que vai ver.
+r="$(post '{"email":"faltanome@http.test","office_name":"Bia Arq","phone":"11999990000"}')"
+caso "sem nome: 400" '400' "${r##*|}"
+caso "sem nome: a frase e do campo" 'Informe o seu nome.' "$(corpo "$r")"
+
+r="$(post '{"email":"faltafone@http.test","name":"Bia","office_name":"Bia Arq"}')"
+caso "sem telefone: 400" '400' "${r##*|}"
+caso "sem telefone: a frase e do campo" 'Informe o seu telefone.' "$(corpo "$r")"
+
+r="$(post '{"email":"faltaesc@http.test","name":"Bia","phone":"11999990000"}')"
+caso "sem escritorio: 400" '400' "${r##*|}"
+caso "sem escritorio: a frase e do campo" 'Informe o nome do escritório.' "$(corpo "$r")"
+
+# So espacos e o mesmo que vazio: sem isto, `.trim()` deixaria passar " " e o
+# lead chegaria ao banco para morrer la como erro de servidor.
+r="$(post '{"email":"sobrancos@http.test","name":"   ","office_name":"Bia Arq","phone":"11999990000"}')"
+caso "campo so com espacos: 400" '400' "${r##*|}"
+
+caso "e nenhum dos quatro recusados gravou linha" '0' \
+  "$(DB "select count(*) from public.product_leads where email in ('faltanome@http.test','faltafone@http.test','faltaesc@http.test','sobrancos@http.test');")"
+
 # Dizer "voce e um robo" ensina o robo a contornar: a resposta e a de sucesso.
 caso "armadilha de robo responde sucesso" '{"status":"captured"}|200' \
-  "$(post '{"email":"robo@http.test","observacao_extra":"http://spam.example"}')"
+  "$(post '{"email":"robo@http.test","name":"Bia","office_name":"Bia Arq","phone":"11999990000","observacao_extra":"http://spam.example"}')"
 caso "armadilha de robo NAO grava nada" '0' \
   "$(DB "select count(*) from public.product_leads where email='robo@http.test';")"
 # Queda de armadilha nao pode ser invisivel: falso positivo custa o lead que a
@@ -104,15 +128,15 @@ caso "armadilha de robo fica CONTADA" '1' \
   "$(DB "select hit_count from public.public_endpoint_hits where scope='capture-lead-armadilha';")"
 
 caso "bloco fora da lista fechada: 400" '400' \
-  "$(post '{"email":"bloco@http.test","placement":"rodape-novo"}' | sed 's/.*|//')"
+  "$(post '{"email":"bloco@http.test","name":"Bia","office_name":"Bia Arq","phone":"11999990000","placement":"rodape-novo"}' | sed 's/.*|//')"
 
 # O corpo nao decide nada alem do que o schema recorta.
 caso "campo a mais no corpo nao derruba a requisicao" '200' \
-  "$(post '{"email":"status@http.test","status":"qualified","submission_count":99,"source":"invadida"}' | sed 's/.*|//')"
+  "$(post '{"email":"status@http.test","name":"Bia","office_name":"Bia Arq","phone":"11999990000","status":"qualified","submission_count":99,"source":"invadida"}' | sed 's/.*|//')"
 caso "estado, contador e origem vieram do banco" 'new|1|lp-hausone' \
   "$(DB "select status||'|'||submission_count||'|'||source from public.product_leads where email='status@http.test';")"
 
-post '{"email":"OK@HTTP.test"}' >/dev/null
+post '{"email":"OK@HTTP.test","name":"Bia","office_name":"Bia Arq","phone":"11999990000"}' >/dev/null
 caso "reenvio em outra caixa nao cria segunda linha" '1|2' \
   "$(DB "select count(*)||'|'||max(submission_count) from public.product_leads where email='ok@http.test';")"
 caso "reenvio sem nome nao apaga o nome ja dado" 'Bia' \

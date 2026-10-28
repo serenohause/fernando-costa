@@ -176,30 +176,62 @@ select pg_temp.rec('1.2', 'o lead nasce como new, com contador 1 e sem data de c
 /* citext: a MESMA pessoa em caixa diferente e o mesmo lead. Sem isto a fila
    encheria de duplicata e a contagem de conversao mentiria. */
 select pg_temp.rec('1.3', 'CONTROLE: reenvio em outra caixa devolve true', 'true',
-  (select public.capture_product_lead('ANA@leads.test', null, null, null, 'lp-hausone', 'cta-final')::text));
+  (select public.capture_product_lead('ANA@leads.test', 'Ana Outra Vez', 'Outro Escritorio',
+                                      '11888880000', 'lp-hausone', 'cta-final')::text));
 
 select pg_temp.rec('1.4', 'reenvio NAO cria segunda linha; incrementa o contador', '1|2',
   (select count(*)::text || '|' || max(l.submission_count)::text
      from public.product_leads l where l.email = 'ana@leads.test'));
 
-select pg_temp.rec('1.5', 'reenvio sem nome NAO apaga o nome que ela ja tinha dado',
+/* O PRIMEIRO ENVIO MANDA NO CADASTRO, e estes dois casos mudaram de sentido com
+   a migration 0124. Antes diziam "reenvio SEM nome nao apaga o nome": com os
+   quatro campos obrigatorios, reenvio sem nome deixou de existir. O que eles
+   provam agora e mais forte: reenvio com nome DIFERENTE tambem nao substitui.
+   Quem ja esta na fila foi cadastrado uma vez, e a equipe fala com aquele
+   cadastro. */
+select pg_temp.rec('1.5', 'reenvio com outro nome NAO substitui o primeiro',
   'Ana Prado',
   (select l.name from public.product_leads l where l.email = 'ana@leads.test'));
 
-select pg_temp.rec('1.6', 'reenvio preenche o campo que estava vazio', 'Prado Arquitetura',
+select pg_temp.rec('1.6', 'nem com outro escritorio', 'Prado Arquitetura',
   (select l.office_name from public.product_leads l where l.email = 'ana@leads.test'));
+
+select pg_temp.rec('1.6b', 'nem com outro telefone', '11999990000',
+  (select l.phone from public.product_leads l where l.email = 'ana@leads.test'));
 
 select pg_temp.rec('1.7', 'e-mail em branco e recusado pela funcao', 'ERR:22023',
   pg_temp.chk($$select public.capture_product_lead('   ')$$));
 
 select pg_temp.rec('1.8', 'e-mail sem forma de e-mail e recusado pelo check', 'ERR:23514',
-  pg_temp.chk($$select public.capture_product_lead('nao-e-email')$$));
+  pg_temp.chk($$select public.capture_product_lead(
+    'nao-e-email', 'Nome', 'Escritorio', '11999990000')$$));
+
+/* OS QUATRO CAMPOS, migration 0124. A pagina e publica e sem credencial: a
+   recusa nao pode viver so no navegador, senao post direto no endereco ou
+   pagina antiga em cache gravam lead pela metade. Um caso por campo, porque a
+   frase que a pessoa le sai do campo que faltou. */
+select pg_temp.rec('1.8a', 'nome em branco e recusado', 'ERR:22023',
+  pg_temp.chk($$select public.capture_product_lead(
+    'faltanome@leads.test', '  ', 'Escritorio', '11999990000')$$));
+
+select pg_temp.rec('1.8b', 'telefone em branco e recusado', 'ERR:22023',
+  pg_temp.chk($$select public.capture_product_lead(
+    'faltafone@leads.test', 'Nome', 'Escritorio', '  ')$$));
+
+select pg_temp.rec('1.8c', 'escritorio em branco e recusado', 'ERR:22023',
+  pg_temp.chk($$select public.capture_product_lead(
+    'faltaesc@leads.test', 'Nome', '  ', '11999990000')$$));
+
+select pg_temp.rec('1.8d', 'e nenhum dos tres recusados gravou linha', '0',
+  (select count(*)::text from public.product_leads
+    where email in ('faltanome@leads.test', 'faltafone@leads.test', 'faltaesc@leads.test')));
 
 /* A pagina e publica. Se a resposta distinguisse "gravei" de "ja existia", o
    formulario viraria um verificador de quais e-mails ja se cadastraram. */
 select pg_temp.rec('1.9', 'e-mail JA cadastrado devolve true, igual a um novo', 'true|true',
-  (select public.capture_product_lead('nova@leads.test')::text || '|' ||
-          public.capture_product_lead('nova@leads.test')::text));
+  (select public.capture_product_lead('nova@leads.test', 'Nova', 'Escritorio Novo', '11777770000')::text
+          || '|' ||
+          public.capture_product_lead('nova@leads.test', 'Nova', 'Escritorio Novo', '11777770000')::text));
 
 select pg_temp.rec('1.10', 'anon NAO executa capture_product_lead', 'ERR:42501',
   pg_temp.como_anon($$select public.capture_product_lead('invasor@leads.test')::text$$));
@@ -309,16 +341,20 @@ select pg_temp.rec('4.2', 'CONTROLE: voltar para new exige limpar a data de cont
 /* Origem e bloco sao escritos pela pagina, nunca digitados. Formato fechado
    para que um erro de digitacao no HTML nao crie em silencio uma origem nova e
    divida a contagem de conversao em duas. */
+/* Os quatro campos vao preenchidos nestes tres de proposito: desde a migration
+   0124 a funcao recusa lead incompleto ANTES de chegar ao check que cada caso
+   quer medir, e sem isto todos eles passariam a observar 22023 e deixariam de
+   provar o que dizem provar. */
 select pg_temp.rec('4.3', 'bloco da pagina com espaco e maiuscula e recusado', 'ERR:23514',
-  pg_temp.chk($$select public.capture_product_lead('bloco@leads.test', null, null, null,
-                                                   'lp-hausone', 'CTA Final')$$));
+  pg_temp.chk($$select public.capture_product_lead('bloco@leads.test', 'Nome', 'Escritorio',
+                                                   '11999990000', 'lp-hausone', 'CTA Final')$$));
 
 select pg_temp.rec('4.4', 'CONTROLE: bloco em caixa baixa com hifen e aceito', 'OK',
-  pg_temp.chk($$select public.capture_product_lead('bloco@leads.test', null, null, null,
-                                                   'lp-hausone', 'cta-final')$$));
+  pg_temp.chk($$select public.capture_product_lead('bloco@leads.test', 'Nome', 'Escritorio',
+                                                   '11999990000', 'lp-hausone', 'cta-final')$$));
 
 select pg_temp.rec('4.5', 'e-mail acima de 254 caracteres e recusado', 'ERR:23514',
-  pg_temp.chk(format($$select public.capture_product_lead(%L)$$,
+  pg_temp.chk(format($$select public.capture_product_lead(%L, 'Nome', 'Escritorio', '11999990000')$$,
     repeat('a', 250) || '@leads.test')));
 
 -- 5. Conceder e retirar o acesso (migration 0114) ------------------------------

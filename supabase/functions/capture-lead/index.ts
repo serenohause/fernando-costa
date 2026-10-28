@@ -67,10 +67,20 @@ const BodySchema = z.object({
     (migration 0112) para que campo grande demais seja recusado antes de ocupar
     transação no banco.
   */
+  /*
+    OS QUATRO SAO OBRIGATORIOS desde a migration 0124, a pedido do usuario:
+    "para o lead agora preciso que seja preenchido um form com: nome, telefone,
+    email e nome do escritorio". Antes so o e-mail era, e nome e telefone nem
+    eram pedidos na pagina.
+
+    `.trim().min(1)` e nao `preprocess(blankToUndefined, ...optional())`: campo
+    so com espacos tem que ser recusado com a frase do campo, e nao virar
+    `undefined` e morrer la no banco como erro de servidor.
+  */
   email: z.email().max(254),
-  name: z.preprocess(blankToUndefined, z.string().trim().max(120).optional()),
-  office_name: z.preprocess(blankToUndefined, z.string().trim().max(160).optional()),
-  phone: z.preprocess(blankToUndefined, z.string().trim().max(40).optional()),
+  name: z.string().trim().min(1).max(120),
+  office_name: z.string().trim().min(1).max(160),
+  phone: z.string().trim().min(1).max(40),
   placement: z.preprocess(blankToUndefined, z.enum(PLACEMENTS).optional()),
 
   /*
@@ -123,13 +133,23 @@ Deno.serve(async (req) => {
     const parsed = BodySchema.safeParse(await readJsonBody(req))
 
     if (!parsed.success) {
-      const campo = parsed.error.issues[0]?.path?.[0]
+      /*
+        UMA FRASE POR CAMPO. "Um dos campos não foi aceito" obriga quem está
+        preenchendo a adivinhar qual, e num formulário de quatro campos isso é
+        metade das desistências. O nome do campo vem do zod, não do corpo da
+        requisição, então não há como alguém escolher a mensagem que vai ver.
+      */
+      const campo = String(parsed.error.issues[0]?.path?.[0] ?? '')
+      const FRASES: Record<string, string> = {
+        email: 'Informe um e-mail válido.',
+        name: 'Informe o seu nome.',
+        phone: 'Informe o seu telefone.',
+        office_name: 'Informe o nome do escritório.',
+      }
       throw new HttpError(
         400,
         'invalid_field',
-        campo === 'email'
-          ? 'Informe um e-mail válido.'
-          : 'Um dos campos preenchidos não foi aceito.',
+        FRASES[campo] ?? 'Um dos campos preenchidos não foi aceito.',
       )
     }
 
@@ -195,7 +215,20 @@ Deno.serve(async (req) => {
         um check que o schema não conhece.
       */
       if (error.code === '22023' || error.code === '23514') {
-        throw new HttpError(400, 'invalid_field', 'Informe um e-mail válido.')
+        /*
+          REDE, e nao o caminho normal: o schema acima ja recusou campo vazio ou
+          grande demais, com frase por campo. Chegar aqui significa que o banco
+          viu algo que o schema nao conhece, e a frase precisa servir para
+          qualquer um dos quatro sem inventar qual. Texto do Postgres NAO sobe
+          para a tela: ele traz nome de constraint e, no `details`, a linha
+          inteira, que aqui e o nome, o telefone e o e-mail de quem acabou de se
+          interessar.
+        */
+        throw new HttpError(
+          400,
+          'invalid_field',
+          'Confira os dados: nome, telefone, e-mail e escritório são obrigatórios.',
+        )
       }
 
       /* Só `code` e `message`. Nunca `details` nem `hint`: o `details` do
