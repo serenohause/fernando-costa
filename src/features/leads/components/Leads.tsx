@@ -291,23 +291,35 @@ export default function Leads() {
                         <div className="flex items-center gap-2">
                           <span>{lead.phone}</span>
                           {whatsapp !== null && (
-                            <a
-                              href={whatsapp}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label={`Falar no WhatsApp com ${lead.name ?? lead.email}`}
+                            /*
+                              `asChild`: a âncora É o botão, em vez de um
+                              <button> dentro de um <a>. O segundo é o que
+                              SupplierDrawer.tsx faz, e é marcação inválida: dá
+                              dois pontos de tabulação para um controle só, e
+                              Enter com o botão focado não abre nada. A
+                              aparência é a mesma.
+
+                              `text-white` explícito e emerald-600 vêm do
+                              SupplierDrawer, que é o outro lugar do sistema que
+                              abre WhatsApp: o token do botão inverte no tema
+                              escuro, e emerald-600 aguenta texto branco nos
+                              dois.
+                            */
+                            <Button
+                              asChild
+                              size="sm"
+                              className="h-7 px-2 bg-emerald-600 text-white hover:bg-emerald-700"
                             >
-                              {/* `text-white` explícito e emerald-600: o mesmo
-                                  botão do SupplierDrawer, que é o único outro
-                                  lugar do sistema que abre WhatsApp. */}
-                              <Button
-                                size="sm"
-                                className="h-7 px-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                              <a
+                                href={whatsapp}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Falar no WhatsApp com ${lead.name ?? lead.email}`}
                               >
                                 <Phone className="w-3.5 h-3.5 mr-1" />
                                 WhatsApp
-                              </Button>
-                            </a>
+                              </a>
+                            </Button>
                           )}
                         </div>
                       )}

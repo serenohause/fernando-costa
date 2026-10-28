@@ -93,7 +93,12 @@ const FILA = [
     office_name: 'Prado Arquitetura',
     phone: '(62) 99888-7766',
   }),
-  lead({ email: 'bruno@sintonia.test', name: 'Brúno Júnior', status: 'contacted' }),
+  lead({
+    email: 'bruno@sintonia.test',
+    name: 'Brúno Júnior',
+    phone: '(11) 3222-1100',
+    status: 'contacted',
+  }),
   lead({ email: 'carla@conceicao.test', office_name: 'Conceição e Associados', status: 'qualified' }),
   lead({ email: 'davi@zz.test', status: 'discarded' }),
 ]
@@ -170,6 +175,46 @@ eq(
   [],
   so(filterLeads(FILA, { status: 'all', search: '11911112222' })),
 )
+/*
+  ACHADO DE AUDITORIA: a busca arrancava dígito de QUALQUER termo. "ana 1"
+  devolvia o Bruno, porque o telefone dele tem um 1, e deixava a Ana de fora.
+  Numa tela cuja função é escolher para quem mandar mensagem, lead estranho na
+  lista é um clique de WhatsApp para a pessoa errada.
+*/
+// Antes desta regra, isto devolvia bruno@sintonia.test: o `1` solto do termo
+// casava com o telefone dele. Nada é a resposta certa, porque "ana 1" não é
+// pedaço de nenhum campo de texto. Lead errado é pior do que lista vazia.
+eq(
+  '15 termo com letra não vira busca por telefone',
+  [],
+  so(filterLeads(FILA, { status: 'all', search: 'ana 1' })),
+)
+eq(
+  '16 um dígito solto não recorta a fila inteira',
+  [],
+  so(filterLeads(FILA, { status: 'all', search: '2' })),
+)
+eq(
+  '17 dois dígitos ainda é pouco',
+  [],
+  so(filterLeads(FILA, { status: 'all', search: '62' })),
+)
+eq(
+  '18 três dígitos já procuram',
+  ['ana@prado.test'],
+  so(filterLeads(FILA, { status: 'all', search: '629' })),
+)
+/*
+  O CASO QUE SEGURA O GUARDA DE "SÓ NÚMERO" SOZINHO. O mínimo de três dígitos
+  não cobre este: "ana 322" tem três, e `322` está no telefone do Bruno. Sem o
+  guarda, procurar pela Ana devolve o Bruno, que é exatamente o defeito que a
+  auditoria descreveu.
+*/
+eq(
+  '19 termo com letra e três dígitos não puxa o lead de outro',
+  [],
+  so(filterLeads(FILA, { status: 'all', search: 'ana 322' })),
+)
 
 console.log('\nLink de WhatsApp\n')
 
@@ -219,6 +264,34 @@ eq(
   '10 doze dígitos que não começam em 55 não há link',
   null,
   linkWhatsapp({ phone: '112233445566', name: 'Ana' }),
+)
+/*
+  ACHADO DE AUDITORIA: contar dígito não basta. "10 ou 11 dígitos" também
+  descreve telefone de outro país, e com o 55 colado na frente o botão abria
+  conversa com um brasileiro desconhecido, levando o primeiro nome do lead
+  junto. Os três casos abaixo são os que a regra antiga deixava passar.
+*/
+eq(
+  '11 celular dos EUA não vira número brasileiro',
+  null,
+  linkWhatsapp({ phone: '+1 (212) 555-0123', name: 'Ana' }),
+)
+eq('12 DDD que não existe não há link', null, linkWhatsapp({ phone: '00000000000', name: 'Ana' }))
+eq(
+  '13 onze dígitos sem o nono dígito não é celular brasileiro',
+  null,
+  linkWhatsapp({ phone: '62198887766', name: 'Ana' }),
+)
+// E a mesma régua vale para quem já chega com o código do país.
+eq(
+  '14 número estrangeiro com 55 colado antes também é recusado',
+  null,
+  linkWhatsapp({ phone: '5512125550123', name: 'Ana' }),
+)
+eq(
+  '15 fixo com DDD do limite de baixo continua valendo',
+  true,
+  linkWhatsapp({ phone: '(11) 3222-1100', name: null }).startsWith('https://wa.me/551132221100?'),
 )
 
 console.log(`\n${passed}/${passed + failed} casos passaram.`)

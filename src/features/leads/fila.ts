@@ -6,6 +6,11 @@ import { onlyDigits } from '../../lib/masks.ts'
 import { semAcento } from '../../lib/text.ts'
 import type { LeadPatch, ProductLead } from './types'
 
+/* O que conta como "a pessoa está digitando um telefone": dígito e os
+   separadores que a máscara produz, mais o `+` de quem cola do formato
+   internacional. Uma letra no meio e o termo volta a ser busca de texto. */
+const SO_NUMERO = /^[\d\s()+.-]+$/
+
 /*
   As duas decisões da fila que não dependem de rede, separadas dos hooks para
   poderem ser conferidas sozinhas (tests/leads-fila.mjs). Nada aqui importa o
@@ -27,6 +32,14 @@ import type { LeadPatch, ProductLead } from './types'
   telefone TAMBÉM na lista de texto acima foi a primeira versão disto, e o teste
   de mutante mostrou que era linha morta: nenhum caso deixava de passar sem ela.
 
+  MAS SÓ QUANDO A BUSCA INTEIRA É NÚMERO, e esta parte veio de achado de
+  auditoria. Antes os dígitos eram arrancados de qualquer termo, então procurar
+  `ana 1` devolvia o lead do Bruno, porque o telefone dele tem um `1`, e deixava
+  a Ana de fora. Numa tela cuja função é escolher PARA QUEM mandar mensagem,
+  lead estranho na lista filtrada é um clique de WhatsApp para a pessoa errada.
+  O mínimo de três dígitos existe pelo mesmo motivo: `2` casaria com quase toda
+  a fila e não recorta nada.
+
   Recorte em memória, e não WHERE: a leitura inteira tem teto de 500 e já está
   na mão, e os quatro contadores do topo precisam dos quatro estados ao mesmo
   tempo.
@@ -36,7 +49,7 @@ export function filterLeads(
   filters: { status: string; search: string },
 ): ProductLead[] {
   const busca = semAcento(filters.search).trim()
-  const digitos = onlyDigits(filters.search)
+  const digitos = SO_NUMERO.test(filters.search.trim()) ? onlyDigits(filters.search) : ''
 
   return leads.filter((lead) => {
     if (filters.status !== 'all' && lead.status !== filters.status) return false
@@ -47,7 +60,7 @@ export function filterLeads(
     )
     if (casaTexto) return true
 
-    return digitos !== '' && lead.phone !== null && onlyDigits(lead.phone).includes(digitos)
+    return digitos.length >= 3 && lead.phone !== null && onlyDigits(lead.phone).includes(digitos)
   })
 }
 
@@ -68,7 +81,16 @@ export function filterLeads(
   que abre o WhatsApp num número inexistente, o que é pior do que não ter botão.
 
   O 55 não é colado duas vezes: número que já chega com o código do país (12 ou
-  13 dígitos começando em 55) passa como está.
+  13 dígitos começando em 55) tem o 55 retirado antes da conferência e recolocado
+  depois, para a regra valer igual nos dois formatos.
+
+  CONTAR OS DÍGITOS NÃO BASTA, e esta parte veio de achado de auditoria.
+  "10 ou 11 dígitos" também descreve telefone de outros países: `+1 (212)
+  555-0123` tem 11, e com o 55 na frente virava `wa.me/5512125550123`, um número
+  brasileiro legítimo de DDD 12, de um desconhecido que receberia o primeiro
+  nome do lead. Por isso o DDD precisa existir (11 a 99) e o celular precisa do
+  nono dígito. Não é validação de operadora, é a barreira mais barata que separa
+  telefone brasileiro de número que só tem o tamanho parecido.
 
   A MENSAGEM VAI PRONTA porque o motivo do botão é não ter que escrever a mesma
   abertura em todo lead. Ela se apresenta e diz de onde veio o contato, que é o
@@ -80,20 +102,24 @@ export function linkWhatsapp(lead: Pick<ProductLead, 'phone' | 'name'>): string 
 
   const digitos = onlyDigits(lead.phone)
 
-  const comPais =
+  const nacional =
     (digitos.length === 12 || digitos.length === 13) && digitos.startsWith('55')
-      ? digitos
-      : digitos.length === 10 || digitos.length === 11
-        ? `55${digitos}`
-        : null
+      ? digitos.slice(2)
+      : digitos
 
-  if (comPais === null) return null
+  const ddd = Number(nacional.slice(0, 2))
+  const telefoneBrasileiro =
+    ddd >= 11 &&
+    ddd <= 99 &&
+    (nacional.length === 10 || (nacional.length === 11 && nacional[2] === '9'))
+
+  if (!telefoneBrasileiro) return null
 
   const primeiroNome = lead.name === null ? '' : lead.name.trim().split(/\s+/)[0]
   const saudacao = primeiroNome === '' ? 'Olá!' : `Olá, ${primeiroNome}!`
   const mensagem = `${saudacao} Aqui é da equipe do HausOne. Vi que você deixou seu contato no nosso site e vim conversar com você.`
 
-  return `https://wa.me/${comPais}?text=${encodeURIComponent(mensagem)}`
+  return `https://wa.me/55${nacional}?text=${encodeURIComponent(mensagem)}`
 }
 
 /*
