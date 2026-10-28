@@ -38,6 +38,28 @@ function DropdownMenuSubTrigger({
   )
 }
 
+/*
+  MENU COMPRIDO ROLA, EM VEZ DE SER CORTADO.
+
+  O shadcn que este projeto copiou punha `overflow-hidden` nos dois conteúdos e
+  nenhum limite de altura. Menu maior que a janela não ganhava barra: ele
+  simplesmente passava da borda de baixo e o excedente era cortado, sem gesto
+  nenhum que alcançasse o resto.
+
+  Medido no Fluxo do Projeto, com 20 colaboradores no escritório: o submenu
+  "Alterar Responsável" media 648px numa janela de 600, terminava 50px abaixo da
+  borda e dois nomes não tinham como ser escolhidos. Forçar `scrollTop` não
+  movia nada, porque `overflow: hidden` não rola.
+
+  O limite é a altura que o Radix já calcula e publica para o conteúdo
+  (`--radix-dropdown-menu-content-available-height`): o espaço que sobra entre o
+  gatilho e a borda da janela, do lado em que ele decidiu abrir. Ele serve aos
+  dois, Content e SubContent.
+
+  `overscroll-contain` para o fim da lista não virar rolagem da página atrás.
+  `overflow-x-hidden` mantém o corte lateral que arredonda os cantos; o que
+  deixou de ser cortado é a vertical.
+*/
 function DropdownMenuSubContent({
   className,
   ...props
@@ -45,7 +67,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuPrimitive.SubContent
       className={cn(
-        'min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+        'min-w-[8rem] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto overflow-x-hidden overscroll-contain rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
         className,
       )}
       style={{ zIndex: 10000 }}
@@ -64,7 +86,7 @@ function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          'min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+          'min-w-[8rem] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto overflow-x-hidden overscroll-contain rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
           className,
         )}

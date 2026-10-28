@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
 import {
@@ -175,12 +175,15 @@ type Column = {
   A única tarefa na FASE `awaiting_client` está concluída, e concluída aparece em
   "Finalizado". Medido antes.
 
-  CONSEQUÊNCIA QUE VALE SABER: sem coluna, nenhum gesto leva uma tarefa à fase
-  `awaiting_client`, e o cartão "Projetos Aguardando Cliente" do Painel Executivo
-  — que conta por FASE — fica estruturalmente em zero. Não é regressão nossa: a
-  produção está no mesmo estado, com o mesmo cartão contando a mesma fase que o
-  quadro dela não alcança (DashboardExecutivo.jsx:283). Trocar a contagem para a
-  tag seria consertar algo que a produção não consertou, e não foi pedido.
+  CONSEQUÊNCIA QUE VALE SABER, e que já foi consertada no painel: sem coluna,
+  nenhum gesto leva uma tarefa à fase `awaiting_client`. Enquanto o cartão
+  "Projetos Aguardando Cliente" do Painel Executivo contava por FASE, ele ficava
+  estruturalmente em zero — lia um lugar que a tela nunca preenche, enquanto a
+  equipe marcava a TAG. Não era regressão nossa: a produção tinha o mesmo cartão
+  com o mesmo zero (DashboardExecutivo.jsx:283), e por fidelidade ele ficou
+  assim. O usuário relatou o zero e pediu a correção, então o cartão passou a
+  contar a tag; ver `useAwaitingClientProjectIds`. O QUADRO não mudou: continua
+  sem a coluna, e a fase continua fora do alcance dele.
 
   "Alvará de Construção" não perdeu substituto como "Revisão" e "Aguardando
   Cliente" perderam: ele é um
@@ -370,6 +373,77 @@ function diaryProjectOf(task: TaskRow, projects: ProjectRow[]): DiaryProject | n
   }
 }
 
+/*
+  A ALTURA DO QUADRO É MEDIDA, E NÃO CHUTADA A PARTIR DA JANELA.
+
+  O original fixa `calc(100vh - 280px)` no quadro e `calc(100vh - 300px)` na
+  coluna. Aquele 280 é a soma do que fica acima do quadro NAQUELA tela. Aqui o
+  quadro mora dentro de `main` (AppLayout), que já tem altura própria
+  (`calc(100vh - 4rem)`), padding próprio e rolagem própria, e acima dele há
+  breadcrumb, cabeçalho da página e dois filtros que ficam em linha no desktop e
+  EMPILHAM no celular. Nada disso é 280px, e nenhum dos dois números acompanha a
+  largura da janela.
+
+  O QUE FOI MEDIDO, no app rodando, com o quadro começando em 284px:
+
+    janela 1440x900   quadro termina 4px abaixo da borda de baixo
+    janela 1280x720   quadro termina 4px abaixo
+    janela  390x844   quadro termina 92px abaixo
+
+  O excedente não aparece como rolagem: ele cai dentro do padding de baixo de
+  `main` (`pb-24` no celular), então o fim das colunas fica escondido e sem
+  gesto que o alcance. E com a FAIXA DE SESSÃO ASSUMIDA ligada `main` encolhe
+  3,5rem enquanto o quadro não encolhe nada — aí sobra para a página inteira a
+  rolagem que devia ser só do quadro.
+
+  COMO A MEDIDA FUNCIONA: o quadro recebe o que resta de `main` a partir de onde
+  ele começa, descontado o padding de baixo. A distância do topo NÃO depende da
+  altura do quadro, então não há laço de medida; e ela já carrega tudo que
+  estiver acima, em qualquer breakpoint, com ou sem faixa. O `ResizeObserver`
+  está em `main` porque é ele que muda de tamanho quando a janela muda ou a
+  faixa aparece.
+
+  O CHUTE DO ORIGINAL CONTINUA SENDO O PRIMEIRO QUADRO desenhado, antes de a
+  medida existir: é melhor um quadro com a altura aproximada do que um quadro de
+  altura zero piscando a cada abertura da tela.
+*/
+const ALTURA_INICIAL_DO_QUADRO = 'calc(100vh - 280px)'
+const ALTURA_MINIMA_DO_QUADRO = 240
+
+function useAlturaDoQuadro() {
+  const refDoQuadro = useRef<HTMLDivElement | null>(null)
+  const [altura, setAltura] = useState<number | null>(null)
+
+  useEffect(() => {
+    const quadro = refDoQuadro.current
+    const rolagem = quadro?.closest('main')
+    if (!quadro || !rolagem) return
+
+    const medir = () => {
+      const recuoDeBaixo = parseFloat(getComputedStyle(rolagem).paddingBottom) || 0
+      const inicio =
+        quadro.getBoundingClientRect().top -
+        rolagem.getBoundingClientRect().top +
+        rolagem.scrollTop
+      setAltura(Math.max(ALTURA_MINIMA_DO_QUADRO, rolagem.clientHeight - inicio - recuoDeBaixo))
+    }
+
+    medir()
+    const observador = new ResizeObserver(medir)
+    observador.observe(rolagem)
+    window.addEventListener('resize', medir)
+    return () => {
+      observador.disconnect()
+      window.removeEventListener('resize', medir)
+    }
+  }, [])
+
+  return {
+    refDoQuadro,
+    alturaDoQuadro: altura === null ? ALTURA_INICIAL_DO_QUADRO : `${altura}px`,
+  }
+}
+
 export default function TaskKanban({
   tasks,
   projects,
@@ -491,6 +565,8 @@ export default function TaskKanban({
         }))
     : DEFAULT_COLUMNS
 
+  const { refDoQuadro, alturaDoQuadro } = useAlturaDoQuadro()
+
   const responsibles = operationalCandidates(collaborators)
 
   const handleDragEnd = (result: DropResult) => {
@@ -601,18 +677,18 @@ export default function TaskKanban({
           </div>
 
           <div
-            className="kanban-board-wrapper overflow-x-auto overflow-y-hidden overscroll-x-none snap-x snap-mandatory"
-            style={{ height: 'calc(100vh - 280px)', WebkitOverflowScrolling: 'touch' }}
+            ref={refDoQuadro}
+            className="kanban-board-wrapper overflow-x-auto overflow-y-hidden overscroll-contain snap-x snap-mandatory"
+            style={{ height: alturaDoQuadro, WebkitOverflowScrolling: 'touch' }}
           >
-            <div className="flex gap-4 pb-4" style={{ width: 'max-content' }}>
+            <div className="flex gap-4 pb-4 h-full" style={{ width: 'max-content' }}>
               {columns.map((column) => {
                 const columnTasks = tasksInColumn(tasks, column.id)
 
                 return (
                   <div
                     key={column.id}
-                    className="flex flex-col w-[280px] shrink-0 snap-center"
-                    style={{ height: 'calc(100vh - 300px)' }}
+                    className="flex flex-col w-[280px] shrink-0 snap-center h-full"
                   >
                     {/* Cabeçalho fixo da coluna */}
                     <div
@@ -646,7 +722,7 @@ export default function TaskKanban({
                         <div
                           ref={provided.innerRef}
                           {...provided.droppableProps}
-                          className={`kanban-column-body flex-1 overflow-y-auto p-2 rounded-b-xl border-2 border-t-0 transition-colors ${
+                          className={`kanban-column-body flex-1 overflow-y-auto overscroll-contain p-2 rounded-b-xl border-2 border-t-0 transition-colors ${
                             snapshot.isDraggingOver
                               ? 'border-blue-300 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20'
                               : 'border-border bg-muted/50'
