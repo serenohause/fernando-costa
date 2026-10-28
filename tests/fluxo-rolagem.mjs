@@ -60,6 +60,23 @@ import { chromium } from 'playwright'
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
 
+/*
+  A SENHA SÓ É DIGITADA EM MÁQUINA LOCAL.
+
+  `BASE_URL` existe para trocar a porta do servidor de desenvolvimento, não o
+  host. Sem esta trava, exportar `BASE_URL` apontando para fora faria este
+  arquivo ler o arquivo de credenciais e digitar a senha de dev num site
+  qualquer. A conta é de teste e o risco é pequeno, mas fechar custa quatro
+  linhas, e o mesmo padrão vale para qualquer teste de navegador que faça login.
+*/
+{
+  const host = new URL(BASE).hostname
+  if (host !== 'localhost' && host !== '127.0.0.1' && host !== '[::1]') {
+    console.error(`BASE_URL precisa apontar para a maquina local; recebi "${host}"`)
+    process.exit(2)
+  }
+}
+
 let ok = 0
 let falhas = 0
 const caso = (nome, esperado, obtido) => {
