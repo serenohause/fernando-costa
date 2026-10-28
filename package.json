@@ -94,7 +94,8 @@
     "test:notificacoes": "supabase/tests/run-sql.sh supabase/tests/notificacoes.sql",
     "test:rls:notificacoes": "supabase/tests/run-sql.sh supabase/tests/notificacoes-rls.sql",
     "test:notificacoes-sino": "node tests/notificacoes-sino.mjs",
-    "test:rls:diario": "supabase/tests/run-sql.sh supabase/tests/diario-rls.sql"
+    "test:rls:diario": "supabase/tests/run-sql.sh supabase/tests/diario-rls.sql",
+    "test:lp-telefone": "node tests/lp-telefone.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

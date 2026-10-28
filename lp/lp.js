@@ -52,6 +52,21 @@ import {
   X
  } from 'lucide'
 
+/*
+  A MASCARA DO TELEFONE E A MESMA DO SISTEMA, importada e nao reescrita.
+
+  `@/lib/masks` e o que a tela de cliente usa. Uma segunda implementacao aqui
+  faria a landing page formatar diferente do cadastro para onde o lead vai, e
+  divergencia de formato em dado que depois e comparado a mao vira duplicata na
+  fila.
+
+  Isto e o unico ponto em que a LP alcanca `src/`. Ela e deliberadamente
+  separada do app (CSS proprio, JS proprio, sem React e sem sessao), mas o vite
+  monta as duas no mesmo build e o alias `@` vale para o projeto inteiro, entao
+  compartilhar uma funcao pura de formatacao nao arrasta nada do app junto.
+*/
+import { applyMaskEdit, maskPhone } from '@/lib/masks'
+
 createIcons({ icons: { ArrowDown, ArrowRight, Banknote, BarChart3, Briefcase, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Crown, Database, FileText, GraduationCap, Hammer, HardHat, Kanban, KeyRound, LayoutDashboard, Link, MapPin, Menu, Quote, Ruler, ShieldCheck, TrendingUp, UserCheck, Users, Wallet, X } })
 
 /* `anim` só está no <html> se o usuário NÃO pediu menos movimento. Todo
@@ -145,6 +160,36 @@ document.querySelectorAll('[data-form]').forEach((form) => {
   const nome = form.querySelector('[data-nome]')
   const telefone = form.querySelector('[data-telefone]')
   const pote = form.querySelector('[data-pote]')
+
+  /*
+    `applyMaskEdit` e nao "remascarar o valor a cada tecla": o segundo erra dois
+    casos que a pessoa percebe na hora, backspace e delete em cima de um
+    separador, em que nenhum digito sai e a tecla parece nao ter feito nada. O
+    cabecalho de src/lib/masks.ts conta o defeito que isso ja causou no sistema.
+
+    `anterior` existe porque a funcao precisa do texto que estava la ANTES da
+    edicao do navegador. No React isso e o estado; aqui e esta variavel.
+  */
+  if (telefone) {
+    let anterior = telefone.value
+    telefone.addEventListener('input', (evento) => {
+      const tipo = evento.inputType
+      const resultado = applyMaskEdit(maskPhone, {
+        value: telefone.value,
+        previousValue: anterior,
+        caret: telefone.selectionStart ?? telefone.value.length,
+        deletion:
+          tipo === 'deleteContentBackward'
+            ? 'backward'
+            : tipo === 'deleteContentForward'
+              ? 'forward'
+              : null,
+      })
+      telefone.value = resultado.value
+      telefone.setSelectionRange(resultado.caret, resultado.caret)
+      anterior = resultado.value
+    })
+  }
 
   /*
     OS QUATRO SAO OBRIGATORIOS desde a migration 0124, a pedido do usuario. A
