@@ -562,6 +562,11 @@ export const EXECUTIVE_PHASES_FALLBACK: PhaseKey[] = (
   cruzamento de tela). Com o conjunto de ids, o cartão conta os projetos do
   recorte que estão nele e a gaveta abre exatamente esses. Um lugar, um número.
 
+  "AGUARDANDO CLIENTE" VEM DE FORA PELO MESMO MOTIVO, e desde a correção do
+  cartão que ficava em zero: ele conta a TAG da tarefa, não a fase do projeto, e
+  saber quais projetos têm a tag não precisa da lista de tarefas inteira. Ver
+  `useAwaitingClientProjectIds`.
+
   AS CINCO RESPEITAM O RECORTE que a barra de filtros do topo produz — ver
   `scopeProjects`. No original os quatro cartões e o gráfico contavam o
   escritório inteiro enquanto o cartão "Projetos Ativos" do bloco de baixo, a uma
@@ -572,6 +577,10 @@ export function operationalMetrics(
   scopedProjects: ProjectRow[],
   progressByProject: Map<string, ProjectProgress>,
   atRiskIds: Set<string>,
+  /* Os projetos com tarefa aberta marcada "Aguardando Cliente" — conjunto vindo
+     do banco, como o de "Em Risco". Ver `useAwaitingClientProjectIds` para por
+     que o cartão deixou de contar a FASE. */
+  awaitingClientIds: Set<string>,
   /* As etapas do quadro, na ordem dele, já sem "Finalizado". Ver
      `EXECUTIVE_PHASES_FALLBACK` para o que acontece antes de a configuração
      chegar. */
@@ -584,8 +593,7 @@ export function operationalMetrics(
       label: phase.label,
       count: scopedProjects.filter((project) => project.current_phase === phase.key).length,
     })),
-    awaitingClient: scopedProjects.filter((project) => project.current_phase === 'awaiting_client')
-      .length,
+    awaitingClient: scopedProjects.filter((project) => awaitingClientIds.has(project.id)).length,
     atRisk: scopedProjects.filter((project) => atRiskIds.has(project.id)).length,
     blocked: scopedProjects.filter((project) => isProjectBlocked(progressByProject.get(project.id)))
       .length,

@@ -22,9 +22,20 @@ import type { ProjectProgressRow } from './types'
   de ids que o banco devolve (`useAtRiskProjectIds`) — o mesmo que abre a gaveta.
 */
 
-/* "Aguardando Cliente" (DashboardExecutivo.jsx:621). */
-export function awaitingClientProjects(projects: ProjectRow[]): ProjectRow[] {
-  return projectsInPhase(projects, 'awaiting_client')
+/*
+  "Aguardando Cliente" (DashboardExecutivo.jsx:621).
+
+  SAI DO MESMO CONJUNTO QUE O CARTÃO CONTA, como "Em Risco" — o cartão lia a FASE
+  `awaiting_client` e ficava em zero, porque nenhum gesto da tela leva um projeto
+  a essa fase; o que a equipe marca é o STATUS OPERACIONAL da tarefa. O conjunto
+  vem do banco em `useAwaitingClientProjectIds`, e é lá que está o porquê
+  inteiro.
+*/
+export function awaitingClientProjects(
+  projects: ProjectRow[],
+  awaitingClientIds: Set<string>,
+): ProjectRow[] {
+  return projects.filter((project) => awaitingClientIds.has(project.id))
 }
 
 /* Uma barra do gráfico "Distribuição por Fase" (DashboardExecutivo.jsx:697). */

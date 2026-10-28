@@ -97,6 +97,8 @@ export const dashboardKeys = {
   activityCounts: (filters: ExecutiveFilters, day: string) =>
     [...dashboardKeys.all, 'activity-counts', filters, day] as const,
   projectsAtRisk: (bound: string) => [...dashboardKeys.all, 'projects-at-risk', bound] as const,
+  projectsAwaitingClient: () =>
+    [...dashboardKeys.all, 'projects-awaiting-client'] as const,
   funnelCounts: (bound: string) => [...dashboardKeys.all, 'funnel-counts', bound] as const,
   overdueReceivablesCount: () => [...dashboardKeys.all, 'overdue-receivables-count'] as const,
 }
@@ -312,6 +314,52 @@ export function useAtRiskProjectIds() {
         .neq('tasks.status', 'completed')
         .not('tasks.due_date', 'is', null)
         .lte('tasks.due_date', bound)
+        .limit(LIST_LIMIT)
+
+      if (error) throw error
+      return new Set((data ?? []).map((row) => row.id))
+    },
+  })
+}
+
+/*
+  "AGUARDANDO CLIENTE" do Painel Executivo: projeto ativo do fluxo com ALGUMA
+  tarefa aberta marcada com o status operacional "Aguardando Cliente".
+
+  POR QUE A TAG, E NÃO A FASE. O cartão contava `projects.current_phase =
+  'awaiting_client'` e ficava estruturalmente em zero: a fase existe no enum,
+  mas o quadro do escritório não tem coluna para ela, e `current_phase` só é
+  escrita a partir da etapa das tarefas — nenhum gesto da tela leva um projeto
+  até lá. Enquanto isso, "Aguardando Cliente" existe e é usada de verdade como
+  STATUS OPERACIONAL da tarefa (`tasks.operational_tag`, migration 0074), que é
+  o crachá que pausa o prazo no cartão do kanban.
+
+  Ou seja: o cartão lia um lugar que a tela nunca preenche, enquanto a equipe
+  marcava outro. A decisão de deixá-lo em zero está registrada em TaskKanban.tsx
+  e era fidelidade à produção, que tem o mesmo cartão com o mesmo zero. O
+  usuário pediu a correção, e com ela o número passa a ser o que a equipe marca.
+
+  SÓ TAREFA ABERTA. Tarefa concluída com a tag não está esperando ninguém — é a
+  mesma leitura da regra 2 de `calculateProjectPhase`, que só trata como
+  bloqueio a tarefa "Aguardando Cliente" NÃO concluída.
+
+  Mesmo desenho de `useAtRiskProjectIds`, e pela mesma razão: devolve o CONJUNTO
+  de ids, então o cartão conta os projetos do recorte que estão nele e a gaveta
+  abre exatamente esses. Um lugar, um número. O recorte de projeto é o mesmo
+  `activeFlowProjects` traduzido para WHERE, e `!inner` é o "alguma".
+*/
+export function useAwaitingClientProjectIds() {
+  return useQuery({
+    queryKey: dashboardKeys.projectsAwaitingClient(),
+    queryFn: async (): Promise<Set<string>> => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, tasks!tasks_project_id_fkey!inner(id)')
+        .eq('visible_in_list', true)
+        .not('status', 'in', '(completed,suspended)')
+        .neq('current_phase', 'finished')
+        .eq('tasks.operational_tag', 'awaiting_client')
+        .neq('tasks.status', 'completed')
         .limit(LIST_LIMIT)
 
       if (error) throw error
@@ -603,6 +651,7 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
   const activitiesQuery = useDashboardActivities()
   const activityCountsQuery = useActivityCounts(filters)
   const atRiskQuery = useAtRiskProjectIds()
+  const awaitingClientQuery = useAwaitingClientProjectIds()
 
   const allProjects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const allTasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data])
@@ -613,6 +662,10 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
     [progressQuery.data],
   )
   const atRiskIds = useMemo(() => atRiskQuery.data ?? new Set<string>(), [atRiskQuery.data])
+  const awaitingClientIds = useMemo(
+    () => awaitingClientQuery.data ?? new Set<string>(),
+    [awaitingClientQuery.data],
+  )
 
   const activeProjects = useMemo(() => activeFlowProjects(allProjects), [allProjects])
   /* O mapa de responsáveis cruza a coluna do projeto com as tarefas do FLUXO, e
@@ -663,8 +716,9 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
   }, [kanbanBoard.data])
 
   const operational = useMemo(
-    () => operationalMetrics(projects, progressByProject, atRiskIds, phaseOptions),
-    [projects, progressByProject, atRiskIds, phaseOptions],
+    () =>
+      operationalMetrics(projects, progressByProject, atRiskIds, awaitingClientIds, phaseOptions),
+    [projects, progressByProject, atRiskIds, awaitingClientIds, phaseOptions],
   )
   const team = useMemo(
     () => teamMetrics(collaborators, projects, responsibleByProject),
@@ -681,6 +735,7 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
     projects,
     allProjects: activeProjects,
     atRiskIds,
+    awaitingClientIds,
     progressByProject,
     responsibleByProject,
     collaborators,
@@ -696,6 +751,7 @@ export function useExecutiveDashboard(filters: ExecutiveFilters) {
       activitiesQuery,
       activityCountsQuery,
       atRiskQuery,
+      awaitingClientQuery,
     ]),
   }
 }

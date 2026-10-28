@@ -187,6 +187,7 @@ export default function DashboardExecutivo() {
     projects,
     allProjects,
     atRiskIds,
+    awaitingClientIds,
     progressByProject,
     responsibleByProject,
     collaborators,
@@ -481,12 +482,16 @@ export default function DashboardExecutivo() {
                 </CardContent>
               </Card>
 
+              {/* O NÚMERO E A GAVETA SAEM DO MESMO CONJUNTO de ids vindo do
+                  banco (`useAwaitingClientProjectIds`), que conta a TAG da
+                  tarefa. Contando a FASE, como era antes, este cartão não tinha
+                  como sair de zero. Ver `awaitingClientProjects`. */}
               <Card
                 className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-all"
                 onClick={() =>
                   setDrilldown({
                     title: 'Projetos Aguardando Cliente',
-                    projects: awaitingClientProjects(projects),
+                    projects: awaitingClientProjects(projects, awaitingClientIds),
                   })
                 }
               >
