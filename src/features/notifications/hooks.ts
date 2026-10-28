@@ -92,6 +92,21 @@ export function describeNotificationError(error: unknown): string {
   do JWT. Repetir o filtro aqui seria reimplementar a autorização na tela, que é
   o que o CLAUDE.md proíbe — e um filtro escrito à mão que divergisse da policy
   mostraria um número que a lista não confirma.
+
+  SEM `refetchInterval`, E ISSO FOI DECIDIDO, não esquecido.
+
+  Hoje o sino muda no carregamento da página e depois das ações da própria
+  pessoa. Quem receber uma tarefa com a aba aberta só vê no próximo
+  carregamento, o que em uso normal acontece várias vezes ao dia.
+
+  O usuário escolheu assim, entre três caminhos: consultar o contador a cada
+  cinco minutos, deixar como está, ou ligar o Realtime da Supabase. Pesou que o
+  projeto não tem UM polling e não usa Realtime em lugar nenhum, e que o sino
+  fica montado no layout, ou seja a consulta valeria para toda pessoa logada o
+  dia inteiro.
+
+  Quem for acrescentar isso depois: o gesto menor é `refetchInterval` AQUI, no
+  contador, e não na lista. A lista só é buscada com o painel aberto.
 */
 export function useUnreadNotificationCount() {
   return useQuery({

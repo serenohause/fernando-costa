@@ -156,9 +156,13 @@ export default function NotificationPanel({
             vazia só acontece para quem nunca recebeu aviso nenhum, e aí "você
             está em dia" seria mentira.
 
-            O QUE SOBREVIVEU do segundo cartão é o complemento do título — "·
-            tudo lido" —, que é alcançável e está em `rotuloDaContagem`. A
-            situação está no relatório do módulo para decisão.
+            O QUE SOBREVIVEU do segundo cartão é o complemento do título, "·
+            tudo lido", que é alcançável e está em `rotuloDaContagem`.
+
+            DECIDIDO: o usuário escolheu que o segundo cartão sai de vez, em vez
+            de o painel voltar a esconder as lidas. O protótipo o mantém riscado,
+            para quem ler depois saber que a hipótese foi recusada e não que
+            faltou implementar.
           */
           <div className="py-10 px-6 text-center">
             <div

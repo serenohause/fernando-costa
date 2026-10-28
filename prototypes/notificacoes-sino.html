@@ -1410,13 +1410,30 @@
                   Marcar todas como lidas
                 </button>
               </div>
-              <div class="empty">
+              <!--
+                DESCARTADO PELO USUÁRIO, e deixado à vista de propósito.
+
+                Este cartão foi desenhado para a variante em que o painel ESCONDE
+                as lidas. As decisões da aprovação fecharam essa porta: o painel
+                mostra lidas e não lidas juntas, e não existe tela de histórico.
+                Com lidas na lista, lista vazia só acontece para quem nunca
+                recebeu nada, e aí "você está em dia" seria mentira.
+
+                Fica aqui riscado em vez de apagado, para quem ler esta página
+                depois saber que a hipótese foi considerada e recusada, em vez de
+                achar que faltou implementar.
+
+                O QUE SOBREVIVEU: o "· tudo lido" do título acima, que é
+                alcançável e ESTÁ implementado. O rodapé abaixo também saiu, pela
+                mesma decisão de não haver tela de histórico.
+              -->
+              <div class="empty" style="opacity: 0.45; text-decoration: line-through">
                 <div class="empty__tile" aria-hidden="true"><i data-lucide="bell-off"></i></div>
                 <p class="empty__title">Nenhum aviso novo</p>
                 <p class="empty__text">Você está em dia. Os avisos anteriores ficam no histórico.</p>
               </div>
-              <div class="panel__foot">
-                <button class="ghost-button" type="button">
+              <div class="panel__foot" style="opacity: 0.45; text-decoration: line-through">
+                <button class="ghost-button" type="button" disabled>
                   Ver todas as notificações
                   <i data-lucide="arrow-right"></i>
                 </button>
