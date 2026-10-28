@@ -2368,6 +2368,93 @@ export type Database = {
           },
         ]
       }
+      /* ACRESCENTADA A MAO, e o comentario sai no proximo `npm run db:types`.
+         A tabela das migrations 0120/0121 (avisos do sino) nao estava aqui pelo
+         mesmo motivo das duas da 0112 logo abaixo: este arquivo foi gerado
+         contra PRODUCAO, onde a 0120 ainda nao foi aplicada. E os dois comandos
+         de regenerar estao INDISPONIVEIS hoje - `npm run db:types` mistura a
+         senha de dev com o host de prod, e o link da CLI
+         (supabase/.temp/project-ref) aponta para producao. Regenerar inteiro,
+         quando der, e um passo separado. */
+      notifications: {
+        Row: {
+          actor_id: string | null
+          actor_name: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          project_name: string | null
+          read_at: string | null
+          recipient_id: string
+          task_id: string | null
+          task_title: string
+          tenant_id: string
+        }
+        /* Insert e Update existem no TIPO porque o PostgREST os descreve, e
+           NAO porque a tela possa usa-los: authenticated nao tem GRANT de
+           insert nem de delete nesta tabela, e o update e de UMA coluna
+           (`grant update (read_at)`, migration 0120). Escrever qualquer outra
+           coluna daqui volta 42501. */
+        Insert: {
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          project_name?: string | null
+          read_at?: string | null
+          recipient_id: string
+          task_id?: string | null
+          task_title: string
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          project_name?: string | null
+          read_at?: string | null
+          recipient_id?: string
+          task_id?: string | null
+          task_title?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_actor_fkey"
+            columns: ["actor_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_fkey"
+            columns: ["recipient_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "notifications_task_fkey"
+            columns: ["task_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "notifications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operational_tags: {
         Row: {
           color: string
@@ -4391,6 +4478,16 @@ export type Database = {
       }
       reveal_integration_api_key: { Args: { p_id: string }; Returns: string }
       revoke_integration_api_key: { Args: { p_id: string }; Returns: boolean }
+      /* ACRESCENTADA A MAO com a migration 0120, e sai no proximo
+         `npm run db:types`. ESTA AQUI PARA SER DOCUMENTADA, NAO PARA SER
+         CHAMADA DA TELA: o `grant execute` e so para service_role (agendamento
+         e Edge Function). Chamar daqui volta 42501, e e o comportamento
+         desejado - a varredura grava aviso de qualquer pessoa de qualquer
+         escritorio. */
+      scan_overdue_tasks: {
+        Args: { p_tenant_id?: string }
+        Returns: number
+      }
       search_platform: {
         Args: { p_term: string }
         Returns: {
@@ -4565,6 +4662,9 @@ export type Database = {
         | "paused"
         | "completed"
       negotiation_status: "active" | "won" | "lost"
+      /* ACRESCENTADO A MAO com a migration 0120 - ver o comentario na tabela
+         `notifications`. Sai no proximo `npm run db:types`. */
+      notification_kind: "task_assigned" | "task_overdue"
       operational_tag: "in_review" | "awaiting_client"
       partnership_model:
         | "sales_commission"
@@ -4966,6 +5066,10 @@ export const Constants = {
         "completed",
       ],
       negotiation_status: ["active", "won", "lost"],
+      /* ACRESCENTADO A MAO junto com a tabela `notifications` (migration 0120),
+         e sai no proximo `npm run db:types`. Duas especies, e so duas: o escopo
+         aprovado nao tem aviso de comentario, de mencao nem de prazo chegando. */
+      notification_kind: ["task_assigned", "task_overdue"],
       operational_tag: ["in_review", "awaiting_client"],
       partnership_model: [
         "sales_commission",

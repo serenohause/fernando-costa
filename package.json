@@ -92,7 +92,8 @@
     "env:check": "node scripts/env-check.mjs",
     "test:contador": "supabase/tests/run-sql.sh supabase/tests/contador-da-porta-publica.sql",
     "test:notificacoes": "supabase/tests/run-sql.sh supabase/tests/notificacoes.sql",
-    "test:rls:notificacoes": "supabase/tests/run-sql.sh supabase/tests/notificacoes-rls.sql"
+    "test:rls:notificacoes": "supabase/tests/run-sql.sh supabase/tests/notificacoes-rls.sql",
+    "test:notificacoes-sino": "node tests/notificacoes-sino.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

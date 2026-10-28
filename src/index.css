@@ -10,6 +10,21 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+  TELA SEM PASSAGEM DE PONTEIRO — o variante que o sino de notificações pede.
+
+  No Tailwind v4 o `hover:` já nasce embrulhado em `@media (hover: hover)`, então
+  o que falta é o OUTRO lado da mesma pergunta. O protótipo aprovado
+  (prototypes/notificacoes-sino.html) usa `@media (hover: none)` para deixar o
+  visto de "marcar como lida" e a seta SEMPRE visíveis em tela de toque: sem
+  hover, um controle que só aparece no hover é um controle que não existe.
+
+  Não é `pointer-coarse`: dedo grosso e ausência de hover são perguntas
+  diferentes (um tablet com caneta tem ponteiro fino e nenhum hover), e o
+  protótipo escreveu a primeira.
+*/
+@custom-variant hover-none (@media (hover: none));
+
+/*
   PALETA — leia antes de mexer.
 
   O projeto-original tem DOIS conjuntos de tokens, e o que vale não é o que
@@ -171,6 +186,42 @@
   */
   --auth-panel: 222 10% 14%;
   --auth-panel-foreground: 210 14% 96%;
+
+  /*
+    AS DUAS ESPÉCIES DE AVISO DO SINO, e o contador.
+
+    Os nomes e os valores vêm do protótipo aprovado
+    (prototypes/notificacoes-sino.html), que por sua vez não inventou cor
+    nenhuma: cada família já estava na tela, escrita na mão, e o protótipo só a
+    nomeou para poder virar token aqui.
+
+    - "nova tarefa" é a família blue da caixa informativa de
+      src/features/team/components/AprovacoesAcesso.tsx (blue-50/200/700);
+    - "tarefa em atraso" é o tratamento de prazo vencido de
+      src/features/projects/components/TaskDetailDialog.tsx
+      (rose-50/200/600, os mesmos `bg-rose-50` e `text-rose-600` de lá).
+
+    Superfície, borda e tinta separadas porque o ladrilho de espécie usa as três
+    ao mesmo tempo, e no escuro elas não se derivam uma da outra.
+  */
+  --species-new-surface: 213.8 100% 96.9%; /* blue-50  */
+  --species-new-border: 213.3 96.9% 87.3%; /* blue-200 */
+  --species-new-ink: 226.2 70.7% 48.4%; /* blue-700 */
+
+  --species-late-surface: 355.7 100% 97.3%; /* rose-50  */
+  --species-late-border: 352.7 96.1% 90%; /* rose-200 */
+  --species-late-ink: 346.8 77.2% 49.8%; /* rose-600 */
+
+  /*
+    O CONTADOR DE NÃO LIDAS. rose-500, o mesmo valor do badge de atividades
+    atrasadas em src/components/header/QuickActions.tsx.
+
+    TOKEN PRÓPRIO, apesar de `--chart-rose` já guardar este mesmo HSL: aquele é
+    a cor de uma SÉRIE de gráfico (o que distingue "Aberta" de "Resolvida" na
+    pizza do Diário) e este é a cor do ALERTA. Compartilhar o token amarraria as
+    duas: mexer na fatia do gráfico mudaria o badge do sino, e vice-versa.
+  */
+  --counter: 349.7 89.2% 60.2%;
 }
 
 .dark {
@@ -268,6 +319,26 @@
      levantada, e não como continuação do fundo. */
   --auth-panel: 222 9% 16%;
   --auth-panel-foreground: 210 14% 96%;
+
+  /*
+    AS DUAS ESPÉCIES NO ESCURO — a mesma lógica dos pares `dark:` que o app já
+    escreve na mão: superfície de tom profundo (o efeito do `bg-blue-950/40` e
+    do `bg-rose-950/40` sobre o cartão), borda no 900, tinta no 400. Valores
+    copiados do protótipo aprovado, sem alteração.
+  */
+  --species-new-surface: 226.2 57% 21%;
+  --species-new-border: 224.4 64.3% 32.9%;
+  --species-new-ink: 213.1 93.9% 67.8%;
+  --species-late-surface: 343.1 87.7% 15.9%;
+  --species-late-border: 341.5 74.6% 30.4%;
+  --species-late-ink: 351 95% 71%;
+
+  /* O CONTADOR NÃO APARECE AQUI de propósito, e a ausência é a decisão: ele é o
+     alerta, e a saturação é o significado — lavar o rosa junto com o fundo
+     tiraria o alerta do alerta. Mesmo argumento do comentário de --destructive
+     acima, e o próprio protótipo registra essa escolha. rose-500 é escuro o
+     bastante para texto branco nos dois temas, que é por que o badge de
+     QuickActions.tsx fixa `text-white` em vez de usar --primary-foreground. */
 }
 
 @theme inline {
@@ -315,6 +386,15 @@
   --color-elevated: hsl(var(--elevated));
   --color-soft: hsl(var(--text-soft));
   --color-faint: hsl(var(--text-faint));
+
+  /* As duas espécies de aviso do sino e o contador de não lidas. */
+  --color-species-new-surface: hsl(var(--species-new-surface));
+  --color-species-new-border: hsl(var(--species-new-border));
+  --color-species-new-ink: hsl(var(--species-new-ink));
+  --color-species-late-surface: hsl(var(--species-late-surface));
+  --color-species-late-border: hsl(var(--species-late-border));
+  --color-species-late-ink: hsl(var(--species-late-ink));
+  --color-counter: hsl(var(--counter));
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

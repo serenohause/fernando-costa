@@ -29,6 +29,7 @@ import TabNavigationWrapper, {
   useTabNavigation,
 } from '@/components/navigation/TabNavigationWrapper'
 import QuickActions from '@/components/header/QuickActions'
+import NotificationBell from '@/features/notifications/components/NotificationBell'
 import AcessoIndisponivel from '@/features/auth/components/AcessoIndisponivel'
 import AcessoPendente from '@/features/auth/components/AcessoPendente'
 import TrocarSenhaProvisoria from '@/features/auth/components/TrocarSenhaProvisoria'
@@ -560,6 +561,18 @@ export default function AppLayout() {
             </button>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
+              {/*
+                O SINO É O PRIMEIRO DO GRUPO DA DIREITA, antes do tema e dos
+                atalhos — decisão do usuário sobre o protótipo aprovado. Ele é o
+                único item do cabeçalho que muda de estado sozinho, e quem
+                procura notificação procura na ponta.
+
+                SÓ AQUI, e não na casca LeadsShell: aquela é da equipe do
+                produto, que não é colaboradora de escritório nenhum e por isso
+                não tem `recipient_id` para receber aviso de tarefa. O sino lá
+                só saberia mostrar uma caixa vazia para sempre.
+              */}
+              <NotificationBell />
               <ThemeToggle />
               <QuickActions currentCollaborator={currentCollaborator} />
             </div>
