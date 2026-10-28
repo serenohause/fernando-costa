@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
 import {
@@ -374,75 +374,35 @@ function diaryProjectOf(task: TaskRow, projects: ProjectRow[]): DiaryProject | n
 }
 
 /*
-  A ALTURA DO QUADRO É MEDIDA, E NÃO CHUTADA A PARTIR DA JANELA.
+  A ALTURA DO QUADRO VEM DA CORRENTE DE FLEX, NÃO DE UMA CONTA SOBRE A JANELA.
 
   O original fixa `calc(100vh - 280px)` no quadro e `calc(100vh - 300px)` na
   coluna. Aquele 280 é a soma do que fica acima do quadro NAQUELA tela. Aqui o
-  quadro mora dentro de `main` (AppLayout), que já tem altura própria
-  (`calc(100vh - 4rem)`), padding próprio e rolagem própria, e acima dele há
-  breadcrumb, cabeçalho da página e dois filtros que ficam em linha no desktop e
-  EMPILHAM no celular. Nada disso é 280px, e nenhum dos dois números acompanha a
-  largura da janela.
+  quadro mora dentro de `main`, que já tem altura própria, padding próprio e
+  rolagem própria, e acima dele há breadcrumb, cabeçalho e dois filtros que
+  ficam em linha no desktop e EMPILHAM no celular. Nada disso é 280px, e nenhum
+  dos dois números acompanha a largura da janela.
 
-  O QUE FOI MEDIDO, no app rodando, com o quadro começando em 284px:
+  O QUE FOI MEDIDO com o chute, antes da correção: o quadro passava 36px do fim
+  da área de conteúdo no desktop e 188px no celular. O excedente não virava
+  barra de rolagem, ele caía dentro do padding de baixo — por isso a BARRA
+  HORIZONTAL do quadro sumia: ela fica na borda de baixo do quadro, que estava
+  fora da área visível. E com a faixa de sessão assumida `main` encolhe 3,5rem
+  enquanto o quadro não encolhia nada, aí a página inteira passava a rolar,
+  arrastando breadcrumb e título junto.
 
-    janela 1440x900   quadro termina 4px abaixo da borda de baixo
-    janela 1280x720   quadro termina 4px abaixo
-    janela  390x844   quadro termina 92px abaixo
+  COMO FICOU: `main` tem altura definida, `PullToRefresh` a herda com `h-full` e
+  vira coluna flex, a área da página ocupa o que sobra (`RouteTransition`), a
+  tela do Fluxo é outra coluna e o quadro é `flex-1 min-h-0` dentro dela. Cada
+  elo recebe a altura do anterior, então não há número para errar: o quadro é
+  exatamente o que sobrou depois de breadcrumb, título e filtros, em qualquer
+  breakpoint e com ou sem faixa.
 
-  O excedente não aparece como rolagem: ele cai dentro do padding de baixo de
-  `main` (`pb-24` no celular), então o fim das colunas fica escondido e sem
-  gesto que o alcance. E com a FAIXA DE SESSÃO ASSUMIDA ligada `main` encolhe
-  3,5rem enquanto o quadro não encolhe nada — aí sobra para a página inteira a
-  rolagem que devia ser só do quadro.
-
-  COMO A MEDIDA FUNCIONA: o quadro recebe o que resta de `main` a partir de onde
-  ele começa, descontado o padding de baixo. A distância do topo NÃO depende da
-  altura do quadro, então não há laço de medida; e ela já carrega tudo que
-  estiver acima, em qualquer breakpoint, com ou sem faixa. O `ResizeObserver`
-  está em `main` porque é ele que muda de tamanho quando a janela muda ou a
-  faixa aparece.
-
-  O CHUTE DO ORIGINAL CONTINUA SENDO O PRIMEIRO QUADRO desenhado, antes de a
-  medida existir: é melhor um quadro com a altura aproximada do que um quadro de
-  altura zero piscando a cada abertura da tela.
+  O PISO DE 20rem no bloco do quadro é a única medida escrita à mão, e ela
+  existe para janela muito baixa: sem piso, o quadro encolheria até virar uma
+  faixa inútil. Com piso, ele para de encolher e a página volta a rolar, que é o
+  comportamento menos ruim dos dois.
 */
-const ALTURA_INICIAL_DO_QUADRO = 'calc(100vh - 280px)'
-const ALTURA_MINIMA_DO_QUADRO = 240
-
-function useAlturaDoQuadro() {
-  const refDoQuadro = useRef<HTMLDivElement | null>(null)
-  const [altura, setAltura] = useState<number | null>(null)
-
-  useEffect(() => {
-    const quadro = refDoQuadro.current
-    const rolagem = quadro?.closest('main')
-    if (!quadro || !rolagem) return
-
-    const medir = () => {
-      const recuoDeBaixo = parseFloat(getComputedStyle(rolagem).paddingBottom) || 0
-      const inicio =
-        quadro.getBoundingClientRect().top -
-        rolagem.getBoundingClientRect().top +
-        rolagem.scrollTop
-      setAltura(Math.max(ALTURA_MINIMA_DO_QUADRO, rolagem.clientHeight - inicio - recuoDeBaixo))
-    }
-
-    medir()
-    const observador = new ResizeObserver(medir)
-    observador.observe(rolagem)
-    window.addEventListener('resize', medir)
-    return () => {
-      observador.disconnect()
-      window.removeEventListener('resize', medir)
-    }
-  }, [])
-
-  return {
-    refDoQuadro,
-    alturaDoQuadro: altura === null ? ALTURA_INICIAL_DO_QUADRO : `${altura}px`,
-  }
-}
 
 export default function TaskKanban({
   tasks,
@@ -565,8 +525,6 @@ export default function TaskKanban({
         }))
     : DEFAULT_COLUMNS
 
-  const { refDoQuadro, alturaDoQuadro } = useAlturaDoQuadro()
-
   const responsibles = operationalCandidates(collaborators)
 
   const handleDragEnd = (result: DropResult) => {
@@ -666,7 +624,7 @@ export default function TaskKanban({
       )}
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="relative">
+        <div className="relative flex-1 flex flex-col min-h-[20rem]">
           <div className="md:hidden absolute top-2 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
             {/* `bg-foreground/80` + `text-background` é exatamente o par
                 slate-900/80 + branco do original no claro, e o
@@ -677,9 +635,8 @@ export default function TaskKanban({
           </div>
 
           <div
-            ref={refDoQuadro}
-            className="kanban-board-wrapper overflow-x-auto overflow-y-hidden overscroll-contain snap-x snap-mandatory"
-            style={{ height: alturaDoQuadro, WebkitOverflowScrolling: 'touch' }}
+            className="kanban-board-wrapper flex-1 min-h-0 overflow-x-auto overflow-y-hidden overscroll-contain snap-x snap-mandatory"
+            style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div className="flex gap-4 pb-4 h-full" style={{ width: 'max-content' }}>
               {columns.map((column) => {

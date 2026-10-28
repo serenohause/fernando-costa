@@ -136,14 +136,25 @@ try {
       const quadro = document.querySelector('.kanban-board-wrapper')
       const recuo = parseFloat(getComputedStyle(principal).paddingBottom) || 0
       const fimDoConteudo = principal.getBoundingClientRect().top + principal.clientHeight - recuo
+      const caixa = quadro.getBoundingClientRect()
       return {
-        excesso: Math.round(quadro.getBoundingClientRect().bottom - fimDoConteudo),
+        excesso: Math.round(caixa.bottom - fimDoConteudo),
         paginaRola: principal.scrollHeight > principal.clientHeight + 1,
+        /* Só faz sentido quando há o que rolar na horizontal. */
+        barraVisivel:
+          quadro.scrollWidth <= quadro.clientWidth + 1 ||
+          (caixa.bottom <= innerHeight && caixa.bottom > 0),
       }
     })
 
     caso(`${janela.nome}: quadro passa de main (px)`, 0, medida.excesso)
     caso(`${janela.nome}: a pagina NAO rola`, 'false', medida.paginaRola)
+    /*
+      A BARRA HORIZONTAL MORA NA BORDA DE BAIXO DO QUADRO. Era ela que sumia:
+      com o quadro passando da área visível, a barra ficava fora da tela e não
+      havia o que arrastar. Estando o quadro dentro, ela está à mão.
+    */
+    caso(`${janela.nome}: a barra horizontal esta na area visivel`, 'true', medida.barraVisivel)
   }
 
   /*
@@ -200,6 +211,53 @@ try {
         `SKIP  submenu cabe inteiro com ${menu.itens} nomes: nada a rolar nesta base`,
       )
     }
+  }
+  /*
+    CASO 3 — A LISTA DENTRO DO POPOVER DO CARTÃO ROLA COM A RODA DO MOUSE.
+
+    Defeito diferente do caso 2, e por isso tem caso próprio: aqui a lista
+    SEMPRE pôde rolar (`max-h-64 overflow-y-auto`), o que estava bloqueado era o
+    GESTO. O popover é portalado para fora do diálogo modal, e a trava de
+    rolagem do diálogo engolia a roda. Por isso o teste usa `mouse.wheel` e não
+    `scrollTop = N`: o `scrollTop` forçado funcionava mesmo com o defeito de pé,
+    e um teste escrito assim passaria sem provar nada.
+  */
+  await pagina.setViewportSize({ width: 1440, height: 900 })
+  await pagina.goto(`${BASE}/Tasks`, { waitUntil: 'networkidle' })
+  await pagina.waitForSelector('.kanban-column-body', { timeout: 20000 })
+  await pagina.waitForTimeout(1200)
+  await pagina.locator('.kanban-column-body [data-rfd-draggable-id]').first().click()
+  await pagina.waitForSelector('[role="dialog"]', { timeout: 10000 })
+  await pagina.waitForTimeout(1200)
+  await pagina.locator('[role="dialog"] button[aria-label="Alterar responsável"]').first().click()
+  await pagina.waitForTimeout(900)
+
+  const acharLista = () =>
+    pagina.evaluate(() => {
+      const lista = [...document.querySelectorAll('div')].find(
+        (el) =>
+          /overflow-y-auto/.test(el.className || '') && /max-h-64/.test(el.className || ''),
+      )
+      if (!lista) return null
+      const r = lista.getBoundingClientRect()
+      return {
+        precisaRolar: lista.scrollHeight > lista.clientHeight + 1,
+        scrollTop: lista.scrollTop,
+        centro: { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) },
+      }
+    })
+
+  const antes = await acharLista()
+  if (!antes) {
+    caso('a lista de responsaveis do cartao abriu', 'sim', 'nao')
+  } else if (!antes.precisaRolar) {
+    console.log('SKIP  a lista de responsaveis cabe inteira: nada a rolar nesta base')
+  } else {
+    await pagina.mouse.move(antes.centro.x, antes.centro.y)
+    await pagina.mouse.wheel(0, 300)
+    await pagina.waitForTimeout(600)
+    const depois = await acharLista()
+    caso('a lista do cartao rola com a roda do mouse', 'true', depois.scrollTop > 0)
   }
 } finally {
   await navegador.close()

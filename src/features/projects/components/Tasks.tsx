@@ -313,7 +313,13 @@ export default function Tasks() {
   const isError = tasksQuery.isError || projectsQuery.isError || progressQuery.isError
 
   return (
-    <div>
+    /*
+      COLUNA QUE OCUPA O QUE SOBRA, para o quadro ter altura propria e o
+      cabecalho ficar parado. `flex-1` sem `min-h-0`: numa janela baixa demais a
+      coluna para de encolher no piso do quadro e a pagina volta a rolar, que e
+      melhor do que um quadro de dois centimetros.
+    */
+    <div className="flex flex-col flex-1 min-h-0">
       <PageHeader
         title="Fluxo do Projeto"
         subtitle="Acompanhe o andamento dos projetos"

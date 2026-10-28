@@ -8,7 +8,7 @@ export default function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
   if (!items || items.length === 0) return null
 
   return (
-    <nav className="flex items-center gap-2 text-sm text-soft mb-4">
+    <nav className="flex items-center gap-2 text-sm text-soft mb-4 shrink-0">
       <Link
         to={createPageUrl('Dashboard')}
         className="flex items-center gap-1 hover:text-foreground transition-colors"

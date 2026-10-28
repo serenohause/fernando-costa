@@ -53,7 +53,7 @@ export default function PullToRefresh({ onRefresh, children }: PullToRefreshProp
 
   return (
     <div
-      className="relative h-full overflow-y-auto overscroll-none"
+      className="relative h-full overflow-y-auto overscroll-none flex flex-col"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
