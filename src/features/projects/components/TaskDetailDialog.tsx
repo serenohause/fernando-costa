@@ -628,8 +628,27 @@ function DetailRow({
     return <div className="px-2 py-1 -mx-2">{conteudo}</div>
   }
 
+  /*
+    `modal` NÃO É ENFEITE: sem ele a lista de dentro do popover não rola.
+
+    Este popover vive dentro de um Dialog MODAL, e diálogo modal da Radix tranca
+    a rolagem com `react-remove-scroll`, que bloqueia a roda do mouse em tudo
+    que estiver FORA do conteúdo do diálogo. O popover é portalado para o fim do
+    body, ou seja, fora dele. Medido: `dialogo.contains(lista)` é falso.
+
+    Com 20 colaboradores a lista de responsáveis tem 256px de altura para 960px
+    de conteúdo, precisa rolar, e uma RODA DE MOUSE DE VERDADE deixava
+    `scrollTop` em zero. Vale registrar que `scrollTop = 300` forçado por script
+    funcionava: o elemento sempre foi rolável, o que estava bloqueado era o
+    gesto. Teste que force `scrollTop` não pega este defeito.
+
+    Com `modal`, o popover instala a própria trava, e a do topo da pilha é a que
+    manda: o conteúdo dele passa a ser o que pode rolar. Vale para TODAS as
+    linhas deste painel, não só a de responsável, porque todas são este mesmo
+    componente. `ObjectivePopover` leva o mesmo pelo mesmo motivo.
+  */
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -1091,7 +1110,7 @@ function ObjectivePopover({
   if (disabled) return <>{trigger}</>
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <button type="button" aria-label={label} className="rounded focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring">
           {trigger}
