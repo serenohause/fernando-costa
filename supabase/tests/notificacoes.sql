@@ -607,6 +607,92 @@ select pg_temp.rec('4.12', 'o gatilho da atribuição não é chamável por quem
   has_function_privilege('authenticated', 'public.notify_task_assigned()', 'execute')::text || '|' ||
   has_function_privilege('anon', 'public.notify_task_assigned()', 'execute')::text);
 
+/* Fixture própria da seção 5: um aviso que existe só para ser apagado, com
+   título reconhecível, para o expurgo não depender das linhas das seções
+   anteriores nem contar linha absoluta. */
+insert into public.notifications
+  (tenant_id, recipient_id, kind, task_title, read_at)
+select tenant_a, col_bruno, 'task_assigned', 'Aviso para expurgar', now() from ids;
+
+-- 5. O EXPURGO, E QUEM ALCANÇA ELE (migration 0122) ----------------------------
+--
+-- O módulo nasceu sem NENHUM caminho de limpeza, e isso foi achado de auditoria
+-- (M2 e M3). A linha guarda CÓPIA de texto livre: título renomeado na tarefa
+-- continua antigo no sino de quem recebeu, e o gatilho avisa a cada mudança de
+-- responsável de propósito, então alternar o responsável em laço enche o sino de
+-- um colega. Os dois casos precisavam de porta, e a porta é de OPERADOR: não
+-- existe policy de DELETE, e quem recebe não apaga o próprio histórico.
+
+select pg_temp.rec('5.1', 'CONTROLE: o aviso existe antes do expurgo', '1',
+  (select count(*)::text from public.notifications
+    where task_title = 'Aviso para expurgar'));
+
+/* EM DOIS CASOS, e não num só. Chamar a função e contar a linha no MESMO
+   `select` lê a foto tirada antes da chamada: o delete acontece, e a contagem
+   ainda enxerga a linha. A primeira versão deste caso afirmava 'true|0' e
+   observava 'true|1' por isso. A pergunta "devolveu true" e a pergunta "a linha
+   saiu" são duas, e precisam de duas instruções. */
+select pg_temp.rec('5.2', 'apagar por id devolve true', 'true',
+  (select public.delete_notification(id)::text
+     from public.notifications where task_title = 'Aviso para expurgar'));
+
+select pg_temp.rec('5.2b', 'e a linha saiu de verdade', '0',
+  (select count(*)::text from public.notifications
+    where task_title = 'Aviso para expurgar'));
+
+select pg_temp.rec('5.3', 'apagar id que não existe devolve false, sem erro', 'false',
+  public.delete_notification('00000000-0000-4000-8000-000000000000'::uuid)::text);
+
+/* O padrão é o caminho seguro: `p_only_read` nasce TRUE, então expurgo por
+   idade NÃO alcança o que a pessoa ainda não viu. */
+select pg_temp.rec('5.4', 'expurgo por idade NÃO leva o não lido', '0',
+  public.purge_notifications(now() + interval '1 day')::text);
+
+select pg_temp.rec('5.5', 'CONTROLE: e os não lidos continuam lá', 'true',
+  (select (count(*) > 0)::text from public.notifications where read_at is null));
+
+select pg_temp.rec('5.6', 'com p_only_read=false ele alcança tudo que é mais velho', 'true',
+  (select (public.purge_notifications(now() + interval '1 day', false) > 0)::text));
+
+select pg_temp.rec('5.7', 'data de corte nula levanta 22023, em vez de limpar a tabela', 'ERR:22023',
+  pg_temp.chk($$select public.purge_notifications(null)$$));
+
+select pg_temp.rec('5.8', 'nem anon nem authenticated executam o expurgo', 'false|false|true',
+  has_function_privilege('anon', 'public.delete_notification(uuid)', 'execute')::text || '|' ||
+  has_function_privilege('authenticated', 'public.delete_notification(uuid)', 'execute')::text || '|' ||
+  has_function_privilege('service_role', 'public.delete_notification(uuid)', 'execute')::text);
+
+select pg_temp.rec('5.9', 'o mesmo para o expurgo por idade', 'false|false|true',
+  has_function_privilege('anon', 'public.purge_notifications(timestamptz,boolean)', 'execute')::text || '|' ||
+  has_function_privilege('authenticated', 'public.purge_notifications(timestamptz,boolean)', 'execute')::text || '|' ||
+  has_function_privilege('service_role', 'public.purge_notifications(timestamptz,boolean)', 'execute')::text);
+
+-- 6. O SCHEMA `cron` CONTINUA FORA DE ALCANCE ----------------------------------
+--
+-- Este é o invariante que a 0122 NÃO consegue impor, e por isso vive aqui.
+--
+-- O pg_cron concede a PUBLIC, de fábrica, `select` em `cron.job` e `execute` em
+-- `cron.schedule`/`cron.unschedule`. Quem concedeu foi o `supabase_admin`, dono
+-- do schema, e migration roda como `postgres`, que não é dono e não revoga o que
+-- o dono deu. Medido: a tentativa passa verde e não faz nada.
+--
+-- O que de fato protege é a AUSÊNCIA de usage no schema: sem ela não dá nem para
+-- nomear a função. Uma linha futura (`grant usage on schema cron to
+-- authenticated`, escrita para algum módulo de agendamento) derruba isso de uma
+-- vez, e pareceria inofensiva na revisão. Estes dois casos quebram nesse dia.
+
+select pg_temp.rec('6.1', 'anon NÃO tem usage no schema cron', 'false',
+  has_schema_privilege('anon', 'cron', 'usage')::text);
+
+select pg_temp.rec('6.2', 'authenticated NÃO tem usage no schema cron', 'false',
+  has_schema_privilege('authenticated', 'cron', 'usage')::text);
+
+/* CONTROLE: o privilégio de fábrica de PUBLIC continua existindo, e é por isso
+   que o usage importa. Se este caso virar false um dia, foi alguém revogando na
+   mão como supabase_admin, e aí os dois acima deixam de ser a única defesa. */
+select pg_temp.rec('6.3', 'CONTROLE: PUBLIC segue com select em cron.job (é o que o usage esconde)', 'true',
+  has_table_privilege('authenticated', 'cron.job', 'select')::text);
+
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
 from res order by seq;
