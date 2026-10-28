@@ -142,34 +142,62 @@ document.querySelectorAll('[data-form]').forEach((form) => {
   const entrada = form.querySelector('[data-form-entrada]')
   const sucesso = form.querySelector('[data-form-sucesso]')
   const escritorio = form.querySelector('[data-escritorio]')
+  const nome = form.querySelector('[data-nome]')
+  const telefone = form.querySelector('[data-telefone]')
   const pote = form.querySelector('[data-pote]')
+
+  /*
+    OS QUATRO SAO OBRIGATORIOS desde a migration 0124, a pedido do usuario. A
+    ordem daqui e a da tela, de cima para baixo: quem erra dois campos conserta
+    o primeiro e volta a ver o segundo, em vez de caçar.
+
+    Isto NAO e a regra. A regra mora na edge function (zod) e na funcao do banco,
+    as duas recusando lead incompleto. Isto e so para a pessoa nao esperar uma
+    viagem de rede para descobrir que faltou o telefone.
+  */
+  const obrigatorios = [
+    [nome, 'Informe o seu nome.'],
+    [telefone, 'Informe o seu telefone.'],
+    [campo, 'Digite um e-mail válido.'],
+    [escritorio, 'Informe o nome do escritório.'],
+  ]
 
   const limparErro = () => {
     erro.classList.add('hidden')
     erro.classList.remove('flex')
-    campo.removeAttribute('aria-invalid')
+    for (const [entradaDoCampo] of obrigatorios) entradaDoCampo?.removeAttribute('aria-invalid')
   }
 
-  const mostrarErro = (texto) => {
+  /* O FOCO VAI PARA O CAMPO ERRADO, e nao sempre para o e-mail. Com quatro
+     campos, mandar o cursor para o primeiro deles a cada erro faz a pessoa
+     reler tudo para achar o que o aviso diz. */
+  const mostrarErro = (texto, alvo = campo) => {
     erroTexto.textContent = texto
     erro.classList.remove('hidden')
     erro.classList.add('flex')
-    campo.setAttribute('aria-invalid', 'true')
-    campo.focus()
+    alvo?.setAttribute('aria-invalid', 'true')
+    alvo?.focus()
   }
 
-  campo.addEventListener('input', () => {
-    if (campo.getAttribute('aria-invalid') === 'true' && emailValido(campo.value)) limparErro()
-  })
+  for (const [entradaDoCampo] of obrigatorios) {
+    entradaDoCampo?.addEventListener('input', () => {
+      if (entradaDoCampo.getAttribute('aria-invalid') === 'true') limparErro()
+    })
+  }
 
   form.addEventListener('submit', async (evento) => {
     evento.preventDefault()
 
     if (form.getAttribute('aria-busy') === 'true') return
 
-    if (!emailValido(campo.value)) {
-      mostrarErro('Digite um e-mail válido.')
-      return
+    for (const [entradaDoCampo, frase] of obrigatorios) {
+      if (!entradaDoCampo) continue
+      const vazio = entradaDoCampo.value.trim() === ''
+      const emailRuim = entradaDoCampo === campo && !emailValido(campo.value)
+      if (vazio || emailRuim) {
+        mostrarErro(frase, entradaDoCampo)
+        return
+      }
     }
 
     limparErro()
@@ -181,6 +209,8 @@ document.querySelectorAll('[data-form]').forEach((form) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: campo.value.trim(),
+          name: nome ? nome.value.trim() : undefined,
+          phone: telefone ? telefone.value.trim() : undefined,
           office_name: escritorio ? escritorio.value.trim() : undefined,
           placement: form.dataset.origem,
           /* O campo da armadilha viaja SEMPRE, cheio ou vazio: mandar
@@ -218,6 +248,47 @@ document.querySelectorAll('[data-form]').forEach((form) => {
     sucesso.classList.remove('hidden')
     sucesso.setAttribute('tabindex', '-1')
     sucesso.focus()
+  })
+})
+
+/* ------------------------------------------------------------------
+   O FORMULARIO DO TOPO LEVA ATE O DE BAIXO, em vez de enviar.
+
+   Desde a migration 0124 o lead exige nome, telefone, e-mail e escritorio.
+   Quatro campos na primeira dobra mudariam a cara da pagina e pediriam tudo a
+   quem ainda nao decidiu nada, entao o topo continua sendo a pilula de e-mail
+   aprovada no prototipo e o botao rola ate o formulario completo.
+
+   O QUE A PESSOA DIGITOU NAO SE PERDE. O e-mail viaja junto e chega preenchido
+   la embaixo; sem isso ela digitaria duas vezes e teria razao em desistir.
+
+   O foco vai para o PRIMEIRO campo vazio, e nao sempre para o primeiro campo:
+   quem ja digitou o e-mail em cima cai no nome, que e o que falta.
+   ------------------------------------------------------------------ */
+document.querySelectorAll('[data-rolar-para]').forEach((form) => {
+  const alvo = document.querySelector(form.dataset.rolarPara)
+  if (!alvo) return
+
+  form.addEventListener('submit', (evento) => {
+    evento.preventDefault()
+
+    const digitado = form.querySelector('[data-email]')?.value.trim() ?? ''
+    const destinoEmail = alvo.querySelector('[data-email]')
+    if (digitado && destinoEmail && destinoEmail.value.trim() === '') {
+      destinoEmail.value = digitado
+    }
+
+    alvo.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    /* Depois da rolagem, nao durante: focar antes faz o navegador saltar e a
+       animacao que acabou de comecar vira um corte. 500ms e o fim do `smooth`
+       em tela de tamanho normal, e quem pediu menos movimento nao espera. */
+    const atraso = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500
+    window.setTimeout(() => {
+      const campos = Array.from(alvo.querySelectorAll('input:not([tabindex="-1"])'))
+      const vazio = campos.find((entrada) => entrada.value.trim() === '')
+      ;(vazio ?? campos[0])?.focus({ preventScroll: true })
+    }, atraso)
   })
 })
 

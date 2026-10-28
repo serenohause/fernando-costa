@@ -143,71 +143,132 @@ const abrir = async () => {
   return { ctx, p, erros }
 }
 
-/* 1. Caminho feliz pelo formulário do hero. */
+/*
+  O TOPO NAO ENVIA MAIS. Desde a migration 0124 o lead exige nome, telefone,
+  e-mail e escritorio, e quatro campos na primeira dobra mudariam a cara da
+  pagina. Entao o formulario do topo rola ate o de baixo, e TODO caso de envio
+  deste arquivo mira `#cta-form`.
+*/
+const COMPLETO = {
+  '#nome-cta': 'Joana Arquiteta',
+  '#telefone-cta': '62 99999-0000',
+  '#email-cta': 'completo@navegador.test',
+  '#escritorio-cta': 'Escritorio do Teste',
+}
+
+const preencher = async (p, troca = {}) => {
+  for (const [sel, valor] of Object.entries({ ...COMPLETO, ...troca })) {
+    await p.fill(sel, valor)
+  }
+}
+
+/* 1. Caminho feliz: os quatro campos chegam ao banco. */
 {
   const { ctx, p, erros } = await abrir()
-  await p.fill('#email-hero', 'hero@navegador.test')
-  await p.click('#hero-form button[type=submit]')
-  await p.waitForSelector('#hero-form [data-form-sucesso]:not([hidden])', { timeout: 15000 })
-  caso('hero: painel de sucesso aparece', 'true', await p.isVisible('#hero-form [data-form-sucesso]'))
-  caso('hero: entrada desaparece', 'false', await p.isVisible('#hero-form [data-form-entrada]'))
+  await preencher(p)
+  await p.click('#cta-form button[type=submit]')
+  await p.waitForSelector('#cta-form [data-form-sucesso]:not([hidden])', { timeout: 15000 })
+  caso('envio: painel de sucesso aparece', 'true', await p.isVisible('#cta-form [data-form-sucesso]'))
+  caso('envio: entrada desaparece', 'false', await p.isVisible('#cta-form [data-form-entrada]'))
   /* O foco é o que avisa quem usa leitor de tela que o envio deu certo. */
   caso(
-    'hero: o foco vai para o painel de sucesso',
+    'envio: o foco vai para o painel de sucesso',
     'true',
     await p.evaluate(() => document.activeElement?.hasAttribute('data-form-sucesso')),
   )
   caso(
-    'hero: gravou com o bloco e a origem certos',
-    'hero|lp-hausone|new',
-    DB("select placement||'|'||source||'|'||status from public.product_leads where email='hero@navegador.test';"),
+    'envio: gravou os QUATRO campos, o bloco e a origem',
+    'Joana Arquiteta|62 99999-0000|Escritorio do Teste|cta-final|lp-hausone|new',
+    DB(
+      "select name||'|'||phone||'|'||office_name||'|'||placement||'|'||source||'|'||status" +
+        " from public.product_leads where email='completo@navegador.test';",
+    ),
   )
-  caso('hero: zero erro no console', '', erros.join(' | '))
+  caso('envio: zero erro no console', '', erros.join(' | '))
   await ctx.close()
 }
 
-/* 2. O CTA é o único com campo de escritório, e manda o próprio bloco. */
+/* 2. O topo leva até o formulário de baixo, com o e-mail junto. */
 {
   const { ctx, p } = await abrir()
-  await p.fill('#email-cta', 'cta@navegador.test')
-  await p.fill('#escritorio-cta', 'Escritorio do Teste')
-  await p.click('#cta-form button[type=submit]')
-  await p.waitForSelector('#cta-form [data-form-sucesso]:not([hidden])', { timeout: 15000 })
-  caso(
-    'cta: gravou o bloco e o nome do escritório',
-    'cta-final|Escritorio do Teste',
-    DB("select placement||'|'||office_name from public.product_leads where email='cta@navegador.test';"),
-  )
-  await ctx.close()
-}
-
-/* 3. E-mail inválido é decidido no navegador e não chega a sair. */
-{
-  const { ctx, p } = await abrir()
-  await p.fill('#email-hero', 'nao-e-email')
+  await p.fill('#email-hero', 'veio-de-cima@navegador.test')
   await p.click('#hero-form button[type=submit]')
-  await p.waitForSelector('#hero-form [data-erro]:not(.hidden)', { timeout: 10000 })
+  await p.waitForTimeout(1200)
+  caso(
+    'topo: o e-mail digitado chega preenchido embaixo',
+    'veio-de-cima@navegador.test',
+    await p.inputValue('#email-cta'),
+  )
+  /* O topo não envia: se enviasse, teria gravado antes de rolar. */
+  caso(
+    'topo: nada foi gravado',
+    '0',
+    DB("select count(*) from public.product_leads where email='veio-de-cima@navegador.test';"),
+  )
+  caso('topo: e o formulário de baixo não some', 'true', await p.isVisible('#cta-form [data-form-entrada]'))
+  /* O foco cai no primeiro campo VAZIO, e não no primeiro campo: quem já
+     digitou o e-mail em cima precisa continuar de onde parou. */
+  caso(
+    'topo: o foco vai para o primeiro campo vazio',
+    'nome-cta',
+    await p.evaluate(() => document.activeElement?.id),
+  )
+  await ctx.close()
+}
+
+/* 3. Cada campo obrigatório tem a SUA frase, e nenhum sai do navegador.
+
+   Com quatro campos, "um dos campos não foi aceito" obriga a pessoa a
+   adivinhar qual, e isso é metade das desistências. */
+{
+  const casos = [
+    ['#nome-cta', 'Informe o seu nome.', 'nome-cta'],
+    ['#telefone-cta', 'Informe o seu telefone.', 'telefone-cta'],
+    ['#escritorio-cta', 'Informe o nome do escritório.', 'escritorio-cta'],
+  ]
+  for (const [sel, frase, foco] of casos) {
+    const { ctx, p } = await abrir()
+    await preencher(p, { [sel]: '', '#email-cta': `falta${foco}@navegador.test` })
+    await p.click('#cta-form button[type=submit]')
+    await p.waitForSelector('#cta-form [data-erro]:not(.hidden)', { timeout: 10000 })
+    caso(`obrigatório: ${sel} tem frase própria`, frase, (await p.textContent('#cta-form [data-erro-texto]')).trim())
+    caso(`obrigatório: ${sel} recebe o foco`, foco, await p.evaluate(() => document.activeElement?.id))
+    caso(
+      `obrigatório: ${sel} vazio não grava`,
+      '0',
+      DB(`select count(*) from public.product_leads where email='falta${foco}@navegador.test';`),
+    )
+    await ctx.close()
+  }
+}
+
+/* 4. E-mail inválido é decidido no navegador e não chega a sair. */
+{
+  const { ctx, p } = await abrir()
+  await preencher(p, { '#email-cta': 'nao-e-email' })
+  await p.click('#cta-form button[type=submit]')
+  await p.waitForSelector('#cta-form [data-erro]:not(.hidden)', { timeout: 10000 })
   caso(
     'inválido: o texto é o de e-mail',
     'Digite um e-mail válido.',
-    (await p.textContent('#hero-form [data-erro-texto]')).trim(),
+    (await p.textContent('#cta-form [data-erro-texto]')).trim(),
   )
-  caso('inválido: o campo é marcado', 'true', await p.getAttribute('#email-hero', 'aria-invalid'))
+  caso('inválido: o campo é marcado', 'true', await p.getAttribute('#email-cta', 'aria-invalid'))
   caso(
     'inválido: nada foi gravado',
     '0',
     DB("select count(*) from public.product_leads where email like 'nao-e-email%';"),
   )
-  await p.fill('#email-hero', 'corrigido@navegador.test')
+  await p.fill('#email-cta', 'corrigido@navegador.test')
   caso(
     'corrigir o campo apaga o erro sozinho',
     'true',
-    await p.evaluate(() => document.querySelector('#hero-form [data-erro]').classList.contains('hidden')),
+    await p.evaluate(() => document.querySelector('#cta-form [data-erro]').classList.contains('hidden')),
   )
   await ctx.close()
 }
 
-/* 4. A armadilha de robô.
+/* 5. A armadilha de robô.
 
    NÃO use `isVisible` aqui: para o Playwright, "visível" é ter caixa não-vazia
    e `visibility` diferente de hidden — e o campo tem caixa. O que importa é
@@ -215,27 +276,27 @@ const abrir = async () => {
    com overflow hidden, numa página sem rolagem horizontal. */
 {
   const { ctx, p } = await abrir()
-  const box = await p.locator('#observacao-hero').boundingBox()
+  const box = await p.locator('#observacao-cta').boundingBox()
   caso('armadilha: a caixa está inteira fora da tela', 'true', box.x + box.width <= 0)
   caso(
     'armadilha: a página não rola para alcançá-la',
     '0',
     await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
   )
-  caso('armadilha: fora da ordem de tabulação', '-1', await p.getAttribute('#observacao-hero', 'tabindex'))
+  caso('armadilha: fora da ordem de tabulação', '-1', await p.getAttribute('#observacao-cta', 'tabindex'))
   caso(
     'armadilha: escondida do leitor de tela',
     'true',
-    await p.evaluate(() => !!document.querySelector('#observacao-hero').closest('[aria-hidden="true"]')),
+    await p.evaluate(() => !!document.querySelector('#observacao-cta').closest('[aria-hidden="true"]')),
   )
 
   await p.evaluate(() => {
-    document.querySelector('#observacao-hero').value = 'http://spam.example'
+    document.querySelector('#observacao-cta').value = 'http://spam.example'
   })
-  await p.fill('#email-hero', 'robo@navegador.test')
-  await p.click('#hero-form button[type=submit]')
-  await p.waitForSelector('#hero-form [data-form-sucesso]:not([hidden])', { timeout: 15000 })
-  caso('armadilha: a pessoa vê sucesso', 'true', await p.isVisible('#hero-form [data-form-sucesso]'))
+  await preencher(p, { '#email-cta': 'robo@navegador.test' })
+  await p.click('#cta-form button[type=submit]')
+  await p.waitForSelector('#cta-form [data-form-sucesso]:not([hidden])', { timeout: 15000 })
+  caso('armadilha: a pessoa vê sucesso', 'true', await p.isVisible('#cta-form [data-form-sucesso]'))
   caso(
     'armadilha: e nada é gravado',
     '0',
@@ -244,7 +305,11 @@ const abrir = async () => {
   await ctx.close()
 }
 
-/* 5. Limite de requisição: a tela diz o que o servidor disse. */
+/* 6. Limite de requisição: a tela diz o que o servidor disse.
+
+   As dez chamadas diretas mandam só o e-mail e levam 400 do schema, e isso é
+   de propósito: o contador roda ANTES de ler o corpo, então recusa por campo
+   faltando consome cota igual. É o que o atacante faria. */
 {
   DB("delete from public.public_endpoint_hits where scope = 'capture-lead';")
   const { ctx, p } = await abrir()
@@ -260,32 +325,32 @@ const abrir = async () => {
       [URL_FUNCAO, i],
     )
   }
-  await p.fill('#email-hero', 'passou-do-teto@navegador.test')
-  await p.click('#hero-form button[type=submit]')
-  await p.waitForSelector('#hero-form [data-erro]:not(.hidden)', { timeout: 15000 })
+  await preencher(p, { '#email-cta': 'passou-do-teto@navegador.test' })
+  await p.click('#cta-form button[type=submit]')
+  await p.waitForSelector('#cta-form [data-erro]:not(.hidden)', { timeout: 15000 })
   caso(
     'limite: a tela mostra o texto do servidor',
     'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.',
-    (await p.textContent('#hero-form [data-erro-texto]')).trim(),
+    (await p.textContent('#cta-form [data-erro-texto]')).trim(),
   )
   /* Recusa não queima o formulário: a pessoa precisa poder tentar de novo. */
-  caso('limite: o formulário continua utilizável', 'true', await p.isVisible('#hero-form [data-form-entrada]'))
+  caso('limite: o formulário continua utilizável', 'true', await p.isVisible('#cta-form [data-form-entrada]'))
   await ctx.close()
 }
 
-/* 6. Rede caída não é culpa de quem digitou. */
+/* 7. Rede caída não é culpa de quem digitou. */
 {
   const { ctx, p } = await abrir()
   await p.route('**/functions/v1/capture-lead', (rota) => rota.abort('failed'))
-  await p.fill('#email-hero', 'offline@navegador.test')
-  await p.click('#hero-form button[type=submit]')
-  await p.waitForSelector('#hero-form [data-erro]:not(.hidden)', { timeout: 15000 })
+  await preencher(p, { '#email-cta': 'offline@navegador.test' })
+  await p.click('#cta-form button[type=submit]')
+  await p.waitForSelector('#cta-form [data-erro]:not(.hidden)', { timeout: 15000 })
   caso(
     'rede caída: o texto fala de conexão',
     'Não foi possível enviar agora. Confira sua conexão e tente de novo.',
-    (await p.textContent('#hero-form [data-erro-texto]')).trim(),
+    (await p.textContent('#cta-form [data-erro-texto]')).trim(),
   )
-  caso('rede caída: não mostra sucesso', 'false', await p.isVisible('#hero-form [data-form-sucesso]'))
+  caso('rede caída: não mostra sucesso', 'false', await p.isVisible('#cta-form [data-form-sucesso]'))
   await ctx.close()
 }
 

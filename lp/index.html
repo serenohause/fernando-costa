@@ -727,45 +727,38 @@
             </p>
 
             <!-- FORMULÁRIO DO HERO — UM campo, nada mais. -->
-            <form
+                          <!--
+                O TOPO NAO ENVIA MAIS, ELE LEVA ATE O FORMULARIO COMPLETO.
+
+                Desde a migration 0124 o lead exige nome, telefone, e-mail e
+                escritorio. Quatro campos na primeira dobra mudariam a cara da
+                pagina e, pior, pedem tudo a quem ainda nao decidiu nada. Entao o
+                desenho daqui fica IGUAL ao aprovado, e o botao rola ate o
+                formulario do fim.
+
+                O que a pessoa digitou NAO se perde: o e-mail viaja junto e
+                aparece preenchido la embaixo. Ver `rolarAteOFormulario` no script.
+              -->
+              <form
               id="hero-form"
               class="mt-8 scroll-mt-28"
               data-revelar
               novalidate
-              data-form
-              data-origem="hero"
+              data-rolar-para="#cta-form"
               aria-labelledby="hero-form-rotulo"
             >
               <h2 id="hero-form-rotulo" class="sr-only">Deixar meu e-mail para contato</h2>
 
               <div data-form-entrada>
                 <!--
-                  ARMADILHA DE ROBÔ. Fora da tela (.pote), nunca com `display: none`:
-                  robô que respeita display:none é robô que pula o campo. Preenchido, a
-                  edge function responde sucesso e não grava nada — dizer "você é um
-                  robô" ensina o robô a contornar. Não é a defesa principal (essa é o
-                  limite de requisições por origem); é o que evita a fila encher de
-                  lixo sem pôr captcha na frente de quem está comprando.
+                  A ARMADILHA DE ROBO SAIU DAQUI, e nao foi esquecimento.
 
-                  O NOME DO CAMPO NÃO PODE SER `site`, E ESTE FOI UM ACHADO DE
-                  AUDITORIA. Gerenciador de senha trata `site`, `url` e `website`
-                  como campo de endereço e preenche sozinho — e aí o arquiteto que
-                  estava comprando vê "Recebemos seu e-mail" enquanto o lead é
-                  descartado. O custo do falso positivo aqui é exatamente o lead que
-                  a página existe para pegar, então o nome é um que nenhum
-                  preenchedor reconhece. Não troque de volta.
+                  Ela existia porque este formulario enviava. Desde que o lead
+                  passou a exigir os quatro campos (migration 0124), o topo so
+                  rola ate o formulario de baixo: nao ha requisicao, entao nao ha
+                  o que uma armadilha aqui pudesse barrar. A do formulario que de
+                  fato envia continua la embaixo, com a nota inteira.
                 -->
-                <div class="pote" aria-hidden="true">
-                  <label for="observacao-hero">Não preencha este campo</label>
-                  <input
-                    id="observacao-hero"
-                    name="observacao_extra"
-                    type="text"
-                    tabindex="-1"
-                    autocomplete="off"
-                    data-pote
-                  />
-                </div>
                 <div class="flex flex-col gap-2.5 sm:flex-row">
                   <div class="flex-1">
                     <label for="email-hero" class="sr-only">Seu e-mail profissional</label>
@@ -2101,9 +2094,47 @@
                       data-pote
                     />
                   </div>
-                  <div
-                    class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto]"
-                  >
+                  <!--
+                    QUATRO CAMPOS, 2x2 A PARTIR DE `sm`, botao embaixo.
+
+                    Ate a migration 0124 este formulario pedia e-mail e escritorio,
+                    e o escritorio era opcional. O usuario pediu os quatro:
+                    "para o lead agora preciso que seja preenchido um form com:
+                    nome, telefone, email e nome do escritorio".
+
+                    O `lg:grid-cols-[1.15fr_1fr_auto]` de antes saiu: quatro pilulas
+                    lado a lado numa linha so ficam estreitas demais para o texto
+                    que cabe nelas. 2x2 vale de `sm` para cima, e o botao atravessa
+                    as duas colunas.
+                  -->
+                  <div class="grid gap-2.5 sm:grid-cols-2">
+                    <div>
+                      <label for="nome-cta" class="sr-only">Seu nome</label>
+                      <input
+                        id="nome-cta"
+                        name="nome"
+                        type="text"
+                        autocomplete="name"
+                        placeholder="seu nome"
+                        class="campo t-body h-12 w-full rounded-full px-5 outline-hidden"
+                        aria-describedby="erro-cta consent-cta"
+                        data-nome
+                      />
+                    </div>
+                    <div>
+                      <label for="telefone-cta" class="sr-only">Seu telefone</label>
+                      <input
+                        id="telefone-cta"
+                        name="telefone"
+                        type="tel"
+                        inputmode="tel"
+                        autocomplete="tel"
+                        placeholder="seu telefone"
+                        class="campo t-body h-12 w-full rounded-full px-5 outline-hidden"
+                        aria-describedby="erro-cta consent-cta"
+                        data-telefone
+                      />
+                    </div>
                     <div>
                       <label for="email-cta" class="sr-only">Seu e-mail profissional</label>
                       <input
@@ -2119,22 +2150,21 @@
                       />
                     </div>
                     <div>
-                      <label for="escritorio-cta" class="sr-only"
-                        >Nome do escritório (opcional)</label
-                      >
+                      <label for="escritorio-cta" class="sr-only">Nome do escritório</label>
                       <input
                         id="escritorio-cta"
                         name="escritorio"
                         type="text"
                         autocomplete="organization"
-                        placeholder="nome do escritório (opcional)"
+                        placeholder="nome do escritório"
                         class="campo t-body h-12 w-full rounded-full px-5 outline-hidden"
+                        aria-describedby="erro-cta consent-cta"
                         data-escritorio
                       />
                     </div>
                     <button
                       type="submit"
-                      class="btn-seta inline-flex h-12 flex-none items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:col-span-2 lg:col-span-1"
+                      class="btn-seta inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:col-span-2"
                     >
                       Quero ver funcionando
                       <i data-lucide="arrow-right" class="h-4 w-4"></i>
@@ -2148,7 +2178,7 @@
                     role="alert"
                   >
                     <i data-lucide="circle-alert" class="h-4 w-4 flex-none"></i>
-                    <span data-erro-texto>Digite um e-mail válido.</span>
+                    <span data-erro-texto>Confira os campos e tente de novo.</span>
                   </p>
 
                   <p class="mt-3 text-sm text-muted-foreground" data-microcopy>

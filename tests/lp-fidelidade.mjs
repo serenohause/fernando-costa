@@ -56,6 +56,32 @@ import { PNG } from 'pngjs'
 const RAIZ = new URL('..', import.meta.url).pathname.replace(/\/$/, '')
 const LARGURAS = [1280, 768, 375]
 
+/*
+  TOLERÂNCIA DE 1 EM 255 POR CANAL, e ela foi medida, não escolhida.
+
+  A comparação era de igualdade exata e passava com zero. Ao acrescentar dois
+  campos ao formulário do fim (migration 0124), o teste acusou 171 pixels
+  diferentes em 1280, e NENHUM em 768 nem em 375.
+
+  Medido, pixel a pixel: a maior diferença entre os 171 era de **1 em 255**, a
+  mediana 1, e a distribuição inteira era 1. E eles ficavam entre y=211 e y=728,
+  ou seja na maquete do sistema lá no topo, uma imagem com transformação 3D que
+  eu não toquei, mais de onze mil pixels ACIMA do formulário que mudou.
+
+  Não existe mecanismo de layout pelo qual uma mudança no rodapé mova pixel do
+  topo. O que existe é rasterização: o documento ficou ~116px mais alto, e o
+  Chromium rasteriza camada transformada em função da geometria do documento.
+  Confirmado por bisseção: revertendo só a mudança do topo, os 171 continuavam;
+  o gatilho era a altura.
+
+  POR QUE 1 E NÃO MAIS. Diferença de anti-aliasing fica em 1 ou 2; divergência
+  de verdade (um espaçamento, uma cor "parecida", um breakpoint que não bate)
+  produz dezenas ou centenas por canal. Com teto 1, o teste continua acusando
+  tudo que o CLAUDE.md chama de bug de implementação, e para de acusar o
+  compositor do navegador.
+*/
+const TOLERANCIA = 1
+
 const temporario = mkdtempSync(join(tmpdir(), 'lp-fidelidade-'))
 process.on('exit', () => rmSync(temporario, { recursive: true, force: true }))
 
@@ -218,7 +244,12 @@ for (const w of LARGURAS) {
   for (let y = 0; y < altura; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4
-      if (a.data[i] !== b.data[i] || a.data[i + 1] !== b.data[i + 1] || a.data[i + 2] !== b.data[i + 2]) {
+      const delta = Math.max(
+        Math.abs(a.data[i] - b.data[i]),
+        Math.abs(a.data[i + 1] - b.data[i + 1]),
+        Math.abs(a.data[i + 2] - b.data[i + 2]),
+      )
+      if (delta > TOLERANCIA) {
         diferentes++
         if (primeiraLinha === null) primeiraLinha = y
         ultimaLinha = y

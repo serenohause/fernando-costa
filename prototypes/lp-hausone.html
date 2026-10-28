@@ -1532,12 +1532,24 @@
             </p>
 
             <!-- FORMULÁRIO DO HERO — UM campo, nada mais. -->
-            <form
+                          <!--
+                O TOPO NAO ENVIA MAIS, ELE LEVA ATE O FORMULARIO COMPLETO.
+
+                Desde a migration 0124 o lead exige nome, telefone, e-mail e
+                escritorio. Quatro campos na primeira dobra mudariam a cara da
+                pagina e, pior, pedem tudo a quem ainda nao decidiu nada. Entao o
+                desenho daqui fica IGUAL ao aprovado, e o botao rola ate o
+                formulario do fim.
+
+                O que a pessoa digitou NAO se perde: o e-mail viaja junto e
+                aparece preenchido la embaixo. Ver `rolarAteOFormulario` no script.
+              -->
+              <form
               id="hero-form"
               class="mt-8 scroll-mt-28"
               data-revelar
               novalidate
-              data-form
+              data-rolar-para="#cta-form"
               aria-labelledby="hero-form-rotulo"
             >
               <h2 id="hero-form-rotulo" class="sr-only">Deixar meu e-mail para contato</h2>
@@ -2862,9 +2874,45 @@
               -->
               <form id="cta-form" class="mt-8 max-w-4xl" novalidate data-form>
                 <div data-form-entrada>
-                  <div
-                    class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto]"
-                  >
+                  <!--
+                    QUATRO CAMPOS, 2x2 A PARTIR DE `sm`, botao embaixo.
+
+                    Ate a migration 0124 este formulario pedia e-mail e escritorio,
+                    e o escritorio era opcional. O usuario pediu os quatro:
+                    "para o lead agora preciso que seja preenchido um form com:
+                    nome, telefone, email e nome do escritorio".
+
+                    O `lg:grid-cols-[1.15fr_1fr_auto]` de antes saiu: quatro pilulas
+                    lado a lado numa linha so ficam estreitas demais para o texto
+                    que cabe nelas. 2x2 vale de `sm` para cima, e o botao atravessa
+                    as duas colunas.
+                  -->
+                  <div class="grid gap-2.5 sm:grid-cols-2">
+                    <div>
+                      <label for="nome-cta" class="sr-only">Seu nome</label>
+                      <input
+                        id="nome-cta"
+                        name="nome"
+                        type="text"
+                        autocomplete="name"
+                        placeholder="seu nome"
+                        class="campo t-body h-12 w-full rounded-full px-5 outline-none"
+                        aria-describedby="erro-cta consent-cta"
+                      />
+                    </div>
+                    <div>
+                      <label for="telefone-cta" class="sr-only">Seu telefone</label>
+                      <input
+                        id="telefone-cta"
+                        name="telefone"
+                        type="tel"
+                        inputmode="tel"
+                        autocomplete="tel"
+                        placeholder="seu telefone"
+                        class="campo t-body h-12 w-full rounded-full px-5 outline-none"
+                        aria-describedby="erro-cta consent-cta"
+                      />
+                    </div>
                     <div>
                       <label for="email-cta" class="sr-only">Seu e-mail profissional</label>
                       <input
@@ -2880,21 +2928,20 @@
                       />
                     </div>
                     <div>
-                      <label for="escritorio-cta" class="sr-only"
-                        >Nome do escritório (opcional)</label
-                      >
+                      <label for="escritorio-cta" class="sr-only">Nome do escritório</label>
                       <input
                         id="escritorio-cta"
                         name="escritorio"
                         type="text"
                         autocomplete="organization"
-                        placeholder="nome do escritório (opcional)"
+                        placeholder="nome do escritório"
                         class="campo t-body h-12 w-full rounded-full px-5 outline-none"
+                        aria-describedby="erro-cta consent-cta"
                       />
                     </div>
                     <button
                       type="submit"
-                      class="btn-seta inline-flex h-12 flex-none items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:col-span-2 lg:col-span-1"
+                      class="btn-seta inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 sm:col-span-2"
                     >
                       Quero ver funcionando
                       <i data-lucide="arrow-right" class="h-4 w-4"></i>
@@ -2908,7 +2955,7 @@
                     role="alert"
                   >
                     <i data-lucide="circle-alert" class="h-4 w-4 flex-none"></i>
-                    Digite um e-mail válido.
+                    Confira os campos e tente de novo.
                   </p>
 
                   <p class="mt-3 text-sm text-muted-foreground" data-microcopy>
@@ -3266,6 +3313,37 @@
           sucesso.classList.remove('hidden')
           sucesso.setAttribute('tabindex', '-1')
           sucesso.focus()
+        })
+      })
+
+      /*
+        O FORMULARIO DO TOPO LEVA ATE O DE BAIXO, em vez de enviar.
+
+        O lead passou a exigir nome, telefone, e-mail e escritorio (migration
+        0124). Quatro campos na primeira dobra mudariam a cara da pagina e
+        pediriam tudo a quem ainda nao decidiu nada, entao o topo continua sendo
+        a pilula aprovada e o botao rola ate o formulario completo, levando o
+        e-mail digitado junto.
+      */
+      document.querySelectorAll('[data-rolar-para]').forEach((form) => {
+        const alvo = document.querySelector(form.dataset.rolarPara)
+        if (!alvo) return
+
+        form.addEventListener('submit', (evento) => {
+          evento.preventDefault()
+
+          const digitado = form.querySelector('[data-email]')?.value.trim() ?? ''
+          const destino = alvo.querySelector('[data-email]')
+          if (digitado && destino && destino.value.trim() === '') destino.value = digitado
+
+          alvo.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+          const atraso = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500
+          window.setTimeout(() => {
+            const campos = Array.from(alvo.querySelectorAll('input:not([tabindex="-1"])'))
+            const vazio = campos.find((entrada) => entrada.value.trim() === '')
+            ;(vazio ?? campos[0])?.focus({ preventScroll: true })
+          }, atraso)
         })
       })
 
