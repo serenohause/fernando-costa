@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
-import { Inbox, Mail, NotebookPen, Search } from 'lucide-react'
+import { Inbox, Mail, NotebookPen, Phone, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
 import PageHeader from '@/components/shared/PageHeader'
 import { optionsOf, PRODUCT_LEAD_STATUS, type ProductLeadStatus } from '@/lib/enums'
-import { filterLeads } from '../fila'
+import { filterLeads, linkWhatsapp } from '../fila'
 import {
   describeDatabaseError,
   useIsPlatformAdmin,
@@ -204,7 +204,7 @@ export default function Leads() {
           onChange={(evento) =>
             setFilters((atual) => ({ ...atual, search: evento.target.value }))
           }
-          placeholder="Buscar por e-mail, nome ou escritório"
+          placeholder="Buscar por e-mail, nome, telefone ou escritório"
           className="pl-9"
           aria-label="Buscar lead"
         />
@@ -245,6 +245,7 @@ export default function Leads() {
               <TableRow>
                 <TableHead>Chegou</TableHead>
                 <TableHead>E-mail</TableHead>
+                <TableHead>Telefone</TableHead>
                 <TableHead>Escritório</TableHead>
                 <TableHead>Veio de</TableHead>
                 <TableHead>Envios</TableHead>
@@ -253,74 +254,118 @@ export default function Leads() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtrados.map((lead) => (
-                <TableRow key={lead.id}>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {format(parseISO(lead.created_at), 'dd/MM/yyyy HH:mm')}
-                  </TableCell>
-                  <TableCell className="font-medium text-foreground">
-                    {/* O e-mail é a única coisa que todo lead tem, e o motivo da
-                        tela existir: clicar escreve a mensagem. */}
-                    <a href={`mailto:${lead.email}`} className="hover:underline">
-                      {lead.email}
-                    </a>
-                    {lead.name !== null && (
-                      <span className="block text-xs text-muted-foreground">{lead.name}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-soft">{lead.office_name ?? '-'}</TableCell>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">
-                    {lead.placement === null ? '-' : (BLOCOS[lead.placement] ?? lead.placement)}
-                  </TableCell>
-                  <TableCell>
-                    {/* Reenvio é sinal de interesse, e por isso aparece em vez
-                        de ficar escondido no banco. */}
-                    {lead.submission_count > 1 ? (
-                      <Badge variant="outline" className={`${CORES.qualified} font-medium`}>
-                        {lead.submission_count}x
-                      </Badge>
-                    ) : (
-                      <span className="text-faint">1x</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={lead.status}
-                      onValueChange={(valor) => mudarEstado(lead, valor as ProductLeadStatus)}
-                      disabled={atualizar.isPending}
-                    >
-                      <SelectTrigger className={`w-40 ${CORES[lead.status]}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ESTADOS.map((estado) => (
-                          <SelectItem key={estado.value} value={estado.value}>
-                            {estado.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {lead.contacted_at !== null && (
-                      <span className="block text-xs text-faint mt-1">
-                        contato em {format(parseISO(lead.contacted_at), 'dd/MM/yyyy')}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setAnotando(lead)
-                        setRascunho(lead.notes ?? '')
-                      }}
-                    >
-                      <NotebookPen className="w-4 h-4 mr-2" />
-                      {lead.notes === null ? 'Anotar' : 'Ver nota'}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtrados.map((lead) => {
+                const whatsapp = linkWhatsapp(lead)
+
+                return (
+                  <TableRow key={lead.id}>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {format(parseISO(lead.created_at), 'dd/MM/yyyy HH:mm')}
+                    </TableCell>
+                    <TableCell className="font-medium text-foreground">
+                      {/* O e-mail é a única coisa que todo lead tem, e o motivo da
+                          tela existir: clicar escreve a mensagem. */}
+                      <a href={`mailto:${lead.email}`} className="hover:underline">
+                        {lead.email}
+                      </a>
+                      {lead.name !== null && (
+                        <span className="block text-xs text-muted-foreground">{lead.name}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-soft whitespace-nowrap">
+                      {/*
+                        O TELEFONE NÃO APARECIA NESTA TELA, e é a correção que
+                        trouxe esta célula. A coluna existe desde a migration 0112
+                        e é obrigatória desde a 0124, mas a tabela foi escrita
+                        antes disso e nunca ganhou a coluna.
+
+                        O botão só existe quando `linkWhatsapp` consegue montar o
+                        endereço: lead gravado antes da 0124 tem telefone nulo, e
+                        número fora de 10 ou 11 dígitos não é telefone com DDD.
+                        Nesses dois casos sobra o texto, sem botão que não levaria
+                        a ninguém.
+                      */}
+                      {lead.phone === null ? (
+                        <span className="text-faint">-</span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span>{lead.phone}</span>
+                          {whatsapp !== null && (
+                            <a
+                              href={whatsapp}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Falar no WhatsApp com ${lead.name ?? lead.email}`}
+                            >
+                              {/* `text-white` explícito e emerald-600: o mesmo
+                                  botão do SupplierDrawer, que é o único outro
+                                  lugar do sistema que abre WhatsApp. */}
+                              <Button
+                                size="sm"
+                                className="h-7 px-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                              >
+                                <Phone className="w-3.5 h-3.5 mr-1" />
+                                WhatsApp
+                              </Button>
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-soft">{lead.office_name ?? '-'}</TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">
+                      {lead.placement === null ? '-' : (BLOCOS[lead.placement] ?? lead.placement)}
+                    </TableCell>
+                    <TableCell>
+                      {/* Reenvio é sinal de interesse, e por isso aparece em vez
+                          de ficar escondido no banco. */}
+                      {lead.submission_count > 1 ? (
+                        <Badge variant="outline" className={`${CORES.qualified} font-medium`}>
+                          {lead.submission_count}x
+                        </Badge>
+                      ) : (
+                        <span className="text-faint">1x</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={lead.status}
+                        onValueChange={(valor) => mudarEstado(lead, valor as ProductLeadStatus)}
+                        disabled={atualizar.isPending}
+                      >
+                        <SelectTrigger className={`w-40 ${CORES[lead.status]}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ESTADOS.map((estado) => (
+                            <SelectItem key={estado.value} value={estado.value}>
+                              {estado.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {lead.contacted_at !== null && (
+                        <span className="block text-xs text-faint mt-1">
+                          contato em {format(parseISO(lead.contacted_at), 'dd/MM/yyyy')}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAnotando(lead)
+                          setRascunho(lead.notes ?? '')
+                        }}
+                      >
+                        <NotebookPen className="w-4 h-4 mr-2" />
+                        {lead.notes === null ? 'Anotar' : 'Ver nota'}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </div>
