@@ -4,6 +4,8 @@ import {
   BookOpen,
   Calendar,
   Check,
+  ChevronDown,
+  ChevronUp,
   Clock,
   FolderOpen,
   Plus,
@@ -1152,6 +1154,17 @@ function DuePicker({
 }
 
 /*
+  QUANTAS LINHAS APARECEM ANTES DE A PESSOA PEDIR O RESTO.
+
+  O cartão de uma tarefa que andou acumula dezenas de linhas de histórico, e
+  elas ficam DEPOIS dos objetivos: com o feed inteiro aberto, o que a pessoa
+  abriu o cartão para ver some no meio de "mudou o prazo de X para Y". Cinco
+  cobre o que aconteceu por último, que é a pergunta frequente, e o resto fica a
+  um clique.
+*/
+const ATIVIDADES_VISIVEIS = 5
+
+/*
   O FEED DE ATIVIDADE: o histórico do cartão, escrito pelo banco a cada mudança
   (migration 0104) — criação, edições, objetivos concluídos e reabertos, prazos e
   responsáveis, com quem fez.
@@ -1168,6 +1181,8 @@ function ActivityFeed({
   isError: boolean
   entries: TaskEventRow[]
 }) {
+  const [tudoAberto, setTudoAberto] = useState(false)
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -1188,9 +1203,13 @@ function ActivityFeed({
     )
   }
 
+  const visiveis = tudoAberto ? entries : entries.slice(0, ATIVIDADES_VISIVEIS)
+  const escondidas = entries.length - visiveis.length
+
   return (
-    <ol className="space-y-3">
-      {entries.map((entry) => {
+    <>
+      <ol className="space-y-3">
+      {visiveis.map((entry) => {
         /* Sem autor é escrita sem sessão — semeadura, correção no banco. Dizer
            "Sistema" é mais honesto que deixar a linha sem dono. */
         const nome = entry.actor?.name ?? entry.actor_name ?? 'Sistema'
@@ -1213,6 +1232,34 @@ function ActivityFeed({
           </li>
         )
       })}
-    </ol>
+      </ol>
+
+      {(escondidas > 0 || tudoAberto) && (
+        <button
+          type="button"
+          onClick={() => setTudoAberto((aberto) => !aberto)}
+          className="mt-3 flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {tudoAberto ? (
+            <>
+              <ChevronUp className="w-4 h-4" />
+              Ver menos
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-4 h-4" />
+              {/*
+                "Ver mais" QUANDO A CONSULTA BATEU NO TETO, e não "ver todas".
+                `useTaskEvents` traz no máximo 50 linhas (hooks.ts), então num
+                cartão muito antigo o que está carregado não é o histórico
+                inteiro. Prometer "todas" e mostrar 50 seria a tela mentindo
+                sobre o que tem em mãos.
+              */}
+              {entries.length >= 50 ? `Ver mais ${escondidas}` : `Ver todas (${entries.length})`}
+            </>
+          )}
+        </button>
+      )}
+    </>
   )
 }
