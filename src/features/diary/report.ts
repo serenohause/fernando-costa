@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import { formatDateBR } from '@/lib/format'
+import { h } from '@/lib/html-escape'
 import {
   DIARY_ENTRY_TYPE,
   PROJECT_ISSUE_CATEGORY,
@@ -63,32 +64,14 @@ import type {
 
 /* ── O escape ──────────────────────────────────────────────────────────── */
 
-const HTML_ESCAPES: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-}
-
 /*
-  TODO valor interpolado passa por aqui. O nome é curto porque ele aparece em
-  cada `${}` do documento, e uma chamada que se lê de relance é uma chamada cuja
-  ausência também se lê de relance.
-
-  Os cinco caracteres cobrem os dois contextos em que este arquivo interpola:
-  texto de elemento (`<` e `&`) e valor de atributo entre aspas (`"`, `'` e
-  `&`). `>` entra por hábito defensivo — ele não é obrigatório em nenhum dos
-  dois, e escapá-lo custa nada.
-
-  NÃO HÁ CONTEXTO DE SCRIPT NEM DE URL JAVASCRIPT neste documento: não existe
-  `<script>` no template, e o único atributo que recebe endereço é o `src` da
-  foto, cuja origem é uma URL assinada gerada pelo próprio Storage.
+  `h()` MUDOU DE CASA, para src/lib/html-escape.ts, e a regra não mudou: TODA
+  interpolação deste arquivo passa por ele, sem exceção, inclusive rótulo de
+  enum e número. O motivo de ele existir está escrito no cabeçalho deste arquivo
+  e repetido lá; a mudança de lugar foi para o relatório de visita
+  (./visit-report) usar a MESMA implementação em vez de uma segunda cópia, que
+  é a cópia que fica para trás no dia em que esta ganhar um caractere.
 */
-function h(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return ''
-  return String(value).replace(/[&<>"']/g, (char) => HTML_ESCAPES[char])
-}
 
 /* O `fmt` do original: data em dd/MM/yyyy, travessão quando não há data. */
 const fmt = (value: string | null | undefined) => formatDateBR(value) || '—'

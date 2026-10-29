@@ -23,6 +23,7 @@
     "test:pattern": "supabase/tests/run-sql.sh supabase/tests/pattern-invariants.sql",
     "test:leads": "supabase/tests/run-sql-local.sh supabase/tests/leads.sql",
     "test:leads-fila": "node tests/leads-fila.mjs",
+    "test:relatorio-visita": "node tests/relatorio-visita.mjs",
     "test:leads-painel": "node tests/leads-painel.mjs",
     "test:identidade": "node tests/rate-limit-identidade.mjs",
     "test:capture-lead": "supabase/tests/capture-lead-http.sh",
