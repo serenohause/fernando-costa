@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { usePhaseLabel } from '@/features/kanban/hooks'
+import { formatDateBR } from '@/lib/format'
 import {
   assertRowAffected,
   describeDatabaseError as describeError,
@@ -35,9 +36,12 @@ import {
   reportLogText,
   REPORT_FALLBACK_AUTHOR,
 } from './report'
+import { buildVisitReportHTML } from './visit-report'
+import { embutirFotos } from './photo-embed'
 import type {
   DiaryEntryInput,
   DiaryEntryRow,
+  DiaryFile,
   DiaryProject,
   ProjectIssueInput,
   ProjectIssueRow,
@@ -1413,6 +1417,165 @@ export function useGenerateDiaryReport() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
     },
+  })
+}
+
+/*
+  GERAR O RELATÓRIO DE UMA VISITA.
+
+  Três passos, e a ordem importa: assinar as fotos daquela visita, BAIXAR E
+  REDUZIR cada uma para dentro do documento, e só então montar e mandar
+  imprimir. O registro no diário vem depois, e não derruba o relatório.
+
+  POR QUE ESTE HOOK NÃO REUSA `useGenerateDiaryReport`. Lá a foto entra por URL
+  assinada e o documento depende dela por cinco minutos; aqui a foto vai
+  EMBUTIDA, porque este documento existe para ser salvo e enviado ao cliente (o
+  cabeçalho de ./photo-embed tem a medida). São caminhos diferentes para a mesma
+  palavra "relatório", e juntá-los num hook só com uma bandeira esconderia
+  justamente a diferença que importa.
+
+  ⚠ A REDUÇÃO DEMORA, e quem chama precisa saber: são uma requisição e uma
+  decodificação por foto. Numa visita com doze fotos de celular isso leva
+  segundos, e é por isso que a tela mostra estado de carregamento em vez de
+  parecer travada.
+
+  A CONTAGEM QUE VOLTA É A DO QUE ENTROU no documento, não a do que foi pedido:
+  foto que não assina ou não converte sai de fora, e a tela avisa quando os dois
+  números não batem. Recusar o relatório inteiro porque uma foto sumiu do bucket
+  seria trocar um relatório quase completo por nenhum.
+
+  O EVENTO REGISTRADO É `report_generated`, o mesmo do relatório do projeto. Não
+  é economia: gerar relatório é gerar relatório, e inventar um valor novo de
+  enum pediria migration para distinguir duas coisas que a Timeline mostra do
+  mesmo jeito. O texto do registro é que diz qual foi.
+*/
+export function useGenerateVisitReport() {
+  const queryClient = useQueryClient()
+  const { data: collaborator } = useCurrentCollaborator()
+  /* O documento vai ao cliente com o nome do ESCRITÓRIO, lido do tenant. Com o
+     nome fixo no código, um escritório manda ao cliente um papel com o nome de
+     outra empresa (ver `officeName` em ./visit-report). */
+  const { data: tenant } = useCurrentTenant()
+
+  return useMutation({
+    mutationFn: async ({
+      visit,
+      project,
+      issues,
+    }: {
+      visit: SiteVisitRow
+      project: DiaryProject
+      /* Só as pendências DESTA visita. O recorte por `visit_id` é de quem
+         chama, porque a aba Obra já o faz para desenhar o cartão. */
+      issues: ProjectIssueRow[]
+    }) => {
+      const fotos = visit.files.filter((file) => file.file_kind === 'photo')
+      const anexos = visit.files.filter((file) => file.file_kind === 'attachment')
+
+      /* Uma assinatura para todas as fotos, e não uma por foto: a visita da
+         tela que originou este trabalho tem doze. */
+      const assinadas = await signVisitPhotos(fotos)
+
+      const embutidas = await embutirFotos(assinadas.map((foto) => ({ url: foto.url })))
+
+      const photos = assinadas.flatMap((foto, posicao) => {
+        const dataUrl = embutidas[posicao]
+        if (!dataUrl) {
+          console.error('[diary] foto fora do relatório de visita:', foto.file.file_path)
+          return []
+        }
+        return [{ file: foto.file, dataUrl }]
+      })
+
+      /*
+        SEM O NOME DO ESCRITÓRIO, O DOCUMENTO NÃO SAI.
+
+        Achado da prova no navegador: com o tenant ainda carregando, o papel
+        saía com o timbre EM BRANCO, cabeçalho e rodapé começando num "•"
+        solto. Num relatório que a pessoa vai anexar e mandar ao cliente, isso
+        não é um campo vazio: é o documento inteiro sem identificação de quem o
+        assina, e ninguém confere o cabeçalho antes de encaminhar.
+
+        Na prática a consulta do tenant já está em cache quando esta tela abre,
+        porque o próprio AppLayout a usa. Este erro é a rede para quando não
+        estiver, e ele diz o que fazer em vez de produzir papel mudo.
+      */
+      const officeName = tenant?.name?.trim()
+      if (!officeName) {
+        throw new Error(
+          'Os dados do escritório ainda não carregaram. Aguarde um instante e gere o relatório de novo.',
+        )
+      }
+
+      const html = buildVisitReportHTML({
+        visit,
+        project,
+        issues,
+        photos,
+        attachments: anexos,
+        officeName,
+        authorName: collaborator?.name ?? REPORT_FALLBACK_AUTHOR,
+      })
+
+      printReport(html)
+
+      /*
+        ⚠ ESTE PASSO FALHA POR DESENHO NUM CASO CONHECIDO, o mesmo do relatório
+        do projeto: quem GERA é Diretor ou Coordenador
+        (`is_project_diary_writer`), e quem grava evento automático é quem tem
+        `can_edit_menu('project_flow')` (migration 0070). Os dois recortes não
+        são o mesmo. A tela diz o que aconteceu em vez de fingir que registrou.
+      */
+      const event = await recordDiaryEvent({
+        projectId: project.id,
+        systemEvent: 'report_generated',
+        title: `📄 Relatório de visita gerado — ${formatDateBR(visit.visit_date)}`,
+        description: `Visita de ${formatDateBR(visit.visit_date)}. Pendências: ${
+          issues.length
+        }. Fotos: ${photos.length}.`,
+        eventKey: null,
+        responsibleId: null,
+      })
+
+      return { event, photoCount: photos.length, photosPedidas: fotos.length }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: diaryKeys.all })
+    },
+  })
+}
+
+/*
+  O endereço temporário das fotos de UMA visita, numa chamada só.
+
+  Mesma mecânica de `signReportPhotos` e mesma decisão diante da falha: a foto
+  que não assina sai da lista e o documento sai com as outras.
+*/
+async function signVisitPhotos(files: DiaryFile[]): Promise<{ file: DiaryFile; url: string }[]> {
+  if (files.length === 0) return []
+
+  const { data, error } = await supabase.storage
+    .from(DIARY_FILES_BUCKET)
+    .createSignedUrls(
+      files.map((file) => file.file_path),
+      SIGNED_URL_TTL_SECONDS,
+    )
+
+  if (error) throw error
+
+  const urlByPath = new Map<string, string>()
+  for (const signed of data ?? []) {
+    if (signed.error || !signed.signedUrl || !signed.path) continue
+    urlByPath.set(signed.path, signed.signedUrl)
+  }
+
+  return files.flatMap((file) => {
+    const url = urlByPath.get(file.file_path)
+    if (!url) {
+      console.error('[diary] foto sem endereço assinado, fora do relatório:', file.file_path)
+      return []
+    }
+    return [{ file, url }]
   })
 }
 

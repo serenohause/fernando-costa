@@ -84,7 +84,11 @@ const VISIT_REPORT_CSS = `
     .ident-value { font-size: 14px; font-weight: 600; color: #0f172a; margin-top: 2px; line-height: 1.4; }
 
     h2 { font-size: 16px; font-weight: 700; color: #0f172a; margin: 14px 0 8px; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0; break-after: avoid; page-break-after: avoid; }
-    h3 { font-size: 14px; font-weight: 700; color: #334155; margin: 16px 0 8px; }
+    /* Recusa quebra depois de si pelo mesmo motivo do h2, e ATENÇÃO: nada de
+       crase em comentário aqui dentro, porque este CSS mora num template
+       literal e a crase fecha a string. Medido na prova do gerador: o título
+       "Arquivos" terminava a página sozinho, com a lista já na seguinte. */
+    h3 { font-size: 14px; font-weight: 700; color: #334155; margin: 16px 0 8px; break-after: avoid; page-break-after: avoid; }
     /* A linha de contagem logo abaixo do h2 TAMBÉM recusa quebra depois de si:
        sem isso "Registro fotográfico" termina a página sozinho, com a primeira
        foto já na seguinte. Medido em A4. */

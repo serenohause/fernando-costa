@@ -58,7 +58,7 @@ const visita = (campos = {}) => ({
   id: 'v1',
   visit_date: '2026-10-28',
   visit_time: '09:30:00',
-  visit_type: 'monitoring',
+  visit_type: 'follow_up',
   status: 'no_issues',
   summary: 'Verificar a compatibilidade da execução com o projeto arquitetônico.',
   notes: null,
@@ -303,6 +303,13 @@ console.log('\nIdentificação e assinatura\n')
   const html = montar()
   caso('7  o rodapé diz quando o documento foi gerado', true,
     html.includes('Documento gerado em 29/10/2026 às 16:42'))
+  /*
+    O TIPO DA VISITA SAI PELO RÓTULO, e não pela chave do banco. A prova no
+    navegador pegou a célula "Tipo" vazia, e a causa era a fixture usando uma
+    chave que não existe no enum. O caso fica para a célula não voltar a sair
+    muda sem ninguém notar.
+  */
+  caso('8  o tipo da visita sai traduzido', true, html.includes('>Acompanhamento<'))
 }
 
 console.log(`\n${ok}/${ok + falhas} casos passaram.`)

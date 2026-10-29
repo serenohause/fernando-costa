@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { AlertCircle, Calendar, Image, Paperclip, Pencil, Plus, Search, Trash2, User } from 'lucide-react'
+import { AlertCircle, Calendar, FileDown, Image, Loader2, Paperclip, Pencil, Plus, Search, Trash2, User } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -31,11 +31,13 @@ import {
   SITE_VISIT_STATUS,
   SITE_VISIT_TYPE,
 } from '@/lib/enums'
+import { formatDateBR } from '@/lib/format'
 import {
   describeDiaryError,
   useCreateProjectIssue,
   useCreateSiteVisit,
   useDeleteSiteVisit,
+  useGenerateVisitReport,
   useUpdateSiteVisit,
 } from '../hooks'
 import { filterSiteVisits } from '../obra'
@@ -45,6 +47,7 @@ import SiteVisitForm, { type SiteVisitSubmit } from './SiteVisitForm'
 import { OBRA_INDICATOR, VISIT_ISSUE_CHIP, VISIT_STATUS_STYLE, VISIT_TYPE_BADGE } from './diary-styles'
 import type {
   DiaryFile,
+  DiaryProject,
   PhotoCaption,
   ProjectIssueRow,
   SiteVisitFilters,
@@ -113,7 +116,12 @@ export default function ObraTab({
   isEmObra,
   onPhotoClick,
 }: {
-  project: { id: string; name: string }
+  /*
+    O PROJETO INTEIRO, e não só `{ id, name }` como era. O relatório de visita
+    leva o nome do CLIENTE no cabeçalho, e a gaveta já tinha o `DiaryProject`
+    em mãos: quem estreitava era este tipo. Nenhuma chamada mudou.
+  */
+  project: DiaryProject
   visits: SiteVisitRow[]
   issues: ProjectIssueRow[]
   isLoading: boolean
@@ -128,6 +136,7 @@ export default function ObraTab({
   isEmObra: boolean
   onPhotoClick: (photos: DiaryFile[], index: number, caption: PhotoCaption) => void
 }) {
+  const gerarRelatorio = useGenerateVisitReport()
   const [visitFormOpen, setVisitFormOpen] = useState(false)
   const [editingVisit, setEditingVisit] = useState<SiteVisitRow | null>(null)
   const [issueFormOpen, setIssueFormOpen] = useState(false)
@@ -380,6 +389,11 @@ export default function ObraTab({
             const photos = visit.files.filter((file) => file.file_kind === 'photo')
             const attachments = visit.files.filter((file) => file.file_kind === 'attachment')
             const visitIssues = issues.filter((issue) => issue.visit_id === visit.id)
+            /* Só o cartão que está gerando mostra o giro, e não a aba inteira:
+               a redução das fotos leva segundos e travar a lista toda faria
+               parecer que o sistema parou. */
+            const gerandoEsta =
+              gerarRelatorio.isPending && gerarRelatorio.variables?.visit.id === visit.id
             const caption: PhotoCaption = {
               title: visit.summary,
               subtitle: SITE_VISIT_TYPE[visit.visit_type],
@@ -405,6 +419,61 @@ export default function ObraTab({
                     </div>
                     {canEdit && (
                       <div className="flex items-center gap-1 shrink-0">
+                        {/*
+                          GERAR O RELATÓRIO DESTA VISITA, para enviar ao cliente.
+
+                          Fica atrás de `canEdit` como o "Gerar Relatório" da aba
+                          Resumo já fica: quem gera relatório é quem escreve no
+                          diário (`is_project_diary_writer`), e abrir este botão
+                          para quem só lê criaria uma segunda régua de permissão
+                          que nenhuma migration declara.
+
+                          O rótulo some em tela estreita e sobra o ícone, porque
+                          a linha do cartão já carrega dois crachás e dois outros
+                          botões.
+                        */}
+                        <button
+                          onClick={() =>
+                            gerarRelatorio.mutate(
+                              { visit, project, issues: visitIssues },
+                              {
+                                onSuccess: (resultado) => {
+                                  toast.success('Relatório aberto para impressão ou download.')
+                                  /*
+                                    DOIS AVISOS SEPARADOS, porque são duas coisas
+                                    diferentes e a pessoa precisa saber qual
+                                    aconteceu: foto que ficou de fora do papel, e
+                                    geração que não ficou registrada na Timeline.
+                                  */
+                                  if (resultado.photoCount < resultado.photosPedidas) {
+                                    toast.warning(
+                                      `${resultado.photosPedidas - resultado.photoCount} foto(s) não entraram no relatório.`,
+                                    )
+                                  }
+                                  if (resultado.event.outcome === 'failed') {
+                                    toast.warning(
+                                      'O relatório foi gerado, mas a geração não ficou registrada na Timeline do projeto.',
+                                    )
+                                  }
+                                },
+                                onError: (error) =>
+                                  toast.error(
+                                    'Erro ao gerar o relatório: ' + describeDiaryError(error),
+                                  ),
+                              },
+                            )
+                          }
+                          disabled={gerandoEsta}
+                          aria-label={`Gerar relatório da visita de ${formatDateBR(visit.visit_date)}`}
+                          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-faint hover:text-primary hover:bg-elevated transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {gerandoEsta ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <FileDown className="w-3.5 h-3.5" />
+                          )}
+                          <span className="hidden sm:inline">Relatório</span>
+                        </button>
                         <button
                           onClick={() => {
                             setEditingVisit(visit)

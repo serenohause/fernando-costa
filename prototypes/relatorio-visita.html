@@ -231,7 +231,10 @@
         break-after: avoid;
         page-break-after: avoid;
       }
-      h3 { font-size: 14px; font-weight: 700; color: #334155; margin: 16px 0 8px; }
+      /* `break-after: avoid` pelo mesmo motivo do h2: medido na prova do
+         gerador, o título "Arquivos" terminava a página sozinho, com a lista
+         já na seguinte. */
+      h3 { font-size: 14px; font-weight: 700; color: #334155; margin: 16px 0 8px; break-after: avoid; page-break-after: avoid; }
       /* A linha de contagem logo abaixo do h2. Ela TAMBÉM recusa quebra depois
          de si: sem isso o "4. Registro fotográfico" termina a página sozinho,
          com a primeira foto já na página seguinte. Medido na renderização em
