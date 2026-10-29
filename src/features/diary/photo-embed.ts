@@ -37,6 +37,33 @@ const LARGURA_MAXIMA = 1600
 const QUALIDADE = 0.82
 
 /*
+  ALTURA TAMBÉM TEM TETO, e não só a largura. Achado de auditoria: a escala
+  olhava apenas a largura, então uma imagem de 1600x100000 passava com escala 1
+  e produzia um canvas de 160 milhões de pixels. Com os dois tetos, o maior
+  resultado possível é 1600x1600, ou 2,56 milhões de pixels, caiba o que couber
+  na origem.
+*/
+const ALTURA_MAXIMA = 1600
+
+/*
+  E A ORIGEM TEM TETO DE PIXEL, não só de bytes.
+
+  O limite do bucket é 20 MB de BYTES (ver ./files), e PNG comprime muito: um
+  arquivo de 1 MB pode decodificar para 30000x30000, que são 3,6 GB de bitmap. O
+  teto de bytes não protege de nada aqui.
+
+  60 milhões de pixels passa folgado em qualquer câmera real, inclusive celular
+  de 48 MP (8000x6000 = 48 milhões), e barra o que só existe para derrubar a
+  aba.
+
+  LIMITAÇÃO HONESTA: a conferência acontece DEPOIS de `createImageBitmap`, que
+  já alocou. Saber o tamanho antes exigiria ler o cabeçalho do arquivo à mão,
+  formato por formato. O que este teto evita é o trabalho seguinte, que é o caro:
+  canvas, pintura e serialização em base64. O bitmap é liberado no `finally`.
+*/
+const PIXELS_MAXIMOS_NA_ORIGEM = 60_000_000
+
+/*
   QUANTAS FOTOS SÃO CONVERTIDAS AO MESMO TEMPO.
 
   Uma a uma é lento numa visita com trinta fotos; todas de uma vez põe trinta
@@ -63,10 +90,27 @@ async function reduzir(blob: Blob): Promise<string> {
   const bitmap = await createImageBitmap(blob)
 
   try {
-    const escala = Math.min(1, LARGURA_MAXIMA / bitmap.width)
+    if (bitmap.width * bitmap.height > PIXELS_MAXIMOS_NA_ORIGEM) {
+      throw new Error(`imagem grande demais: ${bitmap.width}x${bitmap.height}`)
+    }
+
+    const escala = Math.min(1, LARGURA_MAXIMA / bitmap.width, ALTURA_MAXIMA / bitmap.height)
     const largura = Math.max(1, Math.round(bitmap.width * escala))
     const altura = Math.max(1, Math.round(bitmap.height * escala))
 
+    /*
+      UM CANVAS SÓ, e isto veio de auditoria. A primeira versão desenhava num
+      canvas e copiava para um segundo só para ter fundo branco: dois canvas do
+      tamanho cheio vivos ao mesmo tempo, dobrando o pico de memória, e isso
+      vezes quatro em paralelo. Pintar o branco ANTES e desenhar a foto em cima
+      dá o mesmo resultado com metade do custo, porque o branco fica embaixo do
+      canal alfa.
+
+      SEMPRE JPEG, inclusive quando a origem é PNG: foto de obra é fotografia, e
+      PNG de fotografia é várias vezes maior sem ganho visível. O fundo existe
+      porque JPEG não tem transparência, e sem ele origem com alfa sai com fundo
+      preto.
+    */
     const canvas = document.createElement('canvas')
     canvas.width = largura
     canvas.height = altura
@@ -74,24 +118,26 @@ async function reduzir(blob: Blob): Promise<string> {
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('canvas sem contexto 2d')
 
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, largura, altura)
     ctx.drawImage(bitmap, 0, 0, largura, altura)
 
-    /*
-      SEMPRE JPEG, inclusive quando a origem é PNG. Foto de obra é fotografia, e
-      PNG de fotografia é duas a cinco vezes maior sem ganho nenhum de qualidade
-      visível. O fundo branco é desenhado antes porque JPEG não tem
-      transparência: sem ele, uma origem com canal alfa sai com o fundo preto.
-    */
-    const comFundo = document.createElement('canvas')
-    comFundo.width = largura
-    comFundo.height = altura
-    const ctxFundo = comFundo.getContext('2d')
-    if (!ctxFundo) throw new Error('canvas sem contexto 2d')
-    ctxFundo.fillStyle = '#ffffff'
-    ctxFundo.fillRect(0, 0, largura, altura)
-    ctxFundo.drawImage(canvas, 0, 0)
+    const dataUrl = canvas.toDataURL('image/jpeg', QUALIDADE)
 
-    return comFundo.toDataURL('image/jpeg', QUALIDADE)
+    /*
+      CONFERIR O QUE SAIU, e este é o dente que a auditoria achou. Canvas que
+      estoura a área máxima do navegador não lança: no Chromium ele fica
+      inutilizável e `toDataURL` devolve a string "data:,", que é TRUTHY. Ela
+      passava pela checagem de nulo do hook, entrava no documento como quadro
+      quebrado E ERA CONTADA COMO FOTO QUE ENTROU, então nem o aviso de "foto
+      não entrou" disparava. O PDF saía furado na frente do cliente, que é
+      exatamente o defeito que esta função existe para evitar.
+    */
+    if (!dataUrl.startsWith('data:image/jpeg')) {
+      throw new Error('o navegador não conseguiu serializar a imagem')
+    }
+
+    return dataUrl
   } finally {
     bitmap.close()
   }

@@ -218,6 +218,49 @@ console.log('\nAs seções e a numeração\n')
   caso('9  contagem no singular', true, umaFoto.includes('1 foto registrada'))
 }
 
+/*
+  SÓ IMAGEM EMBUTIDA ENTRA NO PAPEL, e estes casos vieram de auditoria.
+
+  O primeiro é real e já aconteceu: canvas estourado no Chromium não lança, ele
+  devolve a string "data:," — que é TRUTHY e passava por qualquer checagem de
+  nulo. Ela virava quadro quebrado num documento que vai ao cliente, e ainda era
+  CONTADA como foto que entrou, então nem o aviso disparava.
+
+  O segundo é de contrato: `dataUrl` é `string`, e nada no tipo impede alguém
+  passar a URL assinada do Storage. Isso traria de volta o vencimento em cinco
+  minutos que a feature inteira existe para evitar, e faria o documento buscar
+  na rede ao abrir.
+*/
+{
+  const quebrada = montar({ photos: [{ file: { id: 'a' }, dataUrl: 'data:,' }] })
+  const semFoto = [...quebrada.matchAll(/<h2>([^<]+)<\/h2>/g)].map((m) => m[1])
+  caso('11 "data:," não vira foto no documento', false,
+    semFoto.some((titulo) => titulo.includes('Registro fotográfico')))
+  caso('12 e nenhum quadro quebrado é desenhado', 0, (quebrada.match(/<img/g) ?? []).length)
+}
+
+{
+  const comUrl = montar({
+    photos: [{ file: { id: 'a' }, dataUrl: 'https://exemplo.test/foto.jpg?token=abc' }],
+  })
+  caso('13 URL assinada não entra no documento', 0, (comUrl.match(/<img/g) ?? []).length)
+  caso('14 e o endereço não vaza em lugar nenhum', false, comUrl.includes('exemplo.test'))
+}
+
+{
+  /* A mistura: a contagem precisa refletir o que ENTROU, não o que foi pedido. */
+  const mista = montar({
+    photos: [
+      { file: { id: 'a' }, dataUrl: 'data:image/jpeg;base64,AAA' },
+      { file: { id: 'b' }, dataUrl: 'data:,' },
+      { file: { id: 'c' }, dataUrl: 'data:image/jpeg;base64,CCC' },
+    ],
+  })
+  caso('15 a contagem conta só o que entrou', true, mista.includes('2 fotos registradas'))
+  caso('16 e as legendas não pulam número', ['Foto 1', 'Foto 2'],
+    [...mista.matchAll(/<div class="photo-caption">([^<]+)<\/div>/g)].map((m) => m[1]))
+}
+
 {
   /*
     Confere os TÍTULOS DE SEÇÃO, e não a frase solta no documento: ela também

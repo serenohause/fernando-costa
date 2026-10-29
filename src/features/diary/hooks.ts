@@ -1469,6 +1469,33 @@ export function useGenerateVisitReport() {
          chama, porque a aba Obra já o faz para desenhar o cartão. */
       issues: ProjectIssueRow[]
     }) => {
+      /*
+        SEM O NOME DO ESCRITÓRIO, O DOCUMENTO NÃO SAI, E A RECUSA VEM ANTES DE
+        QUALQUER TRABALHO.
+
+        Achado da prova no navegador: com o tenant ainda carregando, o papel
+        saía com o timbre EM BRANCO, cabeçalho e rodapé começando num "•" solto.
+        Num relatório que a pessoa anexa e manda ao cliente, isso não é um campo
+        vazio: é o documento sem identificação de quem o assina, e ninguém
+        confere o cabeçalho antes de encaminhar.
+
+        A conferência é a PRIMEIRA linha, e isso veio de auditoria: antes ela
+        ficava depois de assinar e de baixar e reduzir todas as fotos, então uma
+        visita com doze fotos fazia a pessoa esperar os segundos todos para
+        ouvir "não deu". E gastava uma dúzia de URLs assinadas por nada.
+
+        A MENSAGEM NÃO PROMETE QUE ESPERAR RESOLVE, e isso também veio de lá: há
+        dois caminhos até aqui. Um é a consulta do tenant ainda carregando, e aí
+        esperar resolve. O outro é ela voltar vazia, que é conta sem vínculo
+        ativo, e aí esperar não resolve nunca. A frase serve aos dois.
+      */
+      const officeName = tenant?.name?.trim()
+      if (!officeName) {
+        throw new Error(
+          'Não foi possível identificar o escritório, e o relatório sairia sem identificação. Recarregue a página; se continuar, fale com quem administra o sistema.',
+        )
+      }
+
       const fotos = visit.files.filter((file) => file.file_kind === 'photo')
       const anexos = visit.files.filter((file) => file.file_kind === 'attachment')
 
@@ -1486,26 +1513,6 @@ export function useGenerateVisitReport() {
         }
         return [{ file: foto.file, dataUrl }]
       })
-
-      /*
-        SEM O NOME DO ESCRITÓRIO, O DOCUMENTO NÃO SAI.
-
-        Achado da prova no navegador: com o tenant ainda carregando, o papel
-        saía com o timbre EM BRANCO, cabeçalho e rodapé começando num "•"
-        solto. Num relatório que a pessoa vai anexar e mandar ao cliente, isso
-        não é um campo vazio: é o documento inteiro sem identificação de quem o
-        assina, e ninguém confere o cabeçalho antes de encaminhar.
-
-        Na prática a consulta do tenant já está em cache quando esta tela abre,
-        porque o próprio AppLayout a usa. Este erro é a rede para quando não
-        estiver, e ele diz o que fazer em vez de produzir papel mudo.
-      */
-      const officeName = tenant?.name?.trim()
-      if (!officeName) {
-        throw new Error(
-          'Os dados do escritório ainda não carregaram. Aguarde um instante e gere o relatório de novo.',
-        )
-      }
 
       const html = buildVisitReportHTML({
         visit,

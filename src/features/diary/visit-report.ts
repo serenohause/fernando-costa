@@ -32,9 +32,16 @@ import type { DiaryFile, DiaryProject, ProjectIssueRow, SiteVisitRow } from './t
       concatenação de string e vai para um iframe de MESMA ORIGEM, então um
       `<script>` digitado no resumo de uma visita rodaria com a sessão de quem
       clicou em gerar. O cabeçalho de ./report conta o defeito inteiro. A regra
-      aqui é a mesma e vale sem exceção: TODA interpolação passa por `h()`,
-      inclusive rótulo de enum e número, porque "escapa tudo" se audita de
-      relance e "escapa o que vem do usuário" depende de acertar linha a linha.
+      aqui é a mesma e vale com UMA exceção declarada: TODA interpolação passa
+      por `h()`, inclusive rótulo de enum, classe de crachá e número de seção. A
+      exceção é a constante de CSS, que não pode ser escapada sem deixar de ser
+      CSS e não carrega dado nenhum.
+
+      Nenhuma dessas chamadas a mais muda o resultado hoje: enum é conjunto
+      fechado e número é número. Elas existem porque "escapa tudo, menos o CSS"
+      se confere de relance e "escapa o que vem do usuário" depende de alguém
+      acertar, a cada linha nova, de onde o valor veio. Uma auditoria apontou
+      exatamente essas três como as únicas em que a regra escrita aqui não valia.
     - `printReport()`, a entrega por iframe com `sandbox` sem `allow-scripts`.
     - As cores. Nenhum hex novo: todos saem do REPORT_CSS do outro documento,
       para os dois parecerem o mesmo escritório.
@@ -242,7 +249,7 @@ export function buildVisitReportHTML({
             }
           </p>
         </div>
-        <span class="badge ${VISIT_BADGE_CLASS[visit.status]}">${h(
+        <span class="badge ${h(VISIT_BADGE_CLASS[visit.status])}">${h(
           SITE_VISIT_STATUS[visit.status],
         )}</span>
       </div>
@@ -274,7 +281,7 @@ export function buildVisitReportHTML({
     pularia de "1." para "3." na frente do cliente.
   */
   let numero = 0
-  const secao = (titulo: string) => `<h2>${++numero}. ${h(titulo)}</h2>`
+  const secao = (titulo: string) => `<h2>${h(++numero)}. ${h(titulo)}</h2>`
 
   /* ── Resumo ──────────────────────────────────────────────────────────── */
 
@@ -336,7 +343,7 @@ export function buildVisitReportHTML({
         <div class="issue">
           <div class="issue-header">
             <span class="issue-num">#${h(issue.issue_number)}</span>
-            <span class="badge ${ISSUE_BADGE_CLASS[issue.status]}">${h(
+            <span class="badge ${h(ISSUE_BADGE_CLASS[issue.status])}">${h(
               PROJECT_ISSUE_STATUS[issue.status],
             )}</span>
           </div>
@@ -349,16 +356,32 @@ export function buildVisitReportHTML({
 
   /* ── Registro fotográfico ────────────────────────────────────────────── */
 
-  if (photos.length > 0) {
+  /*
+    SÓ IMAGEM EMBUTIDA ENTRA, e este filtro é a última trava antes do papel.
+
+    Veio de auditoria, e fecha dois casos de uma vez. O primeiro é real e já
+    aconteceu: canvas estourado no Chromium devolve a string "data:,", que é
+    truthy e passaria por qualquer checagem de nulo, virando quadro quebrado num
+    documento que vai ao cliente. O segundo é de contrato: `dataUrl` é `string`,
+    e nada no tipo impede um chamador futuro de passar a URL assinada do
+    Storage, o que traria de volta o vencimento em cinco minutos que a feature
+    inteira existe para evitar, e ainda faria o documento buscar na rede.
+
+    A conferência vive AQUI, e não só em ./photo-embed, porque quem decide o que
+    vai para o papel é quem monta o papel.
+  */
+  const fotosValidas = photos.filter((photo) => photo.dataUrl.startsWith('data:image/'))
+
+  if (fotosValidas.length > 0) {
     parts.push(secao('Registro fotográfico'))
     parts.push(
-      `<p class="section-note">${h(photos.length)} ${
-        photos.length === 1 ? 'foto registrada' : 'fotos registradas'
+      `<p class="section-note">${h(fotosValidas.length)} ${
+        fotosValidas.length === 1 ? 'foto registrada' : 'fotos registradas'
       } na visita de ${h(dataDaVisita)}.</p>`,
     )
 
     parts.push('<div class="photo-grid">')
-    photos.forEach((photo, posicao) => {
+    fotosValidas.forEach((photo, posicao) => {
       /*
         A LEGENDA É O NÚMERO DA FOTO, e não a origem. No relatório do projeto a
         legenda diz de onde a foto veio, porque lá ela pode ser de visita ou de
