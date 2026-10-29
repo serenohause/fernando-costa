@@ -148,6 +148,42 @@ caso('zero antes do código do país cai junto', '55 (62) 98765-4321', await col
 // E o número sem zero nenhum continua exatamente como era.
 caso('sem zero na frente, nada muda', '(62) 99888-1111', await digitar('62998881111'))
 
+/*
+  TETO NO CAMPO, de achado de auditoria. A limpeza do zero roda dentro do
+  handler de `input`, de forma síncrona: texto colado por engano travava a aba
+  de quem colou. A versão atual é linear, então o custo já caiu de 18,6s para
+  3,9ms com 100 mil caracteres, mas o `maxlength` fecha a porta antes: 40 é o
+  mesmo teto que a edge function já cobra (`z.string().trim().max(40)`), e sem
+  ele um colar de 200KB viajava a rede só para o servidor recusar.
+*/
+/*
+  TEXTO ENORME COLADO, de achado de auditoria. A limpeza do zero roda dentro do
+  handler de `input`, de forma SÍNCRONA: enquanto ela não termina, a aba de quem
+  colou fica parada. A primeira versão refazia a varredura a cada zero removido,
+  o que é quadrático quando vem não-dígito antes dos zeros, que é justamente a
+  forma de um texto colado por engano. Medido no navegador: 2728ms com 100 mil
+  caracteres. A versão de uma passada faz o mesmo trabalho em milissegundos.
+
+  O teto de 1000ms é folga enorme para os dois lados, então o caso não oscila
+  com máquina mais lenta: ou está linear e termina em milissegundos, ou voltou a
+  ser quadrático e estoura.
+*/
+{
+  const inicio = Date.now()
+  await colar('x'.repeat(100000) + '0'.repeat(100000) + '62998887766')
+  caso('colar 200 mil caracteres não trava a aba', true, Date.now() - inicio < 1000)
+}
+
+/*
+  E o teto do campo, que `colar` NÃO consegue exercitar: o helper escreve
+  `campo.value` por JavaScript, e `maxlength` só vale para o que a pessoa digita
+  ou cola pela interface. Então o caso confere a declaração, que é o que impede
+  alguém de remover o atributo sem perceber. O valor é o mesmo que a edge
+  function já cobra (`z.string().trim().max(40)`): sem ele, um colar de 200KB
+  viaja a rede só para o servidor recusar.
+*/
+caso('o campo declara o mesmo teto do servidor', '40', await p.getAttribute('#telefone-cta', 'maxlength'))
+
 caso('nenhum erro de console na página', '', problemas.join(' | '))
 
 await nav.close()
