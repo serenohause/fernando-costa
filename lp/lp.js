@@ -148,6 +148,37 @@ menuPainel.querySelectorAll('a').forEach((link) =>
    ------------------------------------------------------------------ */
 const emailValido = (valor) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(valor.trim())
 
+/*
+  O ZERO DA DISCAGEM CAI ANTES DA MASCARA, e nao e preciosismo de formato.
+
+  Muita gente escreve o DDD como `085`, do tempo em que ligar para outra cidade
+  pedia o zero na frente. Esse zero e prefixo de DISCAGEM: nenhum DDD brasileiro
+  comeca com zero, entao ele nunca faz parte do numero.
+
+  Sem isto, quem escrevia `085` e o celular inteiro dava 12 digitos, e a
+  capacidade da mascara (11) recusava a ULTIMA tecla em silencio. O que ficava
+  gravado era `(08) 59999-9888`: um digito a menos do que a pessoa deu, numa
+  landing page onde ela nao volta para conferir. O telefone chegava errado na
+  fila de leads e nao havia como recuperar o digito perdido depois.
+
+  Cai o bloco inteiro de zeros, nao so o primeiro, para `0055 62 ...` tambem
+  chegar inteiro. A mascara em si continua sendo a do sistema, importada e nao
+  reescrita: isto aqui nao formata nada, so tira do caminho um caractere que
+  nunca foi parte do numero.
+*/
+function semZeroDaDiscagem(texto, caret) {
+  let value = texto
+  let posicao = value.search(/\d/)
+
+  while (posicao !== -1 && value[posicao] === '0') {
+    value = value.slice(0, posicao) + value.slice(posicao + 1)
+    if (caret > posicao) caret -= 1
+    posicao = value.search(/\d/)
+  }
+
+  return { value, caret }
+}
+
 const URL_CAPTURA = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capture-lead`
 
 document.querySelectorAll('[data-form]').forEach((form) => {
@@ -174,10 +205,14 @@ document.querySelectorAll('[data-form]').forEach((form) => {
     let anterior = telefone.value
     telefone.addEventListener('input', (evento) => {
       const tipo = evento.inputType
+      const limpo = semZeroDaDiscagem(
+        telefone.value,
+        telefone.selectionStart ?? telefone.value.length,
+      )
       const resultado = applyMaskEdit(maskPhone, {
-        value: telefone.value,
+        value: limpo.value,
         previousValue: anterior,
-        caret: telefone.selectionStart ?? telefone.value.length,
+        caret: limpo.caret,
         deletion:
           tipo === 'deleteContentBackward'
             ? 'backward'

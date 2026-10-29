@@ -218,6 +218,15 @@ eq(
 
 console.log('\nLink de WhatsApp\n')
 
+/*
+  Comparação que ATRAVESSA O NULO. Sem isto, quem quebra a regra e faz
+  `linkWhatsapp` devolver null derruba a suíte inteira com um TypeError no meio,
+  em vez de ver o caso falhar com nome e valor. Teste que morre no primeiro
+  tropeço esconde os outros.
+*/
+const comeca = (link, prefixo) => link !== null && link.startsWith(prefixo)
+const contem = (link, trecho) => link !== null && link.includes(trecho)
+
 const MENSAGEM_ANA =
   'Olá, Ana! Aqui é da equipe do HausOne. Vi que você deixou seu contato no nosso site e vim conversar com você.'
 
@@ -229,26 +238,25 @@ eq(
 eq(
   '2  a saudação usa só o primeiro nome',
   true,
-  linkWhatsapp({ phone: '62998887766', name: 'Ana Carolina Prado' }).includes(
-    encodeURIComponent('Olá, Ana!'),
+  contem(linkWhatsapp({ phone: '62998887766', name: 'Ana Carolina Prado' }), encodeURIComponent('Olá, Ana!'),
   ),
 )
 eq(
   '3  sem nome, a mensagem abre sem saudação pessoal',
   true,
-  linkWhatsapp({ phone: '62998887766', name: null }).includes(encodeURIComponent('Olá! Aqui é')),
+  contem(linkWhatsapp({ phone: '62998887766', name: null }), encodeURIComponent('Olá! Aqui é')),
 )
 eq(
   '4  fixo de 10 dígitos também vale',
   true,
-  linkWhatsapp({ phone: '(62) 3222-1100', name: null }).startsWith('https://wa.me/556232221100?'),
+  comeca(linkWhatsapp({ phone: '(62) 3222-1100', name: null }), 'https://wa.me/556232221100?'),
 )
 // O 55 NÃO ENTRA DUAS VEZES. Número já em formato internacional passa como está;
 // com o 55 colado na frente viraria 5555..., que não é número de ninguém.
 eq(
   '5  número que já tem o código do país passa inteiro',
   true,
-  linkWhatsapp({ phone: '+55 62 99888-7766', name: null }).startsWith('https://wa.me/5562998887766?'),
+  comeca(linkWhatsapp({ phone: '+55 62 99888-7766', name: null }), 'https://wa.me/5562998887766?'),
 )
 // OS QUATRO CASOS DE NULO. Cada um deles, montado de todo jeito, daria um botão
 // que abre o WhatsApp num número inexistente.
@@ -291,7 +299,51 @@ eq(
 eq(
   '15 fixo com DDD do limite de baixo continua valendo',
   true,
-  linkWhatsapp({ phone: '(11) 3222-1100', name: null }).startsWith('https://wa.me/551132221100?'),
+  comeca(linkWhatsapp({ phone: '(11) 3222-1100', name: null }), 'https://wa.me/551132221100?'),
+)
+/*
+  O ZERO DA DISCAGEM, que foi o relato: lead escreveu o DDD como `085`.
+
+  Quem COLA o número passa pelo caminho tolerante da máscara e o valor fica cru,
+  com os 12 dígitos inteiros. Esses dão para recuperar: cai o zero e sobra um
+  celular legítimo.
+*/
+eq(
+  '16 DDD escrito com o zero da discagem vira numero valido',
+  true,
+  comeca(linkWhatsapp({ phone: '085 99999-8888', name: null }), 'https://wa.me/5585999998888?'),
+)
+eq(
+  '17 fixo com o zero da discagem também',
+  true,
+  comeca(linkWhatsapp({ phone: '(085) 3222-1100', name: null }), 'https://wa.me/558532221100?'),
+)
+eq(
+  '18 zero antes do codigo do pais também cai',
+  true,
+  comeca(linkWhatsapp({ phone: '0055 62 99812-4477', name: null }), 'https://wa.me/5562998124477?'),
+)
+/*
+  E O CASO QUE CONTINUA SEM BOTÃO, DE PROPÓSITO. Quem DIGITA `085` e o celular
+  inteiro esbarra na capacidade da máscara: a 12ª tecla não entra e fica gravado
+  `(08) 59999-9888`, um dígito a menos do que a pessoa quis dar. Tirado o zero
+  sobram 10 dígitos começando em 9, que não é fixo nenhum. Abrir conversa com
+  isso é abrir conversa com um desconhecido.
+*/
+eq(
+  '19 numero que perdeu um digito na digitacao não ganha botão',
+  null,
+  linkWhatsapp({ phone: '(08) 59999-9888', name: 'Ana' }),
+)
+eq(
+  '20 dez digitos começando em 9 não é fixo brasileiro',
+  null,
+  linkWhatsapp({ phone: '(85) 9999-9888', name: 'Ana' }),
+)
+eq(
+  '21 fixo começando em 6 também não existe mais',
+  null,
+  linkWhatsapp({ phone: '(85) 6222-1100', name: 'Ana' }),
 )
 
 console.log(`\n${passed}/${passed + failed} casos passaram.`)

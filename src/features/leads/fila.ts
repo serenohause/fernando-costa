@@ -80,6 +80,13 @@ export function filterLeads(
   é telefone brasileiro com DDD. Montar o link de todo jeito entregaria um botão
   que abre o WhatsApp num número inexistente, o que é pior do que não ter botão.
 
+  O ZERO DA FRENTE CAI, e foi o que motivou esta função a ser revista. Gente
+  escreve o DDD como `085`, do tempo em que ligar para outra cidade pedia o zero
+  na frente. Esse zero é prefixo de DISCAGEM, nunca parte do número: nenhum DDD
+  brasileiro começa com zero. Sem tirá-lo, `085 99999-8888` era lido como DDD
+  `08`, que não existe, e o lead ficava sem botão. Cai o bloco inteiro de zeros,
+  o que de quebra resolve `0055 62 ...`, que vira o caso do 55 logo abaixo.
+
   O 55 não é colado duas vezes: número que já chega com o código do país (12 ou
   13 dígitos começando em 55) tem o 55 retirado antes da conferência e recolocado
   depois, para a regra valer igual nos dois formatos.
@@ -88,9 +95,16 @@ export function filterLeads(
   "10 ou 11 dígitos" também descreve telefone de outros países: `+1 (212)
   555-0123` tem 11, e com o 55 na frente virava `wa.me/5512125550123`, um número
   brasileiro legítimo de DDD 12, de um desconhecido que receberia o primeiro
-  nome do lead. Por isso o DDD precisa existir (11 a 99) e o celular precisa do
-  nono dígito. Não é validação de operadora, é a barreira mais barata que separa
-  telefone brasileiro de número que só tem o tamanho parecido.
+  nome do lead.
+
+  Daí as duas formas aceitas, e nada além: celular tem 11 dígitos e o nono
+  dígito `9`; fixo tem 10 e começa em 2, 3, 4 ou 5. A segunda metade dessa régua
+  não é preciosismo. Quando alguém DIGITA `085` e o celular inteiro, a máscara
+  trava em 11 dígitos e a última tecla não entra: fica guardado um número a que
+  falta um algarismo. Tirado o zero, sobram 10 dígitos começando em 9, que não é
+  fixo nenhum. Sem esta conferência o botão apareceria e abriria conversa com um
+  desconhecido, que é o pior desfecho possível para esta tela. Melhor assumir
+  que o número está quebrado e não oferecer botão.
 
   A MENSAGEM VAI PRONTA porque o motivo do botão é não ter que escrever a mesma
   abertura em todo lead. Ela se apresenta e diz de onde veio o contato, que é o
@@ -100,7 +114,7 @@ export function filterLeads(
 export function linkWhatsapp(lead: Pick<ProductLead, 'phone' | 'name'>): string | null {
   if (lead.phone === null) return null
 
-  const digitos = onlyDigits(lead.phone)
+  const digitos = onlyDigits(lead.phone).replace(/^0+/, '')
 
   const nacional =
     (digitos.length === 12 || digitos.length === 13) && digitos.startsWith('55')
@@ -108,12 +122,10 @@ export function linkWhatsapp(lead: Pick<ProductLead, 'phone' | 'name'>): string 
       : digitos
 
   const ddd = Number(nacional.slice(0, 2))
-  const telefoneBrasileiro =
-    ddd >= 11 &&
-    ddd <= 99 &&
-    (nacional.length === 10 || (nacional.length === 11 && nacional[2] === '9'))
+  const celular = nacional.length === 11 && nacional[2] === '9'
+  const fixo = nacional.length === 10 && nacional[2] >= '2' && nacional[2] <= '5'
 
-  if (!telefoneBrasileiro) return null
+  if (!(ddd >= 11 && ddd <= 99 && (celular || fixo))) return null
 
   const primeiroNome = lead.name === null ? '' : lead.name.trim().split(/\s+/)[0]
   const saudacao = primeiroNome === '' ? 'Olá!' : `Olá, ${primeiroNome}!`

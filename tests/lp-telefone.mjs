@@ -132,6 +132,22 @@ caso('colar 11 dígitos é mascarado', '(62) 99888-1111', await colar('629988811
 caso('colar já mascarado fica igual', '(62) 3251-8890', await colar('(62) 3251-8890'))
 caso('colar +55 com 13 dígitos fica CRU', '+55 (62) 98765-4321', await colar('+55 (62) 98765-4321'))
 
+/*
+  O ZERO DA DISCAGEM, que veio de lead de verdade: a pessoa escreveu o DDD como
+  `085`. Sem o conserto, isso dava 12 dígitos, a capacidade da máscara recusava
+  a ÚLTIMA tecla em silêncio e ficava gravado `(08) 59999-9888`, um algarismo a
+  menos do que ela deu. Numa landing page ninguém volta para conferir, e o
+  dígito perdido não se recupera depois.
+*/
+caso('digitar o DDD com o zero da discagem', '(85) 99999-8888', await digitar('085999998888'))
+caso('o zero não atrapalha o fixo', '(85) 3222-1100', await digitar('08532221100'))
+caso('colar com o zero da discagem também limpa', '(85) 99999-8888', await colar('085 99999-8888'))
+// Sem `+` na entrada, não há `+` na saída: os dois zeros caem e sobram 13
+// dígitos, que a máscara deixa crus pelo caminho tolerante de sempre.
+caso('zero antes do código do país cai junto', '55 (62) 98765-4321', await colar('0055 (62) 98765-4321'))
+// E o número sem zero nenhum continua exatamente como era.
+caso('sem zero na frente, nada muda', '(62) 99888-1111', await digitar('62998881111'))
+
 caso('nenhum erro de console na página', '', problemas.join(' | '))
 
 await nav.close()
