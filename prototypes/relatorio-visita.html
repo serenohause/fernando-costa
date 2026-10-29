@@ -1,0 +1,704 @@
+<!doctype html>
+<!--
+  ============================================================================
+  PROTÓTIPO: RELATÓRIO DE VISITA À OBRA  (documento IMPRESSO, não tela)
+  ============================================================================
+
+  O QUE É: o papel A4 que o escritório gera a partir de UMA visita
+  (`project_site_visits`) e envia ao cliente. Visto na janela de impressão e
+  salvo como PDF. Uma a três páginas.
+
+  DE ONDE VEM A LINGUAGEM VISUAL: de `src/features/diary/report.ts`, que já
+  gera o relatório do PROJETO e já está em produção. O bloco `REPORT_CSS`
+  (linhas 202-246) é o documento impresso deste escritório. Nenhum hex abaixo
+  foi inventado: todos saem de lá, declaração por declaração.
+
+  ----------------------------------------------------------------------------
+  PALETA  (toda de REPORT_CSS, nenhuma cor nova)
+  ----------------------------------------------------------------------------
+  #0f172a  título / valor em destaque        (.cover-title, h1, h2, .info-value)
+  #1e293b  corpo do texto                    (body)
+  #475569  linha de contexto                 (.cover-client, .entry-desc)
+  #64748b  rótulo e meta                     (.info-label, .stat-label)
+  #94a3b8  letreiro do escritório, rodapé,
+           número da pendência, linha de
+           assinatura                        (.cover-logo, .footer, .issue-num)
+  #cbd5e1  borda do bloco citado             (.entry border-left)
+  #e2e8f0  borda de cartão e régua de seção   (.issue, h2)
+  #f1f5f9  fio de separação                  (.info-row, .separator)
+  #f8fafc  superfície de bloco               (.entry)
+  #f97316  acento de VISITA                  (report.ts:499, a cor que o
+           relatório do projeto já usa no bloco "Visitas à Obra")
+
+  Crachás, nos quatro pares de REPORT_CSS (linhas 234-237). A situação da
+  VISITA reaproveita os mesmos quatro pares, na mesma ordem de gravidade da
+  tela (VISIT_STATUS_STYLE em diary-styles.ts:116):
+    Sem pendências      -> par verde   (#d1fae5/#065f46)
+    Com pendências      -> par rosa    (#ffe4e6/#be123c)
+    Aguardando execução -> par âmbar   (#fef3c7/#92400e)
+    Resolvido           -> par azul    (#dbeafe/#1d4ed8, de .badge-interno)
+  Os seletores estão AGRUPADOS para que cada hex apareça uma única vez.
+
+  ----------------------------------------------------------------------------
+  TIPOGRAFIA  (três papéis, zero webfont)
+  ----------------------------------------------------------------------------
+  Família única: 'Helvetica Neue', Arial, sans-serif, igual a REPORT_CSS. Sem
+  @import de Google Fonts: o documento é impresso e tem de abrir sem rede.
+
+  1. DISPLAY  22px/700/#0f172a, uma vez por documento, no título. É a
+     `.cover-title` (28px) baixada de tamanho porque aqui ela divide a primeira
+     página com o conteúdo, e não ocupa uma capa inteira.
+  2. CORPO    11px/1.6, com 10px para texto secundário. Igual a `body`.
+  3. UTILITÁRIA  9-10px, caixa alta, letter-spacing 1px (4px no letreiro do
+     escritório). É a `.cover-logo` / `.stat-label`. Carrega rótulo de campo,
+     crachá e legenda de foto.
+  4. MONOESPAÇADA  só no número da pendência (#7), como `.issue-num`.
+
+  ----------------------------------------------------------------------------
+  DIFERENÇA DELIBERADA EM RELAÇÃO AO RELATÓRIO DO PROJETO
+  ----------------------------------------------------------------------------
+  O do projeto abre com CAPA de página inteira (`.cover`, page-break-after).
+  Aqui não: um documento de uma a três páginas que gasta a primeira só com o
+  título é papel jogado fora. No lugar da capa, um CABEÇALHO FORTE no topo da
+  primeira página.
+
+  ELEMENTO DE ASSINATURA: a CARTELA DE IDENTIFICAÇÃO. O letreiro do escritório
+  em caixa alta espaçada, régua de 2px, título à esquerda com o crachá de
+  situação à direita, e abaixo uma faixa única de quatro campos separados por
+  fios verticais de 1px (data, hora, tipo, responsável). O documento abre e
+  fecha com a mesma linguagem de fio: a régua do cabeçalho e a linha de
+  assinatura no fim. É isso que distingue o relatório de visita do relatório de
+  projeto, que é centralizado e simétrico.
+
+  ----------------------------------------------------------------------------
+  OS DOIS CASOS, E POR QUE OS DOIS ESTÃO NO MESMO ARQUIVO
+  ----------------------------------------------------------------------------
+  CASO A: visita com 3 pendências vinculadas, 12 fotos e 1 anexo.
+  CASO B: visita sem pendência nenhuma, 3 fotos, sem anexo.
+
+  Os dois acontecem, e o vazio não pode ser a seção desaparecendo: o caso B
+  AFIRMA a ausência com todas as letras ("Nenhuma pendência foi identificada
+  nesta visita."), porque num documento entregue ao cliente seção que some é
+  seção que parece esquecida.
+
+  A faixa tracejada "PROTÓTIPO" antes de cada caso NÃO existe no documento
+  gerado. É só o rótulo desta comparação.
+
+  ----------------------------------------------------------------------------
+  RESTRIÇÕES DA GERAÇÃO, QUE SÃO RESTRIÇÕES DE DESENHO
+  ----------------------------------------------------------------------------
+  - NENHUM JAVASCRIPT. O documento é montado por concatenação de string em
+    TypeScript e entregue num `<iframe sandbox>` SEM `allow-scripts`
+    (`printReport`, report.ts:592). Não há foto que abre, não há nada que
+    clica. Este arquivo também não tem uma linha de JS.
+  - CSS INLINE, cores em hex, sem Tailwind e sem folha externa: o documento é
+    autossuficiente. Está documentado em report.ts:58 e não contradiz a regra
+    do @theme do CLAUDE.md.
+  - FOTO EMBUTIDA em data URI, reduzida antes. Aqui os 16 lugares são SVG
+    cinza em três proporções diferentes (4:3, 3:4, 16:9) de propósito: foto de
+    obra chega na proporção que o celular do engenheiro deu. A grade usa
+    `object-fit: cover` com altura fixa de 140px (igual a `.photo-item img` de
+    REPORT_CSS), então nenhuma proporção quebra a linha da grade.
+
+  ----------------------------------------------------------------------------
+  CAMPOS: SÓ O QUE EXISTE NO BANCO
+  ----------------------------------------------------------------------------
+  Da visita (`project_site_visits`, SiteVisitRow): visit_date, visit_time
+  (anulável), visit_type (SITE_VISIT_TYPE), status (SITE_VISIT_STATUS),
+  responsible (anulável), summary (obrigatório), notes (anulável).
+  Fotos e anexos: `project_diary_files` por `visit_id`, separados por
+  `file_kind` ('photo' / 'attachment').
+  Pendências: `project_issues` com `visit_id` preenchido, e de cada uma
+  issue_number, description, category, status, responsible, due_date,
+  identified_date.
+  Contexto: nome do projeto, nome do cliente (embed do projeto) e nome do
+  escritório (do tenant, nunca escrito no código: ver report.ts:290).
+
+  DERIVADO, não inventado: a legenda "Foto 3" é a posição na lista
+  (`display_order` de project_diary_files). O relatório do projeto legenda a
+  foto com a origem dela porque lá as fotos vêm de visitas e pendências
+  diferentes; aqui TODAS são da mesma visita, e repetir o resumo doze vezes
+  seria ruído.
+
+  O RESUMO VEM NUMERADO PELO USUÁRIO, tudo num parágrafo só ("1.Concluída...
+  2.Realizadas... 3.Verificada..."). Não dá para transformar isso em lista sem
+  JS nem sem regra no gerador, então o desenho assume o parágrafo: bloco
+  citado com fio de 3px à esquerda no acento de visita, largura de linha curta
+  e entrelinha 1.6, que é o que torna um parágrafo denso legível no papel.
+  Se um dia o gerador quebrar o texto em itens, o mesmo bloco aceita <ol>.
+
+  NOTES ANULÁVEL: quando `notes` é nulo a seção "Observações" não é desenhada,
+  como report.ts já faz com os campos vazios do relatório do projeto. Nos dois
+  casos abaixo ela existe, porque o usuário decidiu que Observações entra.
+
+  ----------------------------------------------------------------------------
+  IMPRESSÃO
+  ----------------------------------------------------------------------------
+  @page A4 com margem de 10mm (o padrão do Chrome, que é o que o relatório do
+  projeto recebe hoje já que ele não declara @page) + o padding de 48px/56px de
+  `.page`. Largura útil: ~160mm.
+  Nada é cortado no meio: `break-inside: avoid` em cada foto, em cada cartão de
+  pendência (cabeçalho nunca se separa do corpo) e no bloco de assinatura;
+  `break-after: avoid` em cada h2, para que título de seção não termine página.
+  Rodapé de identificação fixo em toda página na impressão, estático na tela
+  (é o `@media print` que REPORT_CSS:243 já prevê para `.footer`).
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Relatório de Visita à Obra — Alfa Engenharia</title>
+    <style>
+      /* ══════════════════════════════════════════════════════════════════
+         BLOCO 1 — O DOCUMENTO. É isto que vai para o gerador em TypeScript.
+         ══════════════════════════════════════════════════════════════════ */
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        color: #1e293b;
+        background: #fff;
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      @page { size: A4; margin: 10mm; }
+
+      .page { padding: 48px 56px; }
+      .page-break { page-break-before: always; }
+
+      /* ── Cabeçalho: a cartela de identificação ───────────────────────── */
+
+      .doc-office {
+        font-size: 10px;
+        letter-spacing: 4px;
+        color: #94a3b8;
+        text-transform: uppercase;
+      }
+      .doc-rule { height: 2px; background: #e2e8f0; margin: 10px 0 18px; }
+      .doc-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+      }
+      .doc-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.2;
+        letter-spacing: 0.2px;
+      }
+      .doc-subject { font-size: 13px; color: #475569; margin-top: 6px; }
+      .doc-subject strong { color: #0f172a; font-weight: 600; }
+
+      .ident {
+        display: flex;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #f8fafc;
+        margin-top: 20px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .ident-cell { flex: 1; padding: 10px 14px; border-left: 1px solid #e2e8f0; }
+      .ident-cell:first-child { border-left: 0; }
+      .ident-label {
+        font-size: 9px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #94a3b8;
+        line-height: 1.4;
+      }
+      .ident-value {
+        font-size: 11px;
+        font-weight: 600;
+        color: #0f172a;
+        margin-top: 2px;
+        line-height: 1.4;
+      }
+
+      /* ── Seções ──────────────────────────────────────────────────────── */
+
+      h2 {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 28px 0 12px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #e2e8f0;
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+      h3 { font-size: 11px; font-weight: 700; color: #334155; margin: 16px 0 8px; }
+      /* A linha de contagem logo abaixo do h2. Ela TAMBÉM recusa quebra depois
+         de si: sem isso o "4. Registro fotográfico" termina a página sozinho,
+         com a primeira foto já na página seguinte. Medido na renderização em
+         A4, não suposto. */
+      .section-note {
+        font-size: 9px;
+        color: #94a3b8;
+        margin: -6px 0 12px;
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+
+      /* O resumo da visita: o bloco citado de REPORT_CSS (.entry), no acento
+         de visita que o relatório do projeto já usa (report.ts:499). */
+      .entry {
+        margin: 10px 0;
+        padding: 12px 16px;
+        background: #f8fafc;
+        border-left: 3px solid #cbd5e1;
+        border-radius: 0 8px 8px 0;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .entry-visit { border-left-color: #f97316; }
+      .entry-lead { font-size: 11px; font-weight: 600; color: #0f172a; margin-bottom: 6px; }
+      .entry-desc { font-size: 10px; color: #475569; line-height: 1.7; }
+
+      .notes { font-size: 10px; color: #475569; line-height: 1.7; }
+
+      /* ── Pendências ──────────────────────────────────────────────────── */
+
+      .issue {
+        margin: 10px 0;
+        padding: 12px 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .issue-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 6px;
+      }
+      .issue-num { font-size: 10px; font-weight: 700; color: #94a3b8; font-family: monospace; }
+      .issue-desc { font-size: 11px; font-weight: 600; color: #0f172a; margin-bottom: 4px; }
+      .issue-meta { font-size: 9px; color: #64748b; line-height: 1.6; }
+
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: 600; }
+      /* Os quatro pares de REPORT_CSS, cada hex uma vez só. O segundo seletor
+         de cada linha é a situação da VISITA no mesmo par de cor. */
+      .badge-aberta,     .badge-visita-com-pendencias { background: #ffe4e6; color: #be123c; }
+      .badge-resolvida,  .badge-visita-sem-pendencias { background: #d1fae5; color: #065f46; }
+      .badge-andamento,  .badge-visita-aguardando     { background: #fef3c7; color: #92400e; }
+      .badge-cancelada                                { background: #f1f5f9; color: #64748b; }
+      .badge-visita-resolvido                         { background: #dbeafe; color: #1d4ed8; }
+      .badge-tipo { background: #f1f5f9; color: #475569; }
+
+      /* O vazio AFIRMADO: `.no-data` de REPORT_CSS dentro da moldura de
+         `.issue`, para que a ausência ocupe o lugar da pendência que não
+         existe em vez de desaparecer da página. */
+      .no-data { text-align: center; color: #94a3b8; font-size: 10px; padding: 20px; }
+      .no-data strong { display: block; color: #64748b; font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+
+      /* ── Registro fotográfico ────────────────────────────────────────── */
+
+      .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }
+      .photo-item { break-inside: avoid; page-break-inside: avoid; }
+      .photo-item img {
+        display: block;
+        width: 100%;
+        height: 140px;
+        object-fit: cover;
+        border-radius: 6px;
+        background: #f1f5f9;
+      }
+      .photo-caption { font-size: 9px; color: #64748b; margin-top: 4px; text-align: center; }
+
+      .file-row {
+        font-size: 10px;
+        padding: 6px 0;
+        border-bottom: 1px solid #f1f5f9;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .file-row span { color: #64748b; }
+
+      /* ── Assinatura ──────────────────────────────────────────────────── */
+
+      .sign {
+        /* 40px de folga antes do fio. Não é arredondamento: com 56px o bloco
+           de assinatura do caso B caía sozinho numa segunda página, medido na
+           renderização em A4. */
+        margin-top: 40px;
+        padding-bottom: 8px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .sign-line { width: 260px; height: 1px; background: #94a3b8; margin: 0 auto 8px; }
+      .sign-name { font-size: 11px; font-weight: 600; color: #0f172a; text-align: center; }
+      .sign-role {
+        font-size: 9px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #94a3b8;
+        text-align: center;
+        margin-top: 3px;
+      }
+
+      /* ── Rodapé ──────────────────────────────────────────────────────── */
+
+      .footer {
+        text-align: center;
+        font-size: 9px;
+        color: #94a3b8;
+        padding: 12px;
+        border-top: 1px solid #f1f5f9;
+      }
+
+      @media print {
+        /* Fixo = repetido em toda página pelo Chrome, que é o que REPORT_CSS
+           já pede para o relatório do projeto. A reserva de espaço vem do
+           padding-bottom de `.page`, abaixo. */
+        .footer { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; }
+        /* 48px = os 39,4px medidos do rodapé fixo + 8,6px de folga. É a
+           reserva que impede o texto de passar por baixo do rodapé na última
+           linha de cada página. */
+        .page { padding-bottom: 48px; }
+      }
+
+      /* ══════════════════════════════════════════════════════════════════
+         BLOCO 2 — SÓ PRÉ-VISUALIZAÇÃO. NADA DAQUI VAI PARA O GERADOR.
+         A folha cinza em volta, e a faixa que rotula cada caso.
+         ══════════════════════════════════════════════════════════════════ */
+
+      @media screen {
+        body { background: #f1f5f9; padding: 24px 16px 48px; }
+        .doc {
+          width: 210mm;
+          max-width: 100%;
+          min-height: 297mm;
+          margin: 0 auto;
+          background: #fff;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14);
+        }
+        .footer { width: 210mm; max-width: 100%; margin: 16px auto 0; border-top: 0; }
+      }
+
+      .proto-band {
+        font-size: 9px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #94a3b8;
+        border: 1px dashed #cbd5e1;
+        border-radius: 6px;
+        padding: 6px 10px;
+        margin: 0 auto 10px;
+        background: #f8fafc;
+      }
+      .proto-band strong { color: #64748b; letter-spacing: 1px; }
+      @media screen { .proto-band { width: 210mm; max-width: 100%; } }
+      @media print { .proto-band { margin-bottom: 0; } }
+
+      /* Lido no celular: a folha vira largura total e a cartela empilha.
+         Vale só para a leitura de tela do protótipo; a impressão é A4. */
+      @media screen and (max-width: 760px) {
+        body { padding: 12px 8px 32px; }
+        .page { padding: 24px 20px; }
+        .doc-title { font-size: 19px; }
+        .ident { flex-wrap: wrap; }
+        .ident-cell { flex: 1 1 50%; border-left: 0; border-top: 1px solid #e2e8f0; }
+        .ident-cell:first-child, .ident-cell:nth-child(2) { border-top: 0; }
+        .photo-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+
+      /* Documento impresso: não há animação nem transição em lugar nenhum
+         deste arquivo. A declaração existe para que continue sendo verdade se
+         alguém acrescentar uma. */
+      @media (prefers-reduced-motion: reduce) {
+        * { animation: none !important; transition: none !important; }
+      }
+
+      /* Não há controle focável no documento (nem link, nem botão: o sandbox
+         não executa nada). Se um dia houver, o foco é visível. */
+      :focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+    </style>
+  </head>
+
+  <body>
+    <!-- ════════════════════════════════════════════════════════════════
+         CASO A — visita COM pendências, 12 fotos, 1 anexo
+         ════════════════════════════════════════════════════════════════ -->
+
+    <div class="proto-band">
+      <strong>Protótipo · Caso A</strong> · visita com 3 pendências, 12 fotos e 1 anexo ·
+      esta faixa não existe no documento gerado
+    </div>
+
+    <article class="doc">
+      <div class="page">
+        <header>
+          <div class="doc-office">Fernando Costa Arquitetura • HausOne</div>
+          <div class="doc-rule"></div>
+
+          <div class="doc-title-row">
+            <div>
+              <h1 class="doc-title">Relatório de Visita à Obra</h1>
+              <p class="doc-subject">
+                <strong>Alfa Engenharia</strong> · Guilherme Saraiva
+              </p>
+            </div>
+            <span class="badge badge-visita-com-pendencias">Com pendências</span>
+          </div>
+
+          <div class="ident">
+            <div class="ident-cell">
+              <div class="ident-label">Data da visita</div>
+              <div class="ident-value">14/08/2025</div>
+            </div>
+            <div class="ident-cell">
+              <div class="ident-label">Hora</div>
+              <div class="ident-value">09:30</div>
+            </div>
+            <div class="ident-cell">
+              <div class="ident-label">Tipo</div>
+              <div class="ident-value">Acompanhamento</div>
+            </div>
+            <div class="ident-cell">
+              <div class="ident-label">Responsável</div>
+              <div class="ident-value">Fernando Costa</div>
+            </div>
+          </div>
+        </header>
+
+        <h2>1. Resumo da visita</h2>
+        <div class="entry entry-visit">
+          <div class="entry-lead">
+            Verificar a compatibilidade da execução com o projeto arquitetônico, sem divergências
+            identificadas.
+          </div>
+          <div class="entry-desc">
+            1.Concluída a execução das alvenarias do térreo. 2.Realizadas as aberturas para
+            instalação das esquadrias. 3.Verificada a compatibilidade da execução com o projeto
+            arquitetônico, sem divergências identificadas.
+          </div>
+        </div>
+
+        <h2>2. Observações</h2>
+        <p class="notes">
+          Solicitado ao encarregado o reforço da proteção das esquadrias recém-instaladas até o
+          término do reboco. A equipe de elétrica inicia a infraestrutura dos pontos de teto na
+          próxima semana, e a marcação precisa ser conferida antes do fechamento do forro.
+        </p>
+
+        <h2>3. Pendências identificadas nesta visita</h2>
+        <p class="section-note">3 pendências vinculadas a esta visita.</p>
+
+        <div class="issue">
+          <div class="issue-header">
+            <span class="issue-num">#7</span>
+            <span class="badge badge-aberta">Aberta</span>
+          </div>
+          <div class="issue-desc">
+            Vão da esquadria do estar com 4 cm a menos que o projeto na largura. Conferir com o
+            fornecedor antes da produção.
+          </div>
+          <div class="issue-meta">
+            Esquadrias • Identificada em 14/08/2025 • Responsável: Fernando Costa • Prazo:
+            22/08/2025
+          </div>
+        </div>
+
+        <div class="issue">
+          <div class="issue-header">
+            <span class="issue-num">#8</span>
+            <span class="badge badge-andamento">Em andamento</span>
+          </div>
+          <div class="issue-desc">
+            Ponto de água da lavanderia executado fora do eixo indicado em projeto.
+          </div>
+          <div class="issue-meta">
+            Hidráulica • Identificada em 14/08/2025 • Responsável: Mariana Lopes • Prazo:
+            25/08/2025
+          </div>
+        </div>
+
+        <div class="issue">
+          <div class="issue-header">
+            <span class="issue-num">#9</span>
+            <span class="badge badge-resolvida">Resolvida</span>
+          </div>
+          <div class="issue-desc">
+            Falta de proteção nos contramarcos já instalados na fachada oeste.
+          </div>
+          <div class="issue-meta">
+            Acabamento • Identificada em 14/08/2025 • Responsável: Mariana Lopes • Resolvida em
+            18/08/2025
+          </div>
+        </div>
+
+        <h2>4. Registro fotográfico</h2>
+        <p class="section-note">12 fotos registradas na visita de 14/08/2025.</p>
+
+        <div class="photo-grid">
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23e2e8f0'/%3E%3Cpath d='M0 300L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='168' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E4:3%3C/text%3E%3C/svg%3E" alt="Foto 1 da visita" />
+            <div class="photo-caption">Foto 1</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Crect width='300' height='400' fill='%23e2e8f0'/%3E%3Cpath d='M0 400L300 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='150' y='218' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E3:4%3C/text%3E%3C/svg%3E" alt="Foto 2 da visita" />
+            <div class="photo-caption">Foto 2</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 225'%3E%3Crect width='400' height='225' fill='%23e2e8f0'/%3E%3Cpath d='M0 225L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='130' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E16:9%3C/text%3E%3C/svg%3E" alt="Foto 3 da visita" />
+            <div class="photo-caption">Foto 3</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23e2e8f0'/%3E%3Cpath d='M0 300L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='168' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E4:3%3C/text%3E%3C/svg%3E" alt="Foto 4 da visita" />
+            <div class="photo-caption">Foto 4</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Crect width='300' height='400' fill='%23e2e8f0'/%3E%3Cpath d='M0 400L300 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='150' y='218' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E3:4%3C/text%3E%3C/svg%3E" alt="Foto 5 da visita" />
+            <div class="photo-caption">Foto 5</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 225'%3E%3Crect width='400' height='225' fill='%23e2e8f0'/%3E%3Cpath d='M0 225L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='130' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E16:9%3C/text%3E%3C/svg%3E" alt="Foto 6 da visita" />
+            <div class="photo-caption">Foto 6</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23e2e8f0'/%3E%3Cpath d='M0 300L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='168' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E4:3%3C/text%3E%3C/svg%3E" alt="Foto 7 da visita" />
+            <div class="photo-caption">Foto 7</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Crect width='300' height='400' fill='%23e2e8f0'/%3E%3Cpath d='M0 400L300 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='150' y='218' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E3:4%3C/text%3E%3C/svg%3E" alt="Foto 8 da visita" />
+            <div class="photo-caption">Foto 8</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 225'%3E%3Crect width='400' height='225' fill='%23e2e8f0'/%3E%3Cpath d='M0 225L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='130' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E16:9%3C/text%3E%3C/svg%3E" alt="Foto 9 da visita" />
+            <div class="photo-caption">Foto 9</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23e2e8f0'/%3E%3Cpath d='M0 300L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='168' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E4:3%3C/text%3E%3C/svg%3E" alt="Foto 10 da visita" />
+            <div class="photo-caption">Foto 10</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Crect width='300' height='400' fill='%23e2e8f0'/%3E%3Cpath d='M0 400L300 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='150' y='218' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E3:4%3C/text%3E%3C/svg%3E" alt="Foto 11 da visita" />
+            <div class="photo-caption">Foto 11</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 225'%3E%3Crect width='400' height='225' fill='%23e2e8f0'/%3E%3Cpath d='M0 225L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='130' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E16:9%3C/text%3E%3C/svg%3E" alt="Foto 12 da visita" />
+            <div class="photo-caption">Foto 12</div>
+          </div>
+        </div>
+
+        <h3>Arquivos anexos</h3>
+        <div class="file-row">
+          📎 medicao-alvenaria-terreo.pdf <span>• anexado à visita de 14/08/2025</span>
+        </div>
+
+        <div class="sign">
+          <div class="sign-line"></div>
+          <div class="sign-name">Fernando Costa</div>
+          <div class="sign-role">Responsável técnico pela visita</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         CASO B — visita SEM pendência nenhuma, 3 fotos, sem anexo
+         O vazio é afirmado, não é a seção desaparecendo.
+         ════════════════════════════════════════════════════════════════ -->
+
+    <div class="proto-band page-break">
+      <strong>Protótipo · Caso B</strong> · visita sem pendência, 3 fotos, sem anexo ·
+      a seção de pendências AFIRMA a ausência
+    </div>
+
+    <article class="doc">
+      <div class="page">
+        <header>
+          <div class="doc-office">Fernando Costa Arquitetura • HausOne</div>
+          <div class="doc-rule"></div>
+
+          <div class="doc-title-row">
+            <div>
+              <h1 class="doc-title">Relatório de Visita à Obra</h1>
+              <p class="doc-subject">
+                <strong>Alfa Engenharia</strong> · Guilherme Saraiva
+              </p>
+            </div>
+            <span class="badge badge-visita-sem-pendencias">Sem pendências</span>
+          </div>
+
+          <div class="ident">
+            <div class="ident-cell">
+              <div class="ident-label">Data da visita</div>
+              <div class="ident-value">28/08/2025</div>
+            </div>
+            <div class="ident-cell">
+              <div class="ident-label">Hora</div>
+              <div class="ident-value">14:00</div>
+            </div>
+            <div class="ident-cell">
+              <div class="ident-label">Tipo</div>
+              <div class="ident-value">Conferência</div>
+            </div>
+            <div class="ident-cell">
+              <div class="ident-label">Responsável</div>
+              <div class="ident-value">Mariana Lopes</div>
+            </div>
+          </div>
+        </header>
+
+        <h2>1. Resumo da visita</h2>
+        <div class="entry entry-visit">
+          <div class="entry-lead">
+            Conferência da infraestrutura elétrica do térreo antes do fechamento do forro.
+          </div>
+          <div class="entry-desc">
+            1.Conferidos os pontos de teto do estar e da cozinha conforme projeto luminotécnico.
+            2.Conferida a passagem de infraestrutura para automação. 3.Execução compatível com o
+            projeto, liberada a sequência de fechamento do forro.
+          </div>
+        </div>
+
+        <h2>2. Observações</h2>
+        <p class="notes">
+          A pendência #7, aberta na visita de 14/08/2025, segue em tratativa com o fornecedor de
+          esquadrias e não interfere na sequência de execução do forro.
+        </p>
+
+        <h2>3. Pendências identificadas nesta visita</h2>
+        <div class="issue no-data">
+          <strong>Nenhuma pendência foi identificada nesta visita.</strong>
+          A execução conferida está compatível com o projeto.
+        </div>
+
+        <h2>4. Registro fotográfico</h2>
+        <p class="section-note">3 fotos registradas na visita de 28/08/2025.</p>
+
+        <div class="photo-grid">
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23e2e8f0'/%3E%3Cpath d='M0 300L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='168' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E4:3%3C/text%3E%3C/svg%3E" alt="Foto 1 da visita" />
+            <div class="photo-caption">Foto 1</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'%3E%3Crect width='300' height='400' fill='%23e2e8f0'/%3E%3Cpath d='M0 400L300 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='150' y='218' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E3:4%3C/text%3E%3C/svg%3E" alt="Foto 2 da visita" />
+            <div class="photo-caption">Foto 2</div>
+          </div>
+          <div class="photo-item">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 225'%3E%3Crect width='400' height='225' fill='%23e2e8f0'/%3E%3Cpath d='M0 225L400 0' stroke='%23cbd5e1' stroke-width='10'/%3E%3Ctext x='200' y='130' text-anchor='middle' font-family='Arial' font-size='30' fill='%2394a3b8'%3E16:9%3C/text%3E%3C/svg%3E" alt="Foto 3 da visita" />
+            <div class="photo-caption">Foto 3</div>
+          </div>
+        </div>
+
+        <div class="sign">
+          <div class="sign-line"></div>
+          <div class="sign-name">Mariana Lopes</div>
+          <div class="sign-role">Responsável técnico pela visita</div>
+        </div>
+      </div>
+    </article>
+
+    <div class="footer">
+      Fernando Costa Arquitetura • HausOne — Documento gerado em 20/08/2025 às 16:42
+    </div>
+  </body>
+</html>
