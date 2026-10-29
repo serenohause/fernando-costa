@@ -159,19 +159,19 @@
         font-family: 'Helvetica Neue', Arial, sans-serif;
         color: #1e293b;
         background: #fff;
-        font-size: 11px;
+        font-size: 14px;
         line-height: 1.6;
       }
 
       @page { size: A4; margin: 10mm; }
 
-      .page { padding: 48px 56px; }
+      .page { padding: 32px 52px; }
       .page-break { page-break-before: always; }
 
       /* ── Cabeçalho: a cartela de identificação ───────────────────────── */
 
       .doc-office {
-        font-size: 10px;
+        font-size: 13px;
         letter-spacing: 4px;
         color: #94a3b8;
         text-transform: uppercase;
@@ -184,13 +184,13 @@
         gap: 24px;
       }
       .doc-title {
-        font-size: 22px;
+        font-size: 28px;
         font-weight: 700;
         color: #0f172a;
         line-height: 1.2;
         letter-spacing: 0.2px;
       }
-      .doc-subject { font-size: 13px; color: #475569; margin-top: 6px; }
+      .doc-subject { font-size: 16px; color: #475569; margin-top: 6px; }
       .doc-subject strong { color: #0f172a; font-weight: 600; }
 
       .ident {
@@ -198,21 +198,21 @@
         border: 1px solid #e2e8f0;
         border-radius: 8px;
         background: #f8fafc;
-        margin-top: 20px;
+        margin-top: 16px;
         break-inside: avoid;
         page-break-inside: avoid;
       }
       .ident-cell { flex: 1; padding: 10px 14px; border-left: 1px solid #e2e8f0; }
       .ident-cell:first-child { border-left: 0; }
       .ident-label {
-        font-size: 9px;
+        font-size: 11px;
         letter-spacing: 1px;
         text-transform: uppercase;
         color: #94a3b8;
         line-height: 1.4;
       }
       .ident-value {
-        font-size: 11px;
+        font-size: 14px;
         font-weight: 600;
         color: #0f172a;
         margin-top: 2px;
@@ -222,22 +222,22 @@
       /* ── Seções ──────────────────────────────────────────────────────── */
 
       h2 {
-        font-size: 13px;
+        font-size: 16px;
         font-weight: 700;
         color: #0f172a;
-        margin: 28px 0 12px;
-        padding-bottom: 8px;
+        margin: 14px 0 8px;
+        padding-bottom: 6px;
         border-bottom: 2px solid #e2e8f0;
         break-after: avoid;
         page-break-after: avoid;
       }
-      h3 { font-size: 11px; font-weight: 700; color: #334155; margin: 16px 0 8px; }
+      h3 { font-size: 14px; font-weight: 700; color: #334155; margin: 16px 0 8px; }
       /* A linha de contagem logo abaixo do h2. Ela TAMBÉM recusa quebra depois
          de si: sem isso o "4. Registro fotográfico" termina a página sozinho,
          com a primeira foto já na página seguinte. Medido na renderização em
          A4, não suposto. */
       .section-note {
-        font-size: 9px;
+        font-size: 11px;
         color: #94a3b8;
         margin: -6px 0 12px;
         break-after: avoid;
@@ -256,10 +256,10 @@
         page-break-inside: avoid;
       }
       .entry-visit { border-left-color: #f97316; }
-      .entry-lead { font-size: 11px; font-weight: 600; color: #0f172a; margin-bottom: 6px; }
-      .entry-desc { font-size: 10px; color: #475569; line-height: 1.7; }
+      .entry-lead { font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 6px; }
+      .entry-desc { font-size: 13px; color: #475569; line-height: 1.7; }
 
-      .notes { font-size: 10px; color: #475569; line-height: 1.7; }
+      .notes { font-size: 13px; color: #475569; line-height: 1.7; }
 
       /* ── Pendências ──────────────────────────────────────────────────── */
 
@@ -278,11 +278,11 @@
         gap: 12px;
         margin-bottom: 6px;
       }
-      .issue-num { font-size: 10px; font-weight: 700; color: #94a3b8; font-family: monospace; }
-      .issue-desc { font-size: 11px; font-weight: 600; color: #0f172a; margin-bottom: 4px; }
-      .issue-meta { font-size: 9px; color: #64748b; line-height: 1.6; }
+      .issue-num { font-size: 13px; font-weight: 700; color: #94a3b8; font-family: monospace; }
+      .issue-desc { font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px; }
+      .issue-meta { font-size: 11px; color: #64748b; line-height: 1.6; }
 
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: 600; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
       /* Os quatro pares de REPORT_CSS, cada hex uma vez só. O segundo seletor
          de cada linha é a situação da VISITA no mesmo par de cor. */
       .badge-aberta,     .badge-visita-com-pendencias { background: #ffe4e6; color: #be123c; }
@@ -295,25 +295,48 @@
       /* O vazio AFIRMADO: `.no-data` de REPORT_CSS dentro da moldura de
          `.issue`, para que a ausência ocupe o lugar da pendência que não
          existe em vez de desaparecer da página. */
-      .no-data { text-align: center; color: #94a3b8; font-size: 10px; padding: 20px; }
-      .no-data strong { display: block; color: #64748b; font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+      .no-data { text-align: center; color: #94a3b8; font-size: 13px; padding: 20px; }
+      .no-data strong { display: block; color: #64748b; font-size: 14px; font-weight: 600; margin-bottom: 2px; }
 
       /* ── Registro fotográfico ────────────────────────────────────────── */
 
-      .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }
-      .photo-item { break-inside: avoid; page-break-inside: avoid; }
+      /*
+        TRÊS COLUNAS POR `inline-block`, E NÃO POR GRID, e a diferença só
+        aparece no papel: contêiner de grid não fragmenta entre páginas no
+        Chromium, então a galeria inteira desce junto quando a primeira fileira
+        não cabe. Com doze fotos isso significa uma página quase vazia antes
+        delas; com trinta, duas.
+
+        Com `inline-block` as fileiras quebram onde precisam, e o que protege a
+        foto é `break-inside: avoid` em cada `.photo-item`: foto cortada ao meio
+        pela quebra de página é o defeito que não pode acontecer.
+
+        `font-size: 0` no contêiner mata o espaço em branco que o `inline-block`
+        herda das quebras de linha do HTML; cada filho declara o próprio
+        tamanho.
+      */
+      .photo-grid { font-size: 0; margin: 12px 0 4px; }
+      .photo-item {
+        display: inline-block;
+        vertical-align: top;
+        width: calc((100% - 16px) / 3);
+        margin: 0 8px 8px 0;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .photo-item:nth-child(3n) { margin-right: 0; }
       .photo-item img {
         display: block;
         width: 100%;
-        height: 140px;
+        height: 124px;
         object-fit: cover;
         border-radius: 6px;
         background: #f1f5f9;
       }
-      .photo-caption { font-size: 9px; color: #64748b; margin-top: 4px; text-align: center; }
+      .photo-caption { font-size: 11px; color: #64748b; margin-top: 4px; text-align: center; }
 
       .file-row {
-        font-size: 10px;
+        font-size: 13px;
         padding: 6px 0;
         border-bottom: 1px solid #f1f5f9;
         break-inside: avoid;
@@ -324,18 +347,31 @@
       /* ── Assinatura ──────────────────────────────────────────────────── */
 
       .sign {
-        /* 40px de folga antes do fio. Não é arredondamento: com 56px o bloco
-           de assinatura do caso B caía sozinho numa segunda página, medido na
-           renderização em A4. */
-        margin-top: 40px;
+        /*
+          A FOLGA É CURTA E A ASSINATURA NÃO COMEÇA PÁGINA, e as duas regras
+          existem pela mesma medida. Com 56px de folga, o caso B empurrava a
+          assinatura sozinha para uma segunda página; depois que a escala de
+          fonte subiu, o caso A fez o mesmo e produziu uma página 3 com nada
+          além do fio e do nome.
+
+          `break-before: avoid` é o que resolve de verdade: o bloco não pode
+          abrir página, então ele desce junto com o conteúdo que vem antes em
+          vez de ficar órfão. A folga menor é o que faz ele caber ali.
+
+          Página com uma assinatura e mais nada não é documento que se manda
+          para cliente.
+        */
+        margin-top: 20px;
         padding-bottom: 8px;
         break-inside: avoid;
         page-break-inside: avoid;
+        break-before: avoid;
+        page-break-before: avoid;
       }
       .sign-line { width: 260px; height: 1px; background: #94a3b8; margin: 0 auto 8px; }
-      .sign-name { font-size: 11px; font-weight: 600; color: #0f172a; text-align: center; }
+      .sign-name { font-size: 14px; font-weight: 600; color: #0f172a; text-align: center; }
       .sign-role {
-        font-size: 9px;
+        font-size: 11px;
         letter-spacing: 1px;
         text-transform: uppercase;
         color: #94a3b8;
@@ -347,7 +383,7 @@
 
       .footer {
         text-align: center;
-        font-size: 9px;
+        font-size: 11px;
         color: #94a3b8;
         padding: 12px;
         border-top: 1px solid #f1f5f9;
@@ -362,6 +398,29 @@
            reserva que impede o texto de passar por baixo do rodapé na última
            linha de cada página. */
         .page { padding-bottom: 48px; }
+
+        /*
+          A FAIXA DE PROTÓTIPO SAI DA IMPRESSÃO, e isto não é arrumação: com ela
+          no papel a prova mentia sobre a paginação. Ela ocupa uns 50px por caso
+          que o documento gerado não vai ter, e enquanto esteve ali eu atribuí a
+          quebra de página errada ao layout e cheguei a cortar espaçamento que
+          não precisava ser cortado. Prova de impressão que inclui andaime não é
+          prova.
+        */
+        .proto-band { display: none; }
+
+        /*
+          E CADA CASO COMEÇA EM FOLHA NOVA, pelo mesmo motivo. O documento de
+          verdade tem UM `.doc`, um por visita; aqui são dois lado a lado só
+          para mostrar as duas situações. Sem esta quebra o segundo começava no
+          rodapé da página anterior e saía fatiado, o que não é defeito do
+          layout e sim de empilhar dois documentos num arquivo só.
+
+          A quebra passa para o `.doc` SEGUINTE, e não fica na faixa: a faixa é
+          `display: none` na linha acima, e caixa escondida não quebra página.
+          Foi assim que o corte apareceu mesmo com a classe `page-break` ali.
+        */
+        .proto-band.page-break + .doc { break-before: page; page-break-before: always; }
       }
 
       /* ══════════════════════════════════════════════════════════════════
