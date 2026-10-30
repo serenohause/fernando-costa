@@ -1360,6 +1360,14 @@
             mão, fundo <code>muted</code> no hover e seta surgindo à direita. O visto é um botão
             dentro da linha, com área própria, para marcar como lida sem navegar.
           </li>
+          <li>
+            <strong>Clicar também dá baixa no aviso.</strong> Mudança de 30/10/2026, depois do
+            relato de quem usa: ter de marcar como lida à mão é estranho, porque abrir a tarefa já
+            é a prova de que o aviso foi visto. O desenho não muda em nada; muda o que o clique
+            faz. O visto continua no lugar, e o caso de uso dele agora é só um: dar baixa
+            <em>sem</em> navegar. Aviso cuja tarefa foi apagada não tem linha clicável (não há
+            destino), então nele o visto segue sendo o único caminho.
+          </li>
         </ul>
       </section>
 
@@ -1742,8 +1750,14 @@
           marcarComoLida(botao.closest('[data-notif]'))
           return
         }
-        /* Clicar na linha levaria à tarefa. No protótipo só impede a navegação. */
-        if (evento.target.closest('[data-notif]')) evento.preventDefault()
+        /* Clicar na linha leva à tarefa E dá baixa no aviso (ver a decisão de
+           30/10/2026 no item 7 da seção 4). Aqui a navegação é impedida,
+           porque o protótipo não tem para onde ir, mas a baixa acontece. */
+        const linha = evento.target.closest('[data-notif]')
+        if (linha) {
+          evento.preventDefault()
+          marcarComoLida(linha)
+        }
       })
 
       markAllButton.addEventListener('click', () => {

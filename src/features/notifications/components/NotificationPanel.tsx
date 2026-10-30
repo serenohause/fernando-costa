@@ -14,6 +14,7 @@ import {
   useMarkNotificationRead,
   useNotifications,
 } from '../hooks'
+import type { NotificationRow } from '../types'
 import NotificationItem from './NotificationItem'
 
 /*
@@ -69,6 +70,39 @@ export default function NotificationPanel({
      voltou atrás sozinho quando isto roda. */
   const avisarFalha = (error: unknown) =>
     toast.error('Erro ao marcar como lida: ' + describeNotificationError(error))
+
+  /*
+    ABRIR O AVISO JÁ DÁ BAIXA NELE, e é o painel que junta os dois gestos
+    porque é ele que tem a mutation na mão.
+
+    O PEDIDO: quem usa relatou que ter de marcar como lida é estranho, porque
+    clicar no aviso já significa tê-lo visto. O visto da linha fica no lugar,
+    para dar baixa sem navegar.
+
+    O GUARDA DE "JÁ LIDA" NÃO É ECONOMIA DE REQUISIÇÃO, e sem ele isto seria
+    uma perda de dado: o UPDATE de `useMarkNotificationRead` casa por `id` e
+    não filtra por `read_at`, então reabrir um aviso de semana passada
+    gravaria a hora DESTE clique por cima da hora em que a pessoa leu de fato.
+    É o mesmo cuidado que o filtro de `useMarkAllNotificationsRead` documenta.
+    O caso não existia antes: o visto só é desenhado na linha não lida, e
+    agora o clique vale nas duas.
+
+    O TOAST DE FALHA NÃO APARECE NESTE CAMINHO, e é limite conhecido, medido
+    em navegador com resposta de 1,5s: o painel desmonta junto com o clique
+    (`onFechar`, e em seguida a navegação), e o React Query não chama os
+    callbacks passados ao `mutate` de um observador que saiu da árvore.
+
+    O que NÃO se perde é a verdade do cache, e isso também foi medido: o
+    `onSettled` da mutation invalida as duas chaves, o contador do sino volta
+    a contar o que o banco tem, e reabrir o painel mostra o aviso recusado
+    como não lido. Ou seja, a recusa nunca fica escondida atrás de um estado
+    otimista; o que falta é a frase explicando. O visto, que não navega,
+    continua avisando com o toast.
+  */
+  const abrir = (aviso: NotificationRow) => {
+    if (aviso.read_at === null) marcarLido({ id: aviso.id }, { onError: avisarFalha })
+    onFechar()
+  }
 
   return (
     <>
@@ -213,7 +247,7 @@ export default function NotificationPanel({
                     indiceDoGrupo === grupos.length - 1 && indice === grupo.avisos.length - 1
                   }
                   onMarcarLido={(id) => marcarLido({ id }, { onError: avisarFalha })}
-                  onNavegar={onFechar}
+                  onAbrir={() => abrir(aviso)}
                 />
               ))}
             </div>

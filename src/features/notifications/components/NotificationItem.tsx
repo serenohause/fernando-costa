@@ -62,7 +62,7 @@ export default function NotificationItem({
   compacto,
   ultimo,
   onMarcarLido,
-  onNavegar,
+  onAbrir,
 }: {
   aviso: NotificationRow
   /*
@@ -77,7 +77,16 @@ export default function NotificationItem({
      NotificationPanel.tsx, onde a conta é feita. */
   ultimo?: boolean
   onMarcarLido: (id: string) => void
-  onNavegar: () => void
+  /*
+    O CLIQUE NA LINHA FAZ DUAS COISAS, e quem as junta é o painel: leva à
+    tarefa e dá baixa no aviso.
+
+    Era só navegar, e quem usa relatou que marcar à mão depois é estranho:
+    abrir a tarefa já é a prova de que o aviso foi visto. O visto da linha
+    continua existindo para o caso contrário, que é dar baixa sem sair da tela
+    (a "área própria" do protótipo, seção 4, item 7).
+  */
+  onAbrir: () => void
 }) {
   const lida = aviso.read_at !== null
   const { Icon, ladrilho, tinta } = ESPECIE[aviso.kind]
@@ -156,7 +165,7 @@ export default function NotificationItem({
       {destino ? (
         <Link
           to={destino}
-          onClick={onNavegar}
+          onClick={onAbrir}
           className="flex-1 min-w-0 block no-underline text-inherit after:absolute after:inset-0 after:content-['']"
         >
           {corpo}
