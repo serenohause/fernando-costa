@@ -559,7 +559,7 @@ verify_jwt = true
 
 # Edge Functions do modulo de COBRANCA (Asaas) - migrations 0125, 0126 e 0128.
 #
-# TRES COM SESSAO E UMA SEM, e a de fora e de fora pelo mesmo motivo do
+# QUATRO COM SESSAO E UMA SEM, e a de fora e de fora pelo mesmo motivo do
 # google-calendar-callback: quem chama nao e navegador com login.
 #
 #   asaas-connect  liga a conta Asaas do escritorio. Recebe a API KEY, que emite
@@ -581,6 +581,18 @@ verify_jwt = true
 #                  o que obriga a buscar a API Key no painel do Asaas e colar
 #                  outra vez - pedir a credencial do caixa para consertar algo
 #                  que nao tem a ver com ela.
+#
+#   asaas-disconnect
+#                  desliga a conta: remove o webhook no Asaas (MELHOR ESFORCO,
+#                  porque quem desconecta pode estar queimando uma chave que
+#                  vazou) e so depois chama asaas_disconnect, que apaga a linha
+#                  E o segredo do Vault. A ordem e obrigatoria: o
+#                  asaas_webhook_id morre com a linha. Exige sessao, mesma
+#                  permissao do connect.
+#
+#                  `webhookRemoved: false` na resposta e a UNICA noticia de que
+#                  sobrou webhook no Asaas - nao ha last_error para gravar,
+#                  porque a linha que o guardava acabou de ser apagada.
 #
 #   asaas-charge   emite a cobranca de UMA parcela, no clique de alguem (nada
 #                  automatico nesta fase). Exige sessao, e a permissao
@@ -615,6 +627,10 @@ enabled = true
 verify_jwt = true
 
 [functions.asaas-renew-webhook]
+enabled = true
+verify_jwt = true
+
+[functions.asaas-disconnect]
 enabled = true
 verify_jwt = true
 
