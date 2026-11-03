@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
+  BellOff,
   CircleAlert,
   IdCard,
   Info,
@@ -28,6 +29,7 @@ import {
   recusaDaEmissao,
   situacaoDaCobranca,
   taxaDoAsaas,
+  useAsaasConnectionStatus,
   useCobrancasPorParcela,
   useGerarCobranca,
   useTelaLarga,
@@ -117,6 +119,19 @@ export default function PainelDaCobranca({
   const gerar = useGerarCobranca()
   const telaLarga = useTelaLarga()
 
+  /*
+    O AVISO DE PAGAMENTO ESTÁ DE PÉ? Dois campos, por função (0129), porque a
+    linha inteira de `asaas_connections` é leitura de quem vê Configurações e
+    quem usa esta tela é o financeiro.
+
+    `webhook_registered === false` é o único valor que muda a tela. Nulo (sem
+    conexão) e `undefined` (carregando) não acusam nada: afirmar que o aviso
+    está desligado enquanto a resposta não chegou colocaria uma tarja âmbar em
+    toda abertura de painel, e tarja que aparece sempre deixa de ser lida.
+  */
+  const conexaoQuery = useAsaasConnectionStatus()
+  const avisoDesligado = conexaoQuery.data?.webhook_registered === false
+
   /* A cobrança que ESTE painel acabou de emitir. Guardada só para a faixa da
      seção 13: o resto do painel desenha a partir do mapa. */
   const [jaExistia, setJaExistia] = useState(false)
@@ -189,6 +204,35 @@ export default function PainelDaCobranca({
         </Dado>
       </dl>
     </>
+  )
+
+  /*
+    A TARJA QUE DESMENTE A PROMESSA DA TELA.
+
+    Decisão do usuário em 03/11/2026. A letra miúda do painel dizia "quando o
+    cliente pagar, o Asaas avisa e esta parcela vira paga sozinha", e isso é
+    FALSO quando o aviso não está registrado: o cliente paga, ninguém aqui é
+    avisado, e a parcela fica aberta até alguém baixar à mão. O protótipo
+    aprovado desenhou esta tarja no capítulo 1, em Configurações, e não aqui,
+    porque o capítulo 2 não desenha este estado.
+
+    AS PALAVRAS SÃO AS DE LÁ, com uma oração a menos: a frase aprovada começa
+    com "A cobrança pode ser emitida normalmente", que não cabe num painel que
+    está mostrando uma cobrança já emitida. O resto é igual, inclusive o
+    encaminhamento para a baixa manual, que é a única saída enquanto o aviso não
+    voltar.
+
+    SÓ EM COBRANÇA ABERTA. Em cobrança paga ou estornada o aviso já não tem o
+    que fazer, e a tarja viraria ruído num painel que está contando outra
+    história.
+  */
+  const tarjaDoAvisoDesligado = (
+    <FaixaDaCobranca
+      tom="warn"
+      icone={BellOff}
+      titulo="O aviso de pagamento não está registrado no Asaas"
+      texto="Nenhuma parcela vai baixar sozinha: quando o cliente pagar, ninguém aqui será avisado. Até isto ser resolvido, a baixa é manual, pelo botão Marcar como Pago de cada parcela."
+    />
   )
 
   const corpo = (): ReactNode => {
@@ -329,6 +373,7 @@ export default function PainelDaCobranca({
               cobranca.created_by ? `, emitida por ${cobranca.created_by.name}` : ''
             }, com o mesmo link abaixo.`}
           />
+          {avisoDesligado && tarjaDoAvisoDesligado}
           {resumo(badge)}
           <TiraDeCopiar cobranca={cobranca} somenteOLink />
           {rodapeSoFechar}
@@ -341,17 +386,31 @@ export default function PainelDaCobranca({
     if (situacao.desfecho === 'aberta') {
       return (
         <>
+          {avisoDesligado && tarjaDoAvisoDesligado}
           {resumo(badge)}
           <TiraDeCopiar cobranca={cobranca} />
           {historico(cobranca)}
-          <p className="text-xs text-faint">
-            Quando o cliente pagar, o Asaas avisa e esta parcela vira paga sozinha.
-            <span className="hidden sm:inline">
-              {' '}
-              Para cancelar ou alterar a cobrança, use o painel do Asaas: esta tela emite e
-              acompanha, não altera.
-            </span>
-          </p>
+          {/*
+            A PRIMEIRA FRASE SAI quando o aviso está desligado, em vez de
+            conviver com a tarja: promessa e desmentido lado a lado na mesma tela
+            fazem quem lê escolher em qual acreditar. A segunda frase continua
+            verdadeira nos dois casos.
+
+            E com a primeira fora, no celular (onde a segunda está escondida) não
+            sobra texto nenhum, então o parágrafo inteiro não é montado: `<p>`
+            vazio é só um espaço a mais embaixo da tira.
+          */}
+          {(!avisoDesligado || telaLarga) && (
+            <p className="text-xs text-faint">
+              {!avisoDesligado && (
+                <>Quando o cliente pagar, o Asaas avisa e esta parcela vira paga sozinha. </>
+              )}
+              <span className="hidden sm:inline">
+                Para cancelar ou alterar a cobrança, use o painel do Asaas: esta tela emite e
+                acompanha, não altera.
+              </span>
+            </p>
+          )}
           {rodapeSoFechar}
         </>
       )

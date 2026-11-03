@@ -4627,6 +4627,17 @@ export type Database = {
         Args: { p_contract_id: string }
         Returns: Json
       }
+      /* ACRESCENTADA A MAO, pelo mesmo motivo das quatro tabelas acima: o
+         `npm run db:types` nao pode substituir este arquivo enquanto a view
+         de recebiveis divergir entre dev e producao. Texto do gerador para o
+         banco de dev, migration 0129. */
+      asaas_connection_status: {
+        Args: never
+        Returns: {
+          environment: Database["public"]["Enums"]["asaas_environment"]
+          webhook_registered: boolean
+        }[]
+      }
       auth_collaborator_id: { Args: never; Returns: string }
       auth_collaborator_role: {
         Args: never

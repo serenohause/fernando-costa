@@ -152,7 +152,7 @@ export function useConnectAsaas() {
       })
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: asaasConnectionKeys.all })
+      void recarregarConexao(queryClient)
     },
   })
 }
@@ -187,7 +187,7 @@ export function useRenewAsaasWebhook() {
       return await invokeEdgeFunction<AsaasRenewWebhookResult>('asaas-renew-webhook', {})
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: asaasConnectionKeys.all })
+      void recarregarConexao(queryClient)
     },
   })
 }
@@ -213,7 +213,7 @@ export function useDisconnectAsaas() {
       return await invokeEdgeFunction<AsaasDisconnectResult>('asaas-disconnect', {})
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: asaasConnectionKeys.all })
+      void recarregarConexao(queryClient)
     },
   })
 }
@@ -231,4 +231,27 @@ export function descreverErroDaConexaoAsaas(error: unknown): string {
   if (error instanceof EdgeFunctionError) return error.message
   if (error instanceof Error) return error.message
   return 'Não foi possível concluir a operação. Tente novamente.'
+}
+
+/*
+  AS DUAS CHAVES, E POR QUE UMA NÃO PUXA A OUTRA.
+
+  `asaasConnectionKeys.all` é `['asaas', 'connection']` e carrega a linha inteira
+  da conexão, que é o que esta tela mostra. `asaasKeys.connectionStatus()` é
+  `['asaas', 'connection-status']` e carrega os dois campos que a tela de Contas
+  a Receber consegue ler (0129): o ambiente e se o aviso de pagamento está de pé.
+
+  O React Query casa chave por ELEMENTO do array, não por prefixo de texto:
+  invalidar `['asaas', 'connection']` NÃO alcança `['asaas', 'connection-status']`,
+  porque 'connection' e 'connection-status' são elementos diferentes. São irmãs,
+  e não mãe e filha.
+
+  O QUE QUEBRARIA SEM ISTO: alguém registra o aviso aqui, volta para Contas a
+  Receber, e o painel da cobrança continua mostrando a tarja âmbar dizendo que a
+  parcela não vai baixar sozinha. O conserto teria funcionado e a tela
+  continuaria acusando o problema.
+*/
+function recarregarConexao(queryClient: ReturnType<typeof useQueryClient>): void {
+  void queryClient.invalidateQueries({ queryKey: asaasConnectionKeys.all })
+  void queryClient.invalidateQueries({ queryKey: asaasKeys.connectionStatus() })
 }

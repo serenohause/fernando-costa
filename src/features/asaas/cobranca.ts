@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { financialKeys } from '@/features/financial/hooks'
-import type { Tables } from '@/lib/database.types'
+import type { Enums, Tables } from '@/lib/database.types'
 import { EdgeFunctionError, invokeEdgeFunction } from '@/lib/edge-functions'
 import { supabase } from '@/lib/supabase'
 import { asaasKeys } from './hooks'
@@ -133,6 +133,48 @@ const COBRANCAS_SELECT = `
   não tem linha nenhuma e a consulta volta sem nada. Nenhuma tela precisa saber
   se a integração existe para usar este hook.
 */
+/*
+  O AVISO DE PAGAMENTO ESTÁ DE PÉ? E em que ambiente a conta fala?
+
+  POR QUE A TELA DE COBRANÇA PRECISA SABER ISSO. Existe um estado em que a
+  cobrança é emitida e nenhum aviso chega: `webhook_token_hash` nulo (0125). O
+  cliente paga, o Asaas não consegue avisar, e a parcela fica aberta. Sem este
+  dado o painel promete "quando o cliente pagar, esta parcela vira paga sozinha"
+  sem ter como saber se é verdade, e numa tela de dinheiro essa frase vira
+  mentira que ninguém desmente.
+
+  `asaas-charge` devolve `webhookRegistered`, mas só NA RESPOSTA de uma emissão.
+  Quem abre o painel de uma cobrança que já existe não emite nada, então não há
+  resposta nenhuma. Daí a função da 0129.
+
+  POR QUE NÃO LER `asaas_connections` DIRETO: a policy da 0126 exige
+  `can_view_menu('settings')`, de propósito, e quem usa Contas a Receber é o
+  financeiro. A função devolve DOIS campos e nunca o hash, então ninguém passa a
+  ver segredo por causa desta tela.
+
+  `maybeSingle` sobre um retorno de tabela: a 0125 garante no máximo uma conexão
+  por escritório. Nulo é "não há conexão", que é o estado em que não há o que
+  emitir, e a tela manda ligar a conta em Configurações.
+*/
+export function useAsaasConnectionStatus() {
+  return useQuery({
+    queryKey: asaasKeys.connectionStatus(),
+    queryFn: async (): Promise<EstadoDaConexaoAsaas | null> => {
+      const { data, error } = await supabase.rpc('asaas_connection_status').maybeSingle()
+
+      if (error) throw error
+      return data ?? null
+    },
+  })
+}
+
+export type EstadoDaConexaoAsaas = {
+  environment: AsaasEnvironmentDaCobranca
+  webhook_registered: boolean
+}
+
+type AsaasEnvironmentDaCobranca = Enums<'asaas_environment'>
+
 export function useCobrancasPorParcela() {
   return useQuery({
     queryKey: asaasKeys.charges(),

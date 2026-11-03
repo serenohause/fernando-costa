@@ -16,4 +16,16 @@ export const asaasKeys = {
     três campos continua recebendo um mapa que os tem.
   */
   charges: () => [...asaasKeys.all, 'charges'] as const,
+
+  /*
+    O ESTADO DA CONEXÃO COMO A TELA DE COBRANÇA O VÊ: em que ambiente a conta
+    fala e se o aviso de pagamento está registrado. Dois campos, por função
+    (0129), porque a linha inteira de `asaas_connections` é leitura de quem vê
+    Configurações e quem usa Contas a Receber é o financeiro.
+
+    SEPARADA DE `asaasConnectionKeys` de propósito: aquela é a linha inteira,
+    para a tela de Configurações, e esta é o recorte de dois campos. Quem conecta
+    invalida as duas; quem emite cobrança não invalida nenhuma.
+  */
+  connectionStatus: () => [...asaasKeys.all, 'connection-status'] as const,
 }
