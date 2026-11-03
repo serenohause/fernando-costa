@@ -556,3 +556,54 @@ verify_jwt = false
 [functions.impersonate-collaborator]
 enabled = true
 verify_jwt = true
+
+# Edge Functions do modulo de COBRANCA (Asaas) - migrations 0125, 0126 e 0128.
+#
+# DUAS COM SESSAO E UMA SEM, e a de fora e de fora pelo mesmo motivo do
+# google-calendar-callback: quem chama nao e navegador com login.
+#
+#   asaas-connect  liga a conta Asaas do escritorio. Recebe a API KEY, que emite
+#                  cobranca e movimenta saldo - quem a tem, tem o caixa do
+#                  escritorio (0125). Exige sessao, e a autorizacao e conferida
+#                  DENTRO do banco por asaas_connect, que levanta 42501 para
+#                  quem nao pode editar `settings` naquele tenant.
+#
+#   asaas-charge   emite a cobranca de UMA parcela, no clique de alguem (nada
+#                  automatico nesta fase). Exige sessao, e a permissao
+#                  perguntada ao banco e can_edit em `receivables`.
+#
+#   asaas-webhook  verify_jwt = FALSE. A QUARTA PORTA PUBLICA DO SISTEMA, e a
+#                  unica pela qual uma parcela vira paga.
+#
+# O QUE SEGURA A PORTA DO WEBHOOK, ja que nao e JWT:
+#   - o cabecalho `asaas-access-token`, resolvido no BANCO por
+#     asaas_resolve_webhook_token (0128), que compara por SHA-256 e devolve
+#     NENHUMA LINHA quando nao casa. Token vazio, ausente ou desconhecido e 401
+#     SEM GRAVAR NADA. Conexao com webhook_token_hash nulo nao casa com token
+#     nenhum, entao escritorio que ainda nao registrou webhook nao aceita aviso;
+#   - a unicidade de asaas_event_id (0125): a entrega do Asaas e at-least-once,
+#     e e a constraint - nao um `if` - que faz a reentrega virar 200 sem
+#     reprocessar, em vez de baixar a parcela duas vezes;
+#   - anon e authenticated nao tem privilegio nenhum em asaas_webhook_events
+#     (0126): quem grava e a Edge Function como service_role;
+#   - o efeito e recortado por (tenant_id, asaas_payment_id), entao evento de
+#     outra conta nao alcanca cobranca nenhuma mesmo que o token resolva.
+#
+# O WEBHOOK NAO TEM LIMITE DE REQUISICAO POR ORIGEM, ao contrario das outras
+# tres portas publicas, e isso e decisao: o limite ficaria ANTES da gravacao do
+# evento, e 429 numa rajada legitima do provedor interromperia a fila de avisos
+# de pagamento. O que um atacante consegue sem o token e um 401 por requisicao,
+# com uma consulta de hash no banco e nenhuma escrita. Esta sinalizado ao
+# usuario.
+
+[functions.asaas-connect]
+enabled = true
+verify_jwt = true
+
+[functions.asaas-charge]
+enabled = true
+verify_jwt = true
+
+[functions.asaas-webhook]
+enabled = true
+verify_jwt = false
