@@ -102,7 +102,8 @@
     "test:lp-telefone": "node tests/lp-telefone.mjs",
     "test:fluxo-rolagem": "node tests/fluxo-rolagem.mjs",
     "test:tarefa-atrasada": "node tests/tarefa-atrasada.mjs",
-    "test:asaas-baixa": "node tests/asaas-baixa-manual.mjs"
+    "test:asaas-baixa": "node tests/asaas-baixa-manual.mjs",
+    "test:asaas-cobranca": "node tests/asaas-cobranca.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

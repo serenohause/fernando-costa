@@ -6,7 +6,8 @@ import type { Tables } from '@/lib/database.types'
   duas vezes.
 
   Não é o recorte do painel de cobrança (que mostra link, copia e cola do PIX,
-  taxa e situação) — esse vem depois, com o painel. Aqui são TRÊS colunas:
+  taxa e situação): esse é o `CobrancaDaParcela` de `cobranca.ts`. Aqui são TRÊS
+  colunas:
 
     receivable_id     é a chave pela qual a lista encontra a cobrança da linha;
     status            decide se o cliente ainda consegue pagar pelo link;

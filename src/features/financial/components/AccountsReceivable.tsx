@@ -4,8 +4,10 @@ import {
   ArrowDownCircle,
   Calendar,
   CheckCircle,
+  Landmark,
   MoreVertical,
   Pencil,
+  Receipt,
   Trash2,
   Users,
 } from 'lucide-react'
@@ -36,7 +38,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { cobrancaQueAindaPodeSerPaga } from '@/features/asaas/baixa-manual'
-import { useAsaasLiveCharges } from '@/features/asaas/hooks'
+import { useCobrancasPorParcela } from '@/features/asaas/cobranca'
+import { LinhaDaCobranca } from '@/features/asaas/components/CobrancaSituacao'
+import PainelDaCobranca from '@/features/asaas/components/PainelDaCobranca'
 import type { AsaasLiveCharge } from '@/features/asaas/types'
 import { useClients } from '@/features/crm/hooks'
 import { useContracts } from '@/features/contracts/hooks'
@@ -143,6 +147,19 @@ export default function AccountsReceivable() {
     account: ReceivableRow
     cobranca: AsaasLiveCharge
   } | null>(null)
+  /*
+    O PAINEL DA COBRANÇA: qual parcela e se está aberto, separados de propósito.
+
+    Só o `id` é guardado, e a linha é reencontrada na lista a cada render: a
+    parcela muda embaixo do painel (a emissão invalida a lista, e o aviso do
+    Asaas pode baixá-la enquanto ele está aberto), e um objeto congelado aqui
+    mostraria o estado de antes. O `id` sobrevive ao fechamento para o painel
+    poder sair da tela com a própria animação, como o diálogo de exclusão acima.
+  */
+  const [painel, setPainel] = useState<{ open: boolean; id: string | null }>({
+    open: false,
+    id: null,
+  })
   const [selectedMonthYear, setSelectedMonthYear] = useState(new Date())
   const [statusFilter, setStatusFilter] = useState<FinancialStatusFilter>('all')
   const [clientFilter, setClientFilter] = useState('')
@@ -154,11 +171,13 @@ export default function AccountsReceivable() {
   const hasAnyQuery = useHasAnyReceivables()
 
   /*
-    AS COBRANÇAS ABERTAS DO ASAAS, só para responder uma pergunta: se "Marcar
-    como Pago" nesta parcela pode cobrar o cliente duas vezes. Escritório sem
-    Asaas recebe mapa vazio, e nada nesta tela muda.
+    AS COBRANÇAS VIVAS DO ASAAS, indexadas pela parcela, e UMA consulta para dois
+    usos: a segunda linha da coluna Status (protótipo, seção 7) e a pergunta que
+    "Marcar como Pago" faz antes de baixar uma parcela com cobrança aberta. O
+    painel da cobrança lê a mesma chave de cache e não busca de novo. Escritório
+    sem Asaas recebe mapa vazio, e nada nesta tela muda.
   */
-  const cobrancasQuery = useAsaasLiveCharges()
+  const cobrancasQuery = useCobrancasPorParcela()
 
   const clientsQuery = useClients('')
   const projectsQuery = useProjects()
@@ -190,6 +209,13 @@ export default function AccountsReceivable() {
 
   const stats = useMemo(() => summarizeFinancial(visibleRows), [visibleRows])
   const statusCounts = useMemo(() => countFinancialByStatus(visibleRows), [visibleRows])
+
+  /* A linha do painel vem da lista a cada render, e não de uma cópia em estado:
+     ver o comentário de `painel`. */
+  const parcelaDoPainel = useMemo(
+    () => visibleRows.find((row) => row.id === painel.id) ?? null,
+    [visibleRows, painel.id],
+  )
 
   const formInitialData = useMemo<ReceivableFormValues | null>(
     () => (editing ? toFormValues(editing) : null),
@@ -363,8 +389,35 @@ export default function AccountsReceivable() {
     },
     {
       header: 'Status',
+      /*
+        DUAS LINHAS, E A HIERARQUIA ENTRE ELAS É A DECISÃO (protótipo, seção 7).
+
+        Em cima, com preenchimento, o estado da PARCELA, que é o número que o
+        financeiro fecha. Embaixo, sem preenchimento, o estado da COBRANÇA, que é
+        informação de apoio. Dois badges cheios empilhados brigariam, e o que o
+        escritório deve ler primeiro é o recebível. Coluna nova foi descartada
+        pelo mesmo motivo: a situação da cobrança é uma situação, e "em que
+        situação isto está" já mora aqui.
+
+        "Em atraso" em cima e "Cobrança vencida no Asaas" embaixo dizem a mesma
+        coisa de duas fontes, de propósito: uma é o nosso `is_overdue`, a outra é
+        o status que o Asaas mandou. Quando as duas discordam, isso é vencimento
+        divergente entre os dois lados.
+
+        OS TRÊS ESTADOS DA LEITURA DA COBRANÇA: só com a consulta respondida a
+        segunda linha aparece. Carregando e falha de leitura não desenham linha
+        nenhuma — "Sem cobrança emitida" afirmaria o que ainda não se sabe, e
+        quem abrir o painel vê a falha lá, com "Tentar novamente".
+      */
       cell: (row) => (
-        <StatusBadge status={row.is_overdue ? 'Em atraso' : labelOf(FINANCIAL_STATUS, row.status)} />
+        <>
+          <StatusBadge
+            status={row.is_overdue ? 'Em atraso' : labelOf(FINANCIAL_STATUS, row.status)}
+          />
+          {cobrancasQuery.isSuccess ? (
+            <LinhaDaCobranca cobranca={cobrancasQuery.data.get(row.id)} />
+          ) : null}
+        </>
       ),
     },
     {
@@ -372,38 +425,61 @@ export default function AccountsReceivable() {
       cell: (row) =>
         /* Quem não pode editar vê a tabela sem os botões de ação. */
         canEdit ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {row.status !== 'paid' && (
-                <DropdownMenuItem onClick={() => markAsPaid(row)}>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Marcar como Pago
+          /* O clique no menu não pode abrir o painel atrás dele: a linha inteira
+             é clicável, e o gatilho vive dentro dela. */
+          <div onClick={(evento) => evento.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {/* A SEGUNDA PORTA DA COBRANÇA (seção 8). Clique na linha é
+                    affordance invisível, e o menu é onde toda ação de linha já
+                    mora. Os dois itens abrem o mesmo painel, e não existe
+                    "Cancelar cobrança": a fase 1 não cancela, e item de menu que
+                    não funciona é pior do que item ausente. */}
+                <DropdownMenuItem onClick={() => setPainel({ open: true, id: row.id })}>
+                  {cobrancasQuery.data?.has(row.id) ? (
+                    <>
+                      <Receipt className="w-4 h-4 mr-2" />
+                      Ver cobrança
+                    </>
+                  ) : (
+                    <>
+                      <Landmark className="w-4 h-4 mr-2" />
+                      Gerar cobrança
+                    </>
+                  )}
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditing(row)
-                  setFormOpen(true)
-                }}
-              >
-                <Pencil className="w-4 h-4 mr-2" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setDeleteDialog({ open: true, account: row })}
-                className="text-rose-600 focus:text-rose-600 dark:text-rose-400 dark:focus:text-rose-400"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Remover
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuSeparator />
+                {row.status !== 'paid' && (
+                  <DropdownMenuItem onClick={() => markAsPaid(row)}>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Marcar como Pago
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={() => {
+                    setEditing(row)
+                    setFormOpen(true)
+                  }}
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setDeleteDialog({ open: true, account: row })}
+                  className="text-rose-600 focus:text-rose-600 dark:text-rose-400 dark:focus:text-rose-400"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Remover
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ) : null,
     },
   ]
@@ -569,8 +645,22 @@ export default function AccountsReceivable() {
           data={visibleRows}
           isLoading={receivablesQuery.isLoading}
           emptyMessage="Nenhuma conta encontrada com os filtros aplicados"
+          /* A LINHA INTEIRA ABRE O PAINEL DA COBRANÇA (protótipo, seção 7). É a
+             única porta larga o bastante para um polegar em 360px, onde o que
+             rola de lado é justamente a coluna de ações. */
+          onRowClick={(row) => setPainel({ open: true, id: row.id })}
         />
       )}
+
+      {parcelaDoPainel ? (
+        <PainelDaCobranca
+          key={parcelaDoPainel.id}
+          parcela={parcelaDoPainel}
+          aberto={painel.open}
+          onFechar={() => setPainel((atual) => ({ ...atual, open: false }))}
+          podeEmitir={canEdit}
+        />
+      ) : null}
 
       <AccountReceivableForm
         open={formOpen}
