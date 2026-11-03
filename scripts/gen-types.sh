@@ -54,6 +54,39 @@ if ! head -1 "$TEMP" | grep -q "^export type Json"; then
   exit 1
 fi
 
+# A SEGUNDA GUARDA, e ela existe por causa de uma divergencia conhecida.
+#
+#   `client_name` em `accounts_receivable_status` existe SO em producao: a view
+#   foi alterada por fora, sem migration, e o usuario decidiu em 21/10/2026 nao
+#   mexer. A tela de Contas a Receber depende da coluna.
+#
+#   Ou seja: gerar contra DEV (que e o certo, e o que o `pooler-url` aponta
+#   desde 03/11/2026) produz um arquivo SEM essa coluna, e o typecheck quebra
+#   num lugar que nao tem nada a ver com tipo gerado. Antes desta guarda o
+#   comando trocava o arquivo e o erro aparecia depois, longe da causa.
+#
+#   Quando a divergencia da view for resolvida, esta guarda sai junto.
+#
+#   A JANELA DO awk E FECHADA DE PROPOSITO. A primeira versao desta guarda
+#   ligava `dentro` e nunca desligava, entao qualquer `client_name` em qualquer
+#   lugar mais abaixo do arquivo dava a guarda por satisfeita — e existe um, num
+#   objeto depois da view. A guarda passou, o arquivo foi trocado e a coluna se
+#   perdeu do mesmo jeito. Conferida nos dois sentidos antes de ficar.
+if ! awk '
+  /^      accounts_receivable_status: \{/ { dentro = 1; next }
+  dentro && /^      \}$/                  { dentro = 0 }
+  dentro && /client_name/                 { achou = 1 }
+  END                                     { exit !achou }
+' "$TEMP"; then
+  echo "FALHOU: a saida nao tem \`client_name\` em accounts_receivable_status." >&2
+  echo "        A coluna existe so em PRODUCAO (view alterada fora de migration," >&2
+  echo "        divergencia aceita em 21/10/2026) e a tela de Contas a Receber" >&2
+  echo "        depende dela. $DESTINO NAO foi tocado." >&2
+  echo "        Para trazer tabela nova sem perder a coluna: recortar o bloco" >&2
+  echo "        da saida e colar a mao, como ja foi feito antes neste arquivo." >&2
+  exit 1
+fi
+
 mv "$TEMP" "$DESTINO"
 trap - EXIT
 echo "tipos regenerados: $(wc -l < "$DESTINO") linhas"
