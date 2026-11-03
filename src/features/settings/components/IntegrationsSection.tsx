@@ -43,6 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import AsaasConexaoCard from '@/features/asaas/components/AsaasConexaoCard'
 import { describeDatabaseError } from '../hooks'
 import {
   agendaEndpointUrl,
@@ -327,6 +328,25 @@ export default function IntegrationsSection({ canEdit }: { canEdit: boolean }) {
           </div>
         )}
       </section>
+
+      {/*
+        ── Asaas ─────────────────────────────────────────────────────────
+
+        LOGO ABAIXO DO GOOGLE AGENDA, e isso foi uma escolha, porque o protótipo
+        aprovado se contradiz: a seção 1 diz "mesma anatomia do bloco do Google
+        Agenda, LOGO ABAIXO DELE", e um comentário da seção 2 descreve a chave de
+        automação como estando "logo acima nesta mesma tela". As duas não cabem
+        juntas.
+
+        Ficou a primeira: ela é a frase que POSICIONA o bloco, dita na seção que
+        o apresenta, enquanto a outra é referência de passagem dentro de uma
+        explicação sobre outro assunto. E os dois blocos de cima são da mesma
+        natureza (ligar uma conta de terceiro), enquanto chave de automação é
+        coisa nossa.
+
+        Sinalizado ao usuário: trocar a ordem é mover esta linha.
+      */}
+      <AsaasConexaoCard canEdit={canEdit} />
 
       {/* ── Chaves de automação ─────────────────────────────────────────── */}
       <section className="bg-card rounded-xl border border-border p-5">

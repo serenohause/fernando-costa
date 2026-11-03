@@ -109,6 +109,10 @@ Deno.serve(async (req) => {
         disconnected: false,
         alreadyDisconnected: true,
         webhookRemoved: true,
+        /* Nulo, e não ausente: a resposta tem a mesma forma nos dois caminhos,
+           e quem consome não precisa de um campo opcional para descrever
+           "não havia nada para desligar". */
+        webhookId: null,
       })
     }
 
