@@ -1,0 +1,3758 @@
+<!doctype html>
+<!--
+  ============================================================================
+  PROTOTIPO: COBRANCA NO ASAAS, FASE 1
+  ============================================================================
+
+  POR QUE ESTE ARQUIVO EXISTE, sendo que o CLAUDE.md diz que `projeto-original/`
+  ocupa o lugar de `prototypes/`:
+  o sistema original nao tem integracao de cobranca nenhuma. Nao ha original a
+  copiar. A regra de fidelidade continua valendo por outro caminho, o mesmo que
+  prototypes/notificacoes-sino.html usou: cada decisao abaixo sai de um arquivo
+  que JA ESTA NO AR, com o arquivo de origem anotado. Nada aqui e linguagem
+  visual nova.
+
+  AS DUAS TELAS SAO TELAS QUE EXISTEM, e este prototipo ACRESCENTA dentro delas:
+  - src/features/settings/components/IntegrationsSection.tsx
+    O bloco do Asaas e irmao do bloco do Google Agenda e repete a anatomia dele:
+    ladrilho de 2,5rem, titulo, descricao, Badge de estado no canto, faixa de
+    erro, botoes embaixo.
+  - src/features/financial/components/AccountsReceivable.tsx
+    A tabela de seis colunas, o StatusBadge, o vencimento em rosa por
+    `is_overdue` e o menu de tres pontos ficam EXATAMENTE como estao. O que
+    entra e uma segunda linha dentro da coluna Status e um painel por cobranca.
+
+  O BACKEND DA FASE 1 JA ESTA DE PE (migrations 0125 a 0128, funcoes
+  asaas-connect, asaas-charge, asaas-webhook). Esta tela e a ultima camada, e
+  ela nao pode prometer nada que aquelas funcoes nao facam.
+
+  ----------------------------------------------------------------------------
+  PALETA  (nenhum hex inventado, nenhuma cor nova no tema)
+  ----------------------------------------------------------------------------
+  Superficies e texto: os proprios tokens de src/index.css, nos mesmos valores
+  HSL, claro e escuro: --background, --card, --popover, --muted,
+  --muted-foreground, --text-soft, --text-faint, --border, --input, --accent,
+  --ring, --elevated, --primary, --destructive, --radius.
+
+  Estado da conexao: o par exato do Badge "Conectado" do Google Agenda em
+  IntegrationsSection.tsx, emerald-500/10 sobre emerald-600 com borda
+  emerald-500/30. "Nao conectado" e bg-muted/text-muted-foreground/border-border,
+  tambem literal de la.
+
+  Faixa de erro: --destructive/10 com borda --destructive/30 e icone
+  --destructive. Literal do bloco de `last_error` do Google Agenda.
+
+  Faixa de aviso nao registrado: familia amber do StatusBadge
+  (amber-50/200/700 no claro, amber-950/900/400 no escuro). Precedente duplo:
+  amber e "espera" no StatusBadge, e IntegrationsSection.tsx ja usa
+  `text-amber-600` para o alerta de agenda pessoal. Nao e vermelho porque nao e
+  falha: a cobranca sai, so a baixa automatica nao pode ser confiada.
+
+  Situacao da cobranca: as mesmas quatro familias do StatusBadge
+  (src/components/shared/StatusBadge.tsx), sem nenhuma adicao de cor:
+    blue     = informacao   -> "Aguardando pagamento"
+    emerald  = concluido    -> "Pago" e "Recebido"
+    rose     = problema     -> "Cobranca vencida" e "Estornada"
+    neutral  = sem estado   -> "Removida no Asaas" e status desconhecido
+  No React isto nao vira token nenhum: vira `<StatusBadge status="..." />` com
+  quatro rotulos novos no mapa de statusStyles. Os hexas aparecem aqui porque
+  este arquivo nao tem Tailwind; cada valor esta anotado com a classe de origem.
+
+  O ladrilho de 2,5rem da coluna Descricao continua com o degrade
+  rose-100/rose-200 (atrasada) e emerald-100/emerald-200 (no prazo) que
+  AccountsReceivable.tsx ja desenha.
+
+  ----------------------------------------------------------------------------
+  TIPOGRAFIA
+  ----------------------------------------------------------------------------
+  SEM Google Fonts, de proposito, pelo mesmo motivo registrado no prototipo do
+  sino: o app nao carrega webfont nenhuma (index.html nao tem link de fonte, o
+  Tailwind v4 fica com o stack padrao). Fonte importada aqui faria o prototipo
+  parecer diferente do sistema em que ele vai morar.
+  Stack de texto: ui-sans-serif, system-ui.
+
+  Papeis, todos ja usados no app:
+  - titulo de bloco:        text-base font-medium, foreground   (IntegrationsSection)
+  - descricao de bloco:     text-sm, muted-foreground           (IntegrationsSection)
+  - rotulo de dado:         text-xs uppercase tracking-wider, --text-faint  (o <dt> de la)
+  - valor de dado:          text-sm, foreground ou --text-soft  (o <dd> de la)
+  - cabecalho de tabela:    text-xs font-semibold uppercase tracking-wider, --text-soft  (DataTable)
+  - descricao da parcela:   text-sm font-medium, foreground     (AccountsReceivable)
+  - nome do cliente:        text-sm, muted-foreground           (AccountsReceivable)
+  - situacao da cobranca:   text-[0.6875rem] font-medium, tinta da familia
+  - PAPEL UTILITARIO, o unico acrescimo: ui-monospace para link, linha de
+    boleto e copia e cola do PIX, com `tabular-nums` nos valores. Precedente
+    literal: IntegrationsSection.tsx escreve a chave de automacao em
+    `font-mono text-xs` dentro de um bloco `bg-elevated`. Codigo que a pessoa
+    vai conferir caractere por caractere pede largura fixa.
+
+  ----------------------------------------------------------------------------
+  ELEMENTO DE ASSINATURA: A TIRA DE COPIAR
+  ----------------------------------------------------------------------------
+  O painel da cobranca termina numa pilha de tres linhas de mesmo formato:
+  rotulo curto em caixa alta, valor em largura fixa, botao de copiar na ponta.
+  A primeira linha, o link de pagamento, tem o botao CHEIO (variant default) e
+  as outras duas tem botao de contorno. Isso nao e enfeite, e a hierarquia do
+  fluxo real: o que vai para o WhatsApp e o link, e e por ele que o cliente paga
+  PIX, boleto ou cartao na mesma pagina do Asaas.
+
+  A terceira linha e a razao de a tira existir como padrao e nao como tres
+  blocos soltos: o PIX pode simplesmente NAO VIR (aconteceu na primeira cobranca
+  de verdade), e nao existe como buscar o codigo depois. Numa tira de formato
+  fixo, a ausencia tem um lugar para ser dita em vez de virar um botao que nao
+  funciona.
+
+  Nenhuma outra tela do sistema tem uma pilha de valores copiaveis. Esta e a
+  marca do painel.
+
+  ----------------------------------------------------------------------------
+  O QUE FOI DESCARTADO, e por que (autocritica antes de construir)
+  ----------------------------------------------------------------------------
+  - SETIMA COLUNA "Cobranca" na tabela. Foi a primeira ideia e esta errada: a
+    tabela ja tem seis colunas e em 360px rola de lado. Pior, a coluna seria
+    sobre o MESMO assunto da coluna Status. A situacao da cobranca desceu para
+    uma segunda linha dentro de Status, que e onde "em que situacao isto esta"
+    ja mora. Zero largura nova.
+  - BOTAO "Gerar cobranca" SOLTO NA LINHA. Parecia resolver o "acao repetida
+    dezenas de vezes", e nao resolve nada: gerar sem abrir o painel obriga a
+    abrir o painel em seguida para copiar o link, que e o objetivo real. A linha
+    inteira abre o painel, e o painel gera e ja mostra a tira de copiar. Dois
+    toques do comeco ao link na mao.
+  - BOTAO "Gerar PIX" quando o copia e cola nao veio. Nao existe no backend e
+    nao da para fingir que existe.
+  - QUALQUER CAMPO DE CARTAO. O cliente paga no link do Asaas. Formulario de
+    cartao aqui jogaria o escritorio dentro do escopo das regras de seguranca de
+    cartao (PCI), e isso nao se desfaz depois.
+  - TOAST como unico aviso de "cliente sem CPF". Toast desaparece e a recusa
+    nomeia uma pessoa e pede uma correcao em outra tela. Virou dialogo com o
+    caminho para a ficha.
+  - BARRA COLORIDA na borda esquerda da linha com cobranca. Viraria decoracao
+    sobre uma tabela que ja tem ladrilho colorido na primeira coluna.
+
+  ----------------------------------------------------------------------------
+  REPRODUTIVEL COM O QUE JA EXISTE
+  ----------------------------------------------------------------------------
+  Configuracoes: a `<section className="bg-card rounded-xl border border-border p-5">`
+  do IntegrationsSection, Badge, Input, Label, Button, AlertDialog.
+  Recebiveis: DataTable (com `onRowClick`, que ele ja aceita), StatusBadge,
+  DropdownMenu, EmptyState, ErrorState, Skeleton.
+  O painel: Dialog no desktop (max-w-[560px]) e Sheet side="bottom" no celular,
+  o mesmo par que o prototipo do sino fixou.
+  Icones: Lucide, mesma familia do lucide-react do app.
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Protótipo · Cobrança no Asaas · HausOne</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+      /* ===================================================================
+         TOKENS DO TEMA - valores copiados de src/index.css, sem alteracao.
+         =================================================================== */
+      :root {
+        --background: 210 40% 98%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+        --primary: 222.2 47.4% 11.2%;
+        --primary-foreground: 210 40% 98%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --accent: 210 40% 96.1%;
+        --accent-foreground: 222.2 47.4% 11.2%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 210 40% 98%;
+        --border: 214.3 31.8% 91.4%;
+        --input: 214.3 31.8% 91.4%;
+        --ring: 222.2 84% 4.9%;
+        --elevated: 210 40% 98%;
+        --text-soft: 215.3 19.3% 34.5%;
+        --text-faint: 215 20.2% 65.1%;
+        --radius: 0.5rem;
+
+        /* -----------------------------------------------------------------
+           AS QUATRO FAMILIAS DO StatusBadge, nos valores das proprias classes
+           Tailwind que src/components/shared/StatusBadge.tsx escreve.
+           Elas aparecem aqui porque este arquivo nao tem Tailwind. No React
+           NAO VIRAM TOKEN: viram rotulo novo no mapa do StatusBadge.
+           ----------------------------------------------------------------- */
+        /* blue-50 / blue-200 / blue-700 */
+        --sb-blue-surface: 213.8 100% 96.9%;
+        --sb-blue-border: 213.3 96.9% 87.3%;
+        --sb-blue-ink: 226.2 70.7% 48.4%;
+        /* emerald-50 / emerald-200 / emerald-700 */
+        --sb-emerald-surface: 151.8 81% 95.9%;
+        --sb-emerald-border: 152.4 76% 80.4%;
+        --sb-emerald-ink: 163.1 94% 24.3%;
+        /* rose-50 / rose-200 / rose-700 */
+        --sb-rose-surface: 355.7 100% 97.3%;
+        --sb-rose-border: 352.7 96.1% 90%;
+        --sb-rose-ink: 345.3 82.7% 40.8%;
+        /* amber-50 / amber-200 / amber-700 */
+        --sb-amber-surface: 48 100% 96.1%;
+        --sb-amber-border: 48 96.6% 76.7%;
+        --sb-amber-ink: 26 90.5% 37.1%;
+
+        /* O par do Badge "Conectado" do Google Agenda: emerald-500 a 10% de
+           opacidade, tinta emerald-600, borda emerald-500 a 30%. */
+        --connected-500: 160.1 84.1% 39.4%;
+        --connected-ink: 161.4 93.5% 30.4%;
+
+        /* O degrade do ladrilho da coluna Descricao, de AccountsReceivable.tsx:
+           from-rose-100 to-rose-200 e from-emerald-100 to-emerald-200. */
+        --tile-rose-from: 355.5 100% 94.7%;
+        --tile-rose-to: 352.7 96.1% 90%;
+        --tile-emerald-from: 149.3 80.4% 90%;
+        --tile-emerald-to: 152.4 76% 80.4%;
+
+        /* O rosa do vencimento vencido e do ErrorState: text-rose-600 claro,
+           text-rose-400 escuro, sobre ladrilho rose-100 / rose-950-40. */
+        --overdue-ink: 346.8 77.2% 49.8%;
+      }
+
+      .dark {
+        --background: 222 8% 4.5%;
+        --foreground: 210 14% 96%;
+        --card: 222 8% 8%;
+        --popover: 222 8% 10%;
+        --popover-foreground: 210 14% 96%;
+        --primary: 210 14% 96%;
+        --primary-foreground: 222 10% 10%;
+        --muted: 222 7% 13%;
+        --muted-foreground: 215 9% 67%;
+        --accent: 222 7% 16%;
+        --accent-foreground: 210 14% 96%;
+        --destructive: 0 62% 48%;
+        --destructive-foreground: 210 40% 98%;
+        --border: 222 8% 20%;
+        --input: 222 8% 22%;
+        --ring: 213 12% 70%;
+        --elevated: 222 8% 12%;
+        --text-soft: 215 11% 81%;
+        --text-faint: 215 8% 55%;
+
+        /* O par escuro de cada familia e o que o StatusBadge escreve:
+           superficie no 950, borda no 900, tinta no 400. Mesma leitura que
+           src/index.css fez para as duas especies do sino. */
+        --sb-blue-surface: 226.2 57% 21%;
+        --sb-blue-border: 224.4 64.3% 32.9%;
+        --sb-blue-ink: 213.1 93.9% 67.8%;
+        --sb-emerald-surface: 165.7 91.3% 9%;
+        --sb-emerald-border: 164.2 85.7% 16.5%;
+        --sb-emerald-ink: 158.1 64.4% 51.6%;
+        --sb-rose-surface: 343.1 87.7% 15.9%;
+        --sb-rose-border: 341.5 74.6% 30.4%;
+        --sb-rose-ink: 351 95% 71%;
+        --sb-amber-surface: 20.9 91.6% 14.1%;
+        --sb-amber-border: 21.7 77.8% 26.5%;
+        --sb-amber-ink: 43.3 96.4% 56.3%;
+
+        /* A tinta do "Conectado" NAO dessatura: ela e o estado, e o proprio
+           IntegrationsSection.tsx escreve `text-emerald-600` sem par escuro. */
+
+        --tile-rose-from: 343.1 87.7% 15.9%;
+        --tile-rose-to: 341.5 74.6% 30.4%;
+        --tile-emerald-from: 165.7 91.3% 9%;
+        --tile-emerald-to: 164.2 85.7% 16.5%;
+        --overdue-ink: 351 95% 71%;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        border-color: hsl(var(--border));
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+      }
+
+      /* focus-visible:ring-1 ring-ring, o anel do button.tsx e do input.tsx. */
+      :focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 1px hsl(var(--ring));
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
+      /* ===================================================================
+         CHROME DO PROTOTIPO - tudo que NAO e produto.
+         Borda tracejada de proposito: moldura de prototipo nao deve ser
+         confundida com superficie do sistema. Copia do chrome de
+         prototypes/notificacoes-sino.html.
+         =================================================================== */
+      .proto-page {
+        max-width: 76rem;
+        margin: 0 auto;
+        padding: 2rem 1rem 6rem;
+      }
+
+      .proto-title {
+        font-size: 1.125rem;
+        font-weight: 300;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin: 0;
+      }
+
+      .proto-kicker {
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        color: hsl(var(--muted-foreground));
+        margin: 0.25rem 0 0;
+      }
+
+      .proto-topbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+
+      .proto-lede {
+        max-width: 46rem;
+        font-size: 0.875rem;
+        color: hsl(var(--muted-foreground));
+        margin: 1rem 0 0;
+      }
+
+      .proto-chapter {
+        margin-top: 4rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid hsl(var(--border));
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: hsl(var(--text-faint));
+      }
+
+      .proto-section {
+        margin-top: 2.5rem;
+      }
+
+      .proto-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--muted-foreground));
+        margin: 0 0 0.25rem;
+      }
+
+      .proto-note {
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+        margin: 0 0 1rem;
+        max-width: 46rem;
+      }
+
+      /* A moldura rola por dentro e a pagina nunca rola de lado: a tabela de
+         seis colunas e mais larga que um telefone, e quem aprova este arquivo
+         vai abri-lo no telefone. Mesmo motivo do prototipo do sino. */
+      .proto-frame {
+        border: 1px dashed hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        padding: 1rem;
+        background: hsl(var(--background));
+        max-width: 100%;
+        overflow-x: auto;
+      }
+
+      .proto-grid {
+        display: grid;
+        gap: 1.5rem;
+      }
+
+      @media (min-width: 64rem) {
+        .proto-grid--two {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      .proto-callouts {
+        margin: 1rem 0 0;
+        padding-left: 1.25rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .proto-callouts li + li {
+        margin-top: 0.375rem;
+      }
+
+      /*
+        CARTAO DE DECISAO A CONFIRMAR.
+        Em cinza, e nao em ambar: ambar e amarelo significam coisa no PRODUTO
+        (espera, aviso nao registrado), e moldura de revisao que usa cor de
+        estado ensina o olho errado. Aqui o que distingue e a borda tracejada,
+        que e a linguagem do chrome deste arquivo.
+      */
+      .proto-decision {
+        margin-top: 1rem;
+        border: 1px dashed hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        background: hsl(var(--elevated));
+        padding: 1rem 1.125rem;
+      }
+
+      .proto-decision__label {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        font-size: 0.625rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: hsl(var(--text-faint));
+        margin: 0 0 0.5rem;
+      }
+
+      .proto-decision__label svg {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+
+      .proto-decision p {
+        margin: 0;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .proto-decision p + p {
+        margin-top: 0.5rem;
+      }
+
+      .proto-open-questions {
+        margin-top: 3rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        background: hsl(var(--card));
+        padding: 1.5rem;
+      }
+
+      .proto-open-questions h2 {
+        font-size: 0.9375rem;
+        margin: 0 0 0.75rem;
+      }
+
+      .proto-open-questions ol {
+        margin: 0;
+        padding-left: 1.25rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .proto-open-questions li + li {
+        margin-top: 0.5rem;
+      }
+
+      /* ===================================================================
+         BLOCO DE INTEGRACAO
+         <section className="bg-card rounded-xl border border-border p-5">
+         de IntegrationsSection.tsx, literal.
+         =================================================================== */
+      .card {
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        padding: 1.25rem;
+      }
+
+      .card__head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .card__brand {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        min-width: 0;
+      }
+
+      /* w-10 h-10 rounded-lg bg-elevated, icone w-5 h-5 muted-foreground. */
+      .card__tile {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: var(--radius);
+        background: hsl(var(--elevated));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .card__tile svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .card__title {
+        font-size: 1rem;
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .card__desc {
+        font-size: 0.875rem;
+        color: hsl(var(--muted-foreground));
+        margin: 0.125rem 0 0;
+        max-width: 34rem;
+      }
+
+      .card__body {
+        margin-top: 1rem;
+      }
+
+      .card__body > * + * {
+        margin-top: 1rem;
+      }
+
+      /* ===================================================================
+         BADGE - badge.tsx variant="outline": rounded-md border px-2.5 py-0.5
+         text-xs font-semibold.
+         =================================================================== */
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        border: 1px solid transparent;
+        border-radius: calc(var(--radius) - 2px);
+        padding: 0.125rem 0.625rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .badge svg {
+        width: 0.75rem;
+        height: 0.75rem;
+      }
+
+      .badge--connected {
+        background: hsl(var(--connected-500) / 0.1);
+        border-color: hsl(var(--connected-500) / 0.3);
+        color: hsl(var(--connected-ink));
+      }
+
+      .badge--idle {
+        background: hsl(var(--muted));
+        border-color: hsl(var(--border));
+        color: hsl(var(--muted-foreground));
+      }
+
+      /* As quatro familias do StatusBadge, com o `font-medium` que o
+         componente acrescenta por cima do font-semibold do Badge. */
+      .state-badge {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid;
+        border-radius: calc(var(--radius) - 2px);
+        padding: 0.125rem 0.625rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      .state-badge--blue {
+        background: hsl(var(--sb-blue-surface));
+        border-color: hsl(var(--sb-blue-border));
+        color: hsl(var(--sb-blue-ink));
+      }
+
+      .state-badge--emerald {
+        background: hsl(var(--sb-emerald-surface));
+        border-color: hsl(var(--sb-emerald-border));
+        color: hsl(var(--sb-emerald-ink));
+      }
+
+      .state-badge--rose {
+        background: hsl(var(--sb-rose-surface));
+        border-color: hsl(var(--sb-rose-border));
+        color: hsl(var(--sb-rose-ink));
+      }
+
+      .state-badge--amber {
+        background: hsl(var(--sb-amber-surface));
+        border-color: hsl(var(--sb-amber-border));
+        color: hsl(var(--sb-amber-ink));
+      }
+
+      .state-badge--neutral {
+        background: hsl(var(--elevated));
+        border-color: hsl(var(--border));
+        color: hsl(var(--text-soft));
+      }
+
+      /* ===================================================================
+         FAIXAS DE AVISO
+         A de erro e literal do bloco de `last_error` do Google Agenda:
+         flex items-start gap-2 p-3 rounded-lg bg-destructive/10
+         border border-destructive/30.
+         =================================================================== */
+      .band {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        border-radius: var(--radius);
+        border: 1px solid;
+        font-size: 0.875rem;
+      }
+
+      .band svg {
+        width: 1rem;
+        height: 1rem;
+        margin-top: 0.125rem;
+        flex-shrink: 0;
+      }
+
+      .band__title {
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .band__text {
+        color: hsl(var(--muted-foreground));
+        margin: 0.125rem 0 0;
+      }
+
+      .band__code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+        margin: 0.125rem 0 0;
+        word-break: break-word;
+      }
+
+      .band--error {
+        background: hsl(var(--destructive) / 0.1);
+        border-color: hsl(var(--destructive) / 0.3);
+      }
+
+      .band--error svg,
+      .band--error .band__title {
+        color: hsl(var(--destructive));
+      }
+
+      .band--warn {
+        background: hsl(var(--sb-amber-surface));
+        border-color: hsl(var(--sb-amber-border));
+      }
+
+      .band--warn svg,
+      .band--warn .band__title {
+        color: hsl(var(--sb-amber-ink));
+      }
+
+      .band--info {
+        background: hsl(var(--sb-blue-surface));
+        border-color: hsl(var(--sb-blue-border));
+      }
+
+      .band--info svg,
+      .band--info .band__title {
+        color: hsl(var(--sb-blue-ink));
+      }
+
+      .band--done {
+        background: hsl(var(--sb-emerald-surface));
+        border-color: hsl(var(--sb-emerald-border));
+      }
+
+      .band--done svg,
+      .band--done .band__title {
+        color: hsl(var(--sb-emerald-ink));
+      }
+
+      /* ===================================================================
+         BOTOES - button.tsx. default h-9 (h-11 no toque) px-4 py-2 rounded-md
+         text-sm font-medium, icone 1rem.
+         =================================================================== */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        height: 2.75rem;
+        padding: 0 1rem;
+        border: 1px solid transparent;
+        border-radius: calc(var(--radius) - 2px);
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      @media (min-width: 48rem) {
+        .btn {
+          height: 2.25rem;
+        }
+      }
+
+      .btn--default {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      .btn--default:hover {
+        background: hsl(var(--primary) / 0.9);
+      }
+
+      .btn--outline {
+        background: hsl(var(--background));
+        border-color: hsl(var(--input));
+        color: hsl(var(--foreground));
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      .btn--outline:hover {
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+      }
+
+      .btn--ghost {
+        background: transparent;
+        color: hsl(var(--foreground));
+      }
+
+      .btn--ghost:hover {
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+      }
+
+      /* `text-destructive hover:text-destructive` do botao Desconectar do
+         Google Agenda. */
+      .btn--danger-text {
+        background: hsl(var(--background));
+        border-color: hsl(var(--input));
+        color: hsl(var(--destructive));
+      }
+
+      .btn--danger-text:hover {
+        background: hsl(var(--accent));
+        color: hsl(var(--destructive));
+      }
+
+      /* bg-rose-600 text-white hover:bg-rose-700, o confirmar destrutivo do
+         AlertDialog de AccountsReceivable.tsx. */
+      .btn--danger {
+        background: hsl(var(--overdue-ink));
+        color: #fff;
+      }
+
+      .btn--sm {
+        height: 2rem;
+        padding: 0 0.75rem;
+        font-size: 0.75rem;
+      }
+
+      .btn--icon {
+        height: 2.25rem;
+        width: 2.25rem;
+        padding: 0;
+        flex-shrink: 0;
+      }
+
+      .btn[disabled],
+      .btn[aria-disabled='true'] {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      .btn svg {
+        width: 1rem;
+        height: 1rem;
+        flex-shrink: 0;
+      }
+
+      .btn--sm svg {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      /* ===================================================================
+         FORMULARIO - label.tsx (text-sm font-medium) e input.tsx
+         (h-9 rounded-md border border-input bg-transparent px-3).
+         =================================================================== */
+      .field + .field {
+        margin-top: 1rem;
+      }
+
+      .field__label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin: 0 0 0.5rem;
+      }
+
+      .field__hint {
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+        margin: 0.375rem 0 0;
+      }
+
+      .input {
+        display: flex;
+        width: 100%;
+        height: 2.25rem;
+        padding: 0 0.75rem;
+        border: 1px solid hsl(var(--input));
+        border-radius: calc(var(--radius) - 2px);
+        background: transparent;
+        color: hsl(var(--foreground));
+        font-family: inherit;
+        font-size: 0.875rem;
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      .input--mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      .input::placeholder {
+        color: hsl(var(--muted-foreground));
+      }
+
+      .input-with-action {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      /*
+        SELETOR DE AMBIENTE. Dois cartoes de radio, e nao um <Select>:
+        uma lista fechada esconde a opcao nao escolhida, e a opcao nao
+        escolhida e justamente a que custa dinheiro se alguem errar. Com os
+        dois lado a lado, a escolha e visivel antes do clique em Conectar.
+      */
+      .env {
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      @media (min-width: 30rem) {
+        .env {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      .env__option {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.625rem;
+        padding: 0.75rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius);
+        background: hsl(var(--card));
+        cursor: pointer;
+      }
+
+      .env__option:hover {
+        background: hsl(var(--accent));
+      }
+
+      .env__option:has(input:checked) {
+        border-color: hsl(var(--foreground) / 0.45);
+        background: hsl(var(--elevated));
+      }
+
+      .env__option:has(input:focus-visible) {
+        box-shadow: 0 0 0 1px hsl(var(--ring));
+      }
+
+      .env__option input {
+        margin: 0.1875rem 0 0;
+        accent-color: hsl(var(--foreground));
+        flex-shrink: 0;
+      }
+
+      .env__name {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+
+      .env__about {
+        display: block;
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+        margin-top: 0.125rem;
+      }
+
+      /* ===================================================================
+         LISTA DE DADOS - o <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-3
+         text-sm"> do Google Agenda conectado, literal.
+         =================================================================== */
+      .dl {
+        display: grid;
+        gap: 0.75rem 1.5rem;
+        font-size: 0.875rem;
+        margin: 0;
+      }
+
+      @media (min-width: 40rem) {
+        .dl--two {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (min-width: 40rem) {
+        .dl--three {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      .dl dt {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--text-faint));
+      }
+
+      .dl dd {
+        margin: 0.125rem 0 0;
+        color: hsl(var(--foreground));
+      }
+
+      .dl dd.soft {
+        color: hsl(var(--text-soft));
+      }
+
+      .dl dd.nums {
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* ===================================================================
+         TABELA - DataTable.tsx. Card bg-card border-0 shadow-xs, cabecalho
+         bg-elevated com text-xs font-semibold uppercase tracking-wider
+         text-soft, linha border-b hover:bg-elevated, celula py-4.
+         =================================================================== */
+      .table-card {
+        background: hsl(var(--card));
+        border-radius: calc(var(--radius) + 4px);
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        overflow: hidden;
+      }
+
+      .table-scroll {
+        overflow-x: auto;
+        width: 100%;
+      }
+
+      table.data {
+        width: 100%;
+        min-width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+
+      table.data thead tr {
+        background: hsl(var(--elevated));
+      }
+
+      table.data th {
+        padding: 0.75rem 1rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--text-soft));
+        white-space: nowrap;
+      }
+
+      table.data td {
+        padding: 1rem;
+        border-bottom: 1px solid hsl(var(--border));
+        font-size: 0.875rem;
+        vertical-align: middle;
+      }
+
+      table.data tbody tr {
+        transition: background-color 0.15s ease;
+      }
+
+      /* A LINHA ABRE O PAINEL: `onRowClick` que o DataTable ja aceita, o que
+         traz `cursor-pointer` de graca. */
+      table.data tbody tr.clickable {
+        cursor: pointer;
+      }
+
+      table.data tbody tr:hover {
+        background: hsl(var(--elevated));
+      }
+
+      table.data tbody tr:focus-visible {
+        outline: none;
+        box-shadow: inset 0 0 0 1px hsl(var(--ring));
+      }
+
+      /* Colunas que o DataTable esconde abaixo de md. "Projeto" ja esta na
+         lista MOBILE_HIDDEN_HEADERS dele. */
+      .hide-sm {
+        display: none;
+      }
+
+      @media (min-width: 48rem) {
+        .hide-sm {
+          display: table-cell;
+        }
+      }
+
+      .cell-desc {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 0;
+      }
+
+      /* w-10 h-10 rounded-xl com o degrade de AccountsReceivable.tsx. */
+      .cell-tile {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: calc(var(--radius) + 4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .cell-tile svg {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      .cell-tile--ok {
+        background: linear-gradient(
+          to bottom right,
+          hsl(var(--tile-emerald-from)),
+          hsl(var(--tile-emerald-to))
+        );
+        color: hsl(var(--sb-emerald-ink));
+      }
+
+      .cell-tile--late {
+        background: linear-gradient(
+          to bottom right,
+          hsl(var(--tile-rose-from)),
+          hsl(var(--tile-rose-to))
+        );
+        color: hsl(var(--overdue-ink));
+      }
+
+      .cell-desc__name {
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .cell-desc__client {
+        font-size: 0.875rem;
+        color: hsl(var(--muted-foreground));
+        margin: 0;
+      }
+
+      .cell-due {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        white-space: nowrap;
+      }
+
+      .cell-due svg {
+        width: 1rem;
+        height: 1rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .cell-due--late span {
+        color: hsl(var(--overdue-ink));
+        font-weight: 500;
+      }
+
+      .cell-value {
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .cell-faint {
+        color: hsl(var(--text-faint));
+      }
+
+      /*
+        A SITUACAO DA COBRANCA, segunda linha da coluna Status.
+        Sem preenchimento: o StatusBadge de cima e o estado da PARCELA, que e o
+        numero do financeiro, e precisa continuar sendo o mais forte dos dois.
+        Aqui ficam so icone e tinta da familia.
+      */
+      .charge-line {
+        display: flex;
+        align-items: center;
+        gap: 0.3125rem;
+        margin-top: 0.375rem;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      .charge-line svg {
+        width: 0.8125rem;
+        height: 0.8125rem;
+        flex-shrink: 0;
+      }
+
+      .charge-line--blue {
+        color: hsl(var(--sb-blue-ink));
+      }
+
+      .charge-line--emerald {
+        color: hsl(var(--sb-emerald-ink));
+      }
+
+      .charge-line--rose {
+        color: hsl(var(--sb-rose-ink));
+      }
+
+      .charge-line--neutral {
+        color: hsl(var(--text-faint));
+      }
+
+      /* Parcela sem cobranca: a ausencia e dita em texto apagado, e nao com um
+         botao. Quem clica na linha chega ao painel que emite. */
+      .charge-line--none {
+        color: hsl(var(--text-faint));
+        font-weight: 400;
+      }
+
+      .cell-actions {
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      /* ===================================================================
+         MENU DE TRES PONTOS - dropdown-menu.tsx: rounded-md border bg-popover
+         p-1 shadow-md, item px-2 py-1.5 text-sm rounded-sm.
+         =================================================================== */
+      .menu {
+        width: 15rem;
+        background: hsl(var(--popover));
+        color: hsl(var(--popover-foreground));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) - 2px);
+        padding: 0.25rem;
+        box-shadow:
+          0 4px 6px -1px rgb(0 0 0 / 0.1),
+          0 2px 4px -2px rgb(0 0 0 / 0.1);
+      }
+
+      .menu__item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.375rem 0.5rem;
+        border: 0;
+        background: transparent;
+        border-radius: calc(var(--radius) - 4px);
+        font-family: inherit;
+        font-size: 0.875rem;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .menu__item:hover {
+        background: hsl(var(--accent));
+      }
+
+      .menu__item svg {
+        width: 1rem;
+        height: 1rem;
+        flex-shrink: 0;
+      }
+
+      .menu__item--danger {
+        color: hsl(var(--overdue-ink));
+      }
+
+      .menu__sep {
+        height: 1px;
+        background: hsl(var(--border));
+        margin: 0.25rem -0.25rem;
+      }
+
+      /* ===================================================================
+         PAINEL DA COBRANCA - dialog.tsx: bg-card, border, p-4 sm:p-6, gap-4,
+         rounded-lg, shadow-lg.
+         =================================================================== */
+      .dialog {
+        width: 35rem;
+        max-width: 100%;
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius);
+        box-shadow:
+          0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -4px rgb(0 0 0 / 0.1);
+        padding: 1rem;
+      }
+
+      @media (min-width: 40rem) {
+        .dialog {
+          padding: 1.5rem;
+        }
+      }
+
+      .dialog > * + * {
+        margin-top: 1rem;
+      }
+
+      .dialog__head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .dialog__title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+
+      .dialog__desc {
+        font-size: 0.875rem;
+        color: hsl(var(--muted-foreground));
+        margin: 0.25rem 0 0;
+      }
+
+      .dialog__foot {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.5rem;
+      }
+
+      .dialog__fine {
+        font-size: 0.75rem;
+        color: hsl(var(--text-faint));
+        margin: 0;
+      }
+
+      .dialog__sep {
+        height: 1px;
+        background: hsl(var(--border));
+      }
+
+      /* ===================================================================
+         A TIRA DE COPIAR - ELEMENTO DE ASSINATURA.
+
+         Formato herdado do bloco de chave de automacao de
+         IntegrationsSection.tsx: `bg-elevated border border-border rounded-lg`
+         com rotulo `text-xs text-faint uppercase tracking-wider`, valor em
+         `font-mono text-xs break-all` e um Button size="icon" de copiar ao
+         lado. O que este arquivo acrescenta e a REPETICAO em tres linhas de
+         mesma geometria, e o estado de linha vazia.
+         =================================================================== */
+      .copy-strip {
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+
+      .copy-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: hsl(var(--elevated));
+      }
+
+      .copy-row + .copy-row {
+        border-top: 1px solid hsl(var(--border));
+      }
+
+      .copy-row__main {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .copy-row__label {
+        display: block;
+        font-size: 0.6875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--text-faint));
+      }
+
+      .copy-row__value {
+        display: block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        color: hsl(var(--text-soft));
+        margin-top: 0.1875rem;
+        word-break: break-all;
+      }
+
+      /* A LINHA HEROI. O link e o que vai para o WhatsApp, e o unico botao
+         cheio da tira. */
+      .copy-row--hero {
+        background: hsl(var(--card));
+      }
+
+      .copy-row--hero .copy-row__label {
+        color: hsl(var(--muted-foreground));
+        font-weight: 600;
+      }
+
+      .copy-row--hero .copy-row__value {
+        font-size: 0.8125rem;
+        color: hsl(var(--foreground));
+      }
+
+      /* Linha sem valor: o rotulo fica, o campo de largura fixa sai, e no lugar
+         entra a frase que explica o que fazer. Sem botao, porque nao ha o que
+         copiar e nao existe como buscar o codigo depois. */
+      .copy-row--empty .copy-row__value {
+        font-family: inherit;
+        font-size: 0.8125rem;
+        color: hsl(var(--muted-foreground));
+        word-break: normal;
+      }
+
+      .copy-feedback {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        color: hsl(var(--sb-emerald-ink));
+        margin-left: 0.5rem;
+      }
+
+      .copy-feedback svg {
+        width: 0.75rem;
+        height: 0.75rem;
+      }
+
+      .copy-feedback[hidden] {
+        display: none;
+      }
+
+      /* ===================================================================
+         ESTADOS DE LISTA
+         EmptyState.tsx: py-16 px-4, ladrilho 4rem rounded-2xl bg-muted, icone
+         2rem text-faint, titulo text-lg font-semibold, descricao muted.
+         ErrorState.tsx: o mesmo, com ladrilho rose-100 / rose-950-40.
+         Skeleton: bg-muted com animate-pulse, cinco barras de h-12.
+         =================================================================== */
+      .state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem 1rem;
+        text-align: center;
+      }
+
+      .state__tile {
+        width: 4rem;
+        height: 4rem;
+        border-radius: 1rem;
+        background: hsl(var(--muted));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .state__tile svg {
+        width: 2rem;
+        height: 2rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .state__tile--error {
+        background: hsl(var(--tile-rose-from));
+      }
+
+      .state__tile--error svg {
+        color: hsl(var(--overdue-ink));
+      }
+
+      .state__title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+      }
+
+      .state__text {
+        color: hsl(var(--muted-foreground));
+        max-width: 28rem;
+        margin: 0 0 1.5rem;
+        font-size: 0.875rem;
+      }
+
+      .skeleton-list {
+        padding: 1rem;
+      }
+
+      .skeleton-bar {
+        height: 3rem;
+        border-radius: calc(var(--radius) - 2px);
+        background: hsl(var(--muted));
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      .skeleton-bar + .skeleton-bar {
+        margin-top: 1rem;
+      }
+
+      @keyframes pulse {
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      /* ===================================================================
+         CELULAR - 360px, que e a largura em que o financeiro vai cobrar.
+         Sheet side="bottom": inset-x-0 bottom-0, border-t. sheet.tsx.
+         =================================================================== */
+      .phone {
+        width: 22.5rem;
+        max-width: 100%;
+        height: 44rem;
+        position: relative;
+        background: hsl(var(--background));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .phone__header {
+        height: 4rem;
+        flex-shrink: 0;
+        background: hsl(var(--card));
+        border-bottom: 1px solid hsl(var(--border));
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+
+      .phone__header svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .phone__content {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .phone__scroll {
+        height: 100%;
+        overflow-y: auto;
+        padding: 0.75rem;
+      }
+
+      .phone__scrim {
+        position: absolute;
+        inset: 0;
+        background: rgb(0 0 0 / 0.2);
+        backdrop-filter: blur(2px);
+      }
+
+      .phone__sheet {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-height: 88%;
+        display: flex;
+        flex-direction: column;
+        background: hsl(var(--card));
+        border-top: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px) calc(var(--radius) + 4px) 0 0;
+        box-shadow: 0 -10px 15px -3px rgb(0 0 0 / 0.1);
+      }
+
+      .phone__grip {
+        width: 2.5rem;
+        height: 0.25rem;
+        border-radius: 9999px;
+        background: hsl(var(--border));
+        margin: 0.5rem auto 0;
+        flex-shrink: 0;
+      }
+
+      .phone__sheet-body {
+        padding: 1rem;
+        overflow-y: auto;
+        min-height: 0;
+      }
+
+      .phone__sheet-body > * + * {
+        margin-top: 1rem;
+      }
+
+      .phone table.data td,
+      .phone table.data th {
+        padding-left: 0.625rem;
+        padding-right: 0.625rem;
+      }
+
+      /* Em tela de toque nao existe hover, e o que depende dele nao existe. */
+      @media (hover: none) {
+        table.data tbody tr.clickable {
+          background: transparent;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="proto-page">
+      <!-- ============================================================
+           CHROME DO PROTOTIPO
+           ============================================================ -->
+      <div class="proto-topbar">
+        <div>
+          <h1 class="proto-title">Cobrança no Asaas</h1>
+          <p class="proto-kicker">HAUSONE · PROTÓTIPO · FASE 1</p>
+        </div>
+        <button
+          class="btn btn--ghost btn--icon"
+          type="button"
+          id="themeToggle"
+          aria-label="Alternar tema claro e escuro"
+        >
+          <i data-lucide="moon"></i>
+        </button>
+      </div>
+
+      <p class="proto-lede">
+        A fase 1 faz duas coisas: ligar a conta Asaas do escritório e emitir a cobrança de uma
+        parcela. Quando o cliente paga, o Asaas avisa e a parcela baixa sozinha, com data e forma.
+        Ninguém marca pagamento à mão nesse caminho. Toda cor e tipografia abaixo vem dos tokens do
+        sistema e das famílias que o StatusBadge já usa; a origem de cada escolha está anotada no
+        topo do arquivo.
+      </p>
+
+      <!-- ============================================================
+           CAPITULO 1: CONFIGURACOES > INTEGRACOES
+           ============================================================ -->
+      <p class="proto-chapter">Capítulo 1 · Configurações, Integrações</p>
+
+      <section class="proto-section">
+        <p class="proto-label">1 · Não conectado</p>
+        <p class="proto-note">
+          Mesma anatomia do bloco do Google Agenda, logo abaixo dele: ladrilho de 2,5rem com fundo
+          elevado, título, descrição, Badge de estado no canto direito, corpo e botões. O que muda é
+          que aqui a conexão é por chave colada, e não por consentimento em outro site, então o
+          corpo do bloco carrega um formulário.
+        </p>
+
+        <div class="proto-frame">
+          <div class="card">
+            <div class="card__head">
+              <div class="card__brand">
+                <div class="card__tile"><i data-lucide="landmark"></i></div>
+                <div>
+                  <h3 class="card__title">Asaas</h3>
+                  <p class="card__desc">
+                    Emite a cobrança de uma parcela e baixa o recebível quando o cliente paga.
+                  </p>
+                </div>
+              </div>
+              <span class="badge badge--idle">Não conectado</span>
+            </div>
+
+            <div class="card__body">
+              <p style="font-size: 0.875rem; color: hsl(var(--muted-foreground)); margin: 0">
+                A conexão é feita uma vez, com a chave de API da conta Asaas do escritório. A chave
+                fica no painel do Asaas, em Integrações, API Key.
+              </p>
+
+              <div class="field">
+                <label class="field__label" for="asaas-key">Chave de API</label>
+                <div class="input-with-action">
+                  <input
+                    class="input input--mono"
+                    id="asaas-key"
+                    type="password"
+                    value="$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <button class="btn btn--outline btn--icon" type="button" aria-label="Mostrar a chave digitada">
+                    <i data-lucide="eye"></i>
+                  </button>
+                </div>
+                <p class="field__hint">
+                  A chave vai para um cofre na hora de salvar e não volta a aparecer, nem para quem a
+                  digitou. Para trocá-la, é preciso conectar de novo.
+                </p>
+              </div>
+
+              <div class="field">
+                <span class="field__label" id="env-label">Ambiente</span>
+                <div class="env" role="radiogroup" aria-labelledby="env-label">
+                  <label class="env__option">
+                    <input type="radio" name="ambiente" value="sandbox" checked />
+                    <span>
+                      <span class="env__name">Sandbox</span>
+                      <span class="env__about">
+                        Conta de teste. Nenhuma cobrança chega a cliente nenhum.
+                      </span>
+                    </span>
+                  </label>
+                  <label class="env__option">
+                    <input type="radio" name="ambiente" value="production" />
+                    <span>
+                      <span class="env__name">Produção</span>
+                      <span class="env__about">
+                        Conta real. O cliente recebe a cobrança e o dinheiro cai no caixa do
+                        escritório.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="btn-row">
+                <button class="btn btn--default" type="button">
+                  <i data-lucide="link-2"></i>
+                  Conectar em Sandbox
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              O seletor é um par de cartões de rádio, e não uma lista fechada: a opção escondida
+              seria justamente a que cobra dinheiro de verdade.
+            </li>
+            <li>
+              <strong>O botão diz o ambiente.</strong> Em Produção ele lê "Conectar em Produção". É a
+              última linha de defesa contra colar a chave de produção achando que é a de teste, e
+              fica no lugar onde o olho está no momento do clique.
+            </li>
+            <li>
+              A chave fica em <code>type="password"</code> com um botão de mostrar: colar chave em
+              campo mascarado é o normal, e confirmar visualmente o que foi colado importa mais do
+              que esconder da sala.
+            </li>
+          </ul>
+        </div>
+
+        <div class="proto-frame" style="margin-top: 1.5rem">
+          <p class="proto-label" style="margin-bottom: 0.75rem">1b · Produção escolhida</p>
+          <div class="card">
+            <div class="card__body" style="margin-top: 0">
+              <div class="field">
+                <span class="field__label" id="env-label-2">Ambiente</span>
+                <div class="env" role="radiogroup" aria-labelledby="env-label-2">
+                  <label class="env__option">
+                    <input type="radio" name="ambiente2" value="sandbox" />
+                    <span>
+                      <span class="env__name">Sandbox</span>
+                      <span class="env__about">
+                        Conta de teste. Nenhuma cobrança chega a cliente nenhum.
+                      </span>
+                    </span>
+                  </label>
+                  <label class="env__option">
+                    <input type="radio" name="ambiente2" value="production" checked />
+                    <span>
+                      <span class="env__name">Produção</span>
+                      <span class="env__about">
+                        Conta real. O cliente recebe a cobrança e o dinheiro cai no caixa do
+                        escritório.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="band band--warn">
+                <i data-lucide="triangle-alert"></i>
+                <div>
+                  <p class="band__title">Conta real selecionada</p>
+                  <p class="band__text">
+                    Daqui para frente, toda cobrança gerada nos Recebíveis é cobrança de verdade: o
+                    cliente recebe o link e o pagamento entra na conta do escritório.
+                  </p>
+                </div>
+              </div>
+
+              <div class="btn-row">
+                <button class="btn btn--default" type="button">
+                  <i data-lucide="link-2"></i>
+                  Conectar em Produção
+                </button>
+              </div>
+            </div>
+          </div>
+          <ul class="proto-callouts">
+            <li>
+              A faixa âmbar aparece só em Produção. Em Sandbox não há nada a avisar, e aviso
+              permanente treina o olho a ignorar a faixa.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">2 · Conectado e funcionando</p>
+        <p class="proto-note">
+          Os mesmos quatro dados do Google Agenda conectado, no mesmo
+          <code>&lt;dl&gt;</code> de duas colunas: o que está ligado, quem ligou, quando, e a última
+          vez que deu certo. O ambiente ganha o lugar mais forte porque é o que decide se a cobrança
+          é real.
+        </p>
+
+        <div class="proto-frame">
+          <div class="card">
+            <div class="card__head">
+              <div class="card__brand">
+                <div class="card__tile"><i data-lucide="landmark"></i></div>
+                <div>
+                  <h3 class="card__title">Asaas</h3>
+                  <p class="card__desc">
+                    Emite a cobrança de uma parcela e baixa o recebível quando o cliente paga.
+                  </p>
+                </div>
+              </div>
+              <span class="badge badge--connected">
+                <i data-lucide="check"></i>
+                Conectado
+              </span>
+            </div>
+
+            <div class="card__body">
+              <dl class="dl dl--two">
+                <div>
+                  <dt>Ambiente</dt>
+                  <dd>Sandbox (conta de teste)</dd>
+                </div>
+                <div>
+                  <dt>Aviso de pagamento</dt>
+                  <dd>Registrado no Asaas</dd>
+                </div>
+                <div>
+                  <dt>Conectado por</dt>
+                  <dd class="soft">Fernando Costa, em 03/11/2026 às 10:42</dd>
+                </div>
+                <div>
+                  <dt>Última chamada bem-sucedida</dt>
+                  <dd class="soft nums">03/11/2026 às 14:22</dd>
+                </div>
+              </dl>
+
+              <div class="btn-row">
+                <button class="btn btn--danger-text" type="button">
+                  <i data-lucide="link-2-off"></i>
+                  Desconectar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              "Aviso de pagamento: Registrado no Asaas" é a leitura positiva do mesmo dado que, na
+              seção 4, vira alerta. Ele fica à vista nos dois casos porque é dele que depende a
+              parcela baixar sozinha.
+            </li>
+            <li>
+              Não existe "Reconectar" aqui, diferente do Google Agenda: reconectar é colar uma chave
+              nova, ou seja, é o mesmo formulário da seção 1. Quem quer trocar a chave desconecta e
+              conecta.
+            </li>
+            <li>
+              A chave não aparece em lugar nenhum, nem com botão de revelar. É diferente da chave de
+              automação logo acima nesta mesma tela: aquela é nossa e pode ser mostrada de novo;
+              esta dá acesso ao caixa do escritório e foi para o cofre sem volta.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">3 · Conectado, com erro na última chamada</p>
+        <p class="proto-note">
+          Esta faixa é o único lugar em que o escritório descobre que um aviso de pagamento chegou e
+          não foi processado. Então ela não é enfeite: é a faixa <code>bg-destructive/10</code> do
+          Google Agenda, em tamanho cheio, dentro do corpo do bloco, acima dos botões, com a hora e
+          o texto cru do erro.
+        </p>
+
+        <div class="proto-frame">
+          <div class="card">
+            <div class="card__head">
+              <div class="card__brand">
+                <div class="card__tile"><i data-lucide="landmark"></i></div>
+                <div>
+                  <h3 class="card__title">Asaas</h3>
+                  <p class="card__desc">
+                    Emite a cobrança de uma parcela e baixa o recebível quando o cliente paga.
+                  </p>
+                </div>
+              </div>
+              <span class="badge badge--connected">
+                <i data-lucide="check"></i>
+                Conectado
+              </span>
+            </div>
+
+            <div class="card__body">
+              <div class="band band--error">
+                <i data-lucide="triangle-alert"></i>
+                <div>
+                  <p class="band__title">A última chamada ao Asaas falhou em 03/11/2026 às 16:08</p>
+                  <p class="band__text">
+                    Se foi um aviso de pagamento, a parcela dele não baixou. Confira no painel do
+                    Asaas quais cobranças foram pagas e compare com os Recebíveis.
+                  </p>
+                  <p class="band__code">aviso: cobranca pay_9m2x7k do payload nao esta espelhada aqui</p>
+                </div>
+              </div>
+
+              <dl class="dl dl--two">
+                <div>
+                  <dt>Ambiente</dt>
+                  <dd>Sandbox (conta de teste)</dd>
+                </div>
+                <div>
+                  <dt>Aviso de pagamento</dt>
+                  <dd>Registrado no Asaas</dd>
+                </div>
+                <div>
+                  <dt>Conectado por</dt>
+                  <dd class="soft">Fernando Costa, em 03/11/2026 às 10:42</dd>
+                </div>
+                <div>
+                  <dt>Última chamada bem-sucedida</dt>
+                  <dd class="soft nums">03/11/2026 às 14:22</dd>
+                </div>
+              </dl>
+
+              <div class="btn-row">
+                <button class="btn btn--danger-text" type="button">
+                  <i data-lucide="link-2-off"></i>
+                  Desconectar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              A faixa vem <strong>antes</strong> dos dados, e não depois: no Google Agenda ela fica
+              embaixo porque lá a falha é "o WhatsApp não chegou". Aqui a falha pode ser dinheiro
+              que entrou e não apareceu no sistema, e isso se lê primeiro.
+            </li>
+            <li>
+              Três camadas de texto, nesta ordem: <strong>quando</strong> falhou,
+              <strong>o que isso significa</strong> para o escritório, e só então o texto cru do
+              erro em largura fixa. O recado do meio é o que o Google Agenda não tem e esta faixa
+              precisa ter, porque "falhou" sozinho não diz que uma parcela pode estar paga sem
+              aparecer.
+            </li>
+            <li>
+              A faixa some sozinha: o backend limpa <code>last_error</code> na próxima chamada
+              bem-sucedida. Não existe botão de dispensar, porque dispensar um alerta desses é
+              esconder dinheiro perdido de vista.
+            </li>
+          </ul>
+        </div>
+
+        <div class="proto-decision">
+          <p class="proto-decision__label">
+            <i data-lucide="circle-help"></i>
+            Decisão a confirmar
+          </p>
+          <p>
+            <strong>Este erro deveria virar notificação no sino?</strong> Desenhei só a faixa, que é
+            o que o backend já alimenta. O risco da faixa sozinha é ela viver numa tela que ninguém
+            abre: Configurações não é tela de rotina. O sino já existe e sabe gravar aviso com data,
+            então "falha no aviso do Asaas" caberia nele como uma terceira espécie, para Diretor.
+          </p>
+          <p>
+            Não desenhei porque é escopo novo (espécie nova no sino, decisão de quem recebe) e
+            porque a faixa resolve o caso em que alguém já está desconfiado. Se tu quiser, isso é um
+            módulo seguinte, não um ajuste nesta tela.
+          </p>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">4 · Conectado, mas o aviso de pagamento não foi registrado</p>
+        <p class="proto-note">
+          Estado real: a chave foi guardada e o Asaas não aceitou registrar o aviso. Cobrança sai,
+          link funciona, cliente paga, e a parcela <strong>não</strong> baixa sozinha. O bloco não
+          pode mostrar "Conectado" em verde e seguir em frente.
+        </p>
+
+        <div class="proto-frame">
+          <div class="card">
+            <div class="card__head">
+              <div class="card__brand">
+                <div class="card__tile"><i data-lucide="landmark"></i></div>
+                <div>
+                  <h3 class="card__title">Asaas</h3>
+                  <p class="card__desc">
+                    Emite a cobrança de uma parcela e baixa o recebível quando o cliente paga.
+                  </p>
+                </div>
+              </div>
+              <span class="state-badge state-badge--amber">Conectado pela metade</span>
+            </div>
+
+            <div class="card__body">
+              <div class="band band--warn">
+                <i data-lucide="bell-off"></i>
+                <div>
+                  <p class="band__title">O aviso de pagamento não está registrado no Asaas</p>
+                  <p class="band__text">
+                    A cobrança pode ser emitida normalmente, mas nenhuma parcela vai baixar sozinha:
+                    quando o cliente pagar, ninguém aqui será avisado. Até isto ser resolvido, a
+                    baixa é manual, pelo botão Marcar como Pago de cada parcela.
+                  </p>
+                </div>
+              </div>
+
+              <dl class="dl dl--two">
+                <div>
+                  <dt>Ambiente</dt>
+                  <dd>Sandbox (conta de teste)</dd>
+                </div>
+                <div>
+                  <dt>Aviso de pagamento</dt>
+                  <dd style="color: hsl(var(--sb-amber-ink)); font-weight: 500">Não registrado</dd>
+                </div>
+                <div>
+                  <dt>Conectado por</dt>
+                  <dd class="soft">Fernando Costa, em 03/11/2026 às 10:42</dd>
+                </div>
+                <div>
+                  <dt>Última chamada bem-sucedida</dt>
+                  <dd class="soft nums">03/11/2026 às 10:42</dd>
+                </div>
+              </dl>
+
+              <div class="btn-row">
+                <button class="btn btn--default" type="button">
+                  <i data-lucide="refresh-cw"></i>
+                  Registrar o aviso de novo
+                </button>
+                <button class="btn btn--danger-text" type="button">
+                  <i data-lucide="link-2-off"></i>
+                  Desconectar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              <strong>O Badge muda de família</strong>, de esmeralda para âmbar, e troca de palavra:
+              "Conectado pela metade". Verde aqui seria mentira, e vermelho também, porque emitir
+              cobrança continua funcionando. Âmbar é o "espera" que o StatusBadge já usa.
+            </li>
+            <li>
+              A faixa diz o que fazer no intervalo: baixar à mão. Sem essa frase, o escritório
+              descobre o problema contando dinheiro no fim do mês.
+            </li>
+            <li>
+              "Registrar o aviso de novo" é o único botão de ação primária em todo este capítulo. É
+              deliberado: é o estado em que existe algo a consertar.
+            </li>
+          </ul>
+        </div>
+
+        <div class="proto-decision">
+          <p class="proto-decision__label">
+            <i data-lucide="circle-help"></i>
+            Decisão a confirmar
+          </p>
+          <p>
+            <strong>"Registrar o aviso de novo" não existe no backend.</strong> Hoje o único caminho
+            é desconectar e conectar outra vez, colando a chave de novo, porque a chave já está no
+            cofre e a função <code>asaas-connect</code> recebe a chave como parâmetro obrigatório.
+          </p>
+          <p>
+            Desenhei o botão porque pedir a chave de novo para consertar metade da conexão é um
+            atrito que vai fazer alguém desistir e conviver com a baixa manual. Se tu preferir não
+            abrir função nova agora, eu troco o botão por um texto que manda desconectar e conectar
+            de novo, e a tela continua honesta.
+          </p>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">5 · Desconectar, com confirmação</p>
+        <p class="proto-note">
+          AlertDialog, igual ao de desconectar o Google Agenda e ao de excluir conta a receber. A
+          confirmação existe porque desconectar derruba o registro do aviso no Asaas, e cobrança
+          emitida antes continua viva lá.
+        </p>
+
+        <div class="proto-frame">
+          <div class="dialog" style="width: 30rem" role="alertdialog" aria-labelledby="dc-t">
+            <div>
+              <h2 class="dialog__title" id="dc-t">Desconectar a conta Asaas?</h2>
+              <p class="dialog__desc">
+                O aviso de pagamento é removido no Asaas. As cobranças já emitidas continuam valendo
+                lá e o cliente ainda consegue pagar pelo link, mas a parcela não vai mais baixar
+                sozinha aqui. Para voltar a cobrar, é preciso colar a chave de API outra vez.
+              </p>
+            </div>
+            <div class="dialog__foot">
+              <button class="btn btn--outline" type="button">Cancelar</button>
+              <button class="btn btn--danger" type="button">Desconectar</button>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              A segunda frase é a que importa e não está no diálogo do Google Agenda: cobrança viva
+              sem aviso é dinheiro que entra sem ninguém saber.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">6 · Os três estados do bloco de Configurações</p>
+        <p class="proto-note">
+          Carregando, erro de leitura e, no lugar do "vazio", o estado "não conectado" da seção 1.
+          Os dois primeiros são literais do Google Agenda: barra de 5rem pulsando, e o ErrorState
+          com botão de tentar novamente.
+        </p>
+
+        <div class="proto-grid proto-grid--two">
+          <div class="proto-frame">
+            <div class="card">
+              <div class="card__head">
+                <div class="card__brand">
+                  <div class="card__tile"><i data-lucide="landmark"></i></div>
+                  <div>
+                    <h3 class="card__title">Asaas</h3>
+                    <p class="card__desc">
+                      Emite a cobrança de uma parcela e baixa o recebível quando o cliente paga.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="card__body">
+                <div class="skeleton-bar" style="height: 5rem"></div>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>Carregando: o Badge de estado também não aparece, porque o estado é o que não se sabe ainda.</li>
+            </ul>
+          </div>
+
+          <div class="proto-frame">
+            <div class="card">
+              <div class="card__head">
+                <div class="card__brand">
+                  <div class="card__tile"><i data-lucide="landmark"></i></div>
+                  <div>
+                    <h3 class="card__title">Asaas</h3>
+                    <p class="card__desc">
+                      Emite a cobrança de uma parcela e baixa o recebível quando o cliente paga.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="card__body">
+                <div class="state" style="padding: 2rem 1rem">
+                  <div class="state__tile state__tile--error"><i data-lucide="circle-alert"></i></div>
+                  <h3 class="state__title">Não foi possível carregar a integração</h3>
+                  <p class="state__text">
+                    O estado da conexão com o Asaas não pôde ser lido agora.
+                  </p>
+                  <button class="btn btn--outline" type="button">
+                    <i data-lucide="refresh-cw"></i>
+                    Tentar novamente
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>
+                Falha de leitura não pode parecer "não conectado": uma convida a colar a chave de
+                novo, a outra pede uma recarga.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           CAPITULO 2: FINANCEIRO > CONTAS A RECEBER
+           ============================================================ -->
+      <p class="proto-chapter">Capítulo 2 · Financeiro, Contas a Receber</p>
+
+      <section class="proto-section">
+        <p class="proto-label">7 · A tabela, com a cobrança dentro da coluna Status</p>
+        <p class="proto-note">
+          As seis colunas, o ladrilho colorido por <code>is_overdue</code>, o vencimento em rosa, o
+          StatusBadge e o menu de três pontos ficam como estão no ar. O que entra é uma segunda
+          linha dentro da coluna Status, sem preenchimento, dizendo em que situação está a cobrança
+          daquela parcela. Zero coluna nova, zero largura nova.
+        </p>
+
+        <div class="proto-frame">
+          <div class="table-card">
+            <div class="table-scroll">
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th scope="col">Descrição</th>
+                    <th scope="col" class="hide-sm">Projeto</th>
+                    <th scope="col">Vencimento</th>
+                    <th scope="col">Valor</th>
+                    <th scope="col">Status</th>
+                    <!-- Cabecalho vazio, como o `header: ''` da coluna de acoes
+                         em AccountsReceivable.tsx. Nao e descuido: e o que esta
+                         no ar. Ver a nota de acessibilidade no relatorio. -->
+                    <th scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="clickable" tabindex="0">
+                    <td>
+                      <div class="cell-desc">
+                        <div class="cell-tile cell-tile--ok"><i data-lucide="arrow-down-circle"></i></div>
+                        <div>
+                          <p class="cell-desc__name">Parcela 3/10 - FC-2026-018</p>
+                          <p class="cell-desc__client">Beatriz Salgado Pinheiro</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="hide-sm">Residência Alphaville</td>
+                    <td>
+                      <div class="cell-due">
+                        <i data-lucide="calendar"></i>
+                        <span>18/11/2026</span>
+                      </div>
+                    </td>
+                    <td class="cell-value">R$ 9.500,00</td>
+                    <td>
+                      <span class="state-badge state-badge--blue">Previsto</span>
+                      <span class="charge-line charge-line--blue">
+                        <i data-lucide="link-2"></i>
+                        Aguardando pagamento
+                      </span>
+                    </td>
+                    <td class="cell-actions">
+                      <button class="btn btn--ghost btn--icon" type="button" aria-label="Ações da parcela">
+                        <i data-lucide="more-vertical"></i>
+                      </button>
+                    </td>
+                  </tr>
+
+                  <tr class="clickable" tabindex="0">
+                    <td>
+                      <div class="cell-desc">
+                        <div class="cell-tile cell-tile--late"><i data-lucide="triangle-alert"></i></div>
+                        <div>
+                          <p class="cell-desc__name">Parcela 1/4 - FC-2026-021</p>
+                          <p class="cell-desc__client">Marcelo Tavares Lins</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="hide-sm">Apartamento Jardins</td>
+                    <td>
+                      <div class="cell-due cell-due--late">
+                        <i data-lucide="calendar"></i>
+                        <span>10/10/2026</span>
+                      </div>
+                    </td>
+                    <td class="cell-value">R$ 6.200,00</td>
+                    <td>
+                      <span class="state-badge state-badge--rose">Em atraso</span>
+                      <span class="charge-line charge-line--rose">
+                        <i data-lucide="calendar-x"></i>
+                        Cobrança vencida no Asaas
+                      </span>
+                    </td>
+                    <td class="cell-actions">
+                      <button class="btn btn--ghost btn--icon" type="button" aria-label="Ações da parcela">
+                        <i data-lucide="more-vertical"></i>
+                      </button>
+                    </td>
+                  </tr>
+
+                  <tr class="clickable" tabindex="0">
+                    <td>
+                      <div class="cell-desc">
+                        <div class="cell-tile cell-tile--ok"><i data-lucide="arrow-down-circle"></i></div>
+                        <div>
+                          <p class="cell-desc__name">Parcela 2/10 - FC-2026-018</p>
+                          <p class="cell-desc__client">Beatriz Salgado Pinheiro</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="hide-sm">Residência Alphaville</td>
+                    <td>
+                      <div class="cell-due">
+                        <i data-lucide="calendar"></i>
+                        <span>18/10/2026</span>
+                      </div>
+                    </td>
+                    <td class="cell-value">R$ 9.500,00</td>
+                    <td>
+                      <span class="state-badge state-badge--emerald">Pago</span>
+                      <span class="charge-line charge-line--emerald">
+                        <i data-lucide="webhook"></i>
+                        Baixado pelo aviso do Asaas
+                      </span>
+                    </td>
+                    <td class="cell-actions">
+                      <button class="btn btn--ghost btn--icon" type="button" aria-label="Ações da parcela">
+                        <i data-lucide="more-vertical"></i>
+                      </button>
+                    </td>
+                  </tr>
+
+                  <tr class="clickable" tabindex="0">
+                    <td>
+                      <div class="cell-desc">
+                        <div class="cell-tile cell-tile--ok"><i data-lucide="arrow-down-circle"></i></div>
+                        <div>
+                          <p class="cell-desc__name">Entrada - FC-2026-022</p>
+                          <p class="cell-desc__client">Núcleo Habitare Incorporações</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="hide-sm">Sede Habitare</td>
+                    <td>
+                      <div class="cell-due">
+                        <i data-lucide="calendar"></i>
+                        <span>05/11/2026</span>
+                      </div>
+                    </td>
+                    <td class="cell-value">R$ 18.000,00</td>
+                    <td>
+                      <span class="state-badge state-badge--blue">Previsto</span>
+                      <span class="charge-line charge-line--none">Sem cobrança emitida</span>
+                    </td>
+                    <td class="cell-actions">
+                      <button class="btn btn--ghost btn--icon" type="button" aria-label="Ações da parcela">
+                        <i data-lucide="more-vertical"></i>
+                      </button>
+                    </td>
+                  </tr>
+
+                  <tr class="clickable" tabindex="0">
+                    <td>
+                      <div class="cell-desc">
+                        <div class="cell-tile cell-tile--ok"><i data-lucide="arrow-down-circle"></i></div>
+                        <div>
+                          <p class="cell-desc__name">Parcela 4/6 - FC-2026-015</p>
+                          <p class="cell-desc__client">Rafaela Monteiro de Sá</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="hide-sm">Casa de praia Juquehy</td>
+                    <td>
+                      <div class="cell-due">
+                        <i data-lucide="calendar"></i>
+                        <span>20/09/2026</span>
+                      </div>
+                    </td>
+                    <td class="cell-value">R$ 3.750,00</td>
+                    <td>
+                      <span class="state-badge state-badge--emerald">Pago</span>
+                      <span class="charge-line charge-line--rose">
+                        <i data-lucide="undo-2"></i>
+                        Estornada no Asaas
+                      </span>
+                    </td>
+                    <td class="cell-actions">
+                      <button class="btn btn--ghost btn--icon" type="button" aria-label="Ações da parcela">
+                        <i data-lucide="more-vertical"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              <strong>Por que dentro de Status e não em coluna nova:</strong> a situação da cobrança
+              é uma situação. Coluna separada diria o mesmo assunto em dois lugares e apertaria uma
+              tabela que já rola de lado em telefone.
+            </li>
+            <li>
+              <strong>A hierarquia entre as duas linhas é a decisão.</strong> Em cima, com
+              preenchimento, o estado da PARCELA, que é o número que o financeiro fecha. Embaixo,
+              sem preenchimento, o estado da COBRANÇA, que é informação de apoio. Dois badges
+              cheios empilhados brigariam, e o que o escritório deve ler primeiro é o recebível.
+            </li>
+            <li>
+              <strong>"Em atraso" em cima e "Cobrança vencida no Asaas" embaixo dizem a mesma coisa
+              de duas fontes, de propósito.</strong> Uma é o nosso <code>is_overdue</code>, a outra é
+              o status que o Asaas mandou. Quando as duas discordam (cobrança vencida lá, data ainda
+              por vir aqui), isso é sinal de vencimento divergente entre os dois lados, e é
+              exatamente o que o financeiro precisa ver.
+            </li>
+            <li>
+              <strong>A parcela estornada continua "Pago".</strong> É decisão de produto já tomada:
+              estorno mexe na cobrança e não reabre o recebível. A linha de baixo conta o estorno, a
+              de cima não mente dizendo que voltou a aberto.
+            </li>
+            <li>
+              <strong>A linha inteira abre o painel da cobrança</strong>, via <code>onRowClick</code>,
+              que o DataTable já aceita. É a única porta larga o bastante para um polegar em 360px.
+            </li>
+            <li>
+              Status desconhecido do Asaas aparece com a própria palavra dele em cinza neutro, e não
+              como erro: a coluna <code>status</code> é texto justamente porque o provedor pode criar
+              palavra nova sem avisar (migration 0125).
+            </li>
+          </ul>
+        </div>
+
+        <div class="proto-decision">
+          <p class="proto-decision__label">
+            <i data-lucide="circle-help"></i>
+            Decisão a confirmar
+          </p>
+          <p>
+            <strong>Não coloquei um botão "Gerar cobrança" solto na linha.</strong> Era a ideia
+            óbvia para uma ação repetida dezenas de vezes, e ela não encurta nada: gerar sem abrir o
+            painel obriga a abrir o painel em seguida para copiar o link, que é o objetivo real. Com
+            a linha abrindo o painel, são dois toques do começo até o link na área de transferência,
+            que é o mínimo possível.
+          </p>
+          <p>
+            O menu de três pontos ganha "Gerar cobrança" e "Ver cobrança" como segunda porta, porque
+            clique na linha é affordance invisível e o menu é onde toda ação de linha já mora.
+          </p>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">7b · O mapa de situações, palavra por palavra</p>
+        <p class="proto-note">
+          Esta é a tabela de tradução que o React vai usar: a palavra que o Asaas manda, o rótulo em
+          português e a família de cor do StatusBadge. Está aqui porque a coluna
+          <code>status</code> é texto de propósito, e a tela precisa de uma saída para palavra que
+          ainda não existe.
+        </p>
+
+        <div class="proto-frame">
+          <div class="table-card">
+            <div class="table-scroll">
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th scope="col">Asaas</th>
+                    <th scope="col">Na tela</th>
+                    <th scope="col" class="hide-sm">O que significa para o escritório</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>PENDING</code></td>
+                    <td><span class="state-badge state-badge--blue">Aguardando pagamento</span></td>
+                    <td class="hide-sm">Emitida, cliente ainda não pagou.</td>
+                  </tr>
+                  <tr>
+                    <td><code>OVERDUE</code></td>
+                    <td><span class="state-badge state-badge--rose">Cobrança vencida</span></td>
+                    <td class="hide-sm">Passou do vencimento no Asaas e continua em aberto.</td>
+                  </tr>
+                  <tr>
+                    <td><code>CONFIRMED</code></td>
+                    <td><span class="state-badge state-badge--emerald">Pago, saldo em liberação</span></td>
+                    <td class="hide-sm">O cliente pagou. O dinheiro ainda não está disponível na conta.</td>
+                  </tr>
+                  <tr>
+                    <td><code>RECEIVED</code></td>
+                    <td><span class="state-badge state-badge--emerald">Recebido</span></td>
+                    <td class="hide-sm">Saldo disponível na conta do escritório.</td>
+                  </tr>
+                  <tr>
+                    <td><code>REFUNDED</code></td>
+                    <td><span class="state-badge state-badge--rose">Estornada</span></td>
+                    <td class="hide-sm">Devolvida no Asaas. A parcela continua paga aqui.</td>
+                  </tr>
+                  <tr>
+                    <td><code>deleted</code></td>
+                    <td><span class="state-badge state-badge--neutral">Removida no Asaas</span></td>
+                    <td class="hide-sm">Apagada lá. A parcela fica livre para uma emissão nova.</td>
+                  </tr>
+                  <tr>
+                    <td><code>RECEIVED_IN_CASH</code></td>
+                    <td><span class="state-badge state-badge--emerald">Recebido em dinheiro</span></td>
+                    <td class="hide-sm">Baixada no painel do Asaas, fora do link de pagamento.</td>
+                  </tr>
+                  <tr>
+                    <td><span class="cell-faint">qualquer outra</span></td>
+                    <td><span class="state-badge state-badge--neutral">AWAITING_RISK_ANALYSIS</span></td>
+                    <td class="hide-sm">
+                      Palavra nova do provedor: aparece crua, em cinza, e nunca como erro.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              <strong>Status desconhecido mostra a palavra do Asaas</strong> em cinza neutro. É mais
+              útil que "situação desconhecida": com a palavra na tela, quem der suporte procura na
+              documentação deles em dez segundos.
+            </li>
+            <li>
+              CONFIRMED e RECEIVED ganham frases diferentes porque o escritório sente a diferença no
+              extrato. Os dois baixam a parcela, por decisão já tomada.
+            </li>
+            <li>
+              Nenhuma das oito linhas pede cor nova: são as mesmas quatro famílias do StatusBadge
+              mais o neutro dele.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">8 · O menu de três pontos</p>
+        <p class="proto-note">
+          Os três itens de hoje continuam, na mesma ordem. "Gerar cobrança" entra no topo quando não
+          há cobrança, e "Ver cobrança" ocupa o lugar dele quando há. Os dois abrem o mesmo painel.
+        </p>
+
+        <div class="proto-grid proto-grid--two">
+          <div class="proto-frame">
+            <div class="menu">
+              <button class="menu__item" type="button">
+                <i data-lucide="landmark"></i>
+                Gerar cobrança
+              </button>
+              <div class="menu__sep"></div>
+              <button class="menu__item" type="button">
+                <i data-lucide="check-circle"></i>
+                Marcar como Pago
+              </button>
+              <button class="menu__item" type="button">
+                <i data-lucide="pencil"></i>
+                Editar
+              </button>
+              <div class="menu__sep"></div>
+              <button class="menu__item menu__item--danger" type="button">
+                <i data-lucide="trash-2"></i>
+                Remover
+              </button>
+            </div>
+            <ul class="proto-callouts">
+              <li>Parcela sem cobrança. "Gerar cobrança" fica acima do separador, destacado dos itens que já existiam.</li>
+            </ul>
+          </div>
+
+          <div class="proto-frame">
+            <div class="menu">
+              <button class="menu__item" type="button">
+                <i data-lucide="receipt"></i>
+                Ver cobrança
+              </button>
+              <div class="menu__sep"></div>
+              <button class="menu__item" type="button">
+                <i data-lucide="check-circle"></i>
+                Marcar como Pago
+              </button>
+              <button class="menu__item" type="button">
+                <i data-lucide="pencil"></i>
+                Editar
+              </button>
+              <div class="menu__sep"></div>
+              <button class="menu__item menu__item--danger" type="button">
+                <i data-lucide="trash-2"></i>
+                Remover
+              </button>
+            </div>
+            <ul class="proto-callouts">
+              <li>
+                Parcela com cobrança viva. Não existe "Cancelar cobrança": a fase 1 não cancela, e
+                item de menu que não funciona é pior do que item ausente.
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="proto-decision">
+          <p class="proto-decision__label">
+            <i data-lucide="circle-help"></i>
+            Decisão a confirmar
+          </p>
+          <p>
+            <strong>"Marcar como Pago" com cobrança viva é um buraco que a tela pode tapar.</strong>
+            Hoje o item baixa a parcela na hora, sem perguntar. Com cobrança aberta no Asaas isso
+            cria uma parcela paga aqui e um link que o cliente ainda consegue pagar lá, ou seja, a
+            chance de cobrar duas vezes.
+          </p>
+          <p>
+            Recomendo: quando houver cobrança viva, "Marcar como Pago" passa a abrir um AlertDialog
+            com esta frase: "Esta parcela tem cobrança em aberto no Asaas. Marcar como paga aqui não
+            cancela a cobrança, e o cliente continua conseguindo pagar pelo link. Cancele a cobrança
+            no painel do Asaas antes de confirmar." Nada no backend muda; é só o confirmar que
+            aparece.
+          </p>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">9 · O painel: parcela sem cobrança, pronta para emitir</p>
+        <p class="proto-note">
+          Primeira tela do painel. Mostra o que vai ser cobrado, de quem, por quanto e para quando,
+          e um botão só. O resumo em três colunas usa o mesmo <code>&lt;dl&gt;</code> das
+          Configurações.
+        </p>
+
+        <div class="proto-frame">
+          <div class="dialog" role="dialog" aria-labelledby="d9-t">
+            <div class="dialog__head">
+              <div>
+                <h2 class="dialog__title" id="d9-t">Cobrança da parcela</h2>
+                <p class="dialog__desc">Parcela 3/10 - FC-2026-018 · Beatriz Salgado Pinheiro</p>
+              </div>
+              <button class="btn btn--ghost btn--icon" type="button" aria-label="Fechar">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+
+            <dl class="dl dl--three">
+              <div>
+                <dt>Valor</dt>
+                <dd class="nums" style="font-weight: 600">R$ 9.500,00</dd>
+              </div>
+              <div>
+                <dt>Vencimento</dt>
+                <dd class="nums">18/11/2026</dd>
+              </div>
+              <div>
+                <dt>Situação</dt>
+                <dd><span class="charge-line charge-line--none" style="margin: 0">Sem cobrança emitida</span></dd>
+              </div>
+            </dl>
+
+            <div class="band band--info">
+              <i data-lucide="info"></i>
+              <div>
+                <p class="band__title">O cliente escolhe como pagar</p>
+                <p class="band__text">
+                  A cobrança gera uma página de pagamento no Asaas que aceita PIX, boleto e cartão.
+                  É o link dessa página que vai para o cliente.
+                </p>
+              </div>
+            </div>
+
+            <div class="dialog__foot">
+              <button class="btn btn--outline" type="button">Fechar</button>
+              <button class="btn btn--default" type="button">
+                <i data-lucide="landmark"></i>
+                Gerar cobrança no Asaas
+              </button>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              O botão diz "no Asaas". Em Produção a mesma tela lê "Gerar cobrança no Asaas
+              (Produção)", pelo mesmo motivo do botão de conectar: a palavra que avisa fica onde o
+              olho está.
+            </li>
+            <li>
+              A faixa azul existe para a tela não precisar de três botões de forma de pagamento.
+              Quem escolhe é o cliente, na página do Asaas, e dizer isso evita a pergunta "onde
+              marco que é PIX?".
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">10 · Emitindo</p>
+        <p class="proto-note">
+          A emissão fala com o Asaas mais de uma vez (espelho do cliente, cobrança, copia e cola do
+          PIX), então leva segundos e não milissegundos. O botão não pode só ficar cinza.
+        </p>
+
+        <div class="proto-frame">
+          <div class="dialog" role="dialog" aria-labelledby="d10-t">
+            <div class="dialog__head">
+              <div>
+                <h2 class="dialog__title" id="d10-t">Cobrança da parcela</h2>
+                <p class="dialog__desc">Parcela 3/10 - FC-2026-018 · Beatriz Salgado Pinheiro</p>
+              </div>
+            </div>
+
+            <dl class="dl dl--three">
+              <div>
+                <dt>Valor</dt>
+                <dd class="nums" style="font-weight: 600">R$ 9.500,00</dd>
+              </div>
+              <div>
+                <dt>Vencimento</dt>
+                <dd class="nums">18/11/2026</dd>
+              </div>
+              <div>
+                <dt>Situação</dt>
+                <dd><span class="charge-line charge-line--none" style="margin: 0">Emitindo</span></dd>
+              </div>
+            </dl>
+
+            <div class="skeleton-bar" style="height: 8.5rem"></div>
+
+            <p class="dialog__fine">
+              Pode levar alguns segundos. Não feche esta janela e não clique de novo: a cobrança está
+              sendo criada.
+            </p>
+
+            <div class="dialog__foot">
+              <button class="btn btn--default" type="button" aria-disabled="true">
+                <i data-lucide="loader"></i>
+                Emitindo no Asaas...
+              </button>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              A barra pulsando ocupa o lugar exato onde a tira de copiar vai aparecer, com a mesma
+              altura. O painel não salta quando a resposta chega.
+            </li>
+            <li>
+              "Não clique de novo" é a frase honesta: o backend trata duplo clique e devolve a mesma
+              cobrança, mas pedir calma é mais barato que explicar depois.
+            </li>
+            <li>
+              O botão Fechar sai durante a emissão. Fechar no meio não cancela nada no Asaas, e
+              deixar o botão ali sugere que cancela.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">11 · Cobrança emitida: a tira de copiar</p>
+        <p class="proto-note">
+          O elemento de assinatura. Três linhas de mesma geometria: rótulo curto, valor em largura
+          fixa, botão de copiar na ponta. A primeira é o link de pagamento e é a única com botão
+          cheio, porque o fluxo real é copiar e colar no WhatsApp.
+        </p>
+
+        <div class="proto-frame">
+          <div class="dialog" role="dialog" aria-labelledby="d11-t">
+            <div class="dialog__head">
+              <div>
+                <h2 class="dialog__title" id="d11-t">Cobrança da parcela</h2>
+                <p class="dialog__desc">Parcela 3/10 - FC-2026-018 · Beatriz Salgado Pinheiro</p>
+              </div>
+              <button class="btn btn--ghost btn--icon" type="button" aria-label="Fechar">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+
+            <dl class="dl dl--three">
+              <div>
+                <dt>Valor</dt>
+                <dd class="nums" style="font-weight: 600">R$ 9.500,00</dd>
+              </div>
+              <div>
+                <dt>Vencimento</dt>
+                <dd class="nums">18/11/2026</dd>
+              </div>
+              <div>
+                <dt>Situação</dt>
+                <dd><span class="state-badge state-badge--blue">Aguardando pagamento</span></dd>
+              </div>
+            </dl>
+
+            <div class="copy-strip" data-copy-strip>
+              <div class="copy-row copy-row--hero">
+                <div class="copy-row__main">
+                  <span class="copy-row__label">
+                    Link de pagamento
+                    <span class="copy-feedback" data-feedback hidden>
+                      <i data-lucide="check"></i>
+                      copiado
+                    </span>
+                  </span>
+                  <span class="copy-row__value" data-value>https://sandbox.asaas.com/i/35joxdbch3a59coi</span>
+                </div>
+                <button class="btn btn--default btn--sm" type="button" data-copy>
+                  <i data-lucide="copy"></i>
+                  Copiar link
+                </button>
+              </div>
+
+              <div class="copy-row">
+                <div class="copy-row__main">
+                  <span class="copy-row__label">
+                    Boleto em PDF
+                    <span class="copy-feedback" data-feedback hidden>
+                      <i data-lucide="check"></i>
+                      copiado
+                    </span>
+                  </span>
+                  <span class="copy-row__value" data-value>https://sandbox.asaas.com/b/pdf/35joxdbch3a59coi</span>
+                </div>
+                <button class="btn btn--outline btn--icon" type="button" data-copy aria-label="Copiar o endereço do boleto">
+                  <i data-lucide="copy"></i>
+                </button>
+                <a class="btn btn--outline btn--icon" href="#" aria-label="Abrir o boleto em outra aba">
+                  <i data-lucide="external-link"></i>
+                </a>
+              </div>
+
+              <div class="copy-row">
+                <div class="copy-row__main">
+                  <span class="copy-row__label">
+                    PIX copia e cola
+                    <span class="copy-feedback" data-feedback hidden>
+                      <i data-lucide="check"></i>
+                      copiado
+                    </span>
+                  </span>
+                  <span class="copy-row__value" data-value
+                    >00020101021226820014br.gov.bcb.pix2560pix.asaas.com/qr/cobv/8f4a2c1e9d3b47a0b6e5c8d1f2a39b7c5204000053039865802BR5925ESCRITORIO
+                    FERNANDO COSTA6009SAO PAULO62070503***6304A1B2</span
+                  >
+                </div>
+                <button class="btn btn--outline btn--icon" type="button" data-copy aria-label="Copiar o código PIX">
+                  <i data-lucide="copy"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="dialog__sep"></div>
+
+            <dl class="dl dl--two">
+              <div>
+                <dt>Emitida por</dt>
+                <dd class="soft">Fernando Costa, em 03/11/2026 às 14:22</dd>
+              </div>
+              <div>
+                <dt>Identificação no Asaas</dt>
+                <dd class="soft" style="font-family: ui-monospace, Menlo, monospace; font-size: 0.8125rem">
+                  pay_35joxdbch3a59coi
+                </dd>
+              </div>
+            </dl>
+
+            <p class="dialog__fine">
+              Quando o cliente pagar, o Asaas avisa e esta parcela vira paga sozinha. Para cancelar
+              ou alterar a cobrança, use o painel do Asaas: esta tela emite e acompanha, não altera.
+            </p>
+
+            <div class="dialog__foot">
+              <button class="btn btn--outline" type="button">Fechar</button>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              <strong>Um botão cheio, e só um.</strong> O link é o que resolve o trabalho; boleto e
+              PIX são alternativas que algum cliente vai pedir. Três botões cheios não teriam ordem
+              nenhuma.
+            </li>
+            <li>
+              O boleto tem dois botões: copiar o endereço e abrir em outra aba. Boleto costuma ser
+              impresso ou anexado, não colado em conversa.
+            </li>
+            <li>
+              O copia e cola do PIX aparece inteiro, quebrando linha, e não cortado com reticências.
+              É um valor que a pessoa às vezes confere no olho, e metade de um código PIX não serve
+              para nada.
+            </li>
+            <li>
+              "copiado" aparece ao lado do rótulo e some em dois segundos, em esmeralda. Não é toast:
+              a confirmação precisa estar onde o dedo acabou de encostar.
+            </li>
+            <li>
+              A última frase diz as duas coisas que a tela não faz: não altera e não cancela. Sem
+              ela, a primeira pergunta de quem errou um valor é "onde eu cancelo?".
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">12 · Cobrança sem código PIX</p>
+        <p class="proto-note">
+          Aconteceu na primeira cobrança de verdade: o Asaas devolveu a cobrança e o copia e cola do
+          PIX não veio. E não existe forma de buscar esse código depois. A tira mantém a terceira
+          linha, troca o valor por uma frase e não mostra botão.
+        </p>
+
+        <div class="proto-frame">
+          <div class="dialog" role="dialog" aria-labelledby="d12-t">
+            <div class="dialog__head">
+              <div>
+                <h2 class="dialog__title" id="d12-t">Cobrança da parcela</h2>
+                <p class="dialog__desc">Parcela 3/10 - FC-2026-018 · Beatriz Salgado Pinheiro</p>
+              </div>
+              <button class="btn btn--ghost btn--icon" type="button" aria-label="Fechar">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+
+            <dl class="dl dl--three">
+              <div>
+                <dt>Valor</dt>
+                <dd class="nums" style="font-weight: 600">R$ 9.500,00</dd>
+              </div>
+              <div>
+                <dt>Vencimento</dt>
+                <dd class="nums">18/11/2026</dd>
+              </div>
+              <div>
+                <dt>Situação</dt>
+                <dd><span class="state-badge state-badge--blue">Aguardando pagamento</span></dd>
+              </div>
+            </dl>
+
+            <div class="copy-strip" data-copy-strip>
+              <div class="copy-row copy-row--hero">
+                <div class="copy-row__main">
+                  <span class="copy-row__label">
+                    Link de pagamento
+                    <span class="copy-feedback" data-feedback hidden>
+                      <i data-lucide="check"></i>
+                      copiado
+                    </span>
+                  </span>
+                  <span class="copy-row__value" data-value>https://sandbox.asaas.com/i/35joxdbch3a59coi</span>
+                </div>
+                <button class="btn btn--default btn--sm" type="button" data-copy>
+                  <i data-lucide="copy"></i>
+                  Copiar link
+                </button>
+              </div>
+
+              <div class="copy-row">
+                <div class="copy-row__main">
+                  <span class="copy-row__label">
+                    Boleto em PDF
+                    <span class="copy-feedback" data-feedback hidden>
+                      <i data-lucide="check"></i>
+                      copiado
+                    </span>
+                  </span>
+                  <span class="copy-row__value" data-value>https://sandbox.asaas.com/b/pdf/35joxdbch3a59coi</span>
+                </div>
+                <button class="btn btn--outline btn--icon" type="button" data-copy aria-label="Copiar o endereço do boleto">
+                  <i data-lucide="copy"></i>
+                </button>
+                <a class="btn btn--outline btn--icon" href="#" aria-label="Abrir o boleto em outra aba">
+                  <i data-lucide="external-link"></i>
+                </a>
+              </div>
+
+              <div class="copy-row copy-row--empty">
+                <div class="copy-row__main">
+                  <span class="copy-row__label">PIX copia e cola</span>
+                  <span class="copy-row__value">
+                    Esta cobrança não trouxe o código. Mande o link de pagamento: nele o cliente paga
+                    por PIX, boleto ou cartão.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <p class="dialog__fine">
+              Quando o cliente pagar, o Asaas avisa e esta parcela vira paga sozinha. Para cancelar
+              ou alterar a cobrança, use o painel do Asaas: esta tela emite e acompanha, não altera.
+            </p>
+
+            <div class="dialog__foot">
+              <button class="btn btn--outline" type="button">Fechar</button>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              <strong>A linha não desaparece.</strong> Se ela sumisse, quem conhece a tela ficaria
+              procurando o PIX e achando que carregou errado. Linha presente com explicação é mais
+              curta de entender que ausência.
+            </li>
+            <li>
+              <strong>Sem botão "gerar PIX".</strong> Não existe no backend, e um botão que não
+              funciona é a pior coisa que esta tela poderia ter.
+            </li>
+            <li>
+              A frase diz o que fazer, não o que deu errado. Para quem está no WhatsApp com o cliente
+              esperando, "mande o link" resolve; "o provedor não retornou o payload" não.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">13 · A cobrança já existia</p>
+        <p class="proto-note">
+          Alguém clicou duas vezes, ou a cobrança foi gerada antes por outra pessoa. O backend
+          devolve a mesma cobrança com <code>alreadyExisted: true</code>. Não é erro, e a tela não
+          pode parecer que falhou.
+        </p>
+
+        <div class="proto-frame">
+          <div class="dialog" role="dialog" aria-labelledby="d13-t">
+            <div class="dialog__head">
+              <div>
+                <h2 class="dialog__title" id="d13-t">Cobrança da parcela</h2>
+                <p class="dialog__desc">Parcela 3/10 - FC-2026-018 · Beatriz Salgado Pinheiro</p>
+              </div>
+              <button class="btn btn--ghost btn--icon" type="button" aria-label="Fechar">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+
+            <div class="band band--info">
+              <i data-lucide="info"></i>
+              <div>
+                <p class="band__title">Esta parcela já tinha cobrança</p>
+                <p class="band__text">
+                  Nenhuma cobrança nova foi criada, e o cliente não foi cobrado duas vezes. É a
+                  cobrança de 03/11/2026, emitida por Fernando Costa, com o mesmo link abaixo.
+                </p>
+              </div>
+            </div>
+
+            <dl class="dl dl--three">
+              <div>
+                <dt>Valor</dt>
+                <dd class="nums" style="font-weight: 600">R$ 9.500,00</dd>
+              </div>
+              <div>
+                <dt>Vencimento</dt>
+                <dd class="nums">18/11/2026</dd>
+              </div>
+              <div>
+                <dt>Situação</dt>
+                <dd><span class="state-badge state-badge--blue">Aguardando pagamento</span></dd>
+              </div>
+            </dl>
+
+            <div class="copy-strip" data-copy-strip>
+              <div class="copy-row copy-row--hero">
+                <div class="copy-row__main">
+                  <span class="copy-row__label">
+                    Link de pagamento
+                    <span class="copy-feedback" data-feedback hidden>
+                      <i data-lucide="check"></i>
+                      copiado
+                    </span>
+                  </span>
+                  <span class="copy-row__value" data-value>https://sandbox.asaas.com/i/35joxdbch3a59coi</span>
+                </div>
+                <button class="btn btn--default btn--sm" type="button" data-copy>
+                  <i data-lucide="copy"></i>
+                  Copiar link
+                </button>
+              </div>
+            </div>
+
+            <div class="dialog__foot">
+              <button class="btn btn--outline" type="button">Fechar</button>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              Faixa <strong>azul</strong>, de informação, e nunca vermelha nem âmbar. O resultado é
+              exatamente o que a pessoa queria: ela tem o link.
+            </li>
+            <li>
+              "o cliente não foi cobrado duas vezes" está escrito com todas as letras porque é o
+              medo real de quem clicou duas vezes num botão que fala com banco.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">14 · Paga pelo aviso do Asaas</p>
+        <p class="proto-note">
+          Depois que o cliente paga, a parcela baixa sozinha. A tela deixa visível que quem baixou
+          foi o provedor, e não um clique de alguém, e mostra o que só o Asaas sabe: forma de
+          pagamento, valor líquido e taxa.
+        </p>
+
+        <div class="proto-frame">
+          <div class="dialog" role="dialog" aria-labelledby="d14-t">
+            <div class="dialog__head">
+              <div>
+                <h2 class="dialog__title" id="d14-t">Cobrança da parcela</h2>
+                <p class="dialog__desc">Parcela 3/10 - FC-2026-018 · Beatriz Salgado Pinheiro</p>
+              </div>
+              <button class="btn btn--ghost btn--icon" type="button" aria-label="Fechar">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+
+            <div class="band band--done">
+              <i data-lucide="webhook"></i>
+              <div>
+                <p class="band__title">Pago. A parcela baixou pelo aviso do Asaas</p>
+                <p class="band__text">
+                  Em 03/11/2026 às 15:07. Ninguém marcou esta parcela à mão: o Asaas avisou e o
+                  sistema deu a baixa.
+                </p>
+              </div>
+            </div>
+
+            <dl class="dl dl--three">
+              <div>
+                <dt>Situação</dt>
+                <dd><span class="state-badge state-badge--emerald">Pago, saldo em liberação</span></dd>
+              </div>
+              <div>
+                <dt>Pago em</dt>
+                <dd class="nums">03/11/2026</dd>
+              </div>
+              <div>
+                <dt>Forma</dt>
+                <dd>Cartão</dd>
+              </div>
+              <div>
+                <dt>Valor cobrado</dt>
+                <dd class="nums">R$ 9.500,00</dd>
+              </div>
+              <div>
+                <dt>Líquido na conta</dt>
+                <dd class="nums" style="font-weight: 600">R$ 9.310,46</dd>
+              </div>
+              <div>
+                <dt>Taxa do Asaas</dt>
+                <dd class="soft nums">R$ 189,54</dd>
+              </div>
+            </dl>
+
+            <div class="dialog__sep"></div>
+
+            <dl class="dl dl--two">
+              <div>
+                <dt>Emitida por</dt>
+                <dd class="soft">Fernando Costa, em 03/11/2026 às 14:22</dd>
+              </div>
+              <div>
+                <dt>Identificação no Asaas</dt>
+                <dd class="soft" style="font-family: ui-monospace, Menlo, monospace; font-size: 0.8125rem">
+                  pay_35joxdbch3a59coi
+                </dd>
+              </div>
+            </dl>
+
+            <p class="dialog__fine">
+              O valor lançado no recebível é o cobrado, R$ 9.500,00. A taxa do Asaas não é descontada
+              automaticamente nos Recebíveis: se o escritório quiser registrá-la como despesa, isso é
+              um lançamento em Contas a Pagar.
+            </p>
+
+            <div class="dialog__foot">
+              <button class="btn btn--outline" type="button">Fechar</button>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              <strong>A tira de copiar sai da tela quando a cobrança está paga.</strong> Link de
+              pagamento de cobrança paga é uma armadilha: alguém manda, o cliente abre, e a dúvida
+              começa. O que fica é o histórico.
+            </li>
+            <li>
+              "Pago, saldo em liberação" é o CONFIRMED do Asaas, e "Recebido" é o RECEIVED. São
+              estados diferentes e o escritório sente a diferença no extrato, então a tela usa duas
+              palavras. Os dois baixam a parcela, por decisão já tomada.
+            </li>
+            <li>
+              Líquido e taxa aparecem porque esse é o número que o escritório vai conferir no
+              extrato. A última frase explica por que o recebível continua em R$ 9.500,00, que é a
+              primeira pergunta que vem depois.
+            </li>
+            <li>
+              Quando o Asaas manda uma forma que não cabe no nosso cadastro (foi o caso do pagamento
+              em dinheiro no teste de hoje), o campo Forma lê
+              <strong>"Não informada pelo Asaas"</strong> em cinza, e não um palpite.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">15 · Cobrança estornada</p>
+        <p class="proto-note">
+          Estorno e devolução atualizam a cobrança e <strong>não</strong> reabrem a parcela, por
+          decisão de fase 2. A tela precisa dizer isso sem rodeio, porque a leitura intuitiva de
+          "estornada" é "voltou a aberta".
+        </p>
+
+        <div class="proto-frame">
+          <div class="dialog" role="dialog" aria-labelledby="d15-t">
+            <div class="dialog__head">
+              <div>
+                <h2 class="dialog__title" id="d15-t">Cobrança da parcela</h2>
+                <p class="dialog__desc">Parcela 4/6 - FC-2026-015 · Rafaela Monteiro de Sá</p>
+              </div>
+              <button class="btn btn--ghost btn--icon" type="button" aria-label="Fechar">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+
+            <div class="band band--error">
+              <i data-lucide="undo-2"></i>
+              <div>
+                <p class="band__title">O Asaas registrou um estorno desta cobrança</p>
+                <p class="band__text">
+                  A parcela continua marcada como paga aqui, e isso é intencional: devolver dinheiro
+                  é um lançamento do financeiro, não uma correção de tela. Se o valor saiu de
+                  verdade, registre a devolução em Contas a Pagar ou ajuste a parcela à mão.
+                </p>
+              </div>
+            </div>
+
+            <dl class="dl dl--three">
+              <div>
+                <dt>Situação da cobrança</dt>
+                <dd><span class="state-badge state-badge--rose">Estornada</span></dd>
+              </div>
+              <div>
+                <dt>Situação da parcela</dt>
+                <dd><span class="state-badge state-badge--emerald">Pago</span></dd>
+              </div>
+              <div>
+                <dt>Valor</dt>
+                <dd class="nums">R$ 3.750,00</dd>
+              </div>
+            </dl>
+
+            <div class="dialog__sep"></div>
+
+            <dl class="dl dl--two">
+              <div>
+                <dt>Emitida por</dt>
+                <dd class="soft">Fernando Costa, em 10/09/2026 às 09:14</dd>
+              </div>
+              <div>
+                <dt>Identificação no Asaas</dt>
+                <dd class="soft" style="font-family: ui-monospace, Menlo, monospace; font-size: 0.8125rem">
+                  pay_28bqk41nf0zz7x1a
+                </dd>
+              </div>
+            </dl>
+
+            <div class="dialog__foot">
+              <button class="btn btn--outline" type="button">Fechar</button>
+            </div>
+          </div>
+
+          <ul class="proto-callouts">
+            <li>
+              Este é o único painel que mostra <strong>duas situações lado a lado</strong>, da
+              cobrança e da parcela, com os rótulos dizendo de quem é cada uma. Em qualquer outro
+              estado isso seria ruído; aqui é o assunto.
+            </li>
+            <li>
+              A faixa é vermelha e não âmbar: o escritório tem uma pendência real a resolver fora
+              desta tela, não um aviso para tomar nota.
+            </li>
+            <li>
+              Nada aqui sugere emitir de novo. Cobrança estornada continua viva no Asaas e o índice
+              único do banco bloqueia uma segunda cobrança viva para a mesma parcela.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">16 · O caso número um: cliente sem CPF ou com CPF inválido</p>
+        <p class="proto-note">
+          Em produção são 55 clientes sem documento, e documento presente também pode ser recusado
+          pelo Asaas. Este é o atrito que decide se a integração vai ser usada, então a recusa não é
+          um toast: é um diálogo que nomeia a pessoa e leva até a ficha dela.
+        </p>
+
+        <div class="proto-grid proto-grid--two">
+          <div class="proto-frame">
+            <div class="dialog" style="width: 30rem" role="dialog" aria-labelledby="d16a-t">
+              <div class="dialog__head">
+                <div>
+                  <h2 class="dialog__title" id="d16a-t">Cobrança não emitida</h2>
+                  <p class="dialog__desc">Parcela 3/10 - FC-2026-018 · R$ 9.500,00</p>
+                </div>
+                <button class="btn btn--ghost btn--icon" type="button" aria-label="Fechar">
+                  <i data-lucide="x"></i>
+                </button>
+              </div>
+
+              <div class="band band--warn">
+                <i data-lucide="id-card"></i>
+                <div>
+                  <p class="band__title">Beatriz Salgado Pinheiro está sem CPF ou CNPJ no cadastro</p>
+                  <p class="band__text">
+                    O Asaas exige o documento para emitir a cobrança. Abra a ficha do cliente,
+                    preencha o documento e gere a cobrança de novo.
+                  </p>
+                </div>
+              </div>
+
+              <p class="dialog__fine">
+                Nada foi cobrado e nada foi criado no Asaas. A recusa acontece antes de qualquer
+                chamada.
+              </p>
+
+              <div class="dialog__foot">
+                <button class="btn btn--outline" type="button">Fechar</button>
+                <a class="btn btn--default" href="#">
+                  <i data-lucide="user-pen"></i>
+                  Abrir ficha de Beatriz
+                </a>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>
+                O texto da faixa é o do backend, palavra por palavra. Duas versões da mesma frase
+                seria manutenção dobrada.
+              </li>
+              <li>
+                O botão primário leva para <code>/ClientDetail?id=...</code> com o nome da pessoa
+                dentro do rótulo. Quem clicou está numa lista de parcelas e não sabe de cor qual
+                cliente é qual.
+              </li>
+            </ul>
+          </div>
+
+          <div class="proto-frame">
+            <div class="dialog" style="width: 30rem" role="dialog" aria-labelledby="d16b-t">
+              <div class="dialog__head">
+                <div>
+                  <h2 class="dialog__title" id="d16b-t">Cobrança não emitida</h2>
+                  <p class="dialog__desc">Parcela 1/4 - FC-2026-021 · R$ 6.200,00</p>
+                </div>
+                <button class="btn btn--ghost btn--icon" type="button" aria-label="Fechar">
+                  <i data-lucide="x"></i>
+                </button>
+              </div>
+
+              <div class="band band--warn">
+                <i data-lucide="id-card"></i>
+                <div>
+                  <p class="band__title">O Asaas recusou o documento de Marcelo Tavares Lins</p>
+                  <p class="band__text">
+                    O CPF ou CNPJ está no cadastro, mas foi recusado na conferência. Confira os
+                    números na ficha do cliente e gere a cobrança de novo.
+                  </p>
+                  <p class="band__code">asaas: invalid_cpfCnpj</p>
+                </div>
+              </div>
+
+              <p class="dialog__fine">
+                Nada foi cobrado. A cobrança não chegou a ser criada no Asaas.
+              </p>
+
+              <div class="dialog__foot">
+                <button class="btn btn--outline" type="button">Fechar</button>
+                <a class="btn btn--default" href="#">
+                  <i data-lucide="user-pen"></i>
+                  Abrir ficha de Marcelo
+                </a>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>
+                <strong>Documento presente e inválido é um caso diferente</strong> e tem texto
+                diferente: "está sem" manda preencher, "foi recusado" manda conferir. Quem recebe a
+                primeira frase com o campo cheio acha que a tela está quebrada.
+              </li>
+              <li>
+                O código do provedor fica embaixo, em largura fixa. Serve para quem der suporte e
+                não atrapalha quem só precisa corrigir o cadastro.
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="proto-decision">
+          <p class="proto-decision__label">
+            <i data-lucide="circle-help"></i>
+            Decisão a confirmar
+          </p>
+          <p>
+            <strong>A segunda tela depende de o backend nomear o cliente na recusa do Asaas.</strong>
+            A recusa por documento ausente já nomeia (é nossa, antes da rede). A recusa do próprio
+            Asaas hoje chega sem o nome: ela nasce da resposta deles, e a mensagem que a tela
+            receberia não diz de quem é o documento. Desenhei com o nome porque sem ele o diálogo
+            não tem para onde apontar, e um diálogo sem saída é pior que um toast.
+          </p>
+          <p>
+            Isso é ajuste pequeno em <code>asaas-charge</code> (embrulhar a recusa do Asaas numa
+            frase que já tem o nome do cliente em mãos naquele ponto do código), e só acontece se tu
+            aprovar a tela assim.
+          </p>
+        </div>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">17 · Os três estados da lista</p>
+        <p class="proto-note">
+          Carregando, vazio e erro já existem na tela de Recebíveis e não mudam nada com o Asaas.
+          Ficam aqui porque o CLAUDE.md exige os três explícitos em qualquer lista, e porque é o que
+          o frontend-builder vai conferir.
+        </p>
+
+        <div class="proto-grid">
+          <div class="proto-frame">
+            <p class="proto-label" style="margin-bottom: 0.75rem">Carregando</p>
+            <div class="table-card">
+              <div class="skeleton-list">
+                <div class="skeleton-bar"></div>
+                <div class="skeleton-bar"></div>
+                <div class="skeleton-bar"></div>
+                <div class="skeleton-bar"></div>
+                <div class="skeleton-bar"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="proto-grid proto-grid--two">
+            <div class="proto-frame">
+              <p class="proto-label" style="margin-bottom: 0.75rem">Vazio</p>
+              <div class="table-card">
+                <div class="state">
+                  <div class="state__tile"><i data-lucide="arrow-down-circle"></i></div>
+                  <h3 class="state__title">Nenhuma conta a receber</h3>
+                  <p class="state__text">Adicione contas para controlar os recebimentos.</p>
+                  <button class="btn btn--default" type="button">
+                    <i data-lucide="plus"></i>
+                    Adicionar Conta
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="proto-frame">
+              <p class="proto-label" style="margin-bottom: 0.75rem">Erro de leitura</p>
+              <div class="table-card">
+                <div class="state">
+                  <div class="state__tile state__tile--error"><i data-lucide="circle-alert"></i></div>
+                  <h3 class="state__title">Não foi possível carregar os recebíveis</h3>
+                  <p class="state__text">A lista de contas a receber não pôde ser lida agora.</p>
+                  <button class="btn btn--outline" type="button">
+                    <i data-lucide="refresh-cw"></i>
+                    Tentar novamente
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ul class="proto-callouts">
+          <li>
+            Os três são literais do que está no ar: Skeleton de cinco barras de 3rem no DataTable,
+            EmptyState com ícone <code>ArrowDownCircle</code>, ErrorState com ladrilho rosa. Nenhuma
+            frase foi reescrita.
+          </li>
+          <li>
+            O vazio continua com dois textos diferentes, como hoje: escritório sem nenhuma conta
+            pede cadastro, escritório com contas e nenhuma no filtro do mês pede outro filtro.
+          </li>
+        </ul>
+      </section>
+
+      <section class="proto-section">
+        <p class="proto-label">18 · Celular, 360px</p>
+        <p class="proto-note">
+          A tabela de seis colunas não cabe em 360px, e o DataTable já esconde Projeto abaixo de
+          <code>md</code> e rola de lado o que sobra. A solução não é inventar outro layout de
+          tabela: é a linha inteira abrir o painel em folha de baixo, com toda a tira de copiar
+          dentro. O financeiro toca em qualquer ponto visível da linha e já está no caminho do link.
+        </p>
+
+        <div class="proto-grid proto-grid--two">
+          <div class="proto-frame">
+            <div class="phone">
+              <div class="phone__header">
+                <i data-lucide="arrow-left"></i>
+                <span>Recebíveis</span>
+              </div>
+              <div class="phone__content">
+                <div class="phone__scroll">
+                  <div class="table-card">
+                    <div class="table-scroll">
+                      <table class="data">
+                        <thead>
+                          <tr>
+                            <th scope="col">Descrição</th>
+                            <th scope="col">Venc.</th>
+                            <th scope="col">Valor</th>
+                            <th scope="col">Status</th>
+                            <th scope="col"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr class="clickable" tabindex="0">
+                            <td>
+                              <div class="cell-desc">
+                                <div>
+                                  <p class="cell-desc__name" style="font-size: 0.8125rem">Parcela 3/10</p>
+                                  <p class="cell-desc__client" style="font-size: 0.75rem">Beatriz Salgado</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td style="white-space: nowrap">18/11</td>
+                            <td class="cell-value" style="font-size: 0.8125rem">9.500,00</td>
+                            <td>
+                              <span class="state-badge state-badge--blue">Previsto</span>
+                              <span class="charge-line charge-line--blue">
+                                <i data-lucide="link-2"></i>
+                                Aguardando
+                              </span>
+                            </td>
+                            <td class="cell-actions">
+                              <button class="btn btn--ghost btn--icon" type="button" aria-label="Ações da parcela">
+                                <i data-lucide="more-vertical"></i>
+                              </button>
+                            </td>
+                          </tr>
+                          <tr class="clickable" tabindex="0">
+                            <td>
+                              <div class="cell-desc">
+                                <div>
+                                  <p class="cell-desc__name" style="font-size: 0.8125rem">Parcela 1/4</p>
+                                  <p class="cell-desc__client" style="font-size: 0.75rem">Marcelo Tavares</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td class="cell-due cell-due--late" style="white-space: nowrap">
+                              <span>10/10</span>
+                            </td>
+                            <td class="cell-value" style="font-size: 0.8125rem">6.200,00</td>
+                            <td>
+                              <span class="state-badge state-badge--rose">Em atraso</span>
+                              <span class="charge-line charge-line--rose">
+                                <i data-lucide="calendar-x"></i>
+                                Vencida
+                              </span>
+                            </td>
+                            <td class="cell-actions">
+                              <button class="btn btn--ghost btn--icon" type="button" aria-label="Ações da parcela">
+                                <i data-lucide="more-vertical"></i>
+                              </button>
+                            </td>
+                          </tr>
+                          <tr class="clickable" tabindex="0">
+                            <td>
+                              <div class="cell-desc">
+                                <div>
+                                  <p class="cell-desc__name" style="font-size: 0.8125rem">Entrada</p>
+                                  <p class="cell-desc__client" style="font-size: 0.75rem">Núcleo Habitare</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td style="white-space: nowrap">05/11</td>
+                            <td class="cell-value" style="font-size: 0.8125rem">18.000,00</td>
+                            <td>
+                              <span class="state-badge state-badge--blue">Previsto</span>
+                              <span class="charge-line charge-line--none">Sem cobrança</span>
+                            </td>
+                            <td class="cell-actions">
+                              <button class="btn btn--ghost btn--icon" type="button" aria-label="Ações da parcela">
+                                <i data-lucide="more-vertical"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>
+                Em 360px sobram cinco colunas: Projeto já sai pelo
+                <code>MOBILE_HIDDEN_HEADERS</code> do DataTable, que é comportamento de hoje.
+              </li>
+              <li>
+                O que rola de lado é a coluna de ações, e isso é aceitável porque a ação principal
+                deixou de depender dela: a linha inteira abre o painel.
+              </li>
+              <li>
+                A segunda linha da coluna Status encurta o texto ("Aguardando", "Vencida") em vez de
+                quebrar em duas. É a mesma palavra em versão curta, e a cor e o ícone seguem iguais.
+              </li>
+            </ul>
+          </div>
+
+          <div class="proto-frame">
+            <div class="phone">
+              <div class="phone__header">
+                <i data-lucide="arrow-left"></i>
+                <span>Recebíveis</span>
+              </div>
+              <div class="phone__content">
+                <div class="phone__scroll" aria-hidden="true">
+                  <div class="table-card" style="height: 12rem"></div>
+                </div>
+                <div class="phone__scrim"></div>
+                <div class="phone__sheet" role="dialog" aria-labelledby="ph-t">
+                  <div class="phone__grip"></div>
+                  <div class="phone__sheet-body">
+                    <div class="dialog__head">
+                      <div>
+                        <h2 class="dialog__title" id="ph-t" style="font-size: 1rem">Cobrança da parcela</h2>
+                        <p class="dialog__desc" style="font-size: 0.8125rem">
+                          Parcela 3/10 - FC-2026-018<br />Beatriz Salgado Pinheiro
+                        </p>
+                      </div>
+                      <button class="btn btn--ghost btn--icon" type="button" aria-label="Fechar">
+                        <i data-lucide="x"></i>
+                      </button>
+                    </div>
+
+                    <dl class="dl" style="grid-template-columns: 1fr 1fr">
+                      <div>
+                        <dt>Valor</dt>
+                        <dd class="nums" style="font-weight: 600">R$ 9.500,00</dd>
+                      </div>
+                      <div>
+                        <dt>Vencimento</dt>
+                        <dd class="nums">18/11/2026</dd>
+                      </div>
+                      <div style="grid-column: 1 / -1">
+                        <dt>Situação</dt>
+                        <dd><span class="state-badge state-badge--blue">Aguardando pagamento</span></dd>
+                      </div>
+                    </dl>
+
+                    <div class="copy-strip" data-copy-strip>
+                      <div class="copy-row copy-row--hero" style="flex-wrap: wrap">
+                        <div class="copy-row__main">
+                          <span class="copy-row__label">
+                            Link de pagamento
+                            <span class="copy-feedback" data-feedback hidden>
+                              <i data-lucide="check"></i>
+                              copiado
+                            </span>
+                          </span>
+                          <span class="copy-row__value" data-value
+                            >https://sandbox.asaas.com/i/35joxdbch3a59coi</span
+                          >
+                        </div>
+                        <button class="btn btn--default" type="button" data-copy style="width: 100%">
+                          <i data-lucide="copy"></i>
+                          Copiar link
+                        </button>
+                      </div>
+
+                      <div class="copy-row">
+                        <div class="copy-row__main">
+                          <span class="copy-row__label">
+                            Boleto em PDF
+                            <span class="copy-feedback" data-feedback hidden>
+                              <i data-lucide="check"></i>
+                              copiado
+                            </span>
+                          </span>
+                          <span class="copy-row__value" data-value
+                            >https://sandbox.asaas.com/b/pdf/35joxdbch3a59coi</span
+                          >
+                        </div>
+                        <button class="btn btn--outline btn--icon" type="button" data-copy aria-label="Copiar o endereço do boleto">
+                          <i data-lucide="copy"></i>
+                        </button>
+                      </div>
+
+                      <div class="copy-row">
+                        <div class="copy-row__main">
+                          <span class="copy-row__label">
+                            PIX copia e cola
+                            <span class="copy-feedback" data-feedback hidden>
+                              <i data-lucide="check"></i>
+                              copiado
+                            </span>
+                          </span>
+                          <span class="copy-row__value" data-value
+                            >00020101021226820014br.gov.bcb.pix2560pix.asaas.com/qr/cobv/8f4a2c1e9d3b47a0b6e5c8d1f2a39b7c5204000053039865802BR5925ESCRITORIO
+                            FERNANDO COSTA6009SAO PAULO62070503***6304A1B2</span
+                          >
+                        </div>
+                        <button class="btn btn--outline btn--icon" type="button" data-copy aria-label="Copiar o código PIX">
+                          <i data-lucide="copy"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <p class="dialog__fine">
+                      Quando o cliente pagar, o Asaas avisa e esta parcela vira paga sozinha.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <ul class="proto-callouts">
+              <li>
+                Folha de baixo (<code>Sheet side="bottom"</code>), e não diálogo centralizado: é o
+                par que o protótipo do sino fixou para este sistema.
+              </li>
+              <li>
+                O botão de copiar o link ocupa a largura toda e desce para baixo do valor. Alvo de
+                toque vale mais que simetria com o desktop, e é o botão que vai ser usado dezenas de
+                vezes por dia.
+              </li>
+              <li>
+                A frase final encurta: no celular, "não altera e não cancela" é informação de
+                desktop e empurra a tira para fora da dobra.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           PERGUNTAS ABERTAS
+           ============================================================ -->
+      <div class="proto-open-questions">
+        <h2>O que ficou para você decidir</h2>
+        <ol>
+          <li>
+            <strong>"Registrar o aviso de novo" (seção 4)</strong> não existe no backend. Hoje o
+            caminho é desconectar e colar a chave outra vez. Mantenho o botão, com função nova, ou
+            troco por um texto que manda reconectar?
+          </li>
+          <li>
+            <strong>A recusa do Asaas por documento inválido (seção 16)</strong> precisa nomear o
+            cliente para o diálogo ter saída. Isso é um ajuste na função
+            <code>asaas-charge</code>. Aprova?
+          </li>
+          <li>
+            <strong>"Marcar como Pago" com cobrança viva (seção 8)</strong>: entra a confirmação que
+            avisa do risco de cobrança dupla, ou segue baixando direto como hoje?
+          </li>
+          <li>
+            <strong>O erro do aviso vira notificação no sino (seção 3)</strong>, ou a faixa em
+            Configurações é suficiente para a fase 1?
+          </li>
+          <li>
+            <strong>O menu de três pontos fica com "Gerar cobrança" (seção 8)</strong> além do
+            clique na linha, ou a linha é porta única? Desenhei as duas.
+          </li>
+          <li>
+            <strong>Quem pode gerar cobrança</strong> não está desenhado aqui: a tela segue a mesma
+            regra de escrita dos Recebíveis, ou seja, quem não pode editar não vê o item de menu nem
+            o botão. Se cobrança pedir uma permissão mais estreita que "editar recebível", isso muda
+            a tela.
+          </li>
+        </ol>
+      </div>
+    </div>
+
+    <script>
+      lucide.createIcons()
+
+      /* Alternância de tema: a mesma classe `dark` no elemento raiz que o
+         next-themes usa no app. Aqui serve só para conferir as duas telas nos
+         dois temas. */
+      const themeToggle = document.getElementById('themeToggle')
+      themeToggle.addEventListener('click', () => {
+        const dark = document.documentElement.classList.toggle('dark')
+        themeToggle.innerHTML = `<i data-lucide="${dark ? 'sun' : 'moon'}"></i>`
+        lucide.createIcons()
+      })
+
+      /* O gesto que a tela existe para servir: copiar. Sem estado real, só o
+         efeito visual do clique e o aviso "copiado" ao lado do rótulo, que é
+         onde o dedo acabou de encostar. */
+      document.querySelectorAll('[data-copy]').forEach((botao) => {
+        botao.addEventListener('click', (evento) => {
+          evento.preventDefault()
+          const linha = botao.closest('.copy-row')
+          const valor = linha.querySelector('[data-value]')?.textContent ?? ''
+          const aviso = linha.querySelector('[data-feedback]')
+
+          if (navigator.clipboard) {
+            void navigator.clipboard.writeText(valor.replace(/\s+/g, ''))
+          }
+
+          if (!aviso) return
+          aviso.hidden = false
+          clearTimeout(aviso.dataset.timer)
+          aviso.dataset.timer = setTimeout(() => {
+            aviso.hidden = true
+          }, 2000)
+        })
+      })
+
+      /* O seletor de ambiente muda o rótulo do botão de conectar: é a decisão
+         de desenho da seção 1 em funcionamento. */
+      document.querySelectorAll('input[name="ambiente"]').forEach((radio) => {
+        radio.addEventListener('change', () => {
+          const botao = document.querySelector('.card__body .btn--default')
+          if (!botao) return
+          const producao = radio.value === 'production' && radio.checked
+          botao.innerHTML = `<i data-lucide="link-2"></i> Conectar em ${producao ? 'Produção' : 'Sandbox'}`
+          lucide.createIcons()
+        })
+      })
+    </script>
+  </body>
+</html>
