@@ -251,6 +251,106 @@ export function corpoDoWebhook(entrada: {
   }
 }
 
+/*
+  O CORPO DA RENOVAÇÃO, QUE NÃO É O CORPO DA CRIAÇÃO.
+
+  POR QUE EXISTE UMA SEGUNDA FUNÇÃO EM VEZ DE REUSAR A DE CIMA. A rota de
+  alteração (`PUT /v3/webhooks/{id}`, conferida na doc em 03/11/2026) tem um
+  esquema de corpo DIFERENTE do da criação: ela aceita `name`, `url`,
+  `sendType`, `enabled`, `interrupted`, `authToken` e `events`, e NÃO aceita
+  `email` nem `apiVersion` — os dois existem só na criação. Mandar campo que a
+  rota não declara é pedir 400 numa chamada que existe justamente para
+  consertar uma integração quebrada.
+
+  E A DIFERENÇA É MAIOR DO QUE DOIS CAMPOS A MENOS: a doc da alteração diz
+  "Omitted fields keep their current values". Então cada campo presente aqui é
+  uma AFIRMAÇÃO sobre o estado final, e cada campo ausente é uma decisão de
+  deixar como está.
+
+  OS DOIS CAMPOS QUE SÃO O MOTIVO DO BOTÃO EXISTIR:
+
+    `interrupted: false`  é o conserto. Com `sendType: 'SEQUENTIALLY'` o Asaas
+                          PARA a fila quando uma entrega falha (ver o
+                          comentário de `corpoDoWebhook`), e fila parada é o
+                          estado em que o cliente paga e a parcela não baixa.
+                          Nada do nosso lado religa isso sozinho.
+    `enabled: true`       porque webhook desligado no painel do Asaas produz o
+                          mesmo silêncio, e quem desligou para investigar pode
+                          não ter religado.
+
+  `authToken` É SEMPRE NOVO, E ISSO NÃO É ESCOLHA DE SEGURANÇA, É CONSEQUÊNCIA.
+  O nosso banco guarda o SHA-256 do token, nunca o texto (0128), e a API do
+  Asaas não devolve o token depois da criação — a resposta traz só
+  `hasAuthToken`. Ou seja: ninguém, dos dois lados, consegue reapresentar o
+  token antigo. Renovar o aviso é obrigatoriamente trocar o token, e o efeito
+  colateral é bom: o botão também serve para rotacionar credencial.
+
+  `url` VAI DE PROPÓSITO, mesmo quando não mudou. O endereço vem de
+  configuração (`urlDoWebhook`), e um dos motivos reais de a fila interromper é
+  o webhook apontar para um endereço que deixou de responder. Reafirmar o
+  endereço atual conserta esse caso sem uma segunda chamada.
+
+  `name` VAI PELO MESMO MOTIVO: webhook renomeado à mão no painel some do
+  radar de quem for investigar depois.
+*/
+export function corpoDaRenovacaoDoWebhook(entrada: {
+  url: string
+  authToken: string
+}): Record<string, unknown> {
+  return {
+    name: 'HausOne',
+    url: entrada.url,
+    enabled: true,
+    interrupted: false,
+    sendType: 'SEQUENTIALLY',
+    authToken: entrada.authToken,
+    events: [...EVENTOS_ASSINADOS],
+  }
+}
+
+/*
+  QUAIS WEBHOOKS DA CONTA APONTAM PARA NÓS.
+
+  POR QUE ESTA FUNÇÃO EXISTE. Medido no sandbox em 03/11/2026, o
+  `POST /v3/webhooks` recusa criar um segundo webhook com a mesma url e os
+  mesmos eventos: "Já existe uma configuração para os eventos com os mesmos
+  atributos. (invalid_object)". Então, quando o nosso lado não tem id e o
+  webhook existe do lado deles, a única saída é ADOTAR o que está lá — e para
+  adotar é preciso reconhecer.
+
+  O RECONHECIMENTO É PELA URL, e não pelo nome. Nome é editável no painel do
+  Asaas e não tem nenhuma garantia de unicidade; a url é o que define para onde
+  o aviso vai, e é ela que o Asaas usa na regra de duplicidade que esta função
+  existe para contornar.
+
+  COMPARAÇÃO SEM A BARRA FINAL dos dois lados: `urlDoWebhook` já devolve sem, e
+  um webhook cadastrado à mão pode ter sido salvo com. Mesma url com barra a
+  mais não é outro destino, e tratá-la como outro destino levaria de volta ao
+  400 de duplicidade.
+
+  O QUE ELA NÃO FAZ: não escolhe. Devolve TODOS os que casam, em ordem, porque
+  mais de um é um estado que quem chama precisa ver — cada webhook extra com a
+  nossa url entrega o mesmo aviso com um token que o nosso banco não conhece, e
+  isso é 401 por entrega até a fila ser interrompida por acúmulo de falha.
+*/
+export function webhooksComNossaUrl(json: unknown, url: string): string[] {
+  const lista = (json as { data?: unknown })?.data
+  if (!Array.isArray(lista)) return []
+
+  const alvo = semBarraFinal(url.trim())
+
+  return lista
+    .filter((item) => {
+      const dele = (item as { url?: unknown })?.url
+      return typeof dele === 'string' && semBarraFinal(dele.trim()) === alvo
+    })
+    .map((item) => {
+      const id = (item as { id?: unknown })?.id
+      return typeof id === 'string' ? id.trim() : ''
+    })
+    .filter((id) => id !== '')
+}
+
 /* ------------------------------------------------------------------ */
 /* 4. O corpo do POST de cobrança                                     */
 /* ------------------------------------------------------------------ */
@@ -634,6 +734,39 @@ export function recusaPorFaltaDeDocumento(nomeDoCliente: unknown): string {
   const alvo = nome === '' ? 'Este cliente' : nome
 
   return `${alvo} está sem CPF ou CNPJ no cadastro, e o Asaas exige o documento para emitir a cobrança. Abra a ficha do cliente, preencha o documento e gere a cobrança de novo.`
+}
+
+/*
+  A OUTRA RECUSA POR DOCUMENTO: a que vem DELES.
+
+  Documento presente e INVÁLIDO é caso diferente de documento ausente, e mais
+  provável do que parece: o Asaas confere dígito verificador de CPF e de CNPJ, e
+  o banco de dev deste projeto tem doze clientes cujo documento passa pela
+  máscara e não passa pelo dígito. A máscara do formulário não pega isso, então
+  o primeiro lugar onde o escritório descobre é aqui.
+
+  O NOME DO CLIENTE ENTRA PELO MESMO MOTIVO DA FUNÇÃO ACIMA, e a falta dele é
+  tratada do mesmo jeito — era isso que faltava: a mensagem interpolava o nome
+  cru, e cliente cadastrado sem nome produzia "recusou o cadastro de ." Frase
+  quebrada numa tela de dinheiro faz quem lê duvidar do resto.
+
+  A MENSAGEM NÃO AFIRMA QUAL CAMPO O ASAAS RECUSOU, e isso é deliberado: o 400
+  deles pode ser do documento, do nome, ou de algo que a doc não lista. Dizer
+  "o CPF está errado" quando o problema foi outro mandaria alguém conferir um
+  campo que está certo. O que a frase faz é dizer onde olhar primeiro, porque é
+  de longe o motivo mais comum.
+*/
+export function recusaDoAsaasAoCliente(nomeDoCliente: unknown): string {
+  const nome = typeof nomeDoCliente === 'string' ? nomeDoCliente.trim() : ''
+
+  /* A abertura inteira troca, e não só o alvo: a regência muda com o nome ("de
+     Marina" contra "deste cliente"), e trocar só a palavra produzia "de deste
+     cliente". Pego pelo caso 135. */
+  const abertura = nome === ''
+    ? 'O Asaas recusou o cadastro deste cliente.'
+    : `O Asaas recusou o cadastro de ${nome}.`
+
+  return `${abertura} Confira na ficha do cliente se o CPF ou CNPJ está completo e correto, inclusive os dois últimos dígitos.`
 }
 
 /* ------------------------------------------------------------------ */

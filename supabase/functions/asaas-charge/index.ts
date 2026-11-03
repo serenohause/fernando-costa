@@ -59,6 +59,7 @@ import {
   espelhoEstaCompleto,
   instanteDoPix,
   pixDisponivel,
+  recusaDoAsaasAoCliente,
   recusaPorFaltaDeDocumento,
   SEGREDO_BASE_PRODUCAO,
 } from '../_shared/asaas.ts'
@@ -151,6 +152,19 @@ Deno.serve(async (req) => {
 
     const environment = conexao.environment as 'sandbox' | 'production'
 
+    /*
+      SAI EM TODAS AS RESPOSTAS DE SUCESSO, E NÃO SÓ NA EMISSÃO NOVA.
+
+      Nulo significa "cobrança pode ser emitida, mas aviso nenhum pode ser
+      confiado" (0125): o cliente paga e a parcela não baixa sozinha. Isso vale
+      igual para quem acabou de emitir e para quem clicou de novo numa cobrança
+      que já existia — os dois estão olhando um link que vão mandar ao cliente.
+      Omitir o campo nos caminhos de `alreadyExisted` fazia a tela não ter como
+      distinguir "o aviso está de pé" de "não sei", e a tela que não sabe não
+      avisa.
+    */
+    const webhookRegistrado = conexao.webhook_token_hash !== null
+
     let base: string
     try {
       base = baseDoAsaas(environment, lerSegredo)
@@ -238,7 +252,11 @@ Deno.serve(async (req) => {
         mostrar falha para uma situação em que tudo está certo. A tela sabe que
         é a mesma pelo `alreadyExisted`.
       */
-      return jsonResponse(req, { ...respostaDaCobranca(viva), alreadyExisted: true })
+      return jsonResponse(req, {
+        ...respostaDaCobranca(viva),
+        alreadyExisted: true,
+        webhookRegistered: webhookRegistrado,
+      })
     }
 
     const { data: cliente, error: clienteError } = await admin
@@ -378,7 +396,11 @@ Deno.serve(async (req) => {
           .maybeSingle()
 
         if (existente) {
-          return jsonResponse(req, { ...respostaDaCobranca(existente), alreadyExisted: true })
+          return jsonResponse(req, {
+            ...respostaDaCobranca(existente),
+            alreadyExisted: true,
+            webhookRegistered: webhookRegistrado,
+          })
         }
       }
 
@@ -421,7 +443,7 @@ Deno.serve(async (req) => {
     return jsonResponse(req, {
       ...respostaDaCobranca(cobranca),
       alreadyExisted: false,
-      webhookRegistered: conexao.webhook_token_hash !== null,
+      webhookRegistered: webhookRegistrado,
     })
   } catch (error) {
     return errorResponse(req, error, FN)
@@ -499,11 +521,7 @@ async function garantirEspelhoDoCliente(
       )
     }
     if (resposta.status === 400) {
-      throw new HttpError(
-        422,
-        'asaas_customer_rejected',
-        `O Asaas recusou o cadastro de ${args.nome}. Confira se o CPF ou CNPJ está completo e correto na ficha do cliente.`,
-      )
+      throw new HttpError(422, 'asaas_customer_rejected', recusaDoAsaasAoCliente(args.nome))
     }
     throw new HttpError(
       502,

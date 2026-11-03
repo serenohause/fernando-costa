@@ -41,10 +41,11 @@
 //      documentado), texto e ausente. Ausência é "não dá para conferir", nunca
 //      "não casou".
 //
-//   7. A URL BASE POR AMBIENTE, inclusive a FALHA ALTA quando produção não tem
-//      configuração. A doc do Asaas não traz a base de produção, e adivinhar
-//      por padrão de nome mandaria a chave do caixa do escritório para um host
-//      que ninguém conferiu.
+//   7. A URL BASE POR AMBIENTE, e que as duas NÃO são a mesma. As duas estão
+//      documentadas (docs.asaas.com/docs/sandbox), e o segredo de produção é
+//      override, não requisito. O caso que os testes pegam é o pior deles: a
+//      base de produção caindo na de sandbox mandaria a cobrança de verdade
+//      para um ambiente de brinquedo, e um `eq` sozinho não veria isso.
 //
 //   8. REENTREGA DEDUZIDA PELO NOME DA CONSTRAINT, e não só pelo código. 23505
 //      de outra constraint tratado como reentrega apagaria um aviso de verdade
@@ -71,6 +72,7 @@ import {
   baseDoAsaas,
   conferirConta,
   corpoDaCobranca,
+  corpoDaRenovacaoDoWebhook,
   corpoDoWebhook,
   dataDaBaixa,
   ehCobrancaVivaDuplicada,
@@ -81,8 +83,10 @@ import {
   instanteDoPix,
   metodoDePagamento,
   pixDisponivel,
+  recusaDoAsaasAoCliente,
   recusaPorFaltaDeDocumento,
   tokenDoWebhook,
+  webhooksComNossaUrl,
   urlDoWebhook,
 } from '../supabase/functions/_shared/asaas.ts'
 
@@ -583,6 +587,127 @@ eq(
 /* Nunca nulo: o check da 0041 amarra status 'paid' a ter data, nos dois
    sentidos. Parcela paga sem data fica fora de todo relatório por período. */
 eq('120  sem nenhuma, hoje no fuso do escritório', HOJE, dataDaBaixa({}, {}, HOJE))
+
+console.log('\n14. Religar o aviso sem pedir a chave de novo\n')
+
+/*
+  O CORPO DO `PUT /v3/webhooks/{id}`, que NÃO é o corpo da criação.
+
+  A rota de alteração aceita name, url, sendType, enabled, interrupted,
+  authToken e events, e `email` e `apiVersion` existem SÓ na criação (doc
+  conferida em 03/11/2026). Campo que a rota não declara é 400 numa chamada que
+  existe justamente para consertar integração quebrada, então os dois casos
+  negativos abaixo valem mais do que os positivos.
+*/
+const renovado = corpoDaRenovacaoDoWebhook({
+  url: 'https://projeto.supabase.co/functions/v1/asaas-webhook',
+  authToken: token,
+})
+
+eq('121  reafirma a url do aviso', 'https://projeto.supabase.co/functions/v1/asaas-webhook', renovado.url)
+eq('122  manda o token novo', token, renovado.authToken)
+/* Os dois campos que são o motivo do botão existir: com SEQUENTIALLY o Asaas
+   PARA a fila quando uma entrega falha, e nada do nosso lado religa sozinho. */
+eq('123  religa a fila interrompida', false, renovado.interrupted)
+eq('124  religa o webhook desligado', true, renovado.enabled)
+eq('125  continua sequencial', 'SEQUENTIALLY', renovado.sendType)
+eq('126  continua assinando os sete eventos', 7, renovado.events.length)
+eq('127  reafirma o nome no painel do Asaas', 'HausOne', renovado.name)
+ok('128  NÃO manda email, que a rota de alteração não aceita', !('email' in renovado))
+ok('129  NÃO manda apiVersion, que a rota de alteração não aceita', !('apiVersion' in renovado))
+/* Dois cliques no botão não podem mandar o mesmo token: o token é a única coisa
+   que separa um aviso do Asaas de alguém postando "parcela paga" na URL
+   pública, e renovar é obrigatoriamente trocá-lo (nenhum dos dois lados sabe o
+   antigo - ver o cabeçalho da seção 1). */
+neq(
+  '130  dois cliques não repetem o token',
+  corpoDaRenovacaoDoWebhook({ url: 'https://x', authToken: tokenDoWebhook() }).authToken,
+  corpoDaRenovacaoDoWebhook({ url: 'https://x', authToken: tokenDoWebhook() }).authToken,
+)
+
+console.log('\n15. Achar o aviso que ja esta na conta\n')
+
+/*
+  O FATO MEDIDO QUE OBRIGA ESTA FUNÇÃO A EXISTIR: em 03/11/2026, no sandbox, o
+  POST de webhook recusou criar um segundo com a mesma url e os mesmos eventos,
+  com "Já existe uma configuração para os eventos com os mesmos atributos.
+  (invalid_object)". Isso não está em nenhuma das seis páginas de webhook da
+  doc. Sem procurar antes de criar, id errado no nosso banco virava um estado
+  que nenhum clique conserta: alterar dá 404 e criar dá 400.
+*/
+const NOSSA = 'https://projeto.supabase.co/functions/v1/asaas-webhook'
+
+const listagem = {
+  data: [
+    { id: 'wh-outro', url: 'https://outro-sistema.com.br/asaas' },
+    { id: 'wh-nosso', url: NOSSA },
+  ],
+}
+
+eq('137  acha o nosso pela url', ['wh-nosso'], webhooksComNossaUrl(listagem, NOSSA))
+/* Webhook cadastrado à mão pode ter sido salvo com barra no fim, e mesma url
+   com barra a mais não é outro destino: tratá-la como outro levaria de volta ao
+   400 de duplicidade. */
+eq(
+  '138  barra no fim não faz outro destino',
+  ['wh-nosso'],
+  webhooksComNossaUrl({ data: [{ id: 'wh-nosso', url: `${NOSSA}/` }] }, NOSSA),
+)
+eq('139  e a nossa com barra também casa', ['wh-nosso'], webhooksComNossaUrl(listagem, `${NOSSA}/`))
+/* O reconhecimento é pela URL e não pelo nome: nome é editável no painel do
+   Asaas e não tem unicidade nenhuma. */
+eq(
+  '140  nome igual e url diferente NÃO é o nosso',
+  [],
+  webhooksComNossaUrl({ data: [{ id: 'x', name: 'HausOne', url: 'https://outro.com/a' }] }, NOSSA),
+)
+/* Mais de um com a nossa url é estado que alguém precisa limpar: cada extra
+   entrega o mesmo aviso com token que o banco não conhece (401 por entrega).
+   Por isso a função devolve TODOS, e não o primeiro. */
+eq(
+  '141  devolve todos os que casam, em ordem',
+  ['wh-a', 'wh-b'],
+  webhooksComNossaUrl({ data: [{ id: 'wh-a', url: NOSSA }, { id: 'wh-b', url: NOSSA }] }, NOSSA),
+)
+eq('142  conta sem webhook nenhum', [], webhooksComNossaUrl({ data: [] }, NOSSA))
+/* Resposta que não tem `data` não pode virar exceção: quem chama está num
+   caminho de conserto, e exceção aqui apagaria a única saída do escritório. */
+eq('143  resposta sem data é lista vazia', [], webhooksComNossaUrl({}, NOSSA))
+eq('144  resposta nula também', [], webhooksComNossaUrl(null, NOSSA))
+eq(
+  '145  item sem id é descartado',
+  [],
+  webhooksComNossaUrl({ data: [{ url: NOSSA }] }, NOSSA),
+)
+eq(
+  '146  item sem url é descartado',
+  [],
+  webhooksComNossaUrl({ data: [{ id: 'wh-sem-url' }] }, NOSSA),
+)
+
+console.log('\n16. Cliente que o Asaas recusou\n')
+
+/* Documento presente e INVÁLIDO é caso diferente de ausente, e acontece: o
+   Asaas confere dígito verificador, e o banco de dev tem doze clientes cujo
+   documento passa pela máscara e não passa pelo dígito. */
+const recusadoPeloAsaas = recusaDoAsaasAoCliente('Marina Albuquerque')
+
+ok('147  a mensagem nomeia o cliente', recusadoPeloAsaas.includes('Marina Albuquerque'))
+ok('148  manda olhar a ficha do cliente', recusadoPeloAsaas.includes('ficha do cliente'))
+ok('149  cita o documento pelos dois nomes', recusadoPeloAsaas.includes('CPF') && recusadoPeloAsaas.includes('CNPJ'))
+/* Dígito verificador é o motivo mais comum, e a frase diz onde olhar sem
+   afirmar qual campo o Asaas recusou. */
+ok('150  aponta os dígitos', recusadoPeloAsaas.includes('dígitos'))
+/* Era isto que faltava: nome cru interpolado produzia "recusou o cadastro de ."
+   Frase quebrada em tela de dinheiro faz quem lê duvidar do resto. */
+ok(
+  '151  sem nome, a frase continua inteira',
+  recusaDoAsaasAoCliente('').includes('cadastro deste cliente.'),
+)
+ok(
+  '152  nome nulo também',
+  recusaDoAsaasAoCliente(null).includes('cadastro deste cliente.'),
+)
 
 console.log(`\n${passed} passaram, ${failed} falharam\n`)
 process.exit(failed === 0 ? 0 : 1)

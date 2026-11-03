@@ -106,6 +106,57 @@ export function criarWebhook(
 }
 
 /*
+  ALTERAR O WEBHOOK QUE JÁ EXISTE, em vez de criar um segundo.
+
+  Uma conta Asaas aceita no máximo 10 webhooks, e criar um novo a cada vez que
+  o escritório clicasse em "registrar o aviso de novo" encheria essa cota com
+  webhooks apontando todos para a NOSSA URL — cada um entregando o mesmo evento,
+  e os antigos entregando com um token que o nosso banco já não conhece (401 em
+  cada aviso, que é como a fila do Asaas se interrompe por acúmulo de falha).
+
+  404 AQUI É INFORMAÇÃO, NÃO FALHA: a doc diz que a resposta é 404 quando "the
+  ID provided does not exist or the Webhook does not belong to the authenticated
+  account". Os dois casos acontecem de verdade — alguém apagou o webhook no
+  painel, ou a chave trocou de conta — e nos dois a saída é criar um webhook
+  novo. Quem chama lê `status` e decide; este arquivo não decide nada.
+*/
+/*
+  LISTAR OS WEBHOOKS DA CONTA, E POR QUE ISSO É NECESSÁRIO E NÃO ZELO.
+
+  MEDIDO NO SANDBOX EM 03/11/2026: o `POST /v3/webhooks` recusa criar um segundo
+  webhook com a mesma url e o mesmo conjunto de eventos, com
+
+    HTTP 400: Já existe uma configuração para os eventos com os mesmos
+    atributos. (invalid_object)
+
+  Isso NÃO ESTÁ NA DOCUMENTAÇÃO — as seis páginas de webhook foram lidas no
+  mesmo dia e nenhuma afirma nem nega a regra; o mais próximo é "You can
+  register up to 10 Webhooks per account, using different URLs and sets of
+  events". Então é fato observado, e está escrito aqui porque é a única cópia.
+
+  A CONSEQUÊNCIA: sempre que o nosso lado não tem um id usável e o webhook
+  existe do lado deles, criar é impossível e a única saída é ACHAR o que está
+  lá. Sem esta listagem, o escritório fica num estado que nenhum botão
+  conserta — alterar falha com 404 (id errado) e criar falha com 400 (já
+  existe).
+
+  `limit=100` é o teto da rota, e a cota de uma conta é 10 webhooks: uma
+  requisição vê todos.
+*/
+export function listarWebhooks(base: string, apiKey: string): Promise<RespostaAsaas> {
+  return chamar(base, apiKey, 'GET', '/v3/webhooks?limit=100')
+}
+
+export function alterarWebhook(
+  base: string,
+  apiKey: string,
+  webhookId: string,
+  corpo: Record<string, unknown>,
+): Promise<RespostaAsaas> {
+  return chamar(base, apiKey, 'PUT', `/v3/webhooks/${encodeURIComponent(webhookId)}`, corpo)
+}
+
+/*
   Remover é MELHOR ESFORÇO, igual à revogação do refresh_token do Google
   (`_shared/google.ts`): serve para desfazer um webhook que nasceu no Asaas e
   cujo token não conseguimos guardar. Se a remoção falhar, quem chama segue com

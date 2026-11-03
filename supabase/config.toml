@@ -559,7 +559,7 @@ verify_jwt = true
 
 # Edge Functions do modulo de COBRANCA (Asaas) - migrations 0125, 0126 e 0128.
 #
-# DUAS COM SESSAO E UMA SEM, e a de fora e de fora pelo mesmo motivo do
+# TRES COM SESSAO E UMA SEM, e a de fora e de fora pelo mesmo motivo do
 # google-calendar-callback: quem chama nao e navegador com login.
 #
 #   asaas-connect  liga a conta Asaas do escritorio. Recebe a API KEY, que emite
@@ -567,6 +567,20 @@ verify_jwt = true
 #                  escritorio (0125). Exige sessao, e a autorizacao e conferida
 #                  DENTRO do banco por asaas_connect, que levanta 42501 para
 #                  quem nao pode editar `settings` naquele tenant.
+#
+#   asaas-renew-webhook
+#                  religa o aviso de pagamento SEM pedir a chave de novo: le a
+#                  credencial do cofre por asaas_api_key, troca o authToken do
+#                  webhook (ou cria um, se o id guardado nao existe mais no
+#                  Asaas) e grava o hash novo. Exige sessao, e a permissao e a
+#                  mesma de asaas-connect: can_edit em `settings`.
+#
+#                  POR QUE ELA EXISTE: enquanto a conexao existe e o aviso nao
+#                  funciona, a cobranca sai, o cliente paga e a parcela fica
+#                  aberta. Antes dela a unica saida era desconectar e conectar,
+#                  o que obriga a buscar a API Key no painel do Asaas e colar
+#                  outra vez - pedir a credencial do caixa para consertar algo
+#                  que nao tem a ver com ela.
 #
 #   asaas-charge   emite a cobranca de UMA parcela, no clique de alguem (nada
 #                  automatico nesta fase). Exige sessao, e a permissao
@@ -597,6 +611,10 @@ verify_jwt = true
 # usuario.
 
 [functions.asaas-connect]
+enabled = true
+verify_jwt = true
+
+[functions.asaas-renew-webhook]
 enabled = true
 verify_jwt = true
 
