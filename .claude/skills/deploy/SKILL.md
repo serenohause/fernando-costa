@@ -43,14 +43,30 @@ supabase functions list                      publicadas naquele projeto
 supabase secrets list                        nomes (o valor vem como hash)
 ```
 
-Uma diferença conhecida e que NÃO bloqueia nada: o token da conta de DEV não
-tem privilégio de Edge Functions (`403 ... does not have the necessary
-privileges`), então as cinco funções do Google Agenda estão publicadas só em
-produção. Não atrapalha o desenvolvimento — ninguém conectou conta Google em
-ambiente nenhum, o OAuth Client sequer foi criado no Google Cloud, e as
-funções respondem 401 a quem chamar. Só volta a importar no dia em que a
-integração com o n8n for adiante e precisar ser testada em dev; aí é preciso
-um token da conta dona daquele projeto. Não tratar como pendência urgente.
+Uma diferença conhecida e que NÃO bloqueia nada: as cinco funções do Google
+Agenda estão publicadas só em produção. Não atrapalha o desenvolvimento,
+porque ninguém conectou conta Google em ambiente nenhum, o OAuth Client sequer
+foi criado no Google Cloud, e as funções respondem 401 a quem chamar. Não
+tratar como pendência urgente.
+
+**A CAUSA QUE ESTAVA ANOTADA AQUI ERA ERRADA, e custou caro.** A frase anterior
+dizia que o token da conta de DEV não tem privilégio de Edge Functions, por
+causa de um `403 ... does not have the necessary privileges`. Medido em
+03/11/2026: o token de dev publica Edge Function sem problema, e naquele dia
+foram publicadas cinco no projeto de dev. O 403 falava de privilégio e o
+problema era de IDENTIDADE: a CLI do Supabase usa o login guardado dela, que é
+de OUTRA conta, e o `.env` não é carregado pelo shell sozinho. Exportar o token
+antes resolve:
+
+```
+export SUPABASE_ACCESS_TOKEN="$(grep '^SUPABASE_ACCESS_TOKEN=' .env | cut -d= -f2- | tr -d "\"'")"
+supabase functions deploy <nome> --project-ref <ref de dev>
+```
+
+O único comando que falha de verdade por privilégio nessa conta é o
+`supabase link`, com `LegacyLinkAuthTokenError`, mesmo com o token exportado à
+mão. A nota errada me fez anunciar ao usuário um bloqueio que não existia e
+pedir um token novo sem precisar.
 
 **O PUSH NA `main` É O DEPLOY.** Não existe um passo separado depois dele: a
 Vercel observa a branch e publica sozinha, em segundos. Isso inverte a
