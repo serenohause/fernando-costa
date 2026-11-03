@@ -74,6 +74,8 @@ import {
   corpoDaCobranca,
   corpoDaRenovacaoDoWebhook,
   corpoDoWebhook,
+  descricaoDoAsaas,
+  erroDoAsaas,
   dataDaBaixa,
   ehCobrancaVivaDuplicada,
   ehReentrega,
@@ -708,6 +710,60 @@ ok(
   '152  nome nulo também',
   recusaDoAsaasAoCliente(null).includes('cadastro deste cliente.'),
 )
+
+console.log('\n17. A frase que o Asaas escreveu\n')
+
+/*
+  O CASO QUE PAGOU POR ESTA FUNÇÃO. Em 03/11/2026, uma emissão de verdade foi
+  recusada com "O valor da cobrança excede o seu limite autorizado", e a tela
+  mostrou "Confira o valor e a data de vencimento da parcela". A data estava
+  certa, o valor estava certo para o contrato, e o problema era o limite da
+  conta Asaas. A frase que resolvia veio na resposta e era jogada fora.
+*/
+const LIMITE = {
+  errors: [
+    {
+      code: 'invalid_value',
+      description:
+        'O valor da cobrança excede o seu limite autorizado. Entre em contato com o suporte para aumentar o limite.',
+    },
+  ],
+}
+
+eq(
+  '153  devolve a frase inteira, sem status e sem código',
+  'O valor da cobrança excede o seu limite autorizado. Entre em contato com o suporte para aumentar o limite.',
+  descricaoDoAsaas(LIMITE),
+)
+/* `erroDoAsaas` continua sendo a linha de LOG, com status e código: as duas
+   existem porque servem a leitores diferentes. */
+eq(
+  '154  a linha de log continua carregando status e código',
+  'HTTP 400: O valor da cobrança excede o seu limite autorizado. Entre em contato com o suporte para aumentar o limite. (invalid_value)',
+  erroDoAsaas(400, LIMITE),
+)
+eq('155  corpo sem errors não inventa frase', null, descricaoDoAsaas({}))
+eq('156  corpo nulo também', null, descricaoDoAsaas(null))
+eq('157  errors vazio também', null, descricaoDoAsaas({ errors: [] }))
+/* Erro só com código, sem descrição: não há frase para mostrar, e a tela cai na
+   nossa. Devolver o código cru ("invalid_value") seria pior do que a frase
+   genérica. */
+eq('158  erro sem description devolve nulo', null, descricaoDoAsaas({ errors: [{ code: 'x' }] }))
+
+console.log('\n18. A recusa de cliente carrega a razão do Asaas\n')
+
+const comRazao = recusaDoAsaasAoCliente('Marina Albuquerque', 'CPF ou CNPJ inválido.')
+ok('159  nomeia o cliente', comRazao.includes('Marina Albuquerque'))
+ok('160  e usa a razão deles', comRazao.includes('CPF ou CNPJ inválido.'))
+/* A nossa frase sai quando a deles entra: duas explicações para o mesmo erro
+   fazem quem lê escolher em qual acreditar. */
+ok('161  sem repetir a nossa', !comRazao.includes('dois últimos dígitos'))
+
+/* Sem razão nenhuma, a nossa volta: ela aponta o motivo dominante, que é
+   documento com dígito verificador errado. */
+const semRazao = recusaDoAsaasAoCliente('Marina Albuquerque', null)
+ok('162  sem razão deles, a nossa volta', semRazao.includes('dois últimos dígitos'))
+ok('163  razão em branco conta como ausente', recusaDoAsaasAoCliente('Marina', '   ').includes('dois últimos dígitos'))
 
 console.log(`\n${passed} passaram, ${failed} falharam\n`)
 process.exit(failed === 0 ? 0 : 1)

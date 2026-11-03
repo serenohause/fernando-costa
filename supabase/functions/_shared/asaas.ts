@@ -756,17 +756,32 @@ export function recusaPorFaltaDeDocumento(nomeDoCliente: unknown): string {
   campo que está certo. O que a frase faz é dizer onde olhar primeiro, porque é
   de longe o motivo mais comum.
 */
-export function recusaDoAsaasAoCliente(nomeDoCliente: unknown): string {
+export function recusaDoAsaasAoCliente(nomeDoCliente: unknown, descricao?: string | null): string {
   const nome = typeof nomeDoCliente === 'string' ? nomeDoCliente.trim() : ''
 
   /* A abertura inteira troca, e não só o alvo: a regência muda com o nome ("de
      Marina" contra "deste cliente"), e trocar só a palavra produzia "de deste
-     cliente". Pego pelo caso 135. */
+     cliente". Pego pelo caso 151. */
   const abertura = nome === ''
     ? 'O Asaas recusou o cadastro deste cliente.'
     : `O Asaas recusou o cadastro de ${nome}.`
 
-  return `${abertura} Confira na ficha do cliente se o CPF ou CNPJ está completo e correto, inclusive os dois últimos dígitos.`
+  /*
+    A RAZÃO DELES VENCE A NOSSA, quando existe. Nossa segunda frase aponta para
+    o documento, que é o motivo dominante (o Asaas confere dígito verificador e
+    sete dos oito cadastros de teste falham nisso). Mas 400 no cadastro de
+    cliente não é só documento, e mandar conferir o CPF quando o problema era
+    outro faz a pessoa procurar erro onde não há.
+
+    A frase deles já vem em português e completa, então entra inteira. A nossa
+    fica para quando eles não disserem nada.
+  */
+  const motivo =
+    typeof descricao === 'string' && descricao.trim() !== ''
+      ? descricao.trim()
+      : 'Confira na ficha do cliente se o CPF ou CNPJ está completo e correto, inclusive os dois últimos dígitos.'
+
+  return `${abertura} ${motivo}`
 }
 
 /* ------------------------------------------------------------------ */
@@ -891,6 +906,33 @@ export function ehMesmoPagamento(erro: ErroDeBanco): boolean {
   algumas integrações e dados do cliente no corpo. Mesmo cuidado do
   `_shared/google.ts`.
 */
+/*
+  A FRASE QUE O ASAAS ESCREVEU, sozinha, para ser MOSTRADA a quem clicou.
+
+  `erroDoAsaas` monta uma linha de LOG ("HTTP 400: ... (invalid_value)"), que é
+  outra coisa: tem o status e o código, que não dizem nada a quem está olhando a
+  tela. Esta devolve só a `description`, que é uma frase inteira em português,
+  escrita pelo Asaas para o dono da conta.
+
+  POR QUE ISSO IMPORTA, e custou um teste para aparecer: em 03/11/2026 uma
+  emissão foi recusada com "O valor da cobrança excede o seu limite autorizado.
+  Entre em contato com o suporte para aumentar o limite." e a tela mostrou
+  "Confira o valor e a data de vencimento da parcela". A frase genérica mandava
+  procurar no lugar errado, e a frase certa estava na resposta, sendo jogada
+  fora. Quem lê não tinha como chegar ao motivo.
+
+  NÃO É O CORPO INTEIRO: só `description` do primeiro erro, pelo mesmo motivo
+  que `erroDoAsaas` também se limita a isso. A resposta de erro deles repete o
+  que foi enviado.
+*/
+export function descricaoDoAsaas(corpo: unknown): string | null {
+  const lista = (corpo as { errors?: unknown })?.errors
+  if (!Array.isArray(lista) || lista.length === 0) return null
+
+  const primeiro = lista[0] as { description?: unknown }
+  return texto(primeiro?.description)
+}
+
 export function erroDoAsaas(status: number, corpo: unknown): string {
   const lista = (corpo as { errors?: unknown })?.errors
   if (Array.isArray(lista) && lista.length > 0) {

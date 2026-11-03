@@ -53,6 +53,7 @@ import { requireUser, serviceClient } from '../_shared/supabase.ts'
 import {
   baseDoAsaas,
   corpoDaCobranca,
+  descricaoDoAsaas,
   ehCobrancaVivaDuplicada,
   ehMesmoPagamento,
   espelhoDaCobranca,
@@ -521,7 +522,11 @@ async function garantirEspelhoDoCliente(
       )
     }
     if (resposta.status === 400) {
-      throw new HttpError(422, 'asaas_customer_rejected', recusaDoAsaasAoCliente(args.nome))
+      throw new HttpError(
+        422,
+        'asaas_customer_rejected',
+        recusaDoAsaasAoCliente(args.nome, descricaoDoAsaas(resposta.json)),
+      )
     }
     throw new HttpError(
       502,
@@ -614,10 +619,24 @@ async function emitirCobranca(
         'O Asaas recusou a API Key do escritório. Reconecte a conta em Configurações.',
       )
     }
+    /*
+      A FRASE DELES, QUANDO EXISTE, E A NOSSA SÓ COMO RESERVA.
+
+      Medido em 03/11/2026: a recusa foi "O valor da cobrança excede o seu
+      limite autorizado. Entre em contato com o suporte para aumentar o limite."
+      e a tela mostrava "Confira o valor e a data de vencimento da parcela".
+      Quem lesse iria conferir a data, que estava certa, e nunca chegaria ao
+      limite da conta. O motivo veio na resposta e era descartado aqui.
+
+      A frase deles é escrita em português para o dono da conta, e vem em duas
+      orações: o que houve e o que fazer. É exatamente a divisão que a faixa da
+      tela desenha, então ela entra inteira, sem reescrita nossa.
+    */
+    const motivo = descricaoDoAsaas(resposta.json)
     throw new HttpError(
       422,
       'asaas_charge_rejected',
-      'O Asaas recusou esta cobrança. Confira o valor e a data de vencimento da parcela.',
+      motivo ?? 'O Asaas recusou esta cobrança. Confira o valor e a data de vencimento da parcela.',
     )
   }
 

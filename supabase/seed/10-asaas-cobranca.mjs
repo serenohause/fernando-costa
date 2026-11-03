@@ -131,6 +131,24 @@ function daquiA(dias) {
   return data.toISOString().slice(0, 10)
 }
 
+/*
+  OS VALORES FICAM ABAIXO DE DEZ MIL, e isso é limite da conta, não escolha de
+  realismo.
+
+  Medido em 03/11/2026: uma parcela de R$ 63.400,00 foi recusada pelo Asaas com
+  "O valor da cobrança excede o seu limite autorizado. Entre em contato com o
+  suporte para aumentar o limite." Conta de sandbox nasce com teto por cobrança,
+  e seed que cria parcela acima dele entrega um caso que não tem como ser
+  testado.
+
+  R$ 9.500,00 passou no mesmo dia, então os valores aqui ficam abaixo disso. O
+  teto exato não foi medido, e não está escrito aqui por isso: quando alguém
+  precisar saber, mede.
+
+  EM PRODUÇÃO ISSO NÃO É LIMITE NOSSO. O escritório pede aumento ao suporte do
+  Asaas, e a mensagem que a tela mostra agora diz exatamente isso, com as
+  palavras deles.
+*/
 const CLIENTES = [
   {
     name: 'Helena Marcondes Vilalba',
@@ -139,7 +157,7 @@ const CLIENTES = [
     address_city: 'Goiânia',
     address_state: 'GO',
     parcelas: [
-      { description: 'Entrada - Projeto residencial Jardim Goiás', value: 12500, dias: 12 },
+      { description: 'Entrada - Projeto residencial Jardim Goiás', value: 8750, dias: 12 },
       { description: 'Parcela 2/4 - Projeto residencial Jardim Goiás', value: 7800, dias: 25 },
     ],
   },
@@ -160,8 +178,8 @@ const CLIENTES = [
     address_city: 'Aparecida de Goiânia',
     address_state: 'GO',
     parcelas: [
-      { description: 'Medição 3/8 - Edifício corporativo Marista', value: 63400, dias: 18 },
-      { description: 'Medição 4/8 - Edifício corporativo Marista', value: 63400, dias: 48 },
+      { description: 'Medição 3/8 - Edifício corporativo Marista', value: 8900, dias: 18 },
+      { description: 'Medição 4/8 - Edifício corporativo Marista', value: 8900, dias: 48 },
     ],
   },
 ]
