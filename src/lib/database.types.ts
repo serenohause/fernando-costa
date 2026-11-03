@@ -472,6 +472,315 @@ export type Database = {
           },
         ]
       }
+      /* AS QUATRO TABELAS DO ASAAS ENTRARAM A MAO, e o texto delas e o que o
+         gerador devolveu para o banco de DEV (Management API, 03/11/2026).
+
+         POR QUE NAO FOI `npm run db:types`: o script resolve a conexao por
+         `supabase/.temp/pooler-url`, que hoje aponta para o projeto de
+         PRODUCAO - rodar o comando leria o banco de producao. E, mesmo com
+         isso consertado, regerar o arquivo inteiro apagaria `client_name` de
+         `accounts_receivable_status`, coluna que existe SO em producao, fora
+         de migration, e da qual a tela de Contas a Receber depende (decisao
+         de nao mexer ja registrada).
+
+         Ou seja: o recorte e a parte honesta do arquivo. Quando a divergencia
+         da view for resolvida, `npm run db:types` passa a trazer estas quatro
+         tabelas sozinho e esta nota sai. */
+      asaas_charges: {
+        Row: {
+          asaas_installment_id: string | null
+          asaas_installment_number: number | null
+          asaas_payment_id: string
+          bank_slip_url: string | null
+          billing_type: string
+          client_payment_date: string | null
+          created_at: string
+          created_by_id: string | null
+          credit_date: string | null
+          deleted: boolean
+          due_date: string
+          environment: Database["public"]["Enums"]["asaas_environment"]
+          estimated_credit_date: string | null
+          external_reference: string | null
+          id: string
+          interest_value: number | null
+          invoice_number: string | null
+          invoice_url: string | null
+          net_value: number | null
+          original_due_date: string | null
+          original_value: number | null
+          payment_date: string | null
+          pix_expires_at: string | null
+          pix_payload: string | null
+          receivable_id: string
+          status: string
+          synced_at: string
+          tenant_id: string
+          transaction_receipt_url: string | null
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          asaas_installment_id?: string | null
+          asaas_installment_number?: number | null
+          asaas_payment_id: string
+          bank_slip_url?: string | null
+          billing_type: string
+          client_payment_date?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          credit_date?: string | null
+          deleted?: boolean
+          due_date: string
+          environment: Database["public"]["Enums"]["asaas_environment"]
+          estimated_credit_date?: string | null
+          external_reference?: string | null
+          id?: string
+          interest_value?: number | null
+          invoice_number?: string | null
+          invoice_url?: string | null
+          net_value?: number | null
+          original_due_date?: string | null
+          original_value?: number | null
+          payment_date?: string | null
+          pix_expires_at?: string | null
+          pix_payload?: string | null
+          receivable_id: string
+          status: string
+          synced_at?: string
+          tenant_id: string
+          transaction_receipt_url?: string | null
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          asaas_installment_id?: string | null
+          asaas_installment_number?: number | null
+          asaas_payment_id?: string
+          bank_slip_url?: string | null
+          billing_type?: string
+          client_payment_date?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          credit_date?: string | null
+          deleted?: boolean
+          due_date?: string
+          environment?: Database["public"]["Enums"]["asaas_environment"]
+          estimated_credit_date?: string | null
+          external_reference?: string | null
+          id?: string
+          interest_value?: number | null
+          invoice_number?: string | null
+          invoice_url?: string | null
+          net_value?: number | null
+          original_due_date?: string | null
+          original_value?: number | null
+          payment_date?: string | null
+          pix_expires_at?: string | null
+          pix_payload?: string | null
+          receivable_id?: string
+          status?: string
+          synced_at?: string
+          tenant_id?: string
+          transaction_receipt_url?: string | null
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asaas_charges_created_by_fkey"
+            columns: ["created_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "asaas_charges_receivable_fkey"
+            columns: ["receivable_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "accounts_receivable"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "asaas_charges_receivable_fkey"
+            columns: ["receivable_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "accounts_receivable_status"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "asaas_charges_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asaas_connections: {
+        Row: {
+          api_key_secret_id: string
+          asaas_webhook_id: string | null
+          connected_at: string
+          connected_by_id: string | null
+          created_at: string
+          environment: Database["public"]["Enums"]["asaas_environment"]
+          id: string
+          last_error: string | null
+          last_error_at: string | null
+          last_success_at: string | null
+          tenant_id: string
+          updated_at: string
+          webhook_token_hash: string | null
+        }
+        Insert: {
+          api_key_secret_id: string
+          asaas_webhook_id?: string | null
+          connected_at?: string
+          connected_by_id?: string | null
+          created_at?: string
+          environment: Database["public"]["Enums"]["asaas_environment"]
+          id?: string
+          last_error?: string | null
+          last_error_at?: string | null
+          last_success_at?: string | null
+          tenant_id: string
+          updated_at?: string
+          webhook_token_hash?: string | null
+        }
+        Update: {
+          api_key_secret_id?: string
+          asaas_webhook_id?: string | null
+          connected_at?: string
+          connected_by_id?: string | null
+          created_at?: string
+          environment?: Database["public"]["Enums"]["asaas_environment"]
+          id?: string
+          last_error?: string | null
+          last_error_at?: string | null
+          last_success_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+          webhook_token_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asaas_connections_connected_by_fkey"
+            columns: ["connected_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "asaas_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asaas_customers: {
+        Row: {
+          asaas_customer_id: string
+          client_id: string
+          created_at: string
+          environment: Database["public"]["Enums"]["asaas_environment"]
+          id: string
+          synced_at: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          asaas_customer_id: string
+          client_id: string
+          created_at?: string
+          environment: Database["public"]["Enums"]["asaas_environment"]
+          id?: string
+          synced_at?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          asaas_customer_id?: string
+          client_id?: string
+          created_at?: string
+          environment?: Database["public"]["Enums"]["asaas_environment"]
+          id?: string
+          synced_at?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asaas_customers_client_fkey"
+            columns: ["client_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "asaas_customers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asaas_webhook_events: {
+        Row: {
+          asaas_account_id: string | null
+          asaas_event_id: string
+          asaas_payment_id: string | null
+          event_created_at: string | null
+          event_name: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          processing_attempts: number
+          processing_error: string | null
+          received_at: string
+          tenant_id: string
+        }
+        Insert: {
+          asaas_account_id?: string | null
+          asaas_event_id: string
+          asaas_payment_id?: string | null
+          event_created_at?: string | null
+          event_name: string
+          id?: string
+          payload: Json
+          processed_at?: string | null
+          processing_attempts?: number
+          processing_error?: string | null
+          received_at?: string
+          tenant_id: string
+        }
+        Update: {
+          asaas_account_id?: string | null
+          asaas_event_id?: string
+          asaas_payment_id?: string | null
+          event_created_at?: string | null
+          event_name?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          processing_attempts?: number
+          processing_error?: string | null
+          received_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asaas_webhook_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_checklist_items: {
         Row: {
           approval_date: string | null
@@ -4533,6 +4842,7 @@ export type Database = {
     }
     Enums: {
       access_request_status: "pending" | "approved" | "rejected"
+      asaas_environment: "sandbox" | "production"
       billing_type:
         | "by_phase"
         | "monthly_installments"
@@ -4920,6 +5230,7 @@ export const Constants = {
   public: {
     Enums: {
       access_request_status: ["pending", "approved", "rejected"],
+      asaas_environment: ["sandbox", "production"],
       billing_type: [
         "by_phase",
         "monthly_installments",

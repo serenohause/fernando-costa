@@ -35,6 +35,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useMenuPermissions } from '@/features/auth/hooks'
+import { cobrancaQueAindaPodeSerPaga } from '@/features/asaas/baixa-manual'
+import { useAsaasLiveCharges } from '@/features/asaas/hooks'
 import { useClients } from '@/features/crm/hooks'
 import { useContracts } from '@/features/contracts/hooks'
 import { useProjects } from '@/features/projects/hooks'
@@ -130,6 +132,12 @@ export default function AccountsReceivable() {
     open: boolean
     account: ReceivableRow | null
   }>({ open: false, account: null })
+  /*
+    A parcela que tem cobrança aberta no Asaas e cuja baixa manual está
+    esperando confirmação. Guarda a linha inteira, e não o id, porque o diálogo
+    precisa dela depois de a lista se atualizar embaixo dele.
+  */
+  const [cobrancaAberta, setCobrancaAberta] = useState<ReceivableRow | null>(null)
   const [selectedMonthYear, setSelectedMonthYear] = useState(new Date())
   const [statusFilter, setStatusFilter] = useState<FinancialStatusFilter>('all')
   const [clientFilter, setClientFilter] = useState('')
@@ -139,6 +147,13 @@ export default function AccountsReceivable() {
   const period = useMemo(() => monthYearOf(selectedMonthYear), [selectedMonthYear])
   const receivablesQuery = useReceivables({ period, status: statusFilter })
   const hasAnyQuery = useHasAnyReceivables()
+
+  /*
+    AS COBRANÇAS ABERTAS DO ASAAS, só para responder uma pergunta: se "Marcar
+    como Pago" nesta parcela pode cobrar o cliente duas vezes. Escritório sem
+    Asaas recebe mapa vazio, e nada nesta tela muda.
+  */
+  const cobrancasQuery = useAsaasLiveCharges()
 
   const clientsQuery = useClients('')
   const projectsQuery = useProjects()
@@ -248,11 +263,30 @@ export default function AccountsReceivable() {
     })
   }
 
-  const markAsPaid = (account: ReceivableRow) => {
+  const baixarParcela = (account: ReceivableRow) => {
     markPaidMutation.mutate(account.id, {
       onSuccess: () => toast.success('Marcado como pago!'),
       onError: (error) => toast.error('Erro ao marcar como pago: ' + describeDatabaseError(error)),
     })
+  }
+
+  /*
+    O BURACO QUE ESTA RAMIFICAÇÃO TAPA: baixar a parcela aqui não cancela a
+    cobrança no Asaas, e o link continua na mão do cliente. Sem o aviso, o
+    escritório fecha a parcela e o cliente paga de novo pelo link.
+
+    SÓ PERGUNTA QUANDO HÁ MOTIVO. Parcela sem cobrança, ou com cobrança que o
+    cliente já não consegue pagar, continua baixando no clique como sempre fez.
+    O segundo caso não é teórico: enquanto o aviso de pagamento não está
+    registrado, a baixa manual de uma cobrança JÁ PAGA é justamente o caminho
+    certo, e mandar cancelar ali seria conselho errado.
+  */
+  const markAsPaid = (account: ReceivableRow) => {
+    if (cobrancaQueAindaPodeSerPaga(cobrancasQuery.data, account.id) !== null) {
+      setCobrancaAberta(account)
+      return
+    }
+    baixarParcela(account)
   }
 
   const handleExportPDF = () => {
@@ -567,6 +601,40 @@ export default function AccountsReceivable() {
               className="bg-rose-600 text-white hover:bg-rose-700"
             >
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* A frase é a do protótipo aprovado, palavra por palavra. O botão
+          continua esmeralda, como o resto do caminho de pagamento: o aviso é
+          sobre o que fazer antes, não sobre a ação ser perigosa. */}
+      <AlertDialog
+        open={cobrancaAberta !== null}
+        onOpenChange={(open) => {
+          if (!open) setCobrancaAberta(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marcar como pago?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta parcela tem cobrança em aberto no Asaas. Marcar como paga aqui não cancela a
+              cobrança, e o cliente continua conseguindo pagar pelo link. Cancele a cobrança no
+              painel do Asaas antes de confirmar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const alvo = cobrancaAberta
+                setCobrancaAberta(null)
+                if (alvo !== null) baixarParcela(alvo)
+              }}
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              Marcar como pago
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
