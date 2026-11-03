@@ -34,7 +34,7 @@ export function useAsaasLiveCharges() {
     queryFn: async (): Promise<Map<string, AsaasLiveCharge>> => {
       const { data, error } = await supabase
         .from('asaas_charges')
-        .select('receivable_id, status')
+        .select('receivable_id, status, asaas_payment_id')
         .eq('deleted', false)
 
       if (error) throw error

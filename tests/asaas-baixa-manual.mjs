@@ -87,13 +87,15 @@ const PARCELA = 'rec-1'
 const OUTRA = 'rec-2'
 
 const mapa = new Map([
-  [PARCELA, { receivable_id: PARCELA, status: 'PENDING' }],
-  [OUTRA, { receivable_id: OUTRA, status: 'RECEIVED' }],
+  [PARCELA, { receivable_id: PARCELA, status: 'PENDING', asaas_payment_id: 'pay_aberta' }],
+  [OUTRA, { receivable_id: OUTRA, status: 'RECEIVED', asaas_payment_id: 'pay_paga' }],
 ])
 
+/* Devolve a cobrança inteira, e não um booleano: o diálogo mostra o
+   `asaas_payment_id` para quem for cancelar no painel do Asaas saber qual é. */
 eq(
   '16  parcela com cobrança aberta devolve a cobrança',
-  { receivable_id: PARCELA, status: 'PENDING' },
+  { receivable_id: PARCELA, status: 'PENDING', asaas_payment_id: 'pay_aberta' },
   cobrancaQueAindaPodeSerPaga(mapa, PARCELA),
 )
 eq(

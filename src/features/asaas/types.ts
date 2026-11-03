@@ -6,18 +6,23 @@ import type { Tables } from '@/lib/database.types'
   duas vezes.
 
   Não é o recorte do painel de cobrança (que mostra link, copia e cola do PIX,
-  taxa e situação) — esse vem depois, com o painel. Aqui são DUAS colunas, e são
-  duas porque a decisão usa duas:
+  taxa e situação) — esse vem depois, com o painel. Aqui são TRÊS colunas:
 
-    receivable_id   é a chave pela qual a lista encontra a cobrança da linha;
-    status          decide se o cliente ainda consegue pagar pelo link.
+    receivable_id     é a chave pela qual a lista encontra a cobrança da linha;
+    status            decide se o cliente ainda consegue pagar pelo link;
+    asaas_payment_id  é como a cobrança se chama no painel do Asaas, e o aviso
+                      manda ir cancelar lá.
 
-  `invoice_url` e `asaas_payment_id` ficaram FORA de propósito, embora a tabela
-  os tenha e fosse fácil trazer. O protótipo aprovado define a frase do aviso
-  palavra por palavra, e ela não mostra nem o link nem o identificador da
-  cobrança. Trazer coluna que a tela não desenha é convite a usá-la, e
-  acrescentar dado ao diálogo por conta própria é divergir do protótipo, que é
-  bug de implementação (CLAUDE.md). Sinalizado ao usuário em vez de resolvido
-  aqui.
+  A TERCEIRA ENTROU POR DECISÃO DO USUÁRIO (03/11/2026), e não por conta
+  própria: o protótipo aprovado define a frase do aviso palavra por palavra e
+  não mostra o identificador, então acrescentá-lo seria divergir do protótipo,
+  que é bug de implementação (CLAUDE.md). Foi sinalizado e autorizado. Sem ele,
+  a frase manda cancelar a cobrança e não diz qual é.
+
+  `invoice_url` continua FORA: o aviso manda cancelar no painel do Asaas, não
+  abrir a página de pagamento do cliente.
 */
-export type AsaasLiveCharge = Pick<Tables<'asaas_charges'>, 'receivable_id' | 'status'>
+export type AsaasLiveCharge = Pick<
+  Tables<'asaas_charges'>,
+  'receivable_id' | 'status' | 'asaas_payment_id'
+>

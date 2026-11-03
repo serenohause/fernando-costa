@@ -37,6 +37,7 @@ import {
 import { useMenuPermissions } from '@/features/auth/hooks'
 import { cobrancaQueAindaPodeSerPaga } from '@/features/asaas/baixa-manual'
 import { useAsaasLiveCharges } from '@/features/asaas/hooks'
+import type { AsaasLiveCharge } from '@/features/asaas/types'
 import { useClients } from '@/features/crm/hooks'
 import { useContracts } from '@/features/contracts/hooks'
 import { useProjects } from '@/features/projects/hooks'
@@ -134,10 +135,14 @@ export default function AccountsReceivable() {
   }>({ open: false, account: null })
   /*
     A parcela que tem cobrança aberta no Asaas e cuja baixa manual está
-    esperando confirmação. Guarda a linha inteira, e não o id, porque o diálogo
-    precisa dela depois de a lista se atualizar embaixo dele.
+    esperando confirmação, junto com a cobrança que provocou a pergunta. As duas
+    guardadas, e não só o id da parcela: o diálogo precisa das duas depois de a
+    lista se atualizar embaixo dele.
   */
-  const [cobrancaAberta, setCobrancaAberta] = useState<ReceivableRow | null>(null)
+  const [cobrancaAberta, setCobrancaAberta] = useState<{
+    account: ReceivableRow
+    cobranca: AsaasLiveCharge
+  } | null>(null)
   const [selectedMonthYear, setSelectedMonthYear] = useState(new Date())
   const [statusFilter, setStatusFilter] = useState<FinancialStatusFilter>('all')
   const [clientFilter, setClientFilter] = useState('')
@@ -282,8 +287,9 @@ export default function AccountsReceivable() {
     certo, e mandar cancelar ali seria conselho errado.
   */
   const markAsPaid = (account: ReceivableRow) => {
-    if (cobrancaQueAindaPodeSerPaga(cobrancasQuery.data, account.id) !== null) {
-      setCobrancaAberta(account)
+    const cobranca = cobrancaQueAindaPodeSerPaga(cobrancasQuery.data, account.id)
+    if (cobranca !== null) {
+      setCobrancaAberta({ account, cobranca })
       return
     }
     baixarParcela(account)
@@ -622,6 +628,14 @@ export default function AccountsReceivable() {
               Esta parcela tem cobrança em aberto no Asaas. Marcar como paga aqui não cancela a
               cobrança, e o cliente continua conseguindo pagar pelo link. Cancele a cobrança no
               painel do Asaas antes de confirmar.
+              {/* O identificador não está no protótipo: entrou por decisão do
+                  usuário em 03/11/2026, porque a frase manda cancelar a cobrança
+                  e sem ele não diz qual é. `font-mono` porque é código para
+                  comparar caractere a caractere do outro lado, e `select-all`
+                  para o clique pegar o valor inteiro. */}
+              <span className="block pt-3 font-mono text-xs text-foreground select-all">
+                {cobrancaAberta?.cobranca.asaas_payment_id}
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -630,7 +644,7 @@ export default function AccountsReceivable() {
               onClick={() => {
                 const alvo = cobrancaAberta
                 setCobrancaAberta(null)
-                if (alvo !== null) baixarParcela(alvo)
+                if (alvo !== null) baixarParcela(alvo.account)
               }}
               className="bg-emerald-600 text-white hover:bg-emerald-700"
             >
