@@ -77,21 +77,34 @@ export function tokenDoWebhook(): string {
 /* ------------------------------------------------------------------ */
 
 /*
-  A BASE DE SANDBOX É A ÚNICA QUE A DOCUMENTAÇÃO TRAZ.
+  AS DUAS BASES, E A HISTÓRIA DE COMO ELAS CHEGARAM AQUI.
 
-  Conferido em 03/11/2026 nas três páginas usadas para escrever este módulo
-  (criar webhook, criar cobrança, QR Code do PIX): o único servidor listado na
-  definição OpenAPI de cada uma é `https://api-sandbox.asaas.com`. A base de
-  PRODUÇÃO não aparece em nenhuma delas.
+  A primeira versão deste módulo trazia só a de sandbox, porque as três páginas
+  usadas para escrevê-lo (criar webhook, criar cobrança, QR Code do PIX) listam
+  apenas `https://api-sandbox.asaas.com` na definição OpenAPI. A de produção
+  ficava num segredo obrigatório, e a função falhava alto sem ele.
 
-  Então ela não é adivinhada aqui. Chutar por padrão de nome — trocar
-  "api-sandbox" por "api", por exemplo — produziria o pior erro possível neste
-  módulo: a emissão de cobrança apontando para um host que ninguém conferiu,
-  com a chave de produção do escritório no cabeçalho. Vir de segredo, e falhar
-  alto quando o segredo não existe, é a diferença entre "integração não
-  configurada" e "chave do caixa mandada para o lugar errado".
+  A base de produção ESTÁ documentada, e o lugar é outro:
+  https://docs.asaas.com/docs/sandbox traz as duas numa tabela,
+  `https://api-sandbox.asaas.com/v3` e `https://api.asaas.com/v3`, e a frase
+  "Utilize sempre uma chave de Sandbox na URL de Sandbox e uma chave de
+  Produção na URL de Produção". Conferido em 03/11/2026.
+
+  As constantes aqui são a base SEM o `/v3`, porque é este módulo que monta o
+  prefixo em cada rota. O valor da tabela inclui o `/v3`; a diferença é só onde
+  a barra é colada.
+
+  O SEGREDO CONTINUA EXISTINDO, e agora como override em vez de obrigação:
+  serve para domínio próprio, proxy, ou o dia em que o Asaas mudar de host sem
+  que este arquivo mude. Quando ele vem, ainda é obrigado a ser `https://`,
+  porque `http://` mandaria a chave do caixa em texto claro pela rede.
+
+  O QUE NÃO VOLTA: adivinhar. Nenhuma das duas constantes foi derivada da outra
+  por troca de nome de host. Se um dia aparecer um terceiro ambiente, ele vem da
+  documentação ou do segredo, não de padrão.
 */
 export const ASAAS_SANDBOX_BASE_URL = 'https://api-sandbox.asaas.com'
+export const ASAAS_PRODUCTION_BASE_URL = 'https://api.asaas.com'
 
 export const SEGREDO_BASE_PRODUCAO = 'ASAAS_PRODUCTION_BASE_URL'
 export const SEGREDO_URL_WEBHOOK = 'ASAAS_WEBHOOK_URL'
@@ -107,13 +120,8 @@ export function baseDoAsaas(environment: AsaasEnvironment, lerSegredo: LeitorDeS
 
   const configurada = (lerSegredo(SEGREDO_BASE_PRODUCAO) ?? '').trim()
 
-  if (configurada === '') {
-    /* FALHA ALTA, e de propósito. A alternativa seria cair no sandbox por
-       padrão, e aí a cobrança de produção nasceria num ambiente de teste: o
-       cliente receberia um link que não cobra nada e o escritório acharia que
-       cobrou. Melhor não emitir. */
-    throw new Error('asaas_base_producao_ausente')
-  }
+  /* Sem segredo, a base documentada. O segredo é override, não requisito. */
+  if (configurada === '') return ASAAS_PRODUCTION_BASE_URL
 
   if (!configurada.startsWith('https://')) {
     /* http:// mandaria a chave do caixa em texto claro pela rede. */

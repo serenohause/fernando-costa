@@ -65,6 +65,7 @@
 //   leitura dos três index.ts.
 
 import {
+  ASAAS_PRODUCTION_BASE_URL,
   ASAAS_SANDBOX_BASE_URL,
   baixaAParcela,
   baseDoAsaas,
@@ -97,6 +98,20 @@ function eq(name, esperado, observado) {
   } else {
     failed += 1
     console.log(`FAIL  ${name}\n        esperado=${a}\n        observado=${b}`)
+  }
+}
+
+/* Afirmar DIFERENCA, para o caso em que o perigo e os dois valores virarem o
+   mesmo: base de producao caindo na de sandbox nao seria pego por um `eq`. */
+function neq(name, naoEsperado, observado) {
+  const a = JSON.stringify(naoEsperado)
+  const b = JSON.stringify(observado)
+  if (a !== b) {
+    passed += 1
+    console.log(`PASS  ${name}`)
+  } else {
+    failed += 1
+    console.log(`FAIL  ${name}\n        nao podia ser=${a}\n        observado=${b}`)
   }
 }
 
@@ -357,17 +372,21 @@ eq('64  sandbox usa a base documentada', 'https://api-sandbox.asaas.com', baseDo
 eq('65  e a constante é essa', 'https://api-sandbox.asaas.com', ASAAS_SANDBOX_BASE_URL)
 
 /*
-  A FALHA ALTA. A doc não traz a base de produção, então não há o que adivinhar.
-  Cair no sandbox por padrão seria o pior desfecho: a cobrança de produção
-  nasceria num ambiente de teste, o cliente receberia um link que não cobra nada
-  e o escritório acharia que cobrou.
+  PRODUÇÃO TAMBÉM TEM BASE DOCUMENTADA, e a tabela de
+  https://docs.asaas.com/docs/sandbox é a fonte. O caso existe para que uma
+  troca futura desse valor seja deliberada: constante errada aqui manda a chave
+  do caixa do escritório para o host errado.
+
+  O QUE ESTE CASO NÃO PODE VIRAR: cair no sandbox quando produção não estiver
+  configurada. Aí a cobrança de produção nasceria num ambiente de teste, o
+  cliente receberia um link que não cobra nada e o escritório acharia que
+  cobrou. Por isso o 66 compara com a base de PRODUÇÃO e o 66b afirma que as
+  duas são diferentes.
 */
-levanta(
-  '66  produção sem configuração falha alto',
-  () => baseDoAsaas('production', semSegredo),
-  'asaas_base_producao_ausente',
-)
-eq('67  produção configurada usa o segredo', 'https://api.exemplo-asaas.com', baseDoAsaas('production', comProducao))
+eq('66  produção sem segredo usa a base documentada', 'https://api.asaas.com', baseDoAsaas('production', semSegredo))
+eq('66b e ela é a constante de produção', ASAAS_PRODUCTION_BASE_URL, baseDoAsaas('production', semSegredo))
+neq('66c produção nunca cai no sandbox', ASAAS_SANDBOX_BASE_URL, baseDoAsaas('production', semSegredo))
+eq('67  segredo faz override da base de produção', 'https://api.exemplo-asaas.com', baseDoAsaas('production', comProducao))
 
 /* Barra final duplicaria a barra da rota (`//v3/payments`). */
 eq(
@@ -381,10 +400,10 @@ levanta(
   () => baseDoAsaas('production', () => 'http://api.exemplo-asaas.com'),
   'asaas_base_producao_invalida',
 )
-levanta(
-  '70  base de produção em branco é ausência',
-  () => baseDoAsaas('production', () => '   '),
-  'asaas_base_producao_ausente',
+eq(
+  '70  segredo em branco cai na base documentada, nao em erro',
+  'https://api.asaas.com',
+  baseDoAsaas('production', () => '   '),
 )
 
 console.log('\n9. A URL do aviso\n')
