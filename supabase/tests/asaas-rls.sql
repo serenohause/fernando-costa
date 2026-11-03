@@ -259,10 +259,10 @@ create temp table ids on commit drop as select
   'a1260000-0000-4000-8000-00000000c002'::uuid as chg_b,
   'a1260000-0000-4000-8000-00000000d001'::uuid as evt_a,
   'a1260000-0000-4000-8000-00000000d002'::uuid as evt_b,
-  /* Ponteiros de Vault de mentira: a coluna é um uuid sem FK de propósito (o
-     segredo mora no Vault, e esta suíte não cria segredo nenhum). O que importa
-     aqui é que o uuid seja LEGÍVEL por quem vê Configurações e inútil para
-     qualquer outra coisa. */
+  /* Ponteiros de Vault de mentira para api_key_secret_id: a coluna é um uuid sem
+     FK de propósito (o segredo mora no Vault, e esta suíte não cria segredo
+     nenhum). O que importa aqui é que o uuid seja LEGÍVEL por quem vê
+     Configurações e inútil para qualquer outra coisa. */
   'a1260000-0000-4000-8000-00000000e001'::uuid as vault_a,
   'a1260000-0000-4000-8000-00000000e002'::uuid as vault_b;
 
@@ -330,13 +330,20 @@ insert into public.accounts_receivable (id, tenant_id, client_id, description, v
   ((select ar_b1 from ids), (select tenant_b from ids), (select cli_b from ids),
    'Parcela unica - estudo preliminar', 800.00, current_date + 10);
 
+/* O token do webhook virou HASH na 0128 (antes era ponteiro de Vault), e a
+   fixture acompanhou: o que a conexão guarda agora é o sha256 do authToken. O
+   que esta suíte mede aqui continua sendo o mesmo - quem vê Configurações lê a
+   LINHA - e quem prova que o hash não é caminho até a chave é
+   supabase/tests/asaas-conexao.sql. */
 insert into public.asaas_connections
-  (id, tenant_id, environment, api_key_secret_id, webhook_token_secret_id, asaas_webhook_id, connected_by_id, last_error) values
+  (id, tenant_id, environment, api_key_secret_id, webhook_token_hash, asaas_webhook_id, connected_by_id, last_error) values
   ((select conn_a from ids), (select tenant_a from ids), 'sandbox',
-   (select vault_a from ids), (select vault_a from ids), 'wh_126a',
+   (select vault_a from ids),
+   encode(extensions.digest('token-rls-asaas-a-0000000000000000', 'sha256'), 'hex'), 'wh_126a',
    (select col_dalva from ids), 'invalid_api_key'),
   ((select conn_b from ids), (select tenant_b from ids), 'sandbox',
-   (select vault_b from ids), (select vault_b from ids), 'wh_126b',
+   (select vault_b from ids),
+   encode(extensions.digest('token-rls-asaas-b-0000000000000000', 'sha256'), 'hex'), 'wh_126b',
    (select col_bia from ids), null);
 
 insert into public.asaas_customers (id, tenant_id, client_id, environment, asaas_customer_id) values

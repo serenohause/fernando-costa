@@ -97,6 +97,7 @@
     "test:notificacoes-sino": "node tests/notificacoes-sino.mjs",
     "test:rls:diario": "supabase/tests/run-sql.sh supabase/tests/diario-rls.sql",
     "test:rls:asaas": "supabase/tests/run-sql.sh supabase/tests/asaas-rls.sql",
+    "test:asaas:conexao": "supabase/tests/run-sql.sh supabase/tests/asaas-conexao.sql",
     "test:lp-telefone": "node tests/lp-telefone.mjs",
     "test:fluxo-rolagem": "node tests/fluxo-rolagem.mjs",
     "test:tarefa-atrasada": "node tests/tarefa-atrasada.mjs"
