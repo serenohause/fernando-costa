@@ -1,8 +1,11 @@
 # Changelog da cobrança Asaas, para a gestão do projeto
 
-> Status em 04/11/2026: isso roda no ambiente de desenvolvimento, **ainda não
-> está em produção**. A subida depende do roteiro de teste em
-> `docs/TESTE-COBRANCA-ASAAS.md` passar.
+> Status em 05/11/2026: **em produção**. Banco, funções de servidor e telas no ar.
+>
+> A cobrança nasce inerte: enquanto ninguém colar a API Key do Asaas do
+> escritório em Configurações > Integrações, o bloco aparece como não conectado
+> e nenhuma cobrança é emitida. O roteiro de `docs/TESTE-COBRANCA-ASAAS.md`
+> continua valendo para quem for conferir as telas.
 
 Mensagem abaixo pronta para colar no WhatsApp.
 
