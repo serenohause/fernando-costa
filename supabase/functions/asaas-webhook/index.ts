@@ -53,6 +53,7 @@ import {
   baixaAParcela,
   conferirConta,
   dataDaBaixa,
+  dataEHoraDoAviso,
   ehReentrega,
   espelhoDaCobranca,
   metodoDePagamento,
@@ -112,7 +113,21 @@ Deno.serve(async (req) => {
       throw new HttpError(401, 'unauthorized', 'Credencial não reconhecida.')
     }
 
-    const { tenant_id: tenantId } = resolvido as { tenant_id: string }
+    /*
+      O AMBIENTE VEM JUNTO, e ele é metade da autenticação deste aviso.
+
+      `asaas_resolve_webhook_token` (0128) devolve `(tenant_id, environment)`
+      porque token só diz DE QUEM é o aviso. Em que ambiente o escritório está
+      falando é a outra pergunta, e sem ela um aviso de Sandbox baixa parcela de
+      verdade: conta ligada em Sandbox por engano emite cobrança com link de
+      sandbox, qualquer um que receba o link "paga" com cartão de teste, chega
+      PAYMENT_CONFIRMED com token válido, e a parcela fecha sem um centavo ter
+      entrado. Ver a conferência em `aplicarEfeito`.
+    */
+    const { tenant_id: tenantId, environment } = resolvido as {
+      tenant_id: string
+      environment: 'sandbox' | 'production'
+    }
 
     const corpo = (await readJsonBody(req)) as Record<string, unknown>
 
@@ -139,13 +154,19 @@ Deno.serve(async (req) => {
         event_name: eventName,
         payload: corpo,
         /*
-          `dateCreated` como ele falou. A coluna é `timestamp` SEM FUSO de
-          propósito (0125): o exemplo da doc é "2024-06-12 16:45:03", sem offset
-          e sem nenhuma frase dizendo em que fuso isso está, e em `timestamptz`
-          o Postgres completaria com o fuso da sessão, nascendo três horas
-          deslocado com aparência de dado exato.
+          `dateCreated` como ele falou, QUANDO dá para entender. A coluna é
+          `timestamp` SEM FUSO de propósito (0125): o exemplo da doc é
+          "2024-06-12 16:45:03", sem offset e sem nenhuma frase dizendo em que
+          fuso isso está, e em `timestamptz` o Postgres completaria com o fuso
+          da sessão, nascendo três horas deslocado com aparência de dado exato.
+
+          O filtro é `dataEHoraDoAviso`, e não `textoDe`: texto que não é data
+          viraria 22007 na gravação, e a gravação que falha vira 500 para o
+          Asaas reentregar. Com `sendType: 'SEQUENTIALLY'` a reentrega traz o
+          mesmo corpo, falha igual, e a fila de avisos do escritório para atrás
+          dele. O raciocínio inteiro está em `_shared/asaas.ts`.
         */
-        event_created_at: textoDe(corpo.dateCreated),
+        event_created_at: dataEHoraDoAviso(corpo.dateCreated),
       })
       .select('id')
       .single()
@@ -171,7 +192,14 @@ Deno.serve(async (req) => {
       não melhora nada.
     */
     try {
-      const aplicado = await aplicarEfeito(admin, tenantId, corpo, eventName, eventoId)
+      const aplicado = await aplicarEfeito(
+        admin,
+        tenantId,
+        environment,
+        corpo,
+        eventName,
+        eventoId,
+      )
 
       const { error: carimboError } = await admin
         .from('asaas_webhook_events')
@@ -221,6 +249,7 @@ Deno.serve(async (req) => {
 async function aplicarEfeito(
   admin: Admin,
   tenantId: string,
+  environment: 'sandbox' | 'production',
   corpo: Record<string, unknown>,
   eventName: string,
   eventoId: string,
@@ -239,12 +268,44 @@ async function aplicarEfeito(
 
   const { data: cobranca, error: leituraError } = await admin
     .from('asaas_charges')
-    .select('id, receivable_id, status')
+    .select('id, receivable_id, status, environment')
     .eq('tenant_id', tenantId)
     .eq('asaas_payment_id', paymentId)
     .maybeSingle()
 
   if (leituraError) throw new Error(`leitura da cobranca: ${leituraError.code}`)
+
+  /*
+    O AMBIENTE DO AVISO TEM QUE SER O DA COBRANÇA, e esta é a conferência que
+    impede dinheiro falso de fechar parcela de verdade.
+
+    `asaas_charges.environment` (0125) guarda em que ambiente CADA cobrança
+    nasceu, e o token diz em que ambiente o escritório está falando agora.
+    Quando os dois discordam, o aviso é de um mundo e a cobrança é de outro:
+    dinheiro de sandbox não baixa parcela emitida em produção, e vice-versa.
+
+    POR QUE NÃO É FILTRO NO `select`: filtrar deixaria este caso cair no ramo
+    de "cobrança sem espelho", que contaria a história errada - ele acusaria
+    gap nosso de gravação, que é outro problema, com outro conserto. A linha
+    existe, o escritório precisa saber que ela foi ignorada e por quê.
+
+    NÃO É ERRO DE CÓDIGO e não levanta: trocar de ambiente em Configurações é
+    operação permitida (0128 zera o webhook justamente para isso), e cobrança
+    emitida antes da troca continua no banco. O aviso fica guardado, carimbado
+    como processado, e a frase vai para `last_error`, que é onde quem configura
+    a integração lê.
+  */
+  if (cobranca && cobranca.environment !== environment) {
+    console.error(
+      `[${FN}] aviso de ${environment} para cobranca ${paymentId} emitida em ${cobranca.environment}: nada aplicado`,
+    )
+    await registrarResultado(
+      admin,
+      tenantId,
+      `aviso de pagamento recebido no ambiente ${environment}, mas a cobranca foi emitida em ${cobranca.environment}. Nada foi baixado. Confira qual ambiente esta ligado em Configuracoes.`,
+    )
+    return { processed: true, applied: 'nada', motivo: 'ambiente divergente' }
+  }
 
   if (!cobranca) {
     /*

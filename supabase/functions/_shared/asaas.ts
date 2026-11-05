@@ -1002,3 +1002,62 @@ function dataOuNulo(valor: unknown): string | null {
 
 /* Exportados para o teste poder conferir o de/para de cada campo sem rede. */
 export const leitores = { texto, numero, numeroPositivo, numeroNaoNegativo, dataOuNulo }
+
+/*
+  `dateCreated` DO AVISO, E POR QUE ELE NÃO ENTRA CRU.
+
+  `asaas_webhook_events.event_created_at` é `timestamp` (0125), e texto que não
+  é data e hora viraria 22007 NA GRAVAÇÃO do evento. O passo seguinte do webhook
+  trata falha de gravação como motivo de reentrega e responde 500, de propósito,
+  porque aviso perdido é parcela que não baixa. Mas o 500 aqui seria eterno: a
+  reentrega traz o MESMO corpo, que falha do mesmo jeito. E o webhook é
+  registrado com `sendType: 'SEQUENTIALLY'`, então a fila de avisos daquele
+  escritório para atrás do evento envenenado - inclusive os pagamentos que
+  viriam depois.
+
+  Um campo que nem é o do pagamento travando o caminho do dinheiro é troca
+  ruim. Nulo é o que a coluna aceita (0125) e é a resposta honesta para "não
+  entendi o que ele mandou".
+
+  SÓ A FORMA DOCUMENTADA PASSA, e sem fuso: o exemplo da doc do Asaas é
+  "2024-06-12 16:45:03". Data e hora COM offset é recusada aqui em vez de
+  gravada, porque `timestamp` descarta o offset em silêncio - o valor nasceria
+  deslocado com cara de dado exato, que é justamente o que a escolha de
+  `timestamp` na 0125 existe para evitar.
+*/
+const DATA_E_HORA_DO_ASAAS =
+  /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?)?$/
+
+export function dataEHoraDoAviso(valor: unknown): string | null {
+  const bruto = texto(valor)
+  if (bruto === null) return null
+
+  const casa = DATA_E_HORA_DO_ASAAS.exec(bruto)
+  if (casa === null) return null
+
+  const [, ano, mes, dia, hora = '00', minuto = '00', segundo = '00'] = casa
+
+  /* A regex aceita 2026-13-45: ela conta dígitos, não valida calendário. O
+     ida e volta pelo Date pega mês 13, dia 31 em fevereiro e hora 25, que o
+     Postgres recusaria com 22008 - mesmo 500 eterno, outro código. */
+  const data = new Date(
+    Date.UTC(
+      Number(ano),
+      Number(mes) - 1,
+      Number(dia),
+      Number(hora),
+      Number(minuto),
+      Number(segundo),
+    ),
+  )
+
+  const bate =
+    data.getUTCFullYear() === Number(ano) &&
+    data.getUTCMonth() === Number(mes) - 1 &&
+    data.getUTCDate() === Number(dia) &&
+    data.getUTCHours() === Number(hora) &&
+    data.getUTCMinutes() === Number(minuto) &&
+    data.getUTCSeconds() === Number(segundo)
+
+  return bate ? bruto : null
+}

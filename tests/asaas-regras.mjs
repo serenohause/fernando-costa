@@ -77,6 +77,7 @@ import {
   descricaoDoAsaas,
   erroDoAsaas,
   dataDaBaixa,
+  dataEHoraDoAviso,
   ehCobrancaVivaDuplicada,
   ehReentrega,
   espelhoDaCobranca,
@@ -134,6 +135,40 @@ function levanta(name, fn, mensagemEsperada) {
     eq(name, mensagemEsperada, erro.message)
   }
 }
+
+/*
+  O `dateCreated` DO AVISO, e o que esta em jogo e a FILA do escritorio.
+
+  `event_created_at` e `timestamp` (0125). Texto que nao e data viraria 22007 na
+  gravacao, a gravacao que falha vira 500 para o Asaas reentregar, e a reentrega
+  traz o mesmo corpo: 500 eterno. Com `sendType: SEQUENTIALLY` isso para a fila
+  de avisos daquele escritorio atras do evento envenenado, inclusive os
+  pagamentos que vinham depois.
+*/
+ok('164  a forma documentada passa inteira', dataEHoraDoAviso('2024-06-12 16:45:03') === '2024-06-12 16:45:03')
+ok('165  com T no meio tambem', dataEHoraDoAviso('2024-06-12T16:45:03') === '2024-06-12T16:45:03')
+ok('166  fracao de segundo passa', dataEHoraDoAviso('2024-06-12 16:45:03.123') === '2024-06-12 16:45:03.123')
+ok('167  so a data passa', dataEHoraDoAviso('2024-06-12') === '2024-06-12')
+/* Nulo e a resposta honesta, e a coluna aceita: o campo nao e o do pagamento e
+   nao vale travar a baixa por causa dele. */
+ok('168  texto que nao e data vira nulo', dataEHoraDoAviso('ontem') === null)
+ok('169  vazio vira nulo', dataEHoraDoAviso('   ') === null)
+ok('170  ausente vira nulo', dataEHoraDoAviso(undefined) === null)
+ok('171  numero nao vira data', dataEHoraDoAviso(1718212503) === null)
+/* A regex conta digitos; o calendario e conferido depois. Estes passariam pela
+   regex e morreriam com 22008 no Postgres, que e o mesmo 500 eterno. */
+ok('172  mes 13 vira nulo', dataEHoraDoAviso('2024-13-12 16:45:03') === null)
+ok('173  30 de fevereiro vira nulo', dataEHoraDoAviso('2024-02-30 16:45:03') === null)
+ok('174  hora 25 vira nulo', dataEHoraDoAviso('2024-06-12 25:45:03') === null)
+ok('175  minuto 61 vira nulo', dataEHoraDoAviso('2024-06-12 16:61:03') === null)
+ok('176  ano bissexto de verdade passa', dataEHoraDoAviso('2024-02-29 00:00:00') === '2024-02-29 00:00:00')
+/* COM OFFSET E RECUSADO, e isso e escolha. `timestamp` descarta o offset em
+   silencio: o valor nasceria deslocado com cara de dado exato, que e o que a
+   escolha de `timestamp` na 0125 existe para evitar. */
+ok('177  data com offset vira nulo', dataEHoraDoAviso('2024-06-12 16:45:03-03:00') === null)
+ok('178  data com Z vira nulo', dataEHoraDoAviso('2024-06-12T16:45:03Z') === null)
+/* Injecao pelo campo: o que nao casa com a forma nao chega ao banco. */
+ok('179  SQL no campo vira nulo', dataEHoraDoAviso("2024-06-12'; drop table x; --") === null)
 
 console.log('\n1. O token do webhook\n')
 
