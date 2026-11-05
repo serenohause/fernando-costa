@@ -38,6 +38,15 @@ import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
+/* O DE/PARA DO ESPELHO NAO E REESCRITO AQUI. `espelhoDaCobranca` e o mesmo
+   mapeamento que `asaas-charge` e `asaas-webhook` usam, com 48 casos de teste
+   em tests/asaas-cobranca.mjs atras dele. Mapear a mao neste arquivo seria uma
+   segunda verdade sobre as mesmas colunas, e a primeira versao deste script
+   provou o risco: ela gravava `asaas_customer_id`, coluna que nao existe. */
+import {
+  espelhoDaCobranca,
+  espelhoEstaCompleto,
+} from '../supabase/functions/_shared/asaas.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -391,28 +400,40 @@ async function main() {
 
   let gravados = 0
   const falhas = []
+  const jaPagas = []
   for (const { cobranca, parcela } of pares) {
+    const espelho = espelhoDaCobranca(cobranca)
+
+    /*
+      AS QUATRO NOT NULL DA 0125 (status, billing_type, value, due_date) vem do
+      que o Asaas mandou, e `espelhoEstaCompleto` e a mesma conferencia que
+      `asaas-charge` faz antes de gravar. Faltando uma, a linha nao entra pela
+      metade: ela fica de fora e aparece no relatorio, porque espelho incompleto
+      ocupa o indice unico da parcela e nao serve para baixar nada.
+    */
+    if (!espelhoEstaCompleto(espelho)) {
+      falhas.push(`${cobranca.id} -> ${parcela.id}: o Asaas nao mandou status, tipo, valor ou vencimento`)
+      continue
+    }
+
     const { error } = await db.from('asaas_charges').insert({
       tenant_id: tenant.id,
       receivable_id: parcela.id,
       environment: conexao.environment,
       asaas_payment_id: cobranca.id,
-      asaas_customer_id: cobranca.customer,
       external_reference: cobranca.externalReference ?? parcela.id,
-      status: cobranca.status,
-      billing_type: cobranca.billingType,
-      value: cobranca.value,
-      net_value: cobranca.netValue ?? null,
-      due_date: cobranca.dueDate,
-      invoice_url: cobranca.invoiceUrl ?? null,
-      bank_slip_url: cobranca.bankSlipUrl ?? null,
+      /* Nulo, e nao o usuario que rodou o script: ninguem clicou em emitir esta
+         cobranca por aqui. A coluna existe para dizer quem emitiu, e inventar
+         um nome seria mentira num campo de auditoria. */
       created_by_id: null,
+      ...espelho,
     })
     if (error) {
       falhas.push(`${cobranca.id} -> ${parcela.id}: ${error.code} ${error.message}`)
       continue
     }
     gravados += 1
+    if (espelho.payment_date !== null) jaPagas.push({ cobranca, parcela })
   }
 
   console.log(`\n  espelhos gravados: ${gravados}`)
@@ -420,7 +441,33 @@ async function main() {
     console.log(`  falhas: ${falhas.length}`)
     for (const f of falhas) console.log(`    ${f}`)
   }
-  console.log('\n  A partir de agora, pagamento dessas cobrancas baixa a parcela sozinho.\n')
+
+  /*
+    COBRANCA QUE JA ESTAVA PAGA ANTES DO VINCULO NAO BAIXA SOZINHA, e isso tem
+    de ser dito em voz alta. O aviso de pagamento dela ja passou, e o Asaas nao
+    reenvia evento antigo por causa de um espelho novo. Ou seja: o espelho diz
+    "paga" e a parcela segue aberta no financeiro.
+
+    Dar baixa aqui seria o script mexendo em dinheiro por conta propria, e a
+    decisao e do escritorio - o painel da parcela ja tem "Marcar como Pago",
+    com a data que o Asaas registrou aparecendo na tela.
+  */
+  if (jaPagas.length > 0) {
+    console.log(`\n  ATENCAO: ${jaPagas.length} dessas cobrancas JA ESTAVAM PAGAS no Asaas.`)
+    console.log('  O aviso de pagamento delas ja passou, entao a parcela NAO vai baixar sozinha.')
+    console.log('  Alguem precisa abrir cada uma e usar "Marcar como Pago". A lista esta no arquivo.')
+    linhas.push('')
+    linhas.push(`== 5. VINCULADAS E JA PAGAS NO ASAAS, PRECISAM DE BAIXA A MAO (${jaPagas.length}) ==`)
+    for (const { cobranca, parcela } of jaPagas) {
+      linhas.push(
+        `  parcela ${parcela.id}  ${nome(parcela.client_id)}  ${dinheiro(cobranca.value)}  pago em ${cobranca.paymentDate ?? '(sem data)'}`,
+      )
+    }
+    writeFileSync(destino, `${linhas.join('\n')}\n`, { mode: 0o600 })
+    chmodSync(destino, 0o600)
+  }
+
+  console.log('\n  Das que seguem em aberto, pagamento a partir de agora baixa a parcela sozinho.\n')
 }
 
 main().catch((erro) => fail(erro.message ?? String(erro)))
