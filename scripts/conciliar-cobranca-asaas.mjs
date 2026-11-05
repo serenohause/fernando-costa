@@ -326,11 +326,43 @@ async function main() {
   })
   const soma = (lista, campo) => lista.reduce((t, x) => t + Number(x[campo] ?? 0), 0)
 
+  /*
+    PAGA OU EM ABERTO, E ESSA E A PERGUNTA QUE MUDA A DECISAO.
+
+    Cobranca JA PAGA no Asaas casada com parcela ABERTA aqui e dinheiro que
+    entrou e que o financeiro nao sabe. Vincular nao resolve isso: o aviso de
+    pagamento dela passou antes de o espelho existir, e o Asaas nao reenvia
+    evento antigo. Ou seja, o espelho vai dizer "paga" e a parcela vai seguir
+    aberta ate alguem dar baixa a mao.
+
+    Por isso a contagem sai ANTES de gravar, e nao so depois: ela e o tamanho
+    do trabalho manual que o vinculo deixa na mesa.
+  */
+  const PAGAS = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'])
+  const estaPaga = (c) => PAGAS.has(c.status) || Boolean(c.paymentDate)
+  const porStatus = (lista) => {
+    const conta = {}
+    for (const c of lista) conta[c.status] = (conta[c.status] ?? 0) + 1
+    return Object.entries(conta)
+      .sort((a, b) => b[1] - a[1])
+      .map(([s, n]) => `${s} ${n}`)
+      .join(', ')
+  }
+
+  const paresPagos = pares.filter((x) => estaPaga(x.cobranca))
+  const semParLista = semPar.filter((x) => x.confianca === 'nenhuma').map((x) => x.cobranca)
+  const semParAbertas = semParLista.filter((c) => !estaPaga(c))
+
   console.log('\n  CASAMENTO')
   console.log(`  cobrancas vivas no Asaas sem espelho:   ${semEspelho.length}`)
   console.log(`  casadas com confianca alta:             ${pares.length}   ${dinheiro(soma(pares.map((x) => x.parcela), 'value'))}`)
+  console.log(`     dessas, JA PAGAS no Asaas:           ${paresPagos.length}   ${dinheiro(soma(paresPagos.map((x) => x.cobranca), 'value'))}`)
+  console.log(`     dessas, ainda em aberto:             ${pares.length - paresPagos.length}`)
+  console.log(`     status: ${porStatus(pares.map((x) => x.cobranca))}`)
   console.log(`  precisam de gente (media ou baixa):     ${semPar.filter((x) => x.confianca !== 'nenhuma').length}`)
-  console.log(`  sem par nenhum no financeiro:           ${semPar.filter((x) => x.confianca === 'nenhuma').length}`)
+  console.log(`  sem par nenhum no financeiro:           ${semParLista.length}`)
+  console.log(`     dessas, ja pagas (historico):        ${semParLista.length - semParAbertas.length}`)
+  console.log(`     dessas, AINDA ABERTAS no Asaas:      ${semParAbertas.length}   ${dinheiro(soma(semParAbertas, 'value'))}`)
   console.log('\n  PARCELAS SEM COBRANCA NENHUMA (ficam como estao)')
   console.log(`  total:                                  ${semCobranca.length}   ${dinheiro(soma(semCobranca, 'value'))}`)
   console.log(`  aceitariam emissao hoje, se alguem pedir:              ${emitiveis.length}   ${dinheiro(soma(emitiveis, 'value'))}`)
@@ -344,9 +376,12 @@ async function main() {
   linhas.push('Arquivo ignorado pelo git (*.local), modo 0600. NAO versionar, NAO colar em mensagem.')
   linhas.push('')
   linhas.push(`== 1. CASADAS COM CONFIANCA ALTA (${pares.length}) ==`)
+  linhas.push(`   [JA PAGA] = o dinheiro entrou e a parcela daqui segue aberta. Vincular NAO`)
+  linhas.push(`   baixa essas: o aviso de pagamento delas passou antes de o espelho existir.`)
+  linhas.push('')
   for (const { cobranca, parcela, motivo } of pares) {
     linhas.push(
-      `  ${cobranca.id}  ${cobranca.status.padEnd(10)}  ${dinheiro(cobranca.value).padStart(14)}  venc ${cobranca.dueDate}`,
+      `  ${estaPaga(cobranca) ? '[JA PAGA] ' : '          '}${cobranca.id}  ${cobranca.status.padEnd(10)}  ${dinheiro(cobranca.value).padStart(14)}  venc ${cobranca.dueDate}`,
     )
     linhas.push(`    parcela ${parcela.id}  ${nome(parcela.client_id)}  ${parcela.description ?? ''}`)
     linhas.push(`    casou por: ${motivo}`)
@@ -361,6 +396,19 @@ async function main() {
     linhas.push(`    cliente no Asaas: ${cliente?.name ?? '(sem nome)'}  ${cliente?.cpfCnpj ?? '(sem documento)'}`)
     linhas.push(`    ${motivo}`)
     if (parcela) linhas.push(`    candidata: parcela ${parcela.id}  ${nome(parcela.client_id)}  ${parcela.description ?? ''}`)
+  }
+  linhas.push('')
+  linhas.push(`== 2b. COBRANCAS AINDA ABERTAS NO ASAAS E SEM PAR AQUI (${semParAbertas.length}) ==`)
+  linhas.push('   Boleto de pe na conta do Asaas sem parcela aberta correspondente no')
+  linhas.push('   financeiro. Pode ser parcela que alguem ja deu baixa aqui sem o dinheiro')
+  linhas.push('   ter entrado, parcela que nunca foi lancada, ou cliente com documento')
+  linhas.push('   diferente nos dois lugares. Nenhuma e vinculada.')
+  linhas.push('')
+  for (const c of semParAbertas) {
+    const cliente = porIdDoCliente.get(c.customer)
+    linhas.push(
+      `  ${c.id}  ${c.status.padEnd(10)}  ${dinheiro(c.value).padStart(14)}  venc ${c.dueDate}  ${cliente?.name ?? '(sem nome)'}  ${cliente?.cpfCnpj ?? ''}`,
+    )
   }
   linhas.push('')
   linhas.push('== 3. PARCELAS SEM COBRANCA NENHUMA ==')
