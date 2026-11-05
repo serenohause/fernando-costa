@@ -397,20 +397,41 @@ select pg_temp.rec('2.6', 'e o Vault não é alcançável por ela: nem a lista d
     'select count(*)::text from vault.decrypted_secrets'));
 
 /*
-  NENHUMA FUNÇÃO `asaas%` É EXECUTÁVEL DE FORA DO SERVIDOR. A seção 1 testa as
-  seis por nome; este caso fecha a porta para a SÉTIMA, a que alguém acrescentar
-  depois sem reler este arquivo.
+  QUEM DE FORA DO SERVIDOR EXECUTA FUNÇÃO `asaas%`, E A LISTA É DE UMA.
+
+  A seção 1 testa as seis do cofre por nome; este caso fecha a porta para a
+  OITAVA, a que alguém acrescentar depois sem reler este arquivo.
+
+  A EXCEÇÃO TEM NOME, e tem de ter: `asaas_connection_status` (0129) é
+  `authenticated` de propósito, porque é a pergunta que a tela de Contas a
+  Receber faz antes de prometer baixa automática, e ela não toca no cofre nem
+  devolve segredo - devolve o ambiente e um booleano. Este caso deixou de ser
+  "nenhuma" e passou a ser "só ela", que é mais forte: pega tanto a função nova
+  com EXECUTE indevido quanto o dia em que alguém revogar o EXECUTE DELA e
+  quebrar a tela sem saber por quê.
+
+  O `anon` continua em zero, e aí não há exceção nenhuma. A 0129 precisou de
+  `revoke ... from anon` PRÓPRIO para isso, porque `revoke ... from public` não
+  tira grant explícito, e o `alter default privileges` da plataforma dá um.
 */
-select pg_temp.rec('2.7', 'nenhuma função asaas% tem EXECUTE para authenticated ou anon', '0|0',
+select pg_temp.rec('2.7',
+  'só asaas_connection_status é executável por authenticated, e o anon não executa nenhuma',
+  '0|0|true',
   (select count(*)::text from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like 'asaas%'
+      and p.proname <> 'asaas_connection_status'
       and has_function_privilege('authenticated', p.oid, 'execute'))
   || '|' ||
   (select count(*)::text from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like 'asaas%'
-      and has_function_privilege('anon', p.oid, 'execute')));
+      and has_function_privilege('anon', p.oid, 'execute'))
+  || '|' ||
+  (select coalesce(bool_or(has_function_privilege('authenticated', p.oid, 'execute')), false)::text
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'asaas_connection_status'));
 
 -- 3. O AVISO É AUTENTICADO PELO HASH ------------------------------------------
 --
