@@ -403,6 +403,13 @@
             incluindo filtros, cartão da propriedade e as cores dos pinos,
             continua como está hoje.
           </p>
+          <p class="nota" style="margin-top: 0.5rem">
+            <strong>Os 253 pinos são de exemplo.</strong> O que é real aqui é a
+            distribuição: 156 em Eusébio, 20 em Fortaleza, 15 em Aquiraz, como
+            no banco do escritório. É essa concentração que torna o agrupamento
+            necessário. A sugestão de endereço também é encenada, com uma lista
+            fixa.
+          </p>
         </div>
       </aside>
 
@@ -456,15 +463,27 @@
 
         As coordenadas saem de um gerador com semente fixa, entao a imagem e a
         mesma a cada abertura e da para comparar duas versoes do prototipo.
+
+        OS CENTROS FORAM PUXADOS PARA DENTRO DA TERRA, e isso foi correcao: a
+        primeira versao usava o centro oficial de cada cidade com um raio
+        generoso, e como Fortaleza, Aquiraz, Beberibe e Paco do Lumiar sao
+        litoral ou ilha, metade do quadrado de sorteio caia no mar. Pino
+        boiando no Atlantico distrai de julgar o que o prototipo existe para
+        mostrar, e pior: parece defeito do mapa, quando e defeito da massa de
+        teste. O dado real tem coordenada marcada por gente, em cima do lote.
+
+        Nao ha contorno de costa aqui, e nao vale a pena ter: o que resolve e
+        centro deslocado para o interior e raio curto o bastante para o
+        quadrado inteiro ficar em terra.
       */
       const NUCLEOS = [
         { cidade: 'Eusébio', lat: -3.8902, lng: -38.4512, n: 156, raio: 0.022 },
-        { cidade: 'Fortaleza', lat: -3.7319, lng: -38.5267, n: 20, raio: 0.05 },
-        { cidade: 'Aquiraz', lat: -3.9014, lng: -38.3911, n: 15, raio: 0.03 },
-        { cidade: 'Camaçari', lat: -12.6996, lng: -38.3244, n: 10, raio: 0.04 },
-        { cidade: 'Beberibe', lat: -4.1794, lng: -38.1306, n: 7, raio: 0.04 },
-        { cidade: 'Paço do Lumiar', lat: -2.5183, lng: -44.1073, n: 4, raio: 0.03 },
-        { cidade: 'Outras', lat: -5.0892, lng: -42.8019, n: 41, raio: 1.4 },
+        { cidade: 'Fortaleza', lat: -3.7905, lng: -38.5402, n: 20, raio: 0.028 },
+        { cidade: 'Aquiraz', lat: -3.9052, lng: -38.3925, n: 15, raio: 0.02 },
+        { cidade: 'Camaçari', lat: -12.7015, lng: -38.3302, n: 10, raio: 0.028 },
+        { cidade: 'Beberibe', lat: -4.1905, lng: -38.1455, n: 7, raio: 0.016 },
+        { cidade: 'Paço do Lumiar', lat: -2.5235, lng: -44.1082, n: 4, raio: 0.012 },
+        { cidade: 'Outras', lat: -5.62, lng: -42.52, n: 41, raio: 0.85 },
       ]
 
       const SITUACOES = ['Não iniciado', 'Em desenvolvimento', 'Pausado', 'Concluído']
