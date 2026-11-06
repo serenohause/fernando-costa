@@ -195,6 +195,16 @@ function centroDoConjunto(itens: { lat: number; lng: number }[]): [number, numbe
 }
 
 /*
+  O ALVO DO ENQUADRAMENTO quando `zoom` é nulo.
+
+  `'propriedades'` é a caixa dos pinos que estão na tela, que é o que o auto-zoom
+  dos filtros pede. A tupla é uma caixa pronta, `[sul, norte, oeste, leste]`, que
+  é o que a busca de localização pede: o `viewport` do lugar escolhido. `null` é
+  "não enquadre nada", e aí vale o `zoom` pedido.
+*/
+export type AlvoDeEnquadramento = 'propriedades' | [number, number, number, number] | null
+
+/*
   AS QUATRO CAMADAS, na ordem e com o microcopy do protótipo. A tela do Leaflet
   tinha duas ("Padrão" e "Satélite"); "Padrão" virou "Mapa", que é o rótulo do
   protótipo, e as duas de baixo são novas.
@@ -232,7 +242,17 @@ export default function MapaProjetos() {
   const [mapZoom, setMapZoom] = useState<number | null>(DEFAULT_ZOOM)
   const [mapType, setMapType] = useState<MapType>('roadmap')
   const [isButtonDisabled, setIsButtonDisabled] = useState(false)
-  const [shouldFitBounds, setShouldFitBounds] = useState(false)
+  /*
+    O QUE ENQUADRAR, e não "enquadrar sim ou não".
+
+    Era um booleano, herdado do `MapController` do original, e com ele a tela
+    tinha UM alvo possível: a caixa das propriedades filtradas. Escolher "Times
+    Square" na busca de localização pedia enquadramento, e o mapa enquadrava os
+    lotes de Eusébio — ou não se mexia, se não houvesse lote nenhum visível. O
+    defeito é do original e veio junto na migração; o campo com alvo é o
+    conserto.
+  */
+  const [fitAlvo, setFitAlvo] = useState<AlvoDeEnquadramento>(null)
 
   const [modal, setModal] = useState<MapModal | null>(null)
 
@@ -304,12 +324,12 @@ export default function MapaProjetos() {
   const hasAnyProperty = (facets?.statuses.length ?? 0) > 0
 
   const applyView = useCallback(
-    (center: [number, number], zoom: number | null, fitBounds: boolean) => {
+    (center: [number, number], zoom: number | null, fit: AlvoDeEnquadramento) => {
       setMapCenter((current) =>
         current[0] === center[0] && current[1] === center[1] ? current : center,
       )
       setMapZoom(zoom)
-      setShouldFitBounds(fitBounds)
+      setFitAlvo(fit)
     },
     [],
   )
@@ -322,17 +342,17 @@ export default function MapaProjetos() {
     if (selectedClient || cityFilter !== 'all' || purposeFilter !== 'all') {
       if (filteredProperties.length === 1) {
         const property = filteredProperties[0]
-        applyView([property.lat, property.lng], 16, false)
+        applyView([property.lat, property.lng], 16, null)
       } else {
-        applyView(centroDoConjunto(filteredProperties), null, true)
+        applyView(centroDoConjunto(filteredProperties), null, 'propriedades')
       }
     } else if (searchTerm) {
       if (filteredProperties.length === 1) {
         const property = filteredProperties[0]
-        applyView([property.lat, property.lng], 18, false)
+        applyView([property.lat, property.lng], 18, null)
         setSelectedProperty(property)
       } else {
-        applyView(centroDoConjunto(filteredProperties), null, true)
+        applyView(centroDoConjunto(filteredProperties), null, 'propriedades')
       }
     }
   }, [searchTerm, selectedClient, cityFilter, purposeFilter, filteredProperties, applyView])
@@ -388,7 +408,7 @@ export default function MapaProjetos() {
 
   const handleCenterOnProperty = (property: EnrichedMapProperty) => {
     if (property.lat && property.lng) {
-      applyView([property.lat, property.lng], 18, false)
+      applyView([property.lat, property.lng], 18, null)
       setSelectedProperty(property)
     }
   }
@@ -582,10 +602,13 @@ export default function MapaProjetos() {
 
     if (result.boundingBox) {
       const [south, north, west, east] = result.boundingBox
-      /* `zoom` nulo é o combinado com o mapa: enquadrar em vez de aproximar. */
-      applyView([(south + north) / 2, (west + east) / 2], null, true)
+      /* `zoom` nulo é o combinado com o mapa: enquadrar em vez de aproximar, e
+         o que ele enquadra é a CAIXA DO RESULTADO. Antes ia um booleano aqui, e
+         o mapa enquadrava as propriedades filtradas em vez do lugar escolhido:
+         buscar "Times Square" não saía de Eusébio. */
+      applyView([(south + north) / 2, (west + east) / 2], null, result.boundingBox)
     } else {
-      applyView([result.lat, result.lng], zoomForPlace(result), false)
+      applyView([result.lat, result.lng], zoomForPlace(result), null)
     }
 
     setShowGeoResults(false)
@@ -1050,7 +1073,7 @@ export default function MapaProjetos() {
                 mapType={mapType}
                 center={mapCenter}
                 zoom={mapZoom}
-                shouldFitBounds={shouldFitBounds}
+                fitAlvo={fitAlvo}
                 properties={filteredProperties}
                 addingMode={addingMode}
                 onMapClick={handleMapClick}

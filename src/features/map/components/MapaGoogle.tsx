@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { AlertTriangle } from 'lucide-react'
 import type { EnrichedMapProperty } from '../types'
+import type { AlvoDeEnquadramento } from './MapaProjetos'
 import {
   aoRecusarChave,
   carregarGoogleMaps,
@@ -42,7 +43,9 @@ type Props = {
      `MapController`: enquadrar o conjunto em vez de aproximar um ponto. */
   center: [number, number]
   zoom: number | null
-  shouldFitBounds: boolean
+  /* O que enquadrar quando `zoom` é nulo: a caixa dos pinos da tela, uma caixa
+     pronta (o lugar escolhido na busca), ou nada. */
+  fitAlvo: AlvoDeEnquadramento
   properties: EnrichedMapProperty[]
   addingMode: boolean
   onMapClick: (lat: number, lng: number) => void
@@ -66,12 +69,40 @@ type Props = {
    então o corte é feito depois, quando o mapa assenta. */
 const ZOOM_MAXIMO_AO_ENQUADRAR = 15
 
+/*
+  A CAIXA A ENQUADRAR, a partir do alvo pedido.
+
+  Devolve `null` quando não há o que enquadrar: alvo nulo, ou "propriedades" com
+  a tela sem nenhum pino. Nesse caso o mapa fica onde está, que é melhor do que
+  saltar para um lugar arbitrário.
+
+  Vive fora do componente porque não toca em estado nem em ref: é conta.
+*/
+function montarCaixa(
+  alvo: AlvoDeEnquadramento,
+  properties: EnrichedMapProperty[],
+): google.maps.LatLngBounds | null {
+  if (alvo === null) return null
+
+  if (alvo === 'propriedades') {
+    if (properties.length === 0) return null
+    const caixa = new google.maps.LatLngBounds()
+    for (const property of properties) {
+      caixa.extend({ lat: property.lat, lng: property.lng })
+    }
+    return caixa
+  }
+
+  const [sul, norte, oeste, leste] = alvo
+  return new google.maps.LatLngBounds({ lat: sul, lng: oeste }, { lat: norte, lng: leste })
+}
+
 export default function MapaGoogle({
   apiKey,
   mapType,
   center,
   zoom,
-  shouldFitBounds,
+  fitAlvo,
   properties,
   addingMode,
   onMapClick,
@@ -350,27 +381,33 @@ export default function MapaGoogle({
       return
     }
 
-    if (shouldFitBounds && properties.length > 0) {
-      const caixa = new google.maps.LatLngBounds()
-      for (const property of properties) {
-        caixa.extend({ lat: property.lat, lng: property.lng })
-      }
+    const caixa = montarCaixa(fitAlvo, properties)
+    if (caixa) {
       mapa.current.fitBounds(caixa, 50)
 
-      /* O teto de zoom, que o `fitBounds` não aceita como opção: um único pino
-         enquadrado levaria o mapa ao zoom máximo. */
-      const mapaAtual = mapa.current
-      google.maps.event.addListenerOnce(mapaAtual, 'idle', () => {
-        const atual = mapaAtual.getZoom()
-        if (atual !== undefined && atual > ZOOM_MAXIMO_AO_ENQUADRAR) {
-          mapaAtual.setZoom(ZOOM_MAXIMO_AO_ENQUADRAR)
-        }
-      })
+      /*
+        O TETO DE ZOOM VALE SÓ PARA OS PINOS. Um único pino enquadrado levaria o
+        mapa ao zoom máximo, e o `fitBounds` não aceita teto como opção, então
+        ele é aplicado quando o mapa assenta.
+
+        A caixa de um lugar ESCOLHIDO NA BUSCA não passa por isso: ela é o
+        `viewport` que o próprio Google calculou para aquele lugar, e cortá-la em
+        15 deixaria "Times Square" na mesma altura de "Nova York".
+      */
+      if (fitAlvo === 'propriedades') {
+        const mapaAtual = mapa.current
+        google.maps.event.addListenerOnce(mapaAtual, 'idle', () => {
+          const atual = mapaAtual.getZoom()
+          if (atual !== undefined && atual > ZOOM_MAXIMO_AO_ENQUADRAR) {
+            mapaAtual.setZoom(ZOOM_MAXIMO_AO_ENQUADRAR)
+          }
+        })
+      }
 
       ultimoCentro.current = assinatura
       ultimoZoom.current = null
     }
-  }, [center, zoom, shouldFitBounds, properties, pronto])
+  }, [center, zoom, fitAlvo, properties, pronto])
 
   /* ── A tela ─────────────────────────────────────────────────────────── */
 
