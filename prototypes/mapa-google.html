@@ -1,0 +1,711 @@
+<!doctype html>
+<!--
+  ============================================================================
+  PROTOTIPO: O MAPA DE PROPRIEDADES SOBRE O GOOGLE MAPS
+  ============================================================================
+
+  POR QUE ESTE ARQUIVO EXISTE
+  A tela de mapa JA EXISTE e esta no ar: src/features/map/components/
+  MapaProjetos.tsx, 1115 linhas, sobre Leaflet com tiles do OpenStreetMap e
+  satelite da Esri. A decisao do usuario (06/11/2026) foi trocar o motor do
+  mapa pelo Google Maps. Entao este prototipo NAO redesenha a tela: ele mostra
+  as TRES partes que mudam de verdade, dentro do layout que ja existe.
+
+  O QUE MUDA, e so isto:
+    1. Os botoes de camada passam de DOIS (Padrao, Satelite) para os QUATRO do
+       Google (Mapa, Satelite, Hibrido, Relevo). Decisao do usuario: "usa os do
+       google".
+    2. Pinos proximos passam a se agrupar, com contador. Motivo medido: das 253
+       propriedades em producao, 156 estao em Eusebio. No zoom da cidade elas
+       viram uma mancha unica.
+    3. A caixa "Buscar Localizacao" passa a sugerir enquanto se digita, em vez
+       de so buscar no Enter.
+
+  O QUE NAO MUDA, e esta aqui so para o conjunto ser julgavel:
+  a divisao de 30/70 entre painel e mapa, os filtros, o cartao da propriedade,
+  o pino azul padrao e o pino VERMELHO do resultado de busca. Tudo isso e copia
+  do que ja esta na tela. Nenhuma cor nova, nenhuma fonte nova.
+
+  ----------------------------------------------------------------------------
+  PALETA: os mesmos tokens de src/index.css, tema claro, copiados em HSL cru.
+  Nenhum hex inventado.
+  ----------------------------------------------------------------------------
+
+  O PINO AZUL E O VERMELHO sao os mesmos arquivos de imagem que a tela usa hoje
+  (marker-icon-2x do pacote leaflet, e o vermelho de src/assets). Aqui eles vem
+  do CDN do Leaflet porque este arquivo e estatico e nao passa pelo Vite; na
+  implementacao real continuam vindo de dentro, como ja vem.
+
+  O QUE ESTE PROTOTIPO NAO PROVA
+  A sugestao de endereco aqui e ENCENADA, com uma lista fixa. A de verdade vai
+  passar por Edge Function com a chave de servidor, e nao pelo navegador, por
+  decisao de seguranca: chave de navegador com Places liberado pode ser copiada
+  do bundle e usada para queimar a cota do sistema. O visual do dropdown e o que
+  esta aqui; o caminho dos dados e outro.
+
+  COMO ABRIR
+    node scripts/prototipo-mapa.mjs
+  Ele le a chave de .env.dev, injeta na pagina e serve em http://localhost:5173,
+  que e o endereco ja autorizado na restricao da chave. A chave NAO fica neste
+  arquivo: ele guarda so o marcador __GOOGLE_MAPS_KEY__.
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mapa de Propriedades</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --background: 210 40% 98%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --popover: 0 0% 100%;
+        --primary: 222.2 47.4% 11.2%;
+        --primary-foreground: 210 40% 98%;
+        --muted: 210 40% 96.1%;
+        --accent: 210 40% 96.1%;
+        --border: 214.3 31.8% 91.4%;
+        --text-soft: 215.3 19.3% 34.5%;
+        --text-faint: 215 20.2% 65.1%;
+        --radius: 0.5rem;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, sans-serif;
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        font-size: 14px;
+      }
+
+      .tela {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem;
+        height: 100vh;
+      }
+
+      .painel {
+        width: 30%;
+        min-width: 300px;
+        max-width: 420px;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        overflow: auto;
+      }
+
+      .cartao {
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius);
+        padding: 1rem;
+      }
+
+      .cartao h2 {
+        margin: 0 0 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+
+      label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: hsl(var(--text-soft));
+        margin-bottom: 0.375rem;
+      }
+
+      input[type='text'],
+      select {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        font: inherit;
+        font-size: 0.875rem;
+        color: hsl(var(--foreground));
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) - 2px);
+      }
+
+      input[type='text']:focus,
+      select:focus {
+        outline: 2px solid hsl(var(--primary));
+        outline-offset: -1px;
+      }
+
+      .campo {
+        position: relative;
+        margin-bottom: 0.75rem;
+      }
+
+      /*
+        O DROPDOWN DE SUGESTAO. Mesma anatomia do dropdown que a tela ja tem
+        (MapaProjetos.tsx:685): fundo de popover, borda, raio, sombra, altura
+        maxima com rolagem. O que muda e QUANDO ele aparece: hoje so depois do
+        Enter, aqui a cada pausa na digitacao.
+      */
+      .sugestoes {
+        position: absolute;
+        z-index: 20;
+        width: 100%;
+        margin-top: 0.25rem;
+        background: hsl(var(--popover));
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius);
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+        max-height: 16rem;
+        overflow: auto;
+      }
+
+      .sugestoes button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 0.5rem 0.75rem;
+        font: inherit;
+        font-size: 0.8125rem;
+        background: none;
+        border: 0;
+        border-bottom: 1px solid hsl(var(--border));
+        cursor: pointer;
+      }
+
+      .sugestoes button:last-child {
+        border-bottom: 0;
+      }
+
+      .sugestoes button:hover {
+        background: hsl(var(--accent));
+      }
+
+      .sugestoes .principal {
+        font-weight: 500;
+      }
+
+      .sugestoes .secundario {
+        color: hsl(var(--text-faint));
+        font-size: 0.75rem;
+      }
+
+      .area-do-mapa {
+        flex: 1;
+        position: relative;
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+
+      #mapa {
+        position: absolute;
+        inset: 0;
+      }
+
+      /*
+        OS BOTOES DE CAMADA ficam onde ja ficam hoje (MapaProjetos.tsx:923):
+        canto superior direito, 1rem de distancia, 0.5rem entre eles, sombra
+        forte para sobreviver em cima de satelite. O que muda e a quantidade:
+        quatro em vez de dois.
+      */
+      .camadas {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        z-index: 5;
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .camadas button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.375rem 0.75rem;
+        font: inherit;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: hsl(var(--foreground));
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) - 2px);
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+        cursor: pointer;
+      }
+
+      /*
+        O ATIVO NAO LEVA FUNDO BRANCO, e isso e correcao que a tela de hoje ja
+        traz (o comentario em MapaProjetos.tsx:924-931): o original punha
+        `bg-white` nos dois, e o rotulo do botao selecionado, que e texto claro,
+        sumia no fundo branco.
+      */
+      .camadas button[aria-pressed='true'] {
+        color: hsl(var(--primary-foreground));
+        background: hsl(var(--primary));
+        border-color: hsl(var(--primary));
+      }
+
+      .camadas svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .contagem {
+        position: absolute;
+        bottom: 1rem;
+        left: 1rem;
+        z-index: 5;
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) - 2px);
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .contagem strong {
+        color: hsl(var(--foreground));
+      }
+
+      .nota {
+        font-size: 0.75rem;
+        color: hsl(var(--text-faint));
+        line-height: 1.5;
+      }
+
+      .erro {
+        margin: 1rem;
+        padding: 1rem;
+        border-radius: var(--radius);
+        border: 1px solid hsl(0 72% 51% / 0.3);
+        background: hsl(0 72% 51% / 0.08);
+        color: hsl(0 72% 35%);
+        font-size: 0.8125rem;
+        line-height: 1.6;
+      }
+
+      /*
+        A BOLHA DO AGRUPAMENTO. Ela e nossa, e nao o desenho padrao da
+        biblioteca: o padrao traz tres imagens de um CDN de terceiro, com cor
+        amarela e laranja que nao existem no tema. Esta usa o mesmo circulo
+        cheio do botao ativo, com a cor `primary`, que e a cor de enfase do
+        sistema.
+      */
+      /*
+        OS DOIS HEXES DA BOLHA SAO CONVERSAO, E NAO COR NOVA:
+        #0f172a e hsl(222.2 47.4% 11.2%), o token `--primary`, e #f8fafc e
+        hsl(210 40% 98%), o token `--primary-foreground`. Estao em hexadecimal
+        porque entram dentro de um SVG em data URI, onde `hsl(var(--x))` nao
+        resolve. Mesma cor do botao de camada ativo logo acima.
+      */
+      .bolha {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+        font-weight: 600;
+        border: 2px solid hsl(var(--card));
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+      }
+
+      .ficha {
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 0.8125rem;
+        min-width: 180px;
+      }
+
+      .ficha .titulo {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+
+      .ficha .linha {
+        color: hsl(var(--text-soft));
+      }
+
+      .selo {
+        display: inline-block;
+        margin-top: 0.5rem;
+        padding: 0.125rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        background: hsl(var(--muted));
+        color: hsl(var(--text-soft));
+      }
+    </style>
+  </head>
+  <body>
+    <div class="tela">
+      <aside class="painel">
+        <div class="cartao">
+          <h2>Buscar Localização</h2>
+          <div class="campo">
+            <input
+              type="text"
+              id="busca"
+              placeholder="Rua, bairro ou cidade"
+              autocomplete="off"
+            />
+            <div class="sugestoes" id="sugestoes" hidden></div>
+          </div>
+          <p class="nota">
+            As sugestões aparecem enquanto você digita. Escolher uma leva o mapa até
+            o ponto e marca com o pino vermelho.
+          </p>
+        </div>
+
+        <div class="cartao">
+          <h2>Filtros</h2>
+          <div class="campo">
+            <label for="cidade">Cidade</label>
+            <select id="cidade">
+              <option value="">Todas</option>
+              <option>Eusébio</option>
+              <option>Fortaleza</option>
+              <option>Aquiraz</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="situacao">Situação</label>
+            <select id="situacao">
+              <option value="">Todas</option>
+              <option>Não iniciado</option>
+              <option>Em desenvolvimento</option>
+              <option>Pausado</option>
+              <option>Concluído</option>
+            </select>
+          </div>
+          <p class="nota">
+            Os filtros desta coluna são os que já existem na tela. Estão aqui
+            apenas para o conjunto poder ser julgado, e não mudam nesta entrega.
+          </p>
+        </div>
+
+        <div class="cartao">
+          <h2>O que mudou</h2>
+          <p class="nota">
+            Quatro camadas do Google no lugar de duas. Pinos próximos agrupados
+            com contador. Busca com sugestão enquanto digita. O resto da tela,
+            incluindo filtros, cartão da propriedade e as cores dos pinos,
+            continua como está hoje.
+          </p>
+        </div>
+      </aside>
+
+      <main class="area-do-mapa">
+        <div class="camadas" id="camadas">
+          <button type="button" data-tipo="roadmap" aria-pressed="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 20l-5.5 2.5V6L9 3.5m0 16.5l6-3m-6 3V3.5m6 13.5l5.5 2.5V3.5L15 6m0 11V6m0 0L9 3.5" />
+            </svg>
+            Mapa
+          </button>
+          <button type="button" data-tipo="satellite" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" />
+            </svg>
+            Satélite
+          </button>
+          <button type="button" data-tipo="hybrid" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3 12h18" />
+              <path d="M9 21V9h12" />
+            </svg>
+            Híbrido
+          </button>
+          <button type="button" data-tipo="terrain" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 19l6-9 4 6 3-4 5 7z" />
+            </svg>
+            Relevo
+          </button>
+        </div>
+
+        <div id="mapa"></div>
+
+        <div class="contagem">
+          <strong id="total">253</strong> propriedades
+        </div>
+      </main>
+    </div>
+
+    <script>
+      /*
+        AS 253 PROPRIEDADES SAO FALSAS, E A DISTRIBUICAO DELAS NAO E.
+        A contagem por cidade sai do backup de producao de 10/09/2026:
+        Eusebio 156, Fortaleza 20, Aquiraz 15, e o resto espalhado. E essa
+        concentracao que faz o agrupamento ser necessario; com pontos
+        espalhados por igual o prototipo nao mostraria o problema que ele
+        resolve.
+
+        As coordenadas saem de um gerador com semente fixa, entao a imagem e a
+        mesma a cada abertura e da para comparar duas versoes do prototipo.
+      */
+      const NUCLEOS = [
+        { cidade: 'Eusébio', lat: -3.8902, lng: -38.4512, n: 156, raio: 0.022 },
+        { cidade: 'Fortaleza', lat: -3.7319, lng: -38.5267, n: 20, raio: 0.05 },
+        { cidade: 'Aquiraz', lat: -3.9014, lng: -38.3911, n: 15, raio: 0.03 },
+        { cidade: 'Camaçari', lat: -12.6996, lng: -38.3244, n: 10, raio: 0.04 },
+        { cidade: 'Beberibe', lat: -4.1794, lng: -38.1306, n: 7, raio: 0.04 },
+        { cidade: 'Paço do Lumiar', lat: -2.5183, lng: -44.1073, n: 4, raio: 0.03 },
+        { cidade: 'Outras', lat: -5.0892, lng: -42.8019, n: 41, raio: 1.4 },
+      ]
+
+      const SITUACOES = ['Não iniciado', 'Em desenvolvimento', 'Pausado', 'Concluído']
+
+      /* Gerador com semente: mulberry32, quatro linhas e determinístico. */
+      function semente(a) {
+        return function () {
+          a |= 0
+          a = (a + 0x6d2b79f5) | 0
+          let t = Math.imul(a ^ (a >>> 15), 1 | a)
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+        }
+      }
+
+      const sorteio = semente(20261106)
+      const propriedades = []
+      for (const nucleo of NUCLEOS) {
+        for (let i = 0; i < nucleo.n; i += 1) {
+          propriedades.push({
+            lat: nucleo.lat + (sorteio() - 0.5) * nucleo.raio * 2,
+            lng: nucleo.lng + (sorteio() - 0.5) * nucleo.raio * 2,
+            cidade: nucleo.cidade,
+            quadra: String(1 + Math.floor(sorteio() * 40)),
+            lote: String(1 + Math.floor(sorteio() * 60)),
+            situacao: SITUACOES[Math.floor(sorteio() * SITUACOES.length)],
+          })
+        }
+      }
+      document.getElementById('total').textContent = String(propriedades.length)
+
+      /* As sugestoes sao ENCENADAS, ver o cabecalho do arquivo. */
+      const SUGESTOES_FALSAS = [
+        ['Avenida Eusébio de Queirós', 'Eusébio, CE, Brasil'],
+        ['Rua Eusébio de Sousa', 'Fortaleza, CE, Brasil'],
+        ['Eusébio, Ceará', 'Brasil'],
+        ['Praça do Eusébio', 'Aquiraz, CE, Brasil'],
+      ]
+
+      let mapa = null
+      let agrupador = null
+      let pinoDeBusca = null
+
+      function iconeDoPino(vermelho) {
+        const base = vermelho
+          ? 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png'
+          : 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png'
+        return {
+          url: base,
+          scaledSize: new google.maps.Size(25, 41),
+          anchor: new google.maps.Point(12, 41),
+        }
+      }
+
+      function ficha(p) {
+        return (
+          '<div class="ficha">' +
+          '<div class="titulo">Quadra ' +
+          p.quadra +
+          ', Lote ' +
+          p.lote +
+          '</div>' +
+          '<div class="linha">' +
+          p.cidade +
+          '</div>' +
+          '<span class="selo">' +
+          p.situacao +
+          '</span>' +
+          '</div>'
+        )
+      }
+
+      function iniciarMapa() {
+        mapa = new google.maps.Map(document.getElementById('mapa'), {
+          center: { lat: -3.8902, lng: -38.4512 },
+          zoom: 11,
+          mapTypeId: 'roadmap',
+          /* Os controles proprios do Google saem: a tela ja tem os botoes dela
+             no canto, e dois jogos de controle na mesma moldura e ruido. O
+             zoom por rolagem e por gesto continua. */
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          zoomControl: true,
+          zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
+        })
+
+        const janela = new google.maps.InfoWindow()
+
+        const pinos = propriedades.map((p) => {
+          const marcador = new google.maps.Marker({
+            position: { lat: p.lat, lng: p.lng },
+            icon: iconeDoPino(false),
+          })
+          marcador.addListener('click', () => {
+            janela.setContent(ficha(p))
+            janela.open(mapa, marcador)
+          })
+          return marcador
+        })
+
+        agrupador = new markerClusterer.MarkerClusterer({
+          map: mapa,
+          markers: pinos,
+          renderer: {
+            render: ({ count, position }) => {
+              /*
+                MARCADOR CLASSICO COM SVG, e nao AdvancedMarkerElement, de
+                proposito: o marcador avancado so desenha quando o mapa tem um
+                Map ID criado no console do Google. Este prototipo nao exige
+                passo nenhum no console alem das chaves que ja existem.
+
+                Na implementacao de verdade isso vira decisao: AdvancedMarker e
+                o caminho novo e `google.maps.Marker` esta marcado como
+                obsoleto desde fevereiro de 2024, ainda funcionando. Criar um
+                Map ID e de graca. Fica sinalizado, nao resolvido aqui.
+              */
+              const lado = count < 10 ? 32 : count < 50 ? 40 : 48
+              const corpo = Math.round(lado * 0.36)
+              const svg = [
+                '<svg xmlns="http://www.w3.org/2000/svg" width="' + lado + '" height="' + lado + '">',
+                '<circle cx="' + lado / 2 + '" cy="' + lado / 2 + '" r="' + (lado / 2 - 2) + '"',
+                ' fill="#0f172a" stroke="#ffffff" stroke-width="2"/>',
+                '</svg>',
+              ].join('')
+
+              return new google.maps.Marker({
+                position,
+                zIndex: 1000 + count,
+                icon: {
+                  url: 'data:image/svg+xml;base64,' + btoa(svg),
+                  scaledSize: new google.maps.Size(lado, lado),
+                  anchor: new google.maps.Point(lado / 2, lado / 2),
+                },
+                label: {
+                  text: String(count),
+                  color: '#f8fafc',
+                  fontSize: corpo + 'px',
+                  fontWeight: '600',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                },
+              })
+            },
+          },
+        })
+
+        ligarCamadas()
+        ligarBusca()
+      }
+
+      function ligarCamadas() {
+        const barra = document.getElementById('camadas')
+        barra.addEventListener('click', (evento) => {
+          const botao = evento.target.closest('button[data-tipo]')
+          if (!botao) return
+          for (const b of barra.querySelectorAll('button')) {
+            b.setAttribute('aria-pressed', String(b === botao))
+          }
+          /*
+            TROCAR DE CAMADA NAO RECARREGA O MAPA. Vale dizer alto porque e
+            dinheiro: o Google cobra por CARGA de mapa, e o mesmo objeto
+            trocando de mapTypeId nao gera carga nova. Recriar o mapa a cada
+            clique de botao multiplicaria a conta por quatro.
+          */
+          mapa.setMapTypeId(botao.dataset.tipo)
+        })
+      }
+
+      function ligarBusca() {
+        const campo = document.getElementById('busca')
+        const lista = document.getElementById('sugestoes')
+        let relogio = null
+
+        function fechar() {
+          lista.hidden = true
+          lista.innerHTML = ''
+        }
+
+        campo.addEventListener('input', () => {
+          clearTimeout(relogio)
+          if (campo.value.trim().length < 3) return fechar()
+          /*
+            TREZENTOS MILISSEGUNDOS, e o numero tem motivo de custo: cada
+            consulta de sugestao e cobrada, e as 12 primeiras de cada sessao
+            saem pelo SKU caro. Sem esta pausa, "Eusebio" dispara sete
+            consultas; com ela, dispara uma.
+          */
+          relogio = setTimeout(() => {
+            lista.innerHTML = SUGESTOES_FALSAS.map(
+              ([principal, secundario]) =>
+                '<button type="button" data-lat="-3.8902" data-lng="-38.4512">' +
+                '<span class="principal">' +
+                principal +
+                '</span><br><span class="secundario">' +
+                secundario +
+                '</span></button>',
+            ).join('')
+            lista.hidden = false
+          }, 300)
+        })
+
+        lista.addEventListener('click', (evento) => {
+          const botao = evento.target.closest('button')
+          if (!botao) return
+          const ponto = {
+            lat: Number(botao.dataset.lat),
+            lng: Number(botao.dataset.lng),
+          }
+          if (pinoDeBusca) pinoDeBusca.setMap(null)
+          pinoDeBusca = new google.maps.Marker({
+            position: ponto,
+            map: mapa,
+            icon: iconeDoPino(true),
+            zIndex: 2000,
+          })
+          mapa.panTo(ponto)
+          mapa.setZoom(15)
+          campo.value = botao.querySelector('.principal').textContent
+          fechar()
+        })
+
+        document.addEventListener('click', (evento) => {
+          if (!evento.target.closest('.campo')) fechar()
+        })
+      }
+
+      window.gm_authFailure = function () {
+        document.body.insertAdjacentHTML(
+          'afterbegin',
+          '<div class="erro"><strong>O Google recusou a chave.</strong><br>' +
+            'Causas possíveis: a chave não tem a Maps JavaScript API liberada, ' +
+            'o endereço desta página não está na lista de sites autorizados, ' +
+            'ou o faturamento não está ativo no projeto do Google Cloud. ' +
+            'Abra o console do navegador para ver o código exato do erro.</div>',
+        )
+      }
+    </script>
+    <script src="https://unpkg.com/@googlemaps/markerclusterer@2.5.3/dist/index.min.js"></script>
+    <script
+      async
+      src="https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_KEY__&loading=async&callback=iniciarMapa&language=pt-BR&region=BR"
+    ></script>
+  </body>
+</html>
