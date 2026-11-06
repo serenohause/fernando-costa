@@ -107,6 +107,7 @@
     "seed:asaas": "node supabase/seed/10-asaas-cobranca.mjs"
   },
   "dependencies": {
+    "@googlemaps/markerclusterer": "^2.6.2",
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.5.7",
     "@radix-ui/react-alert-dialog": "^1.1.23",
@@ -128,13 +129,11 @@
     "@supabase/supabase-js": "^2.111.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.101.4",
-    "@types/leaflet": "^1.9.22",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
-    "leaflet": "^1.9.4",
     "lucide": "1.61.0",
     "lucide-react": "^1.27.0",
     "motion": "^12.43.0",
@@ -142,7 +141,6 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.83.0",
-    "react-leaflet": "^5.0.0",
     "react-router": "^8.3.0",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
@@ -152,6 +150,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.66.9",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

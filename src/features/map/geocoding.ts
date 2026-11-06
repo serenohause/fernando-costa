@@ -1,80 +1,80 @@
 import { env } from '@/lib/env'
-import {
-  googleGeocodeResponseSchema,
-  nominatimReverseResponseSchema,
-  nominatimSearchResponseSchema,
-} from './schemas'
+import { carregarGoogleMaps } from './components/google-maps-setup'
+import { googleGeocodeResponseSchema } from './schemas'
 import type { GeocodeResult, PlaceSearchResult, ReverseGeocodedPin } from './types'
 
 /*
-  Porta de projeto-original/src/components/utils/geocoding.jsx, mais o SEGUNDO
-  provedor de geocodificação que a tela do mapa usa direto.
+  Porta de projeto-original/src/components/utils/geocoding.jsx, com UMA TROCA DE
+  PROVEDOR feita neste projeto e não no original.
 
-  SÃO DOIS PROVEDORES, E ISSO É DO ORIGINAL — não é escolha deste port:
+  ANTES ERAM DOIS PROVEDORES:
 
     Google Geocoding API   endereço da OBRA, montado a partir dos campos de local
                            do CONTRATO. Resultado vai para as oito colunas
-                           `site_*` de `projects` (geocoding.jsx:98-110).
-    Nominatim (OSM)        o PINO do mapa: reverse geocoding no clique
-                           (MapaProjetos.jsx:479) e busca de lugar na caixa
-                           "Buscar Localização" (:597).
+                           `site_*` de `projects`.
+    Nominatim (OSM)        o PINO do mapa: reverse geocoding no clique e busca de
+                           lugar na caixa "Buscar Localização".
 
-  Nada concilia os dois resultados — ver o comentário de `ProjectSiteLocation` em
-  types.ts e o COMMENT de `map_properties` na migration 0057.
+  AGORA É UM SÓ: o Google, nas três chamadas. O motivo é o mapa — a tela passou
+  de Leaflet para a Maps JavaScript API, e manter o endereço do pino vindo do
+  OpenStreetMap deixaria duas bases geográficas discordando dentro da mesma tela
+  (o pino no lugar que o Google desenha, o nome da rua que o OSM conhece). Em
+  Eusébio e Aquiraz, onde está a maior parte dos lotes, essa diferença aparece:
+  loteamento novo que o Google já tem e o OSM ainda não.
+
+  O QUE ISSO CUSTA, porque não é de graça como o Nominatim era: Geocoding API a
+  US$ 5,00 por mil chamadas, com os primeiros 10.000 por mês sem cobrança (a
+  cota Essentials). As chamadas são uma por clique para marcar pino e uma por
+  busca de lugar, com `debounce` de 300ms e cache do React Query por cima — em
+  uso normal de escritório, dezenas por mês contra uma cota de dez mil.
+
+  POR QUE GEOCODING E NÃO PLACES AUTOCOMPLETE: o Places devolve sugestão
+  enquanto se digita, que é mais bonito, e cobra em dois passos (a sugestão e
+  depois o Place Details para saber a coordenada), um deles no SKU mais caro, e
+  exige token de sessão para não cobrar cada tecla como sessão nova. O Geocoding
+  devolve coordenada E `viewport` numa chamada — e `viewport` é exatamente o
+  enquadramento que esta tela já usava do Nominatim. Mesma caixa, mesma lista,
+  uma API, uma cobrança.
 
   ────────────────────────────────────────────────────────────────────────────
-  A CHAVE DO GOOGLE VAI PARA O BUNDLE DO NAVEGADOR. Isso não é descuido deste
-  arquivo: é o que `VITE_` SIGNIFICA. O Vite substitui `import.meta.env.VITE_*`
-  pelo valor literal em tempo de build, então a chave sai escrita dentro do
-  JavaScript que qualquer pessoa baixa da Vercel e lê com dois cliques. Não há
-  "esconder" chave em código client-side — o original é assim, e qualquer uso do
-  Google Maps direto do navegador é assim.
+  A CHAVE VAI PARA O BUNDLE DO NAVEGADOR. Isso não é descuido deste arquivo: é
+  o que `VITE_` SIGNIFICA. O Vite substitui `import.meta.env.VITE_*` pelo valor
+  literal em tempo de build, então a chave sai escrita dentro do JavaScript que
+  qualquer pessoa baixa da Vercel e lê com dois cliques. Não há "esconder" chave
+  em código client-side.
 
   A consequência é cota: sem restrição, qualquer um copia a chave e gasta o
   faturamento do escritório. O que torna isso aceitável é a restrição no console
-  do Google Cloud, e ela é OBRIGATÓRIA antes de a chave existir em produção:
+  do Google Cloud, e ela é OBRIGATÓRIA:
 
-    1. Restrição de aplicativo → "Referenciadores HTTP", com o domínio da
-       Vercel (e só ele).
-    2. Restrição de API → somente "Geocoding API". Chave sem restrição de API
-       abre também Directions, Places e o resto do catálogo cobrado.
+    1. Restrição de aplicativo → "Websites", com os domínios da Vercel (e só
+       eles).
+    2. Restrição de API → "Maps JavaScript API" e "Geocoding API". Chave sem
+       restrição de API abre também Directions, Places e o resto do catálogo
+       cobrado.
 
-  A alternativa que tira a chave do navegador é mover a geocodificação para uma
-  Edge Function (onde o segredo NÃO leva `VITE_`, como registra o .env). É uma
-  mudança de arquitetura em relação ao original, e portanto decisão do usuário —
-  não deste port.
-
-  `VITE_GOOGLE_MAPS_API_KEY` NÃO EXISTE NO .env HOJE, e isso é esperado: sem ela
-  `geocodeAddress` devolve `{ success: false, error: 'API Key não configurada' }`,
-  exatamente como o original (geocoding.jsx:8-11), e o projeto fica com
-  `site_geocode_status = 'failed'`. O pino do mapa continua funcionando, porque
-  ele não passa por aqui.
+  SEM A VARIÁVEL o app inteiro continua subindo: `geocodeAddress` devolve
+  `{ success: false, error: 'API Key não configurada' }`, as duas funções do
+  pino devolvem vazio, e a tela do mapa mostra a frase que diz o que falta em
+  vez do mapa. Isso é deliberado — `src/lib/env.ts` declara a variável como
+  opcional, e o porquê está lá.
   ────────────────────────────────────────────────────────────────────────────
 */
 
 const GOOGLE_GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json'
-const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse'
-const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search'
 
-/*
-  O mesmo cabeçalho que o original manda nas duas chamadas ao Nominatim
-  (MapaProjetos.jsx:483 e :601). É o que faz o endereço voltar em português.
-
-  A política de uso do Nominatim pede também identificação do aplicativo e no
-  máximo uma consulta por segundo. O `User-Agent` não é definível a partir do
-  navegador (o fetch o ignora por especificação), e o original não manda nenhuma
-  outra identificação — fica como está, e a ressalva está no relatório.
-*/
-const NOMINATIM_HEADERS = {
-  'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8,es;q=0.7,*;q=0.5',
-}
-
-/* ── Google: o endereço da obra ────────────────────────────────────────── */
+/* ── Google via REST: o endereço da obra ───────────────────────────────── */
 
 /**
  * Porta de `geocodeAddress` (geocoding.jsx:5). Mesmo formato de retorno,
  * inclusive as frases de erro — elas aparecem no `console` do original e agora
  * podem chegar à tela.
+ *
+ * ESTA CONTINUA SENDO REST, e não o `Geocoder` da biblioteca JavaScript, porque
+ * ela roda fora da tela do mapa: `useGeocodeProjectSite` é chamada do módulo de
+ * projetos, onde o script do Google não está carregado. Baixar a API inteira
+ * para uma chamada de endereço seria carga de mapa cobrada sem mapa nenhum na
+ * tela.
  */
 export async function geocodeAddress(address: string): Promise<GeocodeResult> {
   /* Por `src/lib/env.ts`, e não por `import.meta.env` cru: é lá que este projeto
@@ -148,77 +148,143 @@ export function buildSiteAddress(contract: ContractSiteAddressFields): string {
     .join(', ')
 }
 
-/* ── Nominatim: o pino do mapa ─────────────────────────────────────────── */
-
-type NominatimAddress = Record<string, string | null | undefined>
+/* ── Google via biblioteca JavaScript: o pino do mapa ──────────────────── */
 
 /*
-  Porta de `formatCleanAddress` (MapaProjetos.jsx:433).
+  UM `Geocoder` PARA A SESSÃO INTEIRA. Ele não guarda estado entre chamadas, e
+  construir um por clique seria desperdício sem contrapartida.
+
+  A promessa de carregamento é a mesma de `google-maps-setup.ts`, então chamar
+  daqui não baixa um segundo script: se a tela do mapa já carregou, isto resolve
+  na hora.
+*/
+let geocoder: google.maps.Geocoder | null = null
+
+async function obterGeocoder(): Promise<google.maps.Geocoder | null> {
+  const apiKey = env.VITE_GOOGLE_MAPS_API_KEY
+  if (!apiKey) return null
+
+  try {
+    await carregarGoogleMaps(apiKey)
+  } catch {
+    return null
+  }
+
+  geocoder ??= new google.maps.Geocoder()
+  return geocoder
+}
+
+/*
+  A RECUSA DA CHAVE, que é diferente de "não achei nada".
+
+  `REQUEST_DENIED` com a frase "The webpage is not allowed to use the geocoder"
+  significa uma coisa só: a chave do navegador não tem a Geocoding API na lista
+  de APIs permitidas, ou a API não está ativada no projeto do Google Cloud. O
+  mapa continua desenhando normalmente, porque isso é outra API — e foi
+  exatamente assim que este caso apareceu, com o mapa perfeito e a busca muda.
+
+  Distinguir importa porque as duas respostas levam a ações opostas: lista vazia
+  é "digite outra coisa", recusa é "abra o console do Google Cloud".
+*/
+function ehRecusaDaChave(erro: unknown): boolean {
+  return (
+    typeof erro === 'object' &&
+    erro !== null &&
+    'code' in erro &&
+    (erro as { code: unknown }).code === 'REQUEST_DENIED'
+  )
+}
+
+export const MENSAGEM_DE_RECUSA =
+  'O Google recusou a busca de endereço. A chave do mapa precisa da Geocoding API ' +
+  'liberada no console do Google Cloud; o mapa em si usa outra API e continua funcionando.'
+
+/* O componente do endereço que o Google devolve, pelo primeiro tipo que casar. */
+function componente(
+  partes: google.maps.GeocoderAddressComponent[],
+  ...tipos: string[]
+): string {
+  for (const tipo of tipos) {
+    const achado = partes.find((parte) => parte.types.includes(tipo))
+    if (achado) return achado.long_name
+  }
+  return ''
+}
+
+/*
+  Porta de `formatCleanAddress` (MapaProjetos.jsx:433), lendo os componentes do
+  Google em vez do bloco `address` do Nominatim.
 
   Devolve DUAS LINHAS separadas por `\n`: rua (com número) e bairro na primeira,
   "Cidade – Estado, País" na segunda. É texto de EXIBIÇÃO — a tela o desenha com
-  `whitespace-pre-line` (:1202) e é assim que ele vai para a coluna `address`.
+  `whitespace-pre-line` e é assim que ele vai para a coluna `address`.
 
   O travessão entre cidade e estado é `–` (en dash), como no original, e não
   hífen.
+
+  A CORRESPONDÊNCIA DE CAMPOS, e ela não é óbvia no Brasil:
+
+    road/street      → `route`
+    house_number     → `street_number`
+    neighbourhood    → `sublocality_level_1`, que é o que o Google usa para
+                       bairro no Brasil; `neighborhood` vem como reserva.
+    city             → `administrative_area_level_2` ANTES de `locality`. No
+                       Brasil o município é o nível 2; `locality` às vezes traz
+                       o distrito (em Eusébio, "Precabura" em vez de "Eusébio"),
+                       e é o município que a coluna `city` filtra na tela.
+    state            → `administrative_area_level_1` com `long_name`, ou seja
+                       "Ceará" e não "CE" — igual ao que o Nominatim gravava,
+                       para o filtro de cidade não se partir em dois.
 */
-function formatCleanAddress(address: NominatimAddress | null | undefined): string {
-  if (!address) return ''
+function formatarEndereco(partes: google.maps.GeocoderAddressComponent[]): string {
+  const linha1: string[] = []
 
-  const parts: string[] = []
+  const rua = componente(partes, 'route')
+  const numero = componente(partes, 'street_number')
+  if (rua) linha1.push(numero ? `${rua}, ${numero}` : rua)
 
-  const street = address.road || address.street || address.route
-  const number = address.house_number
-  if (street) parts.push(number ? `${street}, ${number}` : street)
+  const bairro = componente(partes, 'sublocality_level_1', 'sublocality', 'neighborhood')
+  if (bairro) linha1.push(bairro)
 
-  const neighborhood = address.neighbourhood || address.suburb || address.sublocality
-  if (neighborhood) parts.push(neighborhood)
+  const cidade = componente(partes, 'administrative_area_level_2', 'locality')
+  const estado = componente(partes, 'administrative_area_level_1')
+  const pais = componente(partes, 'country')
 
-  const line1 = parts.join(', ')
+  const local: string[] = []
+  if (cidade) local.push(cidade)
+  if (estado) local.push(estado)
 
-  const city =
-    address.city || address.town || address.municipality || address.village || address.locality
-  const state = address.state || address.region || address.administrative_area_level_1
-  const country = address.country
+  const linha2 = local.join(' – ') + (pais ? `, ${pais}` : '')
 
-  const locationParts: string[] = []
-  if (city) locationParts.push(city)
-  if (state) locationParts.push(state)
-
-  const line2 = locationParts.join(' – ') + (country ? `, ${country}` : '')
-
-  return [line1, line2].filter(Boolean).join('\n')
+  return [linha1.join(', '), linha2].filter(Boolean).join('\n')
 }
 
 /*
   Reverse geocoding do clique no mapa (MapaProjetos.jsx:477-502).
 
-  A extração de cidade e estado é a do original, e repare que ela NÃO é a mesma
-  cadeia de `||` usada na segunda linha do endereço: aqui `locality` não entra na
-  cidade e `administrative_area_level_1` não entra no estado (:493-494). Ficou
-  como está — são dois trechos independentes lá, e igualá-los mudaria o que vai
-  para a coluna `city`, que é o filtro da tela.
-
-  Falha de rede ou resposta fora do formato devolvem `null`, e a tela abre o
-  formulário só com a coordenada, como no original (:511-517).
+  Falha de rede, chave sem a Geocoding API liberada ou ponto sem endereço
+  conhecido devolvem `null`, e a tela abre o formulário só com a coordenada,
+  como no original (:511-517). `ZERO_RESULTS` no meio do mar é exatamente esse
+  caso, e não é erro.
 */
 export async function reverseGeocodePin(
   lat: number,
   lng: number,
 ): Promise<ReverseGeocodedPin | null> {
+  const g = await obterGeocoder()
+  if (!g) return null
+
   try {
-    const url = `${NOMINATIM_REVERSE_URL}?format=json&lat=${lat}&lon=${lng}&addressdetails=1`
-    const response = await fetch(url, { headers: NOMINATIM_HEADERS })
+    const { results } = await g.geocode({ location: { lat, lng }, language: 'pt-BR' })
+    const primeiro = results[0]
+    if (!primeiro) return null
 
-    const parsed = nominatimReverseResponseSchema.safeParse(await response.json())
-    if (!parsed.success) return null
-
-    const address = parsed.data.address ?? null
+    const partes = primeiro.address_components
 
     return {
-      address: formatCleanAddress(address),
-      city: address?.city || address?.town || address?.municipality || address?.village || '',
-      state: address?.state || address?.region || '',
+      address: formatarEndereco(partes),
+      city: componente(partes, 'administrative_area_level_2', 'locality'),
+      state: componente(partes, 'administrative_area_level_1'),
     }
   } catch {
     return null
@@ -242,9 +308,14 @@ const COORDINATE_PATTERN = /^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/
     -38.527000". A faixa é validada antes (:583) — e é a mesma faixa do check do
     banco, sem a recusa de zero que a GRAVAÇÃO do pino faz.
 
+  `region: 'BR'` desempata nome repetido a favor do Brasil, que é onde está todo
+  lote deste escritório. Não é restrição: "Torre Eiffel" continua achando Paris.
+
   O DEBOUNCE DE 300ms NÃO ESTÁ AQUI: no original ele mora no componente
   (:618-632), e aqui mora no mesmo lugar, porque é sobre o que o usuário digitou
-  e não sobre a consulta.
+  e não sobre a consulta. Com Google cobrando por chamada, ele deixou de ser
+  gentileza com servidor de terceiro e passou a ser dinheiro: sem a pausa,
+  "Eusébio" dispara sete chamadas em vez de uma.
 */
 export async function searchPlaces(query: string): Promise<PlaceSearchResult[]> {
   if (!query || query.trim().length < 3) return []
@@ -268,87 +339,96 @@ export async function searchPlaces(query: string): Promise<PlaceSearchResult[]> 
           lng,
           displayName: `Coordenadas: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
           type: 'coordinates',
-          addressType: null,
+          types: ['coordinates'],
           boundingBox: null,
         },
       ]
     }
   }
 
+  const g = await obterGeocoder()
+  if (!g) return []
+
   try {
-    const url = `${NOMINATIM_SEARCH_URL}?format=json&q=${encodeURIComponent(query)}&limit=10&addressdetails=1`
-    const response = await fetch(url, { headers: NOMINATIM_HEADERS })
-
-    const parsed = nominatimSearchResponseSchema.safeParse(await response.json())
-    if (!parsed.success) return []
-
-    return parsed.data.flatMap((result): PlaceSearchResult[] => {
-      const lat = Number.parseFloat(result.lat)
-      const lng = Number.parseFloat(result.lon)
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return []
-
-      const box = result.boundingbox?.map(Number.parseFloat)
-      const boundingBox =
-        box && box.length === 4 && box.every(Number.isFinite)
-          ? ([box[0], box[1], box[2], box[3]] as [number, number, number, number])
-          : null
-
-      return [
-        {
-          lat,
-          lng,
-          displayName: result.display_name,
-          type: result.type ?? result.class ?? null,
-          addressType: result.addresstype ?? null,
-          boundingBox,
-        },
-      ]
+    const { results } = await g.geocode({
+      address: query,
+      region: 'BR',
+      language: 'pt-BR',
     })
-  } catch {
+
+    return results.map((resultado): PlaceSearchResult => {
+      const local = resultado.geometry.location
+
+      /*
+        `viewport` É O QUE O NOMINATIM CHAMAVA DE `boundingbox`, e o Google o
+        devolve em quase todo resultado: a janela que mostra o lugar inteiro. A
+        tela usa isso para enquadrar em vez de adivinhar zoom, e é por ele que
+        `zoomForPlace` quase nunca chega a ser chamada.
+      */
+      const janela = resultado.geometry.viewport
+      const boundingBox = janela
+        ? ([
+            janela.getSouthWest().lat(),
+            janela.getNorthEast().lat(),
+            janela.getSouthWest().lng(),
+            janela.getNorthEast().lng(),
+          ] as [number, number, number, number])
+        : null
+
+      return {
+        lat: local.lat(),
+        lng: local.lng(),
+        displayName: resultado.formatted_address,
+        type: resultado.types[0] ?? null,
+        types: resultado.types,
+        boundingBox,
+      }
+    })
+  } catch (erro) {
+    /* A recusa SOBE, para a tela poder dizer o que conferir. O React Query não
+       repete esta consulta (`retry: false` no hook): recusa de chave não melhora
+       na terceira tentativa. */
+    if (ehRecusaDaChave(erro)) throw new Error(MENSAGEM_DE_RECUSA)
+
+    /* `ZERO_RESULTS` chega aqui como exceção. Lista vazia é a resposta certa:
+       a tela não abre o painel de sugestões quando não há nada. */
     return []
   }
 }
 
 /*
-  O zoom que a tela dá ao escolher um resultado sem `boundingBox`
-  (MapaProjetos.jsx:651-671), na mesma ordem de decisão do original.
+  O zoom que a tela dá ao escolher um resultado SEM `viewport`
+  (MapaProjetos.jsx:651-671), na mesma escada de decisão do original — com a
+  taxonomia do Google no lugar da do Nominatim.
 
-  Mora aqui, e não no componente, porque é uma leitura da taxonomia do Nominatim
-  — a mesma fonte que produziu `type` e `addressType`. Quem tem `boundingBox`
-  não passa por aqui: o original usa `flyToBounds` nesse caso (:642-649).
+  Mora aqui, e não no componente, porque é leitura da taxonomia de quem produziu
+  `types`. Quem tem `boundingBox` não passa por aqui: a tela enquadra a janela.
 */
 export function zoomForPlace(result: PlaceSearchResult): number {
-  const { type, addressType } = result
+  const tipos = result.types
 
-  if (type === 'coordinates') return 18
+  if (tipos.includes('coordinates')) return 18
   if (
-    addressType === 'road' ||
-    addressType === 'house' ||
-    addressType === 'building' ||
-    type === 'building'
+    tipos.includes('street_address') ||
+    tipos.includes('premise') ||
+    tipos.includes('subpremise') ||
+    tipos.includes('point_of_interest') ||
+    tipos.includes('establishment')
   ) {
     return 18
   }
+  if (tipos.includes('route') || tipos.includes('intersection')) return 17
   if (
-    addressType === 'neighbourhood' ||
-    addressType === 'suburb' ||
-    type === 'residential'
+    tipos.includes('neighborhood') ||
+    tipos.includes('sublocality') ||
+    tipos.includes('sublocality_level_1')
   ) {
     return 15
   }
-  if (
-    addressType === 'city' ||
-    addressType === 'town' ||
-    addressType === 'village' ||
-    type === 'administrative'
-  ) {
-    return 12
-  }
-  if (addressType === 'state' || addressType === 'region') return 8
-  if (addressType === 'country') return 5
-  if (type === 'amenity' || type === 'tourism' || type === 'shop' || type === 'leisure') {
-    return 17
-  }
+  if (tipos.includes('locality') || tipos.includes('administrative_area_level_2')) return 12
+  if (tipos.includes('administrative_area_level_1')) return 8
+  if (tipos.includes('country')) return 5
+  if (tipos.includes('postal_code')) return 16
 
   return 16
 }

@@ -254,7 +254,7 @@ export function useProjectSiteLocations() {
 */
 
 /* O clique no mapa em modo "Nova Propriedade" (MapaProjetos.jsx:469). Devolve
-   null quando o Nominatim não responde — e a tela abre o formulário só com a
+   null quando o Google não responde — e a tela abre o formulário só com a
    coordenada, como no original (:511). */
 export function useReverseGeocodePin() {
   return useMutation({
@@ -267,9 +267,10 @@ export function useReverseGeocodePin() {
   A caixa "Buscar Localização" (MapaProjetos.jsx:565).
 
   Query e não mutation: a mesma busca repetida devolve o mesmo resultado, e o
-  cache poupa o Nominatim — cuja política de uso pede no máximo uma consulta por
-  segundo. O DEBOUNCE de 300ms continua no componente, como no original: ele é
-  sobre a digitação, não sobre a consulta.
+  cache poupa CHAMADA COBRADA — o Geocoding do Google custa por consulta, e o
+  mesmo termo digitado duas vezes na mesma sessão sai do cache. O DEBOUNCE de
+  300ms continua no componente, como no original: ele é sobre a digitação, não
+  sobre a consulta.
 */
 export function useSearchPlaces(query: string) {
   const term = query.trim()
@@ -278,6 +279,9 @@ export function useSearchPlaces(query: string) {
     queryKey: mapKeys.places(term),
     enabled: term.length >= 3,
     queryFn: async (): Promise<PlaceSearchResult[]> => searchPlaces(term),
+    /* A única falha que `searchPlaces` levanta é a chave recusada, e ela não
+       melhora na terceira tentativa — repetir só gastaria chamada. */
+    retry: false,
   })
 }
 

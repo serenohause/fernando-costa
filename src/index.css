@@ -469,61 +469,25 @@
 }
 
 /*
-  LEAFLET — camadas do mapa, portadas de projeto-original/src/globals.css:151-185.
+  GOOGLE MAPS — o empilhamento do mapa.
 
-  O Leaflet põe seus painéis em z-index 400 a 800 e o container em 0, contando
-  com uma página que não tenha nada por cima. Este sistema tem: diálogo em 50001,
-  alert-dialog em 60001, sheet em 40001, select em 99999 (ver src/components/ui).
-  Sem estas regras o balão do pino e os controles do mapa aparecem POR CIMA do
-  diálogo de confirmação.
+  AQUI HAVIA OITO REGRAS `!important`, portadas de
+  projeto-original/src/globals.css:151-185, que puxavam os painéis do Leaflet
+  (z-index 400 a 800) para baixo de qualquer overlay deste sistema: diálogo em
+  50001, alert-dialog em 60001, sheet em 40001, select em 99999. Sem elas o
+  balão do pino aparecia por cima do diálogo de confirmação.
 
-  Os valores são relativos ao contexto de empilhamento do `.leaflet-container`,
-  que fica em 1 — ou seja, o mapa inteiro passa a caber embaixo de qualquer
-  overlay do app, mantendo a ordem interna dele (tiles, marcadores, balões,
-  controles). O `!important` é o do original: as regras do leaflet.css não têm
-  prioridade, mas a folha dele pode ser carregada depois desta.
+  AS OITO SAÍRAM COM O LEAFLET, e não foram substituídas por oito equivalentes
+  do Google — o problema inteiro foi resolvido com uma linha, no lugar certo: a
+  moldura do mapa, em MapaProjetos.tsx, leva `isolation: isolate`. Isso faz dela
+  um contexto de empilhamento, e contexto de empilhamento é o que confina
+  z-index: o `InfoWindow` do Google pede 1.000.002 e continua pedindo, só que
+  agora dentro de uma caixa que vale 0 na página. Nada do mapa tem como subir
+  acima de um overlay.
 
-  O CSS do Leaflet em si é importado pela tela do mapa
-  (src/features/map/components/MapaProjetos.tsx), como no original.
-
-  O `.leaflet-container` NA FRENTE DE CADA SELETOR é a única diferença em relação
-  ao original, e ela é sobre o build, não sobre a tela: o minificador de CSS
-  (lightningcss, que vem com o Tailwind v4) APAGA uma regra `!important` quando
-  encontra depois, no mesmo pacote, outra com o MESMO seletor e a mesma
-  propriedade — e o leaflet.css tem exatamente isso (`.leaflet-popup-pane
-  { z-index: 700 }`). Medido: quatro das oito regras desapareciam do CSS
-  publicado. Com o prefixo os seletores deixam de coincidir, as oito sobrevivem e
-  a especificidade continua igual entre elas, mantendo a mesma cascata do
-  original (a última vence).
+  Vale registrar por que não era assim antes: o original é Tailwind v3 sobre
+  Leaflet, e `isolation` não estava no vocabulário dele. Era cascata contra
+  cascata, com `!important` dos dois lados e o minificador de CSS apagando
+  quatro das oito regras no caminho (medido). Uma propriedade declarada uma vez
+  substitui tudo isso.
 */
-.leaflet-container .leaflet-pane {
-  z-index: 10 !important;
-}
-
-.leaflet-container .leaflet-tile-pane {
-  z-index: 10 !important;
-}
-
-.leaflet-container .leaflet-overlay-pane {
-  z-index: 20 !important;
-}
-
-.leaflet-container .leaflet-marker-pane {
-  z-index: 30 !important;
-}
-
-.leaflet-container .leaflet-tooltip-pane {
-  z-index: 40 !important;
-}
-
-.leaflet-container .leaflet-popup-pane {
-  z-index: 50 !important;
-}
-
-.leaflet-container .leaflet-control {
-  z-index: 60 !important;
-}
-
-.leaflet-container {
-  z-index: 1 !important;
-}

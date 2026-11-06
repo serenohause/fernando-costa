@@ -193,7 +193,7 @@ export const movedPinPositionSchema = withPinRules(
 )
 
 /*
-  O pino NOVO chega com a coordenada do clique E com o que o Nominatim devolveu,
+  O pino NOVO chega com a coordenada do clique E com o que o Google devolveu,
   e os três textos passam por `nullIfBlank` de propósito.
 
   O original grava `address: modalData.address || ''` (MapaProjetos.jsx:546), ou
@@ -244,46 +244,17 @@ export const googleGeocodeResponseSchema = z.object({
 })
 
 /*
-  O bloco `address` do Nominatim. Campo nenhum é garantido: o que existe depende
-  do que o OpenStreetMap tem naquele ponto, e `formatCleanAddress` já é escrito
-  em cima dessa incerteza (uma cadeia de `||` por linha do endereço).
+  OS TRÊS SCHEMAS DO NOMINATIM SAÍRAM DAQUI, e não foram substituídos por
+  equivalentes do Google.
+
+  Eles existiam para conferir JSON cru vindo de `fetch`: o Nominatim respondia
+  com objeto de forma incerta, e `safeParse` era o que impedia um campo ausente
+  de virar `undefined` dentro do endereço gravado. A busca de lugar e o endereço
+  do clique agora passam pela biblioteca JavaScript do Google
+  (`google.maps.Geocoder`), que devolve objeto já tipado por
+  `@types/google.maps` — conferir de novo em tempo de execução seria validar o
+  que o compilador já garante.
+
+  `googleGeocodeResponseSchema`, acima, CONTINUA: aquela chamada é REST, o JSON
+  é cru, e o schema é o que o protege.
 */
-export const nominatimAddressSchema = z.object({
-  road: z.string().nullish(),
-  street: z.string().nullish(),
-  route: z.string().nullish(),
-  house_number: z.string().nullish(),
-  neighbourhood: z.string().nullish(),
-  suburb: z.string().nullish(),
-  sublocality: z.string().nullish(),
-  city: z.string().nullish(),
-  town: z.string().nullish(),
-  municipality: z.string().nullish(),
-  village: z.string().nullish(),
-  locality: z.string().nullish(),
-  state: z.string().nullish(),
-  region: z.string().nullish(),
-  administrative_area_level_1: z.string().nullish(),
-  country: z.string().nullish(),
-})
-
-export const nominatimReverseResponseSchema = z.object({
-  address: nominatimAddressSchema.nullish(),
-})
-
-/*
-  `lat` e `lon` chegam como STRING no Nominatim, e o original converte com
-  `parseFloat` na hora de usar (MapaProjetos.jsx:635). `boundingbox` é um array
-  de quatro strings, na ordem sul, norte, oeste, leste.
-*/
-export const nominatimSearchResultSchema = z.object({
-  lat: z.string(),
-  lon: z.string(),
-  display_name: z.string(),
-  type: z.string().nullish(),
-  class: z.string().nullish(),
-  addresstype: z.string().nullish(),
-  boundingbox: z.array(z.string()).nullish(),
-})
-
-export const nominatimSearchResponseSchema = z.array(nominatimSearchResultSchema)

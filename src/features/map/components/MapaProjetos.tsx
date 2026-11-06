@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import L, { type LatLng, type Map as LeafletMap } from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
 /* `Map` do Lucide colide com o `Map` do JavaScript, que este arquivo não usa mas
-   o TypeScript enxerga. O ícone é o mesmo do original (MapaProjetos.jsx:12). */
-import { Edit3, Map as MapIcon, MapPin, Satellite, Save, Search, X } from 'lucide-react'
+   o TypeScript enxerga. O ícone é o mesmo do original (MapaProjetos.jsx:12);
+   `Layers` e `Mountain` são as duas camadas novas do Google. */
+import {
+  type LucideIcon,
+  Edit3,
+  Layers,
+  Map as MapIcon,
+  MapPin,
+  Mountain,
+  Satellite,
+  Save,
+  Search,
+  X,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import ErrorState from '@/components/shared/ErrorState'
 import LoadingPage from '@/components/shared/LoadingPage'
@@ -56,18 +65,45 @@ import type {
   MapPropertyInput,
   PlaceSearchResult,
 } from '../types'
-import { DEFAULT_CENTER, DEFAULT_ZOOM, TILE_LAYERS, searchResultIcon, type MapType } from './leaflet-setup'
-import { DraggableMarker, MapController } from './MapController'
+import { env } from '@/lib/env'
+import { DEFAULT_CENTER, DEFAULT_ZOOM, type MapType } from './google-maps-setup'
+import MapaGoogle from './MapaGoogle'
 import MapPropertyForm, {
   toCreateValues,
   toEditValues,
   type MapPropertyFormValues,
 } from './MapPropertyForm'
-import PropertyPopup from './PropertyPopup'
 import PropertySummaryModal from './PropertySummaryModal'
 
 /*
   Porta de projeto-original/src/pages/MapaProjetos.jsx.
+
+  ────────────────────────────────────────────────────────────────────────────
+  O MOTOR DO MAPA É O GOOGLE, e isso é mudança deste projeto, não do original.
+
+  Saíram: Leaflet, react-leaflet, os tiles do OpenStreetMap e a imagem de
+  satélite da Esri. Entraram: a Maps JavaScript API e o agrupamento oficial
+  (`@googlemaps/markerclusterer`). O desenho do mapa mora em `MapaGoogle.tsx`;
+  esta tela continua dona do estado, dos filtros e das decisões.
+
+  TRÊS COISAS GANHAS, e elas são o motivo da troca:
+
+    1. AGRUPAMENTO. 156 dos pinos do escritório estão em Eusébio, e no zoom de
+       cidade eles viravam uma mancha azul sem contagem. Agora viram bolha com
+       número.
+    2. DUAS CAMADAS NOVAS. `hybrid` é a foto de satélite com nome de rua por
+       cima, que é o que serve para achar lote; `terrain` mostra relevo.
+    3. BASE GEOGRÁFICA ATUAL. Loteamento novo em Eusébio e Aquiraz o Google já
+       tem; o OpenStreetMap, em boa parte, não.
+
+  O QUE ISSO CUSTA: carga de mapa a US$ 7,00 por mil, com 10.000 por mês sem
+  cobrança. Trocar de camada NÃO é carga nova — o mapa é um objeto só, que muda
+  de `mapTypeId`. O custo do endereço e da busca de lugar está em geocoding.ts.
+
+  SEM A CHAVE a tela não quebra: ela mostra, no lugar do mapa, a frase que diz
+  qual variável falta. A coluna da esquerda continua inteira, porque ela nunca
+  dependeu do mapa.
+  ────────────────────────────────────────────────────────────────────────────
 
   O cabeçalho, o botão de marcar propriedade, a coluna de 30% com a caixa azul de
   busca de localização, o cartão de filtros, o cartão do cliente escolhido, a
@@ -134,6 +170,42 @@ import PropertySummaryModal from './PropertySummaryModal'
   o mesmo comportamento, com o compilador conferindo que a tela não leia
   `property` quando o que está aberto é a criação.
 */
+/*
+  O CENTRO DE UM CONJUNTO DE PINOS, que era `L.latLngBounds(...).getCenter()`.
+
+  O Google tem `LatLngBounds` com o mesmo `getCenter`, mas ele só existe depois
+  de o script da API ter carregado — e este cálculo roda num efeito que pode
+  disparar antes disso. A conta é a mesma para qualquer conjunto que não
+  atravesse o antimeridiano, e nenhum lote deste escritório atravessa.
+*/
+function centroDoConjunto(itens: { lat: number; lng: number }[]): [number, number] {
+  let menorLat = itens[0].lat
+  let maiorLat = itens[0].lat
+  let menorLng = itens[0].lng
+  let maiorLng = itens[0].lng
+
+  for (const item of itens) {
+    if (item.lat < menorLat) menorLat = item.lat
+    if (item.lat > maiorLat) maiorLat = item.lat
+    if (item.lng < menorLng) menorLng = item.lng
+    if (item.lng > maiorLng) maiorLng = item.lng
+  }
+
+  return [(menorLat + maiorLat) / 2, (menorLng + maiorLng) / 2]
+}
+
+/*
+  AS QUATRO CAMADAS, na ordem e com o microcopy do protótipo. A tela do Leaflet
+  tinha duas ("Padrão" e "Satélite"); "Padrão" virou "Mapa", que é o rótulo do
+  protótipo, e as duas de baixo são novas.
+*/
+const CAMADAS: { tipo: MapType; rotulo: string; Icone: LucideIcon }[] = [
+  { tipo: 'roadmap', rotulo: 'Mapa', Icone: MapIcon },
+  { tipo: 'satellite', rotulo: 'Satélite', Icone: Satellite },
+  { tipo: 'hybrid', rotulo: 'Híbrido', Icone: Layers },
+  { tipo: 'terrain', rotulo: 'Relevo', Icone: Mountain },
+]
+
 type MapModal =
   | { type: 'CREATE'; location: MapPinLocation }
   | { type: 'EDIT'; property: EnrichedMapProperty }
@@ -158,7 +230,7 @@ export default function MapaProjetos() {
   const [tempNewPin, setTempNewPin] = useState<[number, number] | null>(null)
   const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_CENTER)
   const [mapZoom, setMapZoom] = useState<number | null>(DEFAULT_ZOOM)
-  const [mapType, setMapType] = useState<MapType>('standard')
+  const [mapType, setMapType] = useState<MapType>('roadmap')
   const [isButtonDisabled, setIsButtonDisabled] = useState(false)
   const [shouldFitBounds, setShouldFitBounds] = useState(false)
 
@@ -173,9 +245,11 @@ export default function MapaProjetos() {
     label: string
   } | null>(null)
 
-  const mapRef = useRef<LeafletMap | null>(null)
-
   const { canEdit } = useMenuPermissions('map')
+
+  /* Por `src/lib/env.ts`: a variável é OPCIONAL lá, e é esta tela que decide o
+     que fazer quando ela falta. */
+  const chaveDoMapa = env.VITE_GOOGLE_MAPS_API_KEY
 
   /*
     Cliente, cidade e finalidade viram WHERE (types.ts, `MapPropertyFilters`); o
@@ -250,11 +324,7 @@ export default function MapaProjetos() {
         const property = filteredProperties[0]
         applyView([property.lat, property.lng], 16, false)
       } else {
-        const bounds = L.latLngBounds(
-          filteredProperties.map((property) => [property.lat, property.lng] as [number, number]),
-        )
-        const center = bounds.getCenter()
-        applyView([center.lat, center.lng], null, true)
+        applyView(centroDoConjunto(filteredProperties), null, true)
       }
     } else if (searchTerm) {
       if (filteredProperties.length === 1) {
@@ -262,11 +332,7 @@ export default function MapaProjetos() {
         applyView([property.lat, property.lng], 18, false)
         setSelectedProperty(property)
       } else {
-        const bounds = L.latLngBounds(
-          filteredProperties.map((property) => [property.lat, property.lng] as [number, number]),
-        )
-        const center = bounds.getCenter()
-        applyView([center.lat, center.lng], null, true)
+        applyView(centroDoConjunto(filteredProperties), null, true)
       }
     }
   }, [searchTerm, selectedClient, cityFilter, purposeFilter, filteredProperties, applyView])
@@ -279,8 +345,8 @@ export default function MapaProjetos() {
     setSelectedProperty(null)
   }
 
-  const handleMarkerDragEnd = useCallback((latlng: LatLng) => {
-    setTempMarkerPosition([latlng.lat, latlng.lng])
+  const handleMarkerDragEnd = useCallback((lat: number, lng: number) => {
+    setTempMarkerPosition([lat, lng])
   }, [])
 
   const handleSavePin = () => {
@@ -332,13 +398,12 @@ export default function MapaProjetos() {
   const closeModal = () => setModal(null)
 
   const handleMapClick = useCallback(
-    async (latlng: LatLng) => {
+    async (lat: number, lng: number) => {
       if (!addingMode) return
 
-      const { lat, lng } = latlng
       setTempNewPin([lat, lng])
 
-      /* Reverse geocoding pelo Nominatim; falhar não impede marcar o pino — o
+      /* Reverse geocoding pelo Google; falhar não impede marcar o pino — o
          formulário abre só com a coordenada, como no original (:511-517). */
       try {
         const address = await reverseGeocode.mutateAsync({ lat, lng })
@@ -410,7 +475,6 @@ export default function MapaProjetos() {
   /* ── Pino existente: informações, resumo, remoção ──────────────────────── */
 
   const handleEditPropertyInfo = (property: EnrichedMapProperty) => {
-    mapRef.current?.closePopup()
     setSelectedProperty(null)
     /* Busca a propriedade recém-lida pelo id, para não editar uma cópia velha
        (:740). */
@@ -446,15 +510,13 @@ export default function MapaProjetos() {
   }
 
   const handleViewPropertySummary = (property: EnrichedMapProperty) => {
-    mapRef.current?.closePopup()
     const full = properties.find((item) => item.id === property.id) ?? property
     setModal({ type: 'SUMMARY', property: full })
   }
 
-  /* Fecha o balão do Leaflet antes de abrir a confirmação — sem isso o balão
-     fica por cima do diálogo (:723-729). */
+  /* O balão é fechado por `MapaGoogle` antes de qualquer ação do pino — sem
+     isso ele fica por cima do diálogo (:723-729). */
   const handleRemovePinClick = (property: EnrichedMapProperty) => {
-    mapRef.current?.closePopup()
     setModal({ type: 'DELETE', property })
   }
 
@@ -474,12 +536,13 @@ export default function MapaProjetos() {
     })
   }
 
-  /* ── Busca de localização (Nominatim) ──────────────────────────────────── */
+  /* ── Busca de localização (Geocoding do Google) ───────────────────────── */
 
   /*
-    O DEBOUNCE DE 300ms É O DO ORIGINAL (:623), e ele é obrigatório: a política de
-    uso do Nominatim pede no máximo uma consulta por segundo. O cache do React
-    Query poupa a repetição por cima disso.
+    O DEBOUNCE DE 300ms É O DO ORIGINAL (:623), e ele continua obrigatório por
+    outro motivo: cada consulta ao Geocoding do Google é cobrada. Sem a pausa,
+    "Eusébio" dispara sete chamadas; com ela, dispara uma. O cache do React Query
+    poupa a repetição por cima disso.
   */
   const debouncedGeoTerm = useDebouncedValue(geoSearchTerm, 300)
   const placesQuery = useSearchPlaces(debouncedGeoTerm)
@@ -519,13 +582,8 @@ export default function MapaProjetos() {
 
     if (result.boundingBox) {
       const [south, north, west, east] = result.boundingBox
-      const bounds = L.latLngBounds([
-        [south, west],
-        [north, east],
-      ])
-      const center = bounds.getCenter()
-      /* `zoom` nulo é o combinado com o MapController para enquadrar bounds. */
-      applyView([center.lat, center.lng], null, true)
+      /* `zoom` nulo é o combinado com o mapa: enquadrar em vez de aproximar. */
+      applyView([(south + north) / 2, (west + east) / 2], null, true)
     } else {
       applyView([result.lat, result.lng], zoomForPlace(result), false)
     }
@@ -612,8 +670,6 @@ export default function MapaProjetos() {
       </div>
     )
   }
-
-  const tileLayer = TILE_LAYERS[mapType]
 
   return (
     <div className="h-[calc(100vh-8rem)]">
@@ -709,6 +765,18 @@ export default function MapaProjetos() {
 
               {placesQuery.isFetching && (
                 <p className="text-xs text-muted-foreground mt-1">Buscando...</p>
+              )}
+
+              {/* A ÚNICA FALHA QUE CHEGA AQUI é a chave recusada pelo Google, e
+                  ela merece frase própria: o mapa continua desenhando, então
+                  sem esta linha a caixa de busca ficaria muda sem motivo
+                  visível. Lista vazia não passa por aqui. */}
+              {placesQuery.isError && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                  {placesQuery.error instanceof Error
+                    ? placesQuery.error.message
+                    : 'A busca de endereço falhou.'}
+                </p>
               )}
             </div>
           </Card>
@@ -920,34 +988,31 @@ export default function MapaProjetos() {
         {/* overflow-hidden must NOT be used here — it would clip the dialog/modal z-index stacking */}
         <Card className="flex-1 relative" style={{ overflow: 'visible' }}>
           {/* Controles do mapa */}
-          <div className="absolute top-4 right-4 z-1000 flex gap-2">
-            {/*
-              O ORIGINAL PÕE `bg-white` NOS DOIS BOTÕES (:1080 e :1089),
-              inclusive por cima da variante `default` do botão ATIVO, que tem
-              texto branco: o rótulo da camada selecionada some no fundo branco.
-              CORRIGIDO tirando o fundo do botão ativo — ele fica com as cores da
-              própria variante `default`. O botão inativo não mudou em nada:
-              continua `outline` com fundo de cartão e a mesma sombra.
-            */}
-            <Button
-              size="sm"
-              variant={mapType === 'standard' ? 'default' : 'outline'}
-              onClick={() => setMapType('standard')}
-              className={mapType === 'standard' ? 'shadow-lg' : 'bg-card shadow-lg'}
-            >
-              <MapIcon className="w-4 h-4 mr-1" />
-              Padrão
-            </Button>
-            <Button
-              size="sm"
-              variant={mapType === 'satellite' ? 'default' : 'outline'}
-              onClick={() => setMapType('satellite')}
-              className={mapType === 'satellite' ? 'shadow-lg' : 'bg-card shadow-lg'}
-            >
-              <Satellite className="w-4 h-4 mr-1" />
-              Satélite
-            </Button>
-          </div>
+          {chaveDoMapa && (
+            <div className="absolute top-4 right-4 z-1000 flex gap-2">
+              {/*
+                O ORIGINAL PÕE `bg-white` NOS DOIS BOTÕES (:1080 e :1089),
+                inclusive por cima da variante `default` do botão ATIVO, que tem
+                texto branco: o rótulo da camada selecionada some no fundo
+                branco. CORRIGIDO tirando o fundo do botão ativo — ele fica com
+                as cores da própria variante `default`. O botão inativo não
+                mudou em nada: continua `outline` com fundo de cartão e a mesma
+                sombra. É a mesma correção que o protótipo mostra.
+              */}
+              {CAMADAS.map(({ tipo, rotulo, Icone }) => (
+                <Button
+                  key={tipo}
+                  size="sm"
+                  variant={mapType === tipo ? 'default' : 'outline'}
+                  onClick={() => setMapType(tipo)}
+                  className={mapType === tipo ? 'shadow-lg' : 'bg-card shadow-lg'}
+                >
+                  <Icone className="w-4 h-4 mr-1" />
+                  {rotulo}
+                </Button>
+              ))}
+            </div>
+          )}
 
           {editingPin && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-1000 bg-card px-4 py-3 rounded-lg shadow-lg border border-border flex items-center gap-3">
@@ -966,86 +1031,61 @@ export default function MapaProjetos() {
             </div>
           )}
 
-          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 'inherit' }}>
-            <MapContainer
-              ref={mapRef}
-              center={DEFAULT_CENTER}
-              zoom={DEFAULT_ZOOM}
-              /*
-                `style` é congelado na montagem pelo MapContainer (v4 e v5 guardam
-                className/id/style num `useState`), então o cursor de cruz do
-                original nunca chega a aparecer. Fica como está.
-              */
-              style={{
-                width: '100%',
-                height: '100%',
-                cursor: addingMode ? 'crosshair' : 'default',
-              }}
-              zoomControl={true}
-            >
-              <TileLayer attribution={tileLayer.attribution} url={tileLayer.url} />
-
-              <MapController
+          {/* `isolation: isolate` É O QUE MANTÉM O MAPA EMBAIXO DOS DIÁLOGOS. O
+              `InfoWindow` do Google pede z-index 1.000.002; aqui dentro, isso
+              vale só contra os irmãos dele. Ver o comentário em src/index.css,
+              onde moravam as oito regras `!important` do Leaflet. */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              overflow: 'hidden',
+              borderRadius: 'inherit',
+              isolation: 'isolate',
+            }}
+          >
+            {chaveDoMapa ? (
+              <MapaGoogle
+                apiKey={chaveDoMapa}
+                mapType={mapType}
                 center={mapCenter}
                 zoom={mapZoom}
-                properties={filteredProperties}
-                onMapClick={addingMode ? handleMapClick : null}
                 shouldFitBounds={shouldFitBounds}
+                properties={filteredProperties}
+                addingMode={addingMode}
+                onMapClick={handleMapClick}
+                tempNewPin={tempNewPin}
+                searchMarker={searchMarker}
+                editingPin={editingPin}
+                draggedPosition={tempMarkerPosition}
+                onPinDragEnd={handleMarkerDragEnd}
+                onSelectProperty={setSelectedProperty}
+                canEdit={canEdit}
+                onViewSummary={handleViewPropertySummary}
+                onEditInfo={handleEditPropertyInfo}
+                onEditPin={handleEditPin}
+                onRemove={handleRemovePinClick}
               />
-
-              {tempNewPin && (
-                <Marker position={tempNewPin}>
-                  <Popup>
-                    <div className="text-sm">
-                      <p className="font-semibold">Nova propriedade</p>
-                    </div>
-                  </Popup>
-                </Marker>
-              )}
-
-              {searchMarker && (
-                <Marker position={[searchMarker.lat, searchMarker.lng]} icon={searchResultIcon}>
-                  <Popup>
-                    <div className="text-sm">
-                      <p className="font-semibold">Resultado da busca</p>
-                      <p className="text-xs text-soft mt-1">{searchMarker.label}</p>
-                    </div>
-                  </Popup>
-                </Marker>
-              )}
-
-              {editingPin ? (
-                <DraggableMarker
-                  position={tempMarkerPosition ?? [editingPin.lat, editingPin.lng]}
-                  onDragEnd={handleMarkerDragEnd}
-                />
-              ) : (
-                filteredProperties.map((property) => (
-                  <Marker
-                    key={property.id}
-                    position={[property.lat, property.lng]}
-                    eventHandlers={{
-                      click: () => {
-                        setSelectedProperty(property)
-                      },
-                    }}
-                  >
-                    <Popup maxWidth={350}>
-                      <PropertyPopup
-                        property={property}
-                        canEdit={canEdit}
-                        onViewSummary={handleViewPropertySummary}
-                        onEditInfo={handleEditPropertyInfo}
-                        onEditPin={handleEditPin}
-                        onRemove={handleRemovePinClick}
-                      />
-                    </Popup>
-                  </Marker>
-                ))
-              )}
-            </MapContainer>
+            ) : (
+              /*
+                SEM CHAVE, SEM MAPA, e a tela diz qual é a variável. A alternativa
+                seria deixar o Leaflet como reserva, e isso manteria dois motores
+                de mapa no projeto para sempre por causa de uma variável de
+                ambiente — o dobro de código para o dia em que alguém esquecer de
+                preencher o painel da Vercel.
+              */
+              <div className="h-full flex items-center justify-center p-6">
+                <div className="max-w-md text-center">
+                  <MapPin className="w-10 h-10 text-faint mx-auto mb-3" />
+                  <p className="text-muted-foreground font-medium">O mapa não está configurado</p>
+                  <p className="text-faint text-sm mt-2">
+                    Falta a variável <code>VITE_GOOGLE_MAPS_API_KEY</code> neste ambiente. A lista
+                    de propriedades à esquerda continua funcionando.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-          {/* end map overflow wrapper */}
         </Card>
       </div>
 

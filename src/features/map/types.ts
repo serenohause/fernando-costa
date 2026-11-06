@@ -111,7 +111,7 @@ export type MapPropertyInput = {
 
 /*
   O que o clique no mapa produz, antes de o formulário abrir: a coordenada e o
-  que o reverse geocoding do Nominatim devolveu (MapaProjetos.jsx:496-502).
+  que o reverse geocoding do Google devolveu (MapaProjetos.jsx:496-502).
 */
 export type MapPinLocation = {
   lat: number
@@ -211,7 +211,7 @@ export type GeocodeResult =
     }
   | { success: false; error: string }
 
-/* O que o reverse geocoding do Nominatim entrega ao formulário de pino novo
+/* O que o reverse geocoding do Google entrega ao formulário de pino novo
    (MapaProjetos.jsx:491-502), já formatado. */
 export type ReverseGeocodedPin = {
   /* Endereço de EXIBIÇÃO em duas linhas, com `\n` no meio — a tela o desenha com
@@ -224,16 +224,22 @@ export type ReverseGeocodedPin = {
 /*
   Um resultado da caixa "Buscar Localização" (MapaProjetos.jsx:597-607).
 
-  `type` e `addressType` vêm crus do Nominatim e existem só para decidir o zoom
-  (`zoomForPlace`); `boundingBox` é `[sul, norte, oeste, leste]`, a mesma ordem
-  em que o original desempacota `result.boundingbox` (:643).
+  `types` vem cru do Google — a lista de tipos do resultado, de `street_address`
+  a `country` — e existe para decidir o zoom (`zoomForPlace`). `type` é o
+  primeiro dela, e é o que a tela mostra embaixo do nome do lugar.
+
+  `boundingBox` é `[sul, norte, oeste, leste]`, a mesma ordem em que o original
+  desempacota `result.boundingbox` (:643); hoje ele vem do `viewport` do Google.
+
+  O original tinha também `addressType`, que era o `addresstype` do Nominatim. O
+  Google não separa as duas coisas: tem uma lista só, e ela é `types`.
 */
 export type PlaceSearchResult = {
   lat: number
   lng: number
   displayName: string
   type: string | null
-  addressType: string | null
+  types: string[]
   boundingBox: [number, number, number, number] | null
 }
 
