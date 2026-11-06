@@ -47,7 +47,7 @@
     node scripts/prototipo-mapa.mjs
   Ele le a chave de .env.dev, injeta na pagina e serve em http://localhost:5173,
   que e o endereco ja autorizado na restricao da chave. A chave NAO fica neste
-  arquivo: ele guarda so o marcador __GOOGLE_MAPS_KEY__.
+  arquivo: ele guarda so o marcador %VITE_GOOGLE_MAPS_API_KEY%.
 -->
 <html lang="pt-BR">
   <head>
@@ -705,7 +705,7 @@
     <script src="https://unpkg.com/@googlemaps/markerclusterer@2.5.3/dist/index.min.js"></script>
     <script
       async
-      src="https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_KEY__&loading=async&callback=iniciarMapa&language=pt-BR&region=BR"
+      src="https://maps.googleapis.com/maps/api/js?key=%VITE_GOOGLE_MAPS_API_KEY%&loading=async&callback=iniciarMapa&language=pt-BR&region=BR"
     ></script>
   </body>
 </html>

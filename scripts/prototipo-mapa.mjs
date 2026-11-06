@@ -8,7 +8,7 @@
 //
 //   1. A CHAVE NAO PODE ENTRAR NO GIT. `prototypes/` e versionado, e chave de
 //      Google commitada e chave queimada. Entao o HTML guarda so o marcador
-//      `__GOOGLE_MAPS_KEY__`, e a substituicao acontece em memoria, no caminho
+//      `%VITE_GOOGLE_MAPS_API_KEY%`, e a substituicao acontece em memoria, no caminho
 //      entre o disco e o navegador. Nada com a chave dentro toca o disco.
 //
 //   2. A PORTA TEM DE SER A 5173. A chave do navegador e restrita por site, e
@@ -31,6 +31,14 @@ import { fileURLToPath } from 'node:url'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PORTA = 5173
 const PAGINA = resolve(ROOT, 'prototypes/mapa-google.html')
+
+/*
+  O MESMO MARCADOR DOS DOIS LADOS. E a forma que o Vite substitui variavel em
+  HTML (`%VITE_X%`), entao a pagina publicada em dev e a servida aqui usam um
+  marcador so. Dois marcadores para o mesmo buraco seria um deles envelhecendo
+  calado no dia em que alguem mexesse no outro.
+*/
+const MARCADOR = '%VITE_GOOGLE_MAPS_API_KEY%'
 
 function fail(mensagem) {
   console.error(`\n  ABORTADO: ${mensagem}\n`)
@@ -89,10 +97,10 @@ const servidor = createServer((req, res) => {
     return
   }
 
-  if (!html.includes('__GOOGLE_MAPS_KEY__')) {
+  if (!html.includes(MARCADOR)) {
     res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
     res.end(
-      'o prototipo nao tem o marcador __GOOGLE_MAPS_KEY__. ' +
+      `o prototipo nao tem o marcador ${MARCADOR}. ` +
         'Se alguem colou a chave direto no arquivo, TIRE: ele vai para o git.',
     )
     return
@@ -103,7 +111,7 @@ const servidor = createServer((req, res) => {
     /* Sem cache: editar o HTML e dar F5 tem de mostrar a edicao. */
     'cache-control': 'no-store',
   })
-  res.end(html.replaceAll('__GOOGLE_MAPS_KEY__', chave))
+  res.end(html.replaceAll(MARCADOR, chave))
 })
 
 servidor.on('error', (erro) => {

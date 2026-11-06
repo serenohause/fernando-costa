@@ -49,16 +49,24 @@ function exigirDestinoDaCaptura(url: string | undefined): void {
   no texto visível da própria seção. Esconder o comentário não esconde a
   ressalva; a ressalva é conteúdo, e está lá.
 
-  Só na build, e só na LP: o index.html do app não é mexido aqui.
+  VALE TAMBÉM PARA O PROTÓTIPO DO MAPA, pelo mesmo motivo e com mais força: o
+  cabeçalho dele registra decisão de arquitetura, número de propriedade por
+  cidade do escritório e o que ali é encenado. Isso é para quem mantém, não
+  para quem abre o código-fonte da página.
+
+  Só na build, e só nessas duas: o index.html do app não é mexido aqui.
 */
-function semComentariosNaLp(): Plugin {
+function semComentariosNoHtmlEstatico(): Plugin {
   return {
-    name: 'lp-sem-comentarios-html',
+    name: 'sem-comentarios-html',
     apply: 'build',
     transformIndexHtml: {
       order: 'post',
       handler(html, ctx) {
-        if (!ctx.path.endsWith('/lp/index.html')) return html
+        const comentarioNaoEPagina =
+          ctx.path.endsWith('/lp/index.html') ||
+          ctx.path.endsWith('/prototypes/mapa-google.html')
+        if (!comentarioNaoEPagina) return html
         /* O único <script> em linha da LP é o de pré-pintura, e nele não existe
            a sequência `<!--`; o resto do JS mora em lp/lp.js. Sem isso, um
            regex de comentário poderia comer trecho de script. */
@@ -77,8 +85,23 @@ export default defineConfig(({ command, mode }) => {
     exigirDestinoDaCaptura(loadEnv(mode, process.cwd(), 'VITE_').VITE_SUPABASE_URL)
   }
 
+  /*
+    O PROTÓTIPO DO MAPA SÓ ENTRA NA BUILD QUANDO A CHAVE EXISTE, e é essa
+    condição que o mantém fora de produção.
+
+    Ele precisa do Google Maps para ser qualquer coisa, e a chave do navegador
+    vive só em `.env.dev` e no ambiente de dev da Vercel. Sem ela, a página
+    publicada seria uma moldura vazia com um erro do Google dentro, no ar, num
+    endereço que ninguém sabe explicar.
+
+    Então a presença da variável é o interruptor: ambiente que tem a chave
+    publica o protótipo e ambiente que não tem nem gera o arquivo. Nada de
+    `mode`, que é 'production' nos dois.
+  */
+  const chaveDoMapa = loadEnv(mode, process.cwd(), 'VITE_').VITE_GOOGLE_MAPS_API_KEY
+
   return {
-    plugins: [react(), tailwindcss(), semComentariosNaLp()],
+    plugins: [react(), tailwindcss(), semComentariosNoHtmlEstatico()],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -95,10 +118,23 @@ export default defineConfig(({ command, mode }) => {
           cliente e um arquiteto que ainda não é — e por isso não compartilham
           bundle nenhum: quem abre a LP não baixa o React, e quem abre o app
           não baixa a LP.
+
+          A terceira, quando existe, é o protótipo do mapa, em
+          /prototypes/mapa-google.html. Ela é página de TRABALHO: existe para o
+          escritório olhar o mapa novo antes de ele virar tela, e sai da build
+          assim que a chave do Google não estiver no ambiente. Ver o comentário
+          de `chaveDoMapa` acima.
         */
         input: {
           main: fileURLToPath(new URL('./index.html', import.meta.url)),
           lp: fileURLToPath(new URL('./lp/index.html', import.meta.url)),
+          ...(chaveDoMapa !== undefined && chaveDoMapa.trim() !== ''
+            ? {
+                prototipoMapa: fileURLToPath(
+                  new URL('./prototypes/mapa-google.html', import.meta.url),
+                ),
+              }
+            : {}),
         },
       },
     },
