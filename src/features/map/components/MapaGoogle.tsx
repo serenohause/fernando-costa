@@ -202,6 +202,47 @@ export default function MapaGoogle({
     return () => {
       vivo = false
       soltarAviso()
+
+      /*
+        DESFAZER O QUE FOI CONSTRUÍDO FORA DO REACT.
+
+        Marcador, agrupamento e balão do Google são objetos com vida própria:
+        o React desmonta a `div` e eles continuam existindo, com os ouvintes
+        presos a funções deste componente. Sair da tela e voltar algumas vezes
+        acumula 253 marcadores por visita, nenhum deles alcançável.
+
+        O `google` precisa ser conferido: desmontar antes de o script terminar
+        de carregar é caminho possível, e aí `google` nem existe.
+      */
+      if (typeof google === 'undefined' || !google.maps) return
+
+      agrupador.current?.clearMarkers()
+      agrupador.current?.setMap(null)
+      agrupador.current = null
+
+      for (const pino of pinosDaLista.current) {
+        google.maps.event.clearInstanceListeners(pino)
+        pino.setMap(null)
+      }
+      pinosDaLista.current = []
+
+      for (const avulso of [pinoNovo, pinoDeBusca, pinoArrastavel]) {
+        if (!avulso.current) continue
+        google.maps.event.clearInstanceListeners(avulso.current)
+        avulso.current.setMap(null)
+        avulso.current = null
+      }
+
+      if (balao.current) {
+        google.maps.event.clearInstanceListeners(balao.current)
+        balao.current.close()
+        balao.current = null
+      }
+
+      if (mapa.current) {
+        google.maps.event.clearInstanceListeners(mapa.current)
+        mapa.current = null
+      }
     }
     /* `mapType` entra só na criação; a troca de camada tem o efeito dela
        abaixo, e refazer o mapa a cada clique de botão seria carga cobrada. */
