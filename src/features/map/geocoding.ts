@@ -281,11 +281,25 @@ export async function reverseGeocodePin(
 
     const partes = primeiro.address_components
 
-    return {
-      address: formatarEndereco(partes),
-      city: componente(partes, 'administrative_area_level_2', 'locality'),
-      state: componente(partes, 'administrative_area_level_1'),
-    }
+    const endereco = formatarEndereco(partes)
+    const cidade = componente(partes, 'administrative_area_level_2', 'locality')
+    const estado = componente(partes, 'administrative_area_level_1')
+
+    /*
+      NADA APROVEITÁVEL VALE `null`, e não três campos vazios.
+
+      O Google quase sempre responde alguma coisa: no meio do oceano ele devolve
+      um resultado de código Plus, sem rua, sem bairro, sem município. Montado em
+      cima disso, o objeto sairia com três strings vazias, e a tela abriria o
+      formulário do pino novo calada, como se o endereço tivesse sido encontrado.
+
+      Com `null` ela mostra "Não foi possível obter o endereço desta
+      localização" e abre o formulário só com a coordenada, que é o
+      comportamento do original quando o reverse geocoding não achava nada.
+    */
+    if (endereco === '' && cidade === '' && estado === '') return null
+
+    return { address: endereco, city: cidade, state: estado }
   } catch {
     return null
   }
