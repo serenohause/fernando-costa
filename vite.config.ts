@@ -86,19 +86,25 @@ export default defineConfig(({ command, mode }) => {
   }
 
   /*
-    O PROTÓTIPO DO MAPA SÓ ENTRA NA BUILD QUANDO A CHAVE EXISTE, e é essa
-    condição que o mantém fora de produção.
+    O PROTÓTIPO DO MAPA SÓ ENTRA NA BUILD FORA DA BRANCH `main`, e precisa da
+    chave do Google para ser qualquer coisa. As duas condições juntas.
 
-    Ele precisa do Google Maps para ser qualquer coisa, e a chave do navegador
-    vive só em `.env.dev` e no ambiente de dev da Vercel. Sem ela, a página
-    publicada seria uma moldura vazia com um erro do Google dentro, no ar, num
-    endereço que ninguém sabe explicar.
+    A CONDIÇÃO ERA SÓ A CHAVE, e isso parou de funcionar no dia em que a tela do
+    mapa virou Google: produção passou a precisar da mesma variável para
+    desenhar o mapa de verdade, e com ela o protótipo seria publicado em
+    www.hausone.com.br. Página de trabalho, com 253 pinos inventados, aberta sem
+    login num domínio de cliente, gastando carga de mapa cobrada.
 
-    Então a presença da variável é o interruptor: ambiente que tem a chave
-    publica o protótipo e ambiente que não tem nem gera o arquivo. Nada de
-    `mode`, que é 'production' nos dois.
+    `VERCEL_GIT_COMMIT_REF` é a branch que originou a build, e é a única coisa
+    que distingue os dois ambientes aqui: `mode` é 'production' nos dois, e
+    `VERCEL_ENV` também, porque o projeto de dev publica a branch `dev` como
+    produção dele. Fora da Vercel a variável não existe, e aí o protótipo é
+    gerado normalmente, que é o que se quer rodando `npm run build` na máquina.
   */
+  const branchDaBuild = process.env.VERCEL_GIT_COMMIT_REF
   const chaveDoMapa = loadEnv(mode, process.cwd(), 'VITE_').VITE_GOOGLE_MAPS_API_KEY
+  const publicarPrototipo =
+    branchDaBuild !== 'main' && chaveDoMapa !== undefined && chaveDoMapa.trim() !== ''
 
   return {
     plugins: [react(), tailwindcss(), semComentariosNoHtmlEstatico()],
@@ -121,14 +127,13 @@ export default defineConfig(({ command, mode }) => {
 
           A terceira, quando existe, é o protótipo do mapa, em
           /prototypes/mapa-google.html. Ela é página de TRABALHO: existe para o
-          escritório olhar o mapa novo antes de ele virar tela, e sai da build
-          assim que a chave do Google não estiver no ambiente. Ver o comentário
-          de `chaveDoMapa` acima.
+          escritório olhar o mapa novo antes de ele virar tela, e não é gerada
+          em build de `main`. Ver o comentário de `publicarPrototipo` acima.
         */
         input: {
           main: fileURLToPath(new URL('./index.html', import.meta.url)),
           lp: fileURLToPath(new URL('./lp/index.html', import.meta.url)),
-          ...(chaveDoMapa !== undefined && chaveDoMapa.trim() !== ''
+          ...(publicarPrototipo
             ? {
                 prototipoMapa: fileURLToPath(
                   new URL('./prototypes/mapa-google.html', import.meta.url),
