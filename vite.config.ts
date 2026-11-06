@@ -49,12 +49,12 @@ function exigirDestinoDaCaptura(url: string | undefined): void {
   no texto visível da própria seção. Esconder o comentário não esconde a
   ressalva; a ressalva é conteúdo, e está lá.
 
-  VALE TAMBÉM PARA O PROTÓTIPO DO MAPA, pelo mesmo motivo e com mais força: o
-  cabeçalho dele registra decisão de arquitetura, número de propriedade por
-  cidade do escritório e o que ali é encenado. Isso é para quem mantém, não
-  para quem abre o código-fonte da página.
+  O PROTÓTIPO DO MAPA SAIU DA BUILD (ver `input`, abaixo), então o caminho dele
+  continua listado aqui só para o caso de alguém o publicar de novo um dia. Ele
+  nunca protegeu o que o comentário de lá dizia proteger: a contagem de
+  propriedade por cidade mora no array `NUCLEOS`, que é dado e não comentário.
 
-  Só na build, e só nessas duas: o index.html do app não é mexido aqui.
+  Só na build, e só nesses caminhos: o index.html do app não é mexido aqui.
 */
 function semComentariosNoHtmlEstatico(): Plugin {
   return {
@@ -85,27 +85,6 @@ export default defineConfig(({ command, mode }) => {
     exigirDestinoDaCaptura(loadEnv(mode, process.cwd(), 'VITE_').VITE_SUPABASE_URL)
   }
 
-  /*
-    O PROTÓTIPO DO MAPA SÓ ENTRA NA BUILD FORA DA BRANCH `main`, e precisa da
-    chave do Google para ser qualquer coisa. As duas condições juntas.
-
-    A CONDIÇÃO ERA SÓ A CHAVE, e isso parou de funcionar no dia em que a tela do
-    mapa virou Google: produção passou a precisar da mesma variável para
-    desenhar o mapa de verdade, e com ela o protótipo seria publicado em
-    www.hausone.com.br. Página de trabalho, com 253 pinos inventados, aberta sem
-    login num domínio de cliente, gastando carga de mapa cobrada.
-
-    `VERCEL_GIT_COMMIT_REF` é a branch que originou a build, e é a única coisa
-    que distingue os dois ambientes aqui: `mode` é 'production' nos dois, e
-    `VERCEL_ENV` também, porque o projeto de dev publica a branch `dev` como
-    produção dele. Fora da Vercel a variável não existe, e aí o protótipo é
-    gerado normalmente, que é o que se quer rodando `npm run build` na máquina.
-  */
-  const branchDaBuild = process.env.VERCEL_GIT_COMMIT_REF
-  const chaveDoMapa = loadEnv(mode, process.cwd(), 'VITE_').VITE_GOOGLE_MAPS_API_KEY
-  const publicarPrototipo =
-    branchDaBuild !== 'main' && chaveDoMapa !== undefined && chaveDoMapa.trim() !== ''
-
   return {
     plugins: [react(), tailwindcss(), semComentariosNoHtmlEstatico()],
     resolve: {
@@ -125,21 +104,34 @@ export default defineConfig(({ command, mode }) => {
           bundle nenhum: quem abre a LP não baixa o React, e quem abre o app
           não baixa a LP.
 
-          A terceira, quando existe, é o protótipo do mapa, em
-          /prototypes/mapa-google.html. Ela é página de TRABALHO: existe para o
-          escritório olhar o mapa novo antes de ele virar tela, e não é gerada
-          em build de `main`. Ver o comentário de `publicarPrototipo` acima.
+          O PROTÓTIPO DO MAPA NÃO ENTRA MAIS, em ambiente nenhum.
+
+          Ele esteve aqui enquanto era a única forma de ver o mapa novo, e a
+          condição para publicá-lo passou por duas versões: primeiro a presença
+          da chave do Google, depois a branch da build. As duas estavam
+          resolvendo o problema errado.
+
+          Três motivos para sair de vez, e o terceiro é o que decide:
+
+            1. A tela de verdade existe. O protótipo virou cópia pior do que
+               está em /mapa, atrás de login.
+            2. Cada abertura é carga de mapa COBRADA, na mesma cota de 10.000
+               por mês que produção usa.
+            3. A página publicada carrega a contagem real de propriedade por
+               cidade do escritório, que está no array `NUCLEOS` do arquivo
+               (Eusébio 156, Fortaleza 20, Aquiraz 15, tirados do backup de
+               produção). Isso é informação de negócio, aberta, sem login, num
+               endereço público. O plugin acima apaga comentário de HTML e não
+               alcança nada disso: o número não está em comentário, está no
+               dado.
+
+          O arquivo continua no repositório e continua servível em
+          `node scripts/prototipo-mapa.mjs`, que o serve em 127.0.0.1 com a
+          chave injetada em memória. É onde ele sempre foi útil.
         */
         input: {
           main: fileURLToPath(new URL('./index.html', import.meta.url)),
           lp: fileURLToPath(new URL('./lp/index.html', import.meta.url)),
-          ...(publicarPrototipo
-            ? {
-                prototipoMapa: fileURLToPath(
-                  new URL('./prototypes/mapa-google.html', import.meta.url),
-                ),
-              }
-            : {}),
         },
       },
     },
