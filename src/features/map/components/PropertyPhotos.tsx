@@ -209,12 +209,23 @@ export default function PropertyPhotos({
           </>
         )}
 
-        <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white">
+        <span className="absolute top-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white">
           {safeIndex + 1} / {photos.length}
         </span>
 
-        {/* A barra de ações: aparece no hover, no foco e em tela sem ponteiro. */}
-        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+        {/*
+          A BARRA DE AÇÕES FICA EMBAIXO, E ISSO NÃO É GOSTO.
+
+          Os quatro botões de camada do mapa (Mapa, Satélite, Híbrido, Relevo)
+          flutuam no topo da área do mapa, e o balão de um pino alto na tela
+          abre bem embaixo deles. Com a barra no canto superior direito, ver em
+          tela cheia e remover ficavam parcialmente cobertos — medido em
+          1440x900, com o balão aberto. Embaixo não há nada do mapa para
+          disputar espaço.
+
+          Aparece no hover, no foco do teclado e em tela sem ponteiro.
+        */}
+        <div className="absolute right-2 bottom-2 flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
           <button
             type="button"
             title="Ver em tela cheia"
