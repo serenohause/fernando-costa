@@ -9,6 +9,21 @@ import type {
 export type MapProperty = Tables<'map_properties'>
 export type MapPropertyLandType = Tables<'map_property_land_types'>
 export type MapPropertyPurpose = Tables<'map_property_purposes'>
+export type MapPropertyPhotoRow = Tables<'map_property_photos'>
+
+/*
+  A FOTO COMO O CARROSSEL A USA: a linha do banco mais o endereço assinado.
+
+  `url` é `null` quando a assinatura falhou — objeto removido do bucket, sessão
+  sem permissão de leitura, rede fora. A linha continua na lista nesse caso, em
+  vez de sumir: a foto EXISTE, e o que faltou foi o endereço. Some da lista e a
+  pessoa acha que alguém apagou; fica com o quadro de indisponível e ela vê que
+  é problema de agora.
+
+  O endereço NÃO é gravado no banco: a coluna guarda o caminho (migration 0130)
+  e a assinatura vale cinco minutos.
+*/
+export type MapPropertyPhoto = MapPropertyPhotoRow & { url: string | null }
 
 /*
   AS TAGS COMO A TELA AS USA: o texto, mais o id para a chave da lista.

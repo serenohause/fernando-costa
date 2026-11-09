@@ -9,6 +9,13 @@ import {
 import { useCurrentCollaborator } from '@/features/auth/hooks'
 import { projectKeys } from '@/features/projects/hooks'
 import { buildSiteAddress, geocodeAddress, reverseGeocodePin, searchPlaces } from './geocoding'
+import {
+  describeRejectedPhoto,
+  MAP_PHOTOS_BUCKET,
+  mapPhotoPath,
+  MAX_PHOTOS_PER_PROPERTY,
+  SIGNED_URL_TTL_SECONDS,
+} from './photos'
 import { buildMapPropertyFacets, enrichMapProperties } from './list'
 import {
   mapPropertyInputSchema,
@@ -18,6 +25,7 @@ import {
 } from './schemas'
 import type {
   MapFacetSource,
+  MapPropertyPhoto,
   MapPinLocation,
   MapPinPosition,
   MapPropertyFilters,
@@ -34,6 +42,7 @@ export const mapKeys = {
   facets: () => [...mapKeys.all, 'facets'] as const,
   siteLocations: () => [...mapKeys.all, 'site-locations'] as const,
   places: (query: string) => [...mapKeys.all, 'places', query] as const,
+  photos: (propertyId: string) => [...mapKeys.all, 'photos', propertyId] as const,
 }
 
 /* `PropriedadeMapa.list()` é como o original carrega a tela — a lista inteira. O
@@ -582,12 +591,20 @@ export function useMoveMapPropertyPin() {
   As tags somem junto, por cascade — elas são parte do pino. O projeto e o
   cliente vinculados NÃO somem, que é o que o próprio diálogo do original promete
   ("O projeto vinculado continuará existindo normalmente", :1328).
+
+  AS FOTOS SOMEM EM DOIS TEMPOS, e é por isso que os caminhos são colhidos ANTES
+  do DELETE: a linha de `map_property_photos` vai junto por cascade, mas o
+  OBJETO no bucket não — Storage não tem FK (migration 0130). Depois do DELETE
+  não há mais como saber quais eram. A varredura é best-effort, como nos módulos
+  8 e 11: falhar nela deixa arquivo órfão, e não desfaz a remoção do pino.
 */
 export function useDeleteMapProperty() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (id: string) => {
+      const paths = await collectPhotoPaths(id)
+
       const { data, error } = await supabase
         .from('map_properties')
         .delete()
@@ -599,6 +616,8 @@ export function useDeleteMapProperty() {
         data,
         'Nenhuma propriedade foi removida. É preciso permissão de edição em Mapa de Projetos.',
       )
+
+      await removePhotoObjects(paths)
       return id
     },
     onSuccess: () => {
@@ -730,4 +749,247 @@ export function useGeocodeProjectSite() {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all })
     },
   })
+}
+
+/* ── As fotos da propriedade: bucket privado `map-property-photos` ─────── */
+
+/*
+  AS FOTOS DE UM PINO, JÁ COM O ENDEREÇO ASSINADO.
+
+  UMA consulta ao banco e UMA assinatura em lote (`createSignedUrls`), e não uma
+  assinatura por foto: um terreno com dez fotos seriam dez requisições para
+  desenhar um carrossel.
+
+  A CONSULTA SÓ ACONTECE COM O BALÃO ABERTO (`enabled`). As fotos NÃO vêm no
+  embed da lista de propriedades de propósito: a tela carrega até 500 pinos de
+  uma vez (`LIST_LIMIT`), e pendurar a lista de fotos em cada um faria toda
+  abertura do mapa pagar por um carrossel que quase nunca é aberto.
+
+  O CACHE VALE MENOS QUE A ASSINATURA. `staleTime` é o TTL menos um minuto:
+  guardar a resposta por mais tempo que isso serviria endereço vencido, e o
+  quadro quebraria sem motivo visível. É a mesma conta do módulo 11.
+
+  FOTO QUE NÃO ASSINA FICA NA LISTA com `url` nulo, em vez de sumir — a foto
+  existe, o que faltou foi o endereço. Ver o comentário do tipo
+  `MapPropertyPhoto`.
+*/
+export function useMapPropertyPhotos(propertyId: string | null) {
+  const id = propertyId ?? ''
+
+  return useQuery({
+    queryKey: mapKeys.photos(id),
+    enabled: id !== '',
+    staleTime: (SIGNED_URL_TTL_SECONDS - 60) * 1000,
+    gcTime: (SIGNED_URL_TTL_SECONDS - 60) * 1000,
+    queryFn: async (): Promise<MapPropertyPhoto[]> => {
+      const { data, error } = await supabase
+        .from('map_property_photos')
+        .select('*')
+        .eq('map_property_id', id)
+        /* `display_order` empata de propósito (migration 0130); `created_at`
+           desempata, então duas fotos enviadas juntas saem na ordem em que
+           entraram. */
+        .order('display_order', { ascending: true })
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+
+      const rows = data ?? []
+      if (rows.length === 0) return []
+
+      const { data: signed, error: signError } = await supabase.storage
+        .from(MAP_PHOTOS_BUCKET)
+        .createSignedUrls(
+          rows.map((row) => row.file_path),
+          SIGNED_URL_TTL_SECONDS,
+        )
+
+      /*
+        Falhar a assinatura NÃO derruba a consulta: o carrossel desenha os
+        quadros de "foto indisponível", que dizem a verdade, em vez de a tela
+        inteira virar erro.
+      */
+      if (signError) {
+        console.error('[map] falha ao assinar as fotos da propriedade:', signError)
+        return rows.map((row) => ({ ...row, url: null }))
+      }
+
+      const urlByPath = new Map<string, string>()
+      for (const item of signed ?? []) {
+        if (item.error || !item.signedUrl || !item.path) continue
+        urlByPath.set(item.path, item.signedUrl)
+      }
+
+      return rows.map((row) => ({ ...row, url: urlByPath.get(row.file_path) ?? null }))
+    },
+  })
+}
+
+/*
+  ENVIAR FOTOS.
+
+  A ORDEM DOS PASSOS É O QUE IMPEDE ARQUIVO ÓRFÃO, e é a mesma dos módulos 8 e
+  11: sobe o objeto, grava a linha, e se a gravação falhar APAGA o objeto que
+  acabou de subir e levanta o erro — senão sobraria um arquivo pago que ninguém
+  alcança.
+
+  UM DE CADA VEZ, e não `Promise.all`: em série a primeira recusa (formato,
+  tamanho, permissão) interrompe o resto, em vez de subir cinco fotos para
+  descobrir que nenhuma podia ser gravada.
+
+  O TETO DE FOTOS É CONFERIDO AQUI E SÓ AQUI. Não existe constraint no banco
+  para ele: `MAX_PHOTOS_PER_PROPERTY` é limite de tela — o carrossel fica
+  impraticável muito antes disso — e não regra de negócio. Quem chamar por fora
+  passa, e isso está certo.
+
+  `display_order` CONTINUA DE ONDE A ÚLTIMA PAROU, e por isso a contagem atual é
+  lida antes. Duas pessoas enviando ao mesmo tempo podem gravar o mesmo número:
+  o banco aceita (não há unique no par), e a leitura desempata por `created_at`.
+  Trocar isso por um número garantido custaria uma trava por propriedade para
+  ordenar uma fita de imagens.
+*/
+export function useUploadMapPropertyPhotos() {
+  const queryClient = useQueryClient()
+  const { data: collaborator } = useCurrentCollaborator()
+  const tenantId = collaborator?.tenant_id
+  const uploadedById = collaborator?.id ?? null
+
+  return useMutation({
+    mutationFn: async ({ propertyId, files }: { propertyId: string; files: File[] }) => {
+      if (!tenantId) throw new WriteError('Escritório não identificado na sua sessão.')
+      if (files.length === 0) return propertyId
+
+      /* UMA consulta responde as DUAS perguntas do envio: quantas fotos já
+         existem (o teto) e qual o maior `display_order` (a próxima posição). A
+         coluna é um smallint por linha, então trazer todas custa menos que uma
+         segunda ida ao banco. */
+      const { data: existing, error: existingError } = await supabase
+        .from('map_property_photos')
+        .select('display_order')
+        .eq('map_property_id', propertyId)
+
+      if (existingError) throw existingError
+
+      const rows = existing ?? []
+
+      if (rows.length + files.length > MAX_PHOTOS_PER_PROPERTY) {
+        throw new WriteError(
+          `Esta propriedade aceita no máximo ${MAX_PHOTOS_PER_PROPERTY} fotos.`,
+        )
+      }
+
+      let nextOrder = rows.reduce((maior, row) => Math.max(maior, row.display_order), -1) + 1
+
+      for (const file of files) {
+        const rejected = describeRejectedPhoto(file)
+        if (rejected) throw new WriteError(rejected)
+
+        const path = mapPhotoPath(tenantId, propertyId, file)
+
+        const { error: uploadError } = await supabase.storage
+          .from(MAP_PHOTOS_BUCKET)
+          .upload(path, file, { contentType: file.type, upsert: false })
+
+        if (uploadError) throw uploadError
+
+        const { error } = await supabase.from('map_property_photos').insert({
+          tenant_id: tenantId,
+          map_property_id: propertyId,
+          file_path: path,
+          file_name: file.name,
+          mime_type: file.type,
+          /* Arquivo de zero byte é legítimo do ponto de vista de quem envia, e a
+             coluna tem `byte_size is null or byte_size > 0` (migration 0130).
+             Nulo diz "não há tamanho a registrar", que é a verdade. */
+          byte_size: file.size > 0 ? file.size : null,
+          display_order: nextOrder,
+          uploaded_by_id: uploadedById,
+        })
+
+        if (error) {
+          await removePhotoObjects([path])
+          throw error
+        }
+
+        nextOrder += 1
+      }
+
+      return propertyId
+    },
+    onSuccess: (propertyId) => {
+      void queryClient.invalidateQueries({ queryKey: mapKeys.photos(propertyId) })
+    },
+  })
+}
+
+/*
+  REMOVER UMA FOTO: a linha primeiro, o objeto depois.
+
+  Banco antes do Storage, como nos módulos 8 e 11, e pelo mesmo motivo: remoção
+  negada pela RLS não alcança linha nenhuma, e aí o arquivo continua lá — que é
+  a verdade que a tela segue mostrando. Se o Storage falhar depois, sobra um
+  órfão, que é o estado que a migration 0130 registra como pendência declarada.
+*/
+export function useDeleteMapPropertyPhoto() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, propertyId }: { id: string; propertyId: string }) => {
+      const { data: existing, error: readError } = await supabase
+        .from('map_property_photos')
+        .select('file_path')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (readError) throw readError
+
+      const { data, error } = await supabase
+        .from('map_property_photos')
+        .delete()
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A foto não foi removida. É preciso permissão de edição em Mapa de Projetos.',
+      )
+
+      if (existing?.file_path) await removePhotoObjects([existing.file_path])
+      return propertyId
+    },
+    onSuccess: (propertyId) => {
+      void queryClient.invalidateQueries({ queryKey: mapKeys.photos(propertyId) })
+    },
+  })
+}
+
+/*
+  Os caminhos de todas as fotos de um pino, colhidos ANTES de ele ser apagado —
+  é a única hora em que ainda dá para saber quais eram.
+*/
+async function collectPhotoPaths(propertyId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('map_property_photos')
+    .select('file_path')
+    .eq('map_property_id', propertyId)
+
+  if (error) throw error
+  /* `file_path` é NOT NULL: a linha só existe porque há arquivo. */
+  return (data ?? []).map((row) => row.file_path)
+}
+
+/*
+  Apagar objeto do bucket é sempre EFEITO SECUNDÁRIO: quando isto roda, a linha
+  do banco já sumiu. Falhar aqui deixa um arquivo órfão e não pode desfazer o
+  que já aconteceu no banco. Por isso vai para o console e não sobe.
+
+  A única remoção que NÃO passa por aqui é o passo de compensação do upload, que
+  precisa falhar junto com a gravação.
+*/
+async function removePhotoObjects(paths: string[]): Promise<void> {
+  if (paths.length === 0) return
+
+  const { error } = await supabase.storage.from(MAP_PHOTOS_BUCKET).remove(paths)
+  if (error) console.error('[map] falha ao remover foto do Storage:', error)
 }

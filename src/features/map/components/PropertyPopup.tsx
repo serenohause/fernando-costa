@@ -1,6 +1,7 @@
 import { Edit3, ExternalLink, MapPin, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import ClientLink from '@/features/crm/components/ClientLink'
+import PropertyPhotos from './PropertyPhotos'
 import type { EnrichedMapProperty } from '../types'
 
 /*
@@ -21,6 +22,13 @@ import type { EnrichedMapProperty } from '../types'
   OS TRÊS BOTÕES DE ESCRITA SOMEM SEM PERMISSÃO DE EDIÇÃO no menu `map`. O
   original não tem essa conferência em lugar nenhum desta tela; o banco tem
   (migration 0058). Ver o cabeçalho de MapaProjetos.tsx.
+
+  O QUE NÃO VEM DO ORIGINAL: o carrossel de fotos no topo. É feature nova
+  (migration 0130), pedida pelo escritório, e por isso não tem linha de
+  MapaProjetos.jsx para comparar. Ele fica ACIMA do nome de propósito: quem abre
+  o balão de um terreno está procurando o lugar, e a foto responde isso antes de
+  qualquer texto. Sem foto e sem permissão de edição ele não ocupa espaço nenhum
+  — ver PropertyPhotos.tsx.
 */
 export default function PropertyPopup({
   property,
@@ -39,6 +47,8 @@ export default function PropertyPopup({
 }) {
   return (
     <div className="p-3 min-w-[300px]">
+      <PropertyPhotos property={property} canEdit={canEdit} />
+
       <div className="mb-3">
         <h3 className="font-semibold text-foreground text-base mb-2">{property.displayName}</h3>
 

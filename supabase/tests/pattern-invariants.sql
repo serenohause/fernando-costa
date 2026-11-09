@@ -420,7 +420,27 @@ insert into pattern_tables (modulo, tabela, menu_key, insert_cols, insert_vals, 
                               where f.map_property_id = 'ea900000-0000-4000-8000-000000000001')$$,
    $$'eb900000-0000-4000-8000-000000000001',
      'Finalidade Padrao ' || (select count(*) from public.map_property_purposes f
-                              where f.map_property_id = 'eb900000-0000-4000-8000-000000000001')$$);
+                              where f.map_property_id = 'eb900000-0000-4000-8000-000000000001')$$),
+
+  -- As fotos da propriedade (0130). O CAMINHO E SORTEADO pelo mesmo motivo do
+  -- telefone de clients e das duas tags acima: a tabela tem
+  -- unique (tenant_id, file_path) e a suite grava a mesma "linha minima valida"
+  -- duas vezes no escritorio A. Com caminho fixo, o caso C1 receberia 23505 e
+  -- passaria a afirmar que a unicidade existe em vez de que o WITH CHECK
+  -- funciona. O formato do caminho e o de verdade (<tenant>/<propriedade>/<uuid>),
+  -- porque e ele que as policies de storage.objects comparam com o claim - esta
+  -- suite nao toca no bucket, mas uma linha com caminho inventado seria fixture
+  -- mentindo sobre o dado.
+  (9, 'map_property_photos', 'map',
+   'map_property_id, file_path, file_name',
+   $$'ea900000-0000-4000-8000-000000000001',
+     'e1111111-1111-4111-8111-111111111111/ea900000-0000-4000-8000-000000000001/'
+       || gen_random_uuid() || '.jpg',
+     'foto-padrao.jpg'$$,
+   $$'eb900000-0000-4000-8000-000000000001',
+     'e2222222-2222-4222-8222-222222222222/eb900000-0000-4000-8000-000000000001/'
+       || gen_random_uuid() || '.jpg',
+     'foto-padrao.jpg'$$);
 
 -- MODULO 11 (Diario do Projeto). As cinco tabelas sao as unicas com
 -- escrita = 'colaborador_ativo', e ja foram excecao deste arquivo tres vezes por

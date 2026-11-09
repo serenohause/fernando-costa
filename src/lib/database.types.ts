@@ -2400,6 +2400,70 @@ export type Database = {
           },
         ]
       }
+      map_property_photos: {
+        Row: {
+          byte_size: number | null
+          created_at: string
+          display_order: number
+          file_name: string
+          file_path: string
+          id: string
+          map_property_id: string
+          mime_type: string | null
+          tenant_id: string
+          updated_at: string
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          byte_size?: number | null
+          created_at?: string
+          display_order?: number
+          file_name: string
+          file_path: string
+          id?: string
+          map_property_id: string
+          mime_type?: string | null
+          tenant_id: string
+          updated_at?: string
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          byte_size?: number | null
+          created_at?: string
+          display_order?: number
+          file_name?: string
+          file_path?: string
+          id?: string
+          map_property_id?: string
+          mime_type?: string | null
+          tenant_id?: string
+          updated_at?: string
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_property_photos_map_property_id_fkey"
+            columns: ["map_property_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "map_properties"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "map_property_photos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "map_property_photos_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
+        ]
+      }
       map_property_purposes: {
         Row: {
           created_at: string
