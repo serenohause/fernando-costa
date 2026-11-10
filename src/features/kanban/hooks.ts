@@ -14,6 +14,11 @@ import {
   objectiveGroupsError,
   type ObjectiveTemplateGroup,
 } from './objectives'
+import {
+  groupReviewMarksByColumn,
+  reviewMarksError,
+  type ReviewMarkTemplate,
+} from './review-marks'
 import type { KanbanBoard, KanbanColumnRow, OperationalTagRow } from './types'
 
 /*
@@ -138,7 +143,7 @@ export function useKanbanBoard(boardKey: string) {
         objetivo. São algumas dezenas de linhas por escritório.
       */
       const columnIds = (columns ?? []).map((column) => column.id)
-      const [secoes, objetivos] = await Promise.all([
+      const [secoes, objetivos, marcas] = await Promise.all([
         supabase
           .from('kanban_column_objective_sections')
           .select('id, column_id, name, display_order')
@@ -147,12 +152,22 @@ export function useKanbanBoard(boardKey: string) {
           .from('kanban_column_objectives')
           .select('column_id, section_id, title, is_required, display_order')
           .in('column_id', columnIds),
+        /* Os botões de revisão da etapa (0131). Mesma razão de não ser embed:
+           repetiria a etapa por botão. São poucas linhas por escritório, e a
+           tela do Fluxo do Projeto precisa deles para desenhar o objetivo de
+           ambiente. */
+        supabase
+          .from('kanban_column_review_marks')
+          .select('column_id, label, color, display_order')
+          .in('column_id', columnIds),
       ])
 
       if (secoes.error) throw secoes.error
       if (objetivos.error) throw objetivos.error
+      if (marcas.error) throw marcas.error
 
       const modelos = groupObjectivesByColumn(secoes.data ?? [], objetivos.data ?? [])
+      const botoes = groupReviewMarksByColumn(marcas.data ?? [])
 
       return {
         ...board,
@@ -160,6 +175,7 @@ export function useKanbanBoard(boardKey: string) {
           ...column,
           tagKeys: porColuna.get(column.id) ?? [],
           objectiveGroups: modelos.get(column.id) ?? [],
+          reviewMarks: botoes.get(column.id) ?? [],
         })),
       }
     },
@@ -730,6 +746,47 @@ export function useReplaceColumnObjectives(boardKey: string) {
       const { data, error } = await supabase.rpc('replace_kanban_column_objectives', {
         p_column_id: columnId,
         p_sections: normalizeObjectiveGroups(groups),
+      })
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: kanbanKeys.board(boardKey) })
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
+/*
+  GRAVAR OS BOTÕES DE REVISÃO DE UMA ETAPA — a lista inteira de uma vez, pela
+  função `replace_kanban_column_review_marks` (0131). Mesma forma de
+  `useReplaceColumnObjectives`, e pelo mesmo motivo: o diálogo edita a lista
+  toda, e uma falha no meio deixaria metade dos botões novos com metade dos
+  velhos.
+
+  O QUE JÁ FOI MARCADO NÃO MUDA. A marca no objetivo da tarefa é cópia do rótulo
+  e da cor (migration 0131): renomear "Alterado" aqui não reescreve a revisão de
+  março, e apagar um botão não apaga a revisão de ninguém. O preço é conhecido —
+  o cartão antigo mostra o texto e a cor de quando foi marcado.
+*/
+export function useReplaceColumnReviewMarks(boardKey: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      columnId,
+      marks,
+    }: {
+      columnId: string
+      marks: ReviewMarkTemplate[]
+    }) => {
+      const recusa = reviewMarksError(marks)
+      if (recusa) throw new WriteError(recusa)
+
+      const { data, error } = await supabase.rpc('replace_kanban_column_review_marks', {
+        p_column_id: columnId,
+        p_marks: marks.map((mark) => ({ label: mark.label.trim(), color: mark.color })),
       })
 
       if (error) throw error

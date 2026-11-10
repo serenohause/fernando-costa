@@ -1150,6 +1150,81 @@ export function useUpdateChecklistItem() {
 }
 
 /*
+  MARCAR (OU DESMARCAR) A REVISÃO DE UM AMBIENTE — migration 0131.
+
+  O rótulo e a cor são COPIADOS do botão configurado na etapa, e não referenciados:
+  renomear o botão em Configurações não reescreve a revisão de março, e apagá-lo
+  não apaga revisão nenhuma. Quem explica o porquê é o cabeçalho da 0131.
+
+  `null` DESMARCA, e zera os quatro campos de uma vez — é o que a constraint
+  `task_checklist_items_review_mark_needs_label_check` cobra, e é o que evita
+  cor órfã ou "revisado por fulano" sem dizer o que ele decidiu.
+
+  MARCAR NÃO CONCLUI O OBJETIVO. `is_completed` não é tocado aqui: a marca diz o
+  resultado da revisão, e o check continua sendo a trava de avanço de etapa.
+  Ambiente obrigatório marcado como "Reprovado" segue prendendo o cartão, que é
+  a decisão tomada com o escritório.
+
+  Otimista como as outras escritas do objetivo: quem marca vê o crachá na hora, e
+  a recusa da RLS devolve a lista ao que era.
+*/
+export function useSetChecklistReviewMark() {
+  const queryClient = useQueryClient()
+  const { data: collaborator } = useCurrentCollaborator()
+  const collaboratorId = collaborator?.id ?? null
+
+  type Entrada = { id: string; mark: { label: string; color: string } | null }
+
+  const patchDe = (mark: Entrada['mark']) =>
+    mark
+      ? {
+          review_mark_label: mark.label,
+          review_mark_color: mark.color,
+          review_marked_by_id: collaboratorId,
+          review_marked_at: new Date().toISOString(),
+        }
+      : {
+          review_mark_label: null,
+          review_mark_color: null,
+          review_marked_by_id: null,
+          review_marked_at: null,
+        }
+
+  const mutation = useMutation({
+    mutationFn: async ({ id, mark }: Entrada) => {
+      const { data, error } = await supabase
+        .from('task_checklist_items')
+        .update(patchDe(mark))
+        .eq('id', id)
+        .select('id')
+
+      if (error) throw error
+      assertRowAffected(
+        data,
+        'A revisão não foi marcada. É preciso permissão de edição no Fluxo do Projeto.',
+      )
+      return id
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.tasks() })
+    },
+  })
+
+  return optimisticTaskWrite(queryClient, mutation, (tasks, { id, mark }: Entrada) =>
+    tasks.map((task) =>
+      task.checklist.some((item) => item.id === id)
+        ? {
+            ...task,
+            checklist: task.checklist.map((item) =>
+              item.id === id ? { ...item, ...patchDe(mark) } : item,
+            ),
+          }
+        : task,
+    ),
+  )
+}
+
+/*
   Os itens do template que a tarefa ainda não tem, criados de uma vez.
 
   No original isso acontece DENTRO do render (`getTasksByPhase` chama

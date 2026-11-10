@@ -5,10 +5,12 @@ import {
   useKanbanBoard,
   useOperationalTags,
   useReplaceColumnObjectives,
+  useReplaceColumnReviewMarks,
   useSetColumnOperationalTags,
   useUpdateKanbanColumn,
 } from '@/features/kanban/hooks'
 import { sameObjectiveGroups, type ObjectiveTemplateGroup } from '@/features/kanban/objectives'
+import { sameReviewMarks, type ReviewMarkTemplate } from '@/features/kanban/review-marks'
 import type { KanbanColumnWithTags } from '@/features/kanban/types'
 import KanbanColumnDialog, { type KanbanColumnFormValues } from './KanbanColumnDialog'
 
@@ -43,6 +45,7 @@ export default function KanbanColumnEditDialog({
   const updateColumn = useUpdateKanbanColumn(boardKey)
   const setColumnTags = useSetColumnOperationalTags(boardKey)
   const replaceObjectives = useReplaceColumnObjectives(boardKey)
+  const replaceReviewMarks = useReplaceColumnReviewMarks(boardKey)
 
   const board = boardQuery.data ?? null
   const columns = board?.columns ?? []
@@ -63,6 +66,29 @@ export default function KanbanColumnEditDialog({
       {
         onError: (error) =>
           toast.error('A etapa foi salva, mas os objetivos padrão não: ' + describeDatabaseError(error)),
+      },
+    )
+  }
+
+  /*
+    OS BOTÕES DE REVISÃO (0131) são a quarta escrita, e seguem a mesma regra dos
+    objetivos: só vão ao banco se mudaram. Quem abriu a etapa para trocar a cor
+    não reescreve a lista de botões — e reescrever não quebraria nada, porque a
+    marca já feita é cópia, mas seriam duas idas ao banco por nada.
+  */
+  const salvarBotoes = (
+    columnId: string,
+    marks: ReviewMarkTemplate[],
+    anterior: ReviewMarkTemplate[],
+  ) => {
+    if (sameReviewMarks(marks, anterior)) return
+    replaceReviewMarks.mutate(
+      { columnId, marks },
+      {
+        onError: (error) =>
+          toast.error(
+            'A etapa foi salva, mas os botões de revisão não: ' + describeDatabaseError(error),
+          ),
       },
     )
   }
@@ -92,6 +118,7 @@ export default function KanbanColumnEditDialog({
               })
             }
             salvarObjetivos(novaEtapaId, values.objectiveGroups, [])
+            salvarBotoes(novaEtapaId, values.reviewMarks, [])
             onOpenChange(false)
             toast.success('Etapa criada')
           },
@@ -101,13 +128,17 @@ export default function KanbanColumnEditDialog({
       return
     }
 
-    const { tagIds, objectiveGroups, ...colunas } = values
+    /* `reviewMarks` sai daqui de propósito: ele não é coluna de
+       `kanban_columns`, e cair no spread mandaria um campo inexistente para o
+       UPDATE. */
+    const { tagIds, objectiveGroups, reviewMarks, ...colunas } = values
     updateColumn.mutate(
       { id: editing.id, ...colunas },
       {
         onSuccess: () => {
           setColumnTags.mutate({ columnId: editing.id, tenantId: board.tenant_id, tagIds })
           salvarObjetivos(editing.id, objectiveGroups, editing.objectiveGroups)
+          salvarBotoes(editing.id, reviewMarks, editing.reviewMarks)
           onOpenChange(false)
           toast.success('Etapa atualizada')
         },
@@ -127,7 +158,8 @@ export default function KanbanColumnEditDialog({
         updateColumn.isPending ||
         createColumn.isPending ||
         setColumnTags.isPending ||
-        replaceObjectives.isPending
+        replaceObjectives.isPending ||
+        replaceReviewMarks.isPending
       }
     />
   )

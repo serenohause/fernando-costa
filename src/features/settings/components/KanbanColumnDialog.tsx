@@ -25,6 +25,12 @@ import ObjectiveTemplateEditor, {
   toGroupDrafts,
   type ObjectiveGroupDraft,
 } from './ObjectiveTemplateEditor'
+import ReviewMarkEditor, {
+  fromMarkDrafts,
+  toMarkDrafts,
+  type ReviewMarkDraft,
+} from './ReviewMarkEditor'
+import { reviewMarksError, type ReviewMarkTemplate } from '@/features/kanban/review-marks'
 
 export type KanbanColumnFormValues = {
   label: string
@@ -37,6 +43,9 @@ export type KanbanColumnFormValues = {
   objectiveGroups: ObjectiveTemplateGroup[]
   /* A etapa mostra os ambientes do projeto como objetivos (0100). */
   shows_project_rooms: boolean
+  /* Os botões de sinalização de revisão que a etapa oferece nesses ambientes
+     (0131). Lista vazia é "esta etapa não pede revisão". */
+  reviewMarks: ReviewMarkTemplate[]
 }
 
 /*
@@ -71,6 +80,7 @@ export default function KanbanColumnDialog({
   const [tagIds, setTagIds] = useState<string[]>([])
   const [drafts, setDrafts] = useState<ObjectiveGroupDraft[]>([])
   const [showsRooms, setShowsRooms] = useState(false)
+  const [markDrafts, setMarkDrafts] = useState<ReviewMarkDraft[]>([])
   /* O erro do modelo só aparece depois de tentar salvar: seção recém-criada
      nasce sem nome, e acusar isso enquanto a pessoa digita seria ruído. */
   const [tentouSalvar, setTentouSalvar] = useState(false)
@@ -85,6 +95,7 @@ export default function KanbanColumnDialog({
       setTagIds(tags.filter((tag) => editing.tagKeys.includes(tag.key)).map((tag) => tag.id))
       setDrafts(toGroupDrafts(editing.objectiveGroups))
       setShowsRooms(editing.shows_project_rooms)
+      setMarkDrafts(toMarkDrafts(editing.reviewMarks))
       return
     }
     /* Etapa nova entra em branco e sem percentual — vazio é "fora da conta", que
@@ -98,6 +109,7 @@ export default function KanbanColumnDialog({
     setTagIds([])
     setDrafts(toGroupDrafts([]))
     setShowsRooms(false)
+    setMarkDrafts([])
   }, [open, editing, tags])
 
   const percentTrimmed = percent.trim()
@@ -114,6 +126,17 @@ export default function KanbanColumnDialog({
       setTentouSalvar(true)
       return
     }
+    /*
+      OS BOTÕES SÓ SÃO VALIDADOS, E SÓ VÃO JUNTO, COM OS AMBIENTES LIGADOS.
+      Desligar o toggle não apaga o que estava configurado (o banco guarda, e o
+      cabeçalho da 0131 explica por quê), mas também não exige que a lista
+      escondida esteja em ordem para salvar a etapa.
+    */
+    const reviewMarks = showsRooms ? fromMarkDrafts(markDrafts) : editing?.reviewMarks ?? []
+    if (showsRooms && reviewMarksError(reviewMarks)) {
+      setTentouSalvar(true)
+      return
+    }
     onSubmit({
       label: label.trim(),
       color,
@@ -121,6 +144,7 @@ export default function KanbanColumnDialog({
       tagIds,
       objectiveGroups,
       shows_project_rooms: showsRooms,
+      reviewMarks,
     })
   }
 
@@ -258,6 +282,17 @@ export default function KanbanColumnDialog({
             </div>
             <Switch id="kanban-column-rooms" checked={showsRooms} onCheckedChange={setShowsRooms} />
           </div>
+
+          {/* Os botões de revisão (0131) só existem para objetivo de ambiente,
+              então este bloco acompanha o toggle de cima. Escondido não é
+              apagado: o que já estava configurado continua no banco. */}
+          {showsRooms && (
+            <ReviewMarkEditor
+              drafts={markDrafts}
+              onChange={setMarkDrafts}
+              error={tentouSalvar ? reviewMarksError(fromMarkDrafts(markDrafts)) : null}
+            />
+          )}
 
           <ObjectiveTemplateEditor
             drafts={drafts}

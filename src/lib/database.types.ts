@@ -2203,6 +2203,54 @@ export type Database = {
           },
         ]
       }
+      kanban_column_review_marks: {
+        Row: {
+          color: string
+          column_id: string
+          created_at: string
+          display_order: number
+          id: string
+          label: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          column_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          label: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          column_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          label?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_column_review_marks_column_fkey"
+            columns: ["column_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["id", "tenant_id"]
+          },
+          {
+            foreignKeyName: "kanban_column_review_marks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kanban_columns: {
         Row: {
           board_id: string
@@ -4069,6 +4117,10 @@ export type Database = {
           is_completed: boolean
           is_required: boolean
           phase: string | null
+          review_mark_color: string | null
+          review_mark_label: string | null
+          review_marked_at: string | null
+          review_marked_by_id: string | null
           room_id: string | null
           section: string | null
           task_id: string
@@ -4085,6 +4137,10 @@ export type Database = {
           is_completed?: boolean
           is_required?: boolean
           phase?: string | null
+          review_mark_color?: string | null
+          review_mark_label?: string | null
+          review_marked_at?: string | null
+          review_marked_by_id?: string | null
           room_id?: string | null
           section?: string | null
           task_id: string
@@ -4101,6 +4157,10 @@ export type Database = {
           is_completed?: boolean
           is_required?: boolean
           phase?: string | null
+          review_mark_color?: string | null
+          review_mark_label?: string | null
+          review_marked_at?: string | null
+          review_marked_by_id?: string | null
           room_id?: string | null
           section?: string | null
           task_id?: string
@@ -4109,6 +4169,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_checklist_items_review_marked_by_id_fkey"
+            columns: ["review_marked_by_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "collaborators"
+            referencedColumns: ["id", "tenant_id"]
+          },
           {
             foreignKeyName: "task_checklist_items_room_fkey"
             columns: ["room_id", "tenant_id"]
@@ -4851,6 +4918,10 @@ export type Database = {
       }
       replace_kanban_column_objectives: {
         Args: { p_column_id: string; p_sections: Json }
+        Returns: number
+      }
+      replace_kanban_column_review_marks: {
+        Args: { p_column_id: string; p_marks: Json }
         Returns: number
       }
       resolve_integration_api_key: {

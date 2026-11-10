@@ -1,6 +1,7 @@
 import type { Database } from '@/lib/database.types'
 
 import type { ObjectiveTemplateGroup } from './objectives'
+import type { ReviewMarkTemplate } from './review-marks'
 
 export type KanbanBoardRow = Database['public']['Tables']['kanban_boards']['Row']
 export type KanbanColumnRow = Database['public']['Tables']['kanban_columns']['Row']
@@ -16,9 +17,13 @@ export type OperationalTagRow = Database['public']['Tables']['operational_tags']
 */
 /* ...e o modelo de objetivos que a tarefa ganha ao entrar nela (0099), já em
    grupos: soltos primeiro, depois as seções na ordem. */
+/* ...e os botões de sinalização de revisão que ela oferece nos objetivos de
+   ambiente (0131). Lista vazia é "esta etapa não pede revisão", que é como toda
+   etapa nasce. */
 export type KanbanColumnWithTags = KanbanColumnRow & {
   tagKeys: string[]
   objectiveGroups: ObjectiveTemplateGroup[]
+  reviewMarks: ReviewMarkTemplate[]
 }
 
 export type KanbanBoard = KanbanBoardRow & { columns: KanbanColumnWithTags[] }

@@ -27,6 +27,8 @@ import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import AvatarPicture from '@/features/profile/components/AvatarPicture'
 import type { Collaborator } from '@/features/team/types'
+import { tagStyleOf } from '@/features/kanban/types'
+import type { ReviewMarkTemplate } from '@/features/kanban/review-marks'
 import { COLLABORATOR_ROLE, labelOf } from '@/lib/enums'
 import {
   describeTaskError,
@@ -77,6 +79,10 @@ type Props = {
   priorityClass: string
   progress: number | null
   checklist: TaskChecklistItem[]
+  /* Os botões de sinalização de revisão da ETAPA em que a tarefa está (0131).
+     Lista vazia é o estado de toda etapa que não pede revisão, e aí o objetivo
+     de ambiente fica só com o check, como antes. */
+  reviewMarks: ReviewMarkTemplate[]
   tag: { label: string; badgeClass: string; Icon: LucideIcon } | null
   tagOptions: TagOffer[]
   responsibles: Collaborator[]
@@ -87,6 +93,8 @@ type Props = {
   onEdit: () => void
   onDelete: () => void
   onToggleChecklistItem: (item: TaskChecklistItem) => void
+  /* `null` desmarca a revisão. Ver `useSetChecklistReviewMark`. */
+  onSetReviewMark: (item: TaskChecklistItem, mark: ReviewMarkTemplate | null) => void
   onChangeResponsible: (collaboratorId: string) => void
   onSetOperationalTag: (tag: string | null) => void
   onOpenDiary: () => void
@@ -108,6 +116,7 @@ function OpenCard({
   priorityClass,
   progress,
   checklist,
+  reviewMarks,
   tag,
   tagOptions,
   responsibles,
@@ -118,6 +127,7 @@ function OpenCard({
   onEdit,
   onDelete,
   onToggleChecklistItem,
+  onSetReviewMark,
   onChangeResponsible,
   onSetOperationalTag,
   onOpenDiary,
@@ -274,6 +284,11 @@ function OpenCard({
                     item={item}
                     canEdit={canEdit}
                     responsibles={responsibles}
+                    /* Os botões só valem para objetivo de AMBIENTE (0131): é
+                       `room_id` que diz qual é, e quem decidiu esse recorte foi
+                       o escritório. */
+                    reviewMarks={item.room_id ? reviewMarks : []}
+                    onSetReviewMark={(mark) => onSetReviewMark(item, mark)}
                     onToggle={() => onToggleChecklistItem(item)}
                     onToggleAssignee={(collaboratorId, assign) =>
                       toggleAssignee(
@@ -900,6 +915,8 @@ function ObjectiveRow({
   item,
   canEdit,
   responsibles,
+  reviewMarks,
+  onSetReviewMark,
   onToggle,
   onToggleAssignee,
   onDue,
@@ -908,6 +925,8 @@ function ObjectiveRow({
   item: TaskChecklistItem
   canEdit: boolean
   responsibles: Collaborator[]
+  reviewMarks: ReviewMarkTemplate[]
+  onSetReviewMark: (mark: ReviewMarkTemplate | null) => void
   onToggle: () => void
   onToggleAssignee: (collaboratorId: string, assign: boolean) => void
   onDue: (due: string | null) => void
@@ -955,6 +974,21 @@ function ObjectiveRow({
       </span>
 
       <div className="flex items-center gap-1 shrink-0">
+        {/* ── Revisão do ambiente (0131) ──
+            Marcado, aparece SÓ o botão que foi escolhido — foi o pedido, e é o
+            que faz a fita de ambientes ser legível de relance. Sem marca, os
+            botões aparecem todos, para quem revisa apertar um. Quem não edita
+            vê a marca e não vê botão nenhum. */}
+        {reviewMarks.length > 0 && (
+          <ReviewMarkControl
+            item={item}
+            marks={reviewMarks}
+            canEdit={canEdit}
+            responsibles={responsibles}
+            onSet={onSetReviewMark}
+          />
+        )}
+
         {/* ── Prazo ── */}
         {(item.due_date || canEdit) && (
           <ObjectivePopover
@@ -1091,6 +1125,110 @@ function ObjectiveRow({
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+/*
+  O BOTÃO DE REVISÃO DE UM AMBIENTE (migration 0131).
+
+  Três estados, e os três foram pedidos assim:
+
+    marcado          um crachá só, o que foi escolhido. Quem edita clica nele
+                     para trocar ou limpar.
+    sem marca        os botões da etapa, lado a lado, prontos para apertar.
+    sem permissão    o crachá quando existe, e nada quando não existe — sem
+                     botão que não faz nada.
+
+  A COR E O TEXTO DO CRACHÁ SAEM DA LINHA DA TAREFA, não do cadastro: eles foram
+  copiados na marcação, e é o que permite renomear ou apagar o botão em
+  Configurações sem reescrever revisão antiga (cabeçalho da 0131). Por isso o
+  crachá aparece mesmo quando o botão não existe mais na etapa.
+
+  MARCAR NÃO CONCLUI o objetivo: o check é outro gesto, e é ele que trava o
+  avanço de etapa.
+*/
+function ReviewMarkControl({
+  item,
+  marks,
+  canEdit,
+  responsibles,
+  onSet,
+}: {
+  item: TaskChecklistItem
+  marks: ReviewMarkTemplate[]
+  canEdit: boolean
+  responsibles: Collaborator[]
+  onSet: (mark: ReviewMarkTemplate | null) => void
+}) {
+  const marcado = item.review_mark_label
+  const quem = responsibles.find((collaborator) => collaborator.id === item.review_marked_by_id)
+  const quando = item.review_marked_at ? format(parseISO(item.review_marked_at), 'dd/MM/yyyy') : null
+  const rastro = [quem?.name, quando].filter(Boolean).join(' · ')
+
+  if (marcado) {
+    const cracha = (
+      <span
+        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tagStyleOf(item.review_mark_color ?? 'slate').badge}`}
+        title={rastro ? `Revisão: ${marcado} (${rastro})` : `Revisão: ${marcado}`}
+      >
+        {marcado}
+      </span>
+    )
+
+    return (
+      <ObjectivePopover label="Revisão do ambiente" disabled={!canEdit} trigger={cracha}>
+        {(fechar) => (
+          <div className="space-y-1">
+            {rastro && <p className="px-1 pb-1 text-xs text-muted-foreground">{rastro}</p>}
+            {marks.map((mark) => (
+              <button
+                key={mark.label}
+                type="button"
+                onClick={() => {
+                  onSet(mark)
+                  fechar()
+                }}
+                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-elevated ${
+                  mark.label === marcado ? 'font-medium' : ''
+                }`}
+              >
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tagStyleOf(mark.color).dot}`} />
+                <span className="flex-1 min-w-0 truncate">{mark.label}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                onSet(null)
+                fechar()
+              }}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-elevated hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+              Limpar revisão
+            </button>
+          </div>
+        )}
+      </ObjectivePopover>
+    )
+  }
+
+  if (!canEdit) return null
+
+  return (
+    <div className="flex items-center gap-1">
+      {marks.map((mark) => (
+        <button
+          key={mark.label}
+          type="button"
+          onClick={() => onSet(mark)}
+          title={`Marcar como ${mark.label}`}
+          className={`rounded-full border px-2 py-0.5 text-xs font-medium opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 ${tagStyleOf(mark.color).badge}`}
+        >
+          {mark.label}
+        </button>
+      ))}
     </div>
   )
 }

@@ -295,6 +295,14 @@ export default function KanbanSection({ canEdit }: { canEdit: boolean }) {
                       countObjectives(column.objectiveGroups) === 1 ? 'objetivo padrão' : 'objetivos padrão'
                     }`}
                   {column.shows_project_rooms && ' · mostra ambientes'}
+                  {/* Só com ambientes: os botões de revisão (0131) não têm onde
+                      aparecer sem eles, e anunciá-los numa etapa que não os
+                      mostra seria prometer um botão que ninguém vai ver. */}
+                  {column.shows_project_rooms &&
+                    column.reviewMarks.length > 0 &&
+                    ` · ${column.reviewMarks.length} ${
+                      column.reviewMarks.length === 1 ? 'botão de revisão' : 'botões de revisão'
+                    }`}
                 </p>
               </div>
 

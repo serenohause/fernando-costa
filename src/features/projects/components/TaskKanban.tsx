@@ -45,6 +45,7 @@ import { useKanbanBoard, useOperationalTags } from '@/features/kanban/hooks'
 import KanbanColumnEditDialog from '@/features/settings/components/KanbanColumnEditDialog'
 import { orderedPhaseKeys, phaseLabelIn } from '@/features/kanban/board'
 import { columnHeaderClass, tagStyleOf } from '@/features/kanban/types'
+import type { ReviewMarkTemplate } from '@/features/kanban/review-marks'
 import type { DiaryProject } from '@/features/diary/types'
 import {
   COLLABORATOR_ROLE,
@@ -415,6 +416,7 @@ export default function TaskKanban({
   onDelete,
   onMove,
   onToggleChecklistItem,
+  onSetReviewMark,
   onChangeResponsible,
   onSetOperationalTag,
 }: {
@@ -435,6 +437,8 @@ export default function TaskKanban({
   onDelete: (task: TaskRow) => void
   onMove: (move: TaskPhaseMove, projectId: string | null) => void
   onToggleChecklistItem: (item: TaskChecklistItem) => void
+  /* A revisão do ambiente (0131). `null` desmarca. */
+  onSetReviewMark: (item: TaskChecklistItem, mark: ReviewMarkTemplate | null) => void
   onChangeResponsible: (task: TaskRow, collaboratorId: string) => void
   /* `null` é "Sem status" — a ausência de tag é o caso normal (migration 0074),
      e não um terceiro valor. */
@@ -1080,6 +1084,12 @@ export default function TaskKanban({
         }
         progress={selectedTask?.project_id ? progressOf(selectedTask.project_id) : null}
         checklist={selectedTask ? currentChecklist(selectedTask) : []}
+        /* Os botões de revisão são da ETAPA em que a tarefa está (0131), e não
+           da tarefa: trocar de etapa troca os botões, e etapa sem botão nenhum
+           deixa o ambiente só com o check. */
+        reviewMarks={
+          boardColumns.find((column) => column.key === selectedTask?.phase)?.reviewMarks ?? []
+        }
         tag={
           selectedTask?.operational_tag
             ? {
@@ -1111,6 +1121,7 @@ export default function TaskKanban({
           onDelete(selectedTask)
         }}
         onToggleChecklistItem={onToggleChecklistItem}
+        onSetReviewMark={onSetReviewMark}
         onChangeResponsible={(collaboratorId) => {
           if (selectedTask) onChangeResponsible(selectedTask, collaboratorId)
         }}

@@ -40,6 +40,7 @@ import {
   useSeedTaskChecklist,
   useSetTaskOperationalTag,
   useTasks,
+  useSetChecklistReviewMark,
   useToggleChecklistItem,
   useUpdateTask,
 } from '../hooks'
@@ -130,6 +131,7 @@ export default function Tasks() {
   const deleteMutation = useDeleteTask()
   const moveTaskPhase = useMoveTaskPhase()
   const toggleChecklistItem = useToggleChecklistItem()
+  const setReviewMark = useSetChecklistReviewMark()
   const changeTaskResponsible = useChangeTaskResponsible()
   const setOperationalTag = useSetTaskOperationalTag()
   const seedMutation = useSeedTaskChecklist()
@@ -295,6 +297,21 @@ export default function Tasks() {
     )
   }
 
+  /* A revisão do ambiente (0131). `null` desmarca; marcar NÃO conclui o
+     objetivo, por decisão do escritório — ver o cabeçalho da migration. */
+  const handleSetReviewMark = (
+    item: TaskChecklistItem,
+    mark: { label: string; color: string } | null,
+  ) => {
+    setReviewMark(
+      { id: item.id, mark },
+      {
+        onError: (error) =>
+          toast.error('Erro ao marcar a revisão: ' + describeTaskError(error)),
+      },
+    )
+  }
+
   const handleToggleChecklistItem = (item: TaskChecklistItem) => {
     toggleChecklistItem(
       { id: item.id, isCompleted: !item.is_completed },
@@ -425,6 +442,7 @@ export default function Tasks() {
             )
           }
           onToggleChecklistItem={handleToggleChecklistItem}
+          onSetReviewMark={handleSetReviewMark}
           onChangeResponsible={handleChangeResponsible}
           onSetOperationalTag={handleSetOperationalTag}
         />
