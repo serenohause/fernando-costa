@@ -60,6 +60,7 @@ export default function PropertyPhotos({
   property,
   canEdit,
   variante = 'balao',
+  onFotoAmpliada,
 }: {
   property: EnrichedMapProperty
   canEdit: boolean
@@ -78,6 +79,15 @@ export default function PropertyPhotos({
     segunda assinatura de URL.
   */
   variante?: 'balao' | 'coluna'
+  /*
+    AVISA QUEM CONTÉM ESTE CARROSSEL QUE A FOTO CHEIA ABRIU.
+
+    Só o resumo escuta, e precisa: ele é um diálogo do Radix, que fecha sozinho
+    no Esc e em qualquer clique fora do próprio conteúdo. O lightbox é irmão
+    dele, não filho — sem este aviso, fechar a foto fechava o resumo junto, e
+    clicar no fundo preto fechava os dois. Ver PropertySummaryModal.
+  */
+  onFotoAmpliada?: (aberta: boolean) => void
 }) {
   const photosQuery = useMapPropertyPhotos(property.id)
   const upload = useUploadMapPropertyPhotos()
@@ -86,6 +96,11 @@ export default function PropertyPhotos({
   const inputRef = useRef<HTMLInputElement>(null)
   const [index, setIndex] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
+
+  const abrirFotoCheia = (aberta: boolean) => {
+    setLightboxOpen(aberta)
+    onFotoAmpliada?.(aberta)
+  }
   const [pendingRemoval, setPendingRemoval] = useState<MapPropertyPhoto | null>(null)
 
   const photos = photosQuery.data ?? []
@@ -206,7 +221,7 @@ export default function PropertyPhotos({
             src={current.url}
             alt={current.file_name}
             className={`h-full w-full cursor-zoom-in ${encaixe}`}
-            onClick={() => setLightboxOpen(true)}
+            onClick={() => abrirFotoCheia(true)}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-muted-foreground">
@@ -256,7 +271,7 @@ export default function PropertyPhotos({
           <button
             type="button"
             title="Ver em tela cheia"
-            onClick={() => setLightboxOpen(true)}
+            onClick={() => abrirFotoCheia(true)}
             className="rounded-md bg-black/55 p-1.5 text-white transition-colors hover:bg-black/75"
           >
             <Maximize2 className="h-3.5 w-3.5" />
@@ -314,7 +329,7 @@ export default function PropertyPhotos({
           photos={photos}
           currentIndex={safeIndex}
           title={property.displayName}
-          onClose={() => setLightboxOpen(false)}
+          onClose={() => abrirFotoCheia(false)}
           onNavigate={setIndex}
         />
       )}

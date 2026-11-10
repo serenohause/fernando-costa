@@ -22,7 +22,32 @@ import type { MapPropertyPhoto } from '../types'
   O ENDEREÇO JÁ VEM ASSINADO (`photo.url`), e pode ser nulo: objeto removido do
   bucket, sessão sem permissão, rede fora. Aqui cabe explicar por escrito, e por
   isso o quadro de indisponível tem frase — na miniatura do carrossel não cabe.
+
+  ═══ O ANDAR EM QUE ESTE LIGHTBOX MORA ═══
+
+  Ele abre dos DOIS lugares: do balão do pino, que é um nó solto do Google, e da
+  coluna de fotos do resumo, que é um diálogo do Radix. O segundo é o que manda
+  na conta, porque o diálogo já ocupa um andar alto deste projeto:
+
+    sheet          40000 / 40001
+    dialog         50000 / 50001   <- o resumo da propriedade
+    LIGHTBOX       55000            <- aqui
+    alert-dialog   60000 / 60001   <- a confirmação de remover a foto
+
+  Com o valor antigo (9999) a foto abria ATRÁS do resumo: a camada preta existia,
+  cobria o mapa e não cobria o diálogo. Ficar acima do `alert-dialog` seria o erro
+  espelhado, e pior: a pergunta "Remover esta foto?" sumiria atrás da própria
+  foto.
+
+  `pointerEvents: 'auto'` NÃO É ENFEITE. O diálogo do Radix é modal e, enquanto
+  está aberto, o `body` fica com `pointer-events: none` para que só o conteúdo
+  dele receba clique. O lightbox é irmão do diálogo, não filho, então herda esse
+  `none` e vira uma imagem bonita que não fecha, não anda e não baixa. Declarar
+  `auto` na raiz devolve o clique para ele e para tudo que está dentro.
 */
+
+/* Entre o `dialog` (50001) e o `alert-dialog` (60000). Ver o cabeçalho. */
+const ANDAR_DO_LIGHTBOX = 55000
 export default function PropertyPhotoLightbox({
   photos,
   currentIndex,
@@ -44,14 +69,31 @@ export default function PropertyPhotoLightbox({
     if (currentIndex < photos.length - 1) onNavigate(currentIndex + 1)
   }, [currentIndex, photos.length, onNavigate])
 
+  /*
+    ESC FECHA SÓ A FOTO.
+
+    Quando o lightbox abre de dentro do resumo, o diálogo do Radix TAMBÉM escuta
+    Esc e fecharia junto. Quem resolve isso é o resumo, com `onEscapeKeyDown`
+    (ver PropertySummaryModal), e não este arquivo: o ouvinte do Radix é de
+    CAPTURA e foi registrado antes deste, então nada feito aqui o alcança.
+
+    A captura aqui serve a outra coisa: garantir que a tecla chegue a este
+    componente mesmo que alguém, no meio do caminho, pare a propagação. O
+    `stopPropagation` evita que a mesma tecla seja lida duas vezes por um
+    ouvinte de bolha que venha a existir depois.
+  */
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onClose()
+        return
+      }
       if (event.key === 'ArrowLeft') handlePrev()
       if (event.key === 'ArrowRight') handleNext()
     }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
+    document.addEventListener('keydown', handleKey, true)
+    return () => document.removeEventListener('keydown', handleKey, true)
   }, [onClose, handlePrev, handleNext])
 
   /* A PÁGINA ATRÁS NÃO ROLA enquanto a foto está aberta: o mapa reage à roda do
@@ -70,7 +112,7 @@ export default function PropertyPhotoLightbox({
   return createPortal(
     <div
       className="fixed inset-0 flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm"
-      style={{ zIndex: 9999 }}
+      style={{ zIndex: ANDAR_DO_LIGHTBOX, pointerEvents: 'auto' }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"

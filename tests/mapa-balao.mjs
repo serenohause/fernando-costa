@@ -284,6 +284,61 @@ try {
     (await resumo.locator('span', { hasText: /^\d+ \/ \d+$/ }).first().textContent())?.trim(),
   )
 
+  /* ── CASO 8: a foto em tela cheia ABERTA DE DENTRO DO RESUMO ───────────── */
+  await fotoNoResumo.click()
+  await pagina.waitForTimeout(900)
+
+  const cheia = pagina.locator('[aria-modal="true"][aria-label^="Foto de"]')
+  caso('8.1  o lightbox abre por cima do resumo', 1, await cheia.count())
+
+  /*
+    QUEM ESTÁ NO TOPO É QUEM RESPONDE AO CLIQUE, e é isso que se mede: o
+    elemento que o navegador entrega no centro da tela tem de estar DENTRO do
+    lightbox. Comparar z-index em CSS não provaria nada, porque empilhamento
+    depende do contexto de cada ancestral, e `pointer-events` pode matar o
+    clique de um elemento que está visualmente na frente.
+  */
+  const noTopo = await pagina.evaluate(() => {
+    const alvo = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2)
+    return Boolean(alvo?.closest('[aria-modal="true"][aria-label^="Foto de"]'))
+  })
+  caso('8.2  o centro da tela pertence ao lightbox', true, noTopo)
+
+  await pagina.keyboard.press('ArrowRight')
+  await pagina.waitForTimeout(400)
+  caso(
+    '8.3  o teclado anda dentro do lightbox',
+    '2 / 2',
+    (await cheia.locator('p', { hasText: /^\d+ \/ \d+$/ }).first().textContent())?.trim(),
+  )
+
+  /* Clique no fundo preto: para o Radix isso é "fora do diálogo", e sem a trava
+     de `onInteractOutside` o resumo fechava por baixo da foto. */
+  /* (120, 250): fora da moldura da foto (centralizada, 1024px de largura), fora
+     do cabeçalho e do rodapé do lightbox (que param a propagação) e longe da
+     seta da esquerda, que fica na metade da altura. */
+  await pagina.mouse.click(120, 250)
+  await pagina.waitForTimeout(600)
+  caso('8.4  clique no fundo fecha so a foto', 0, await pagina.locator('[aria-modal="true"][aria-label^="Foto de"]').count())
+  /* "Ajustar Localização" só existe no resumo: é a prova de que ele continua de
+     pé. `[role="dialog"]` não serve aqui, porque o lightbox também é um. */
+  caso(
+    '8.5  o resumo sobrevive ao clique no fundo',
+    1,
+    await pagina.getByRole('button', { name: 'Ajustar Localização' }).count(),
+  )
+
+  await resumo.locator('img[alt$=".png"]').first().click()
+  await pagina.waitForTimeout(900)
+  await pagina.keyboard.press('Escape')
+  await pagina.waitForTimeout(600)
+  caso('8.6  Esc fecha a foto', 0, await pagina.locator('[aria-modal="true"][aria-label^="Foto de"]').count())
+  caso(
+    '8.7  e o resumo continua aberto',
+    1,
+    await pagina.getByRole('button', { name: 'Ajustar Localização' }).count(),
+  )
+
   await resumo.locator('button:has-text("Fechar")').click()
   await pagina.waitForTimeout(1000)
 
@@ -321,6 +376,34 @@ try {
   )
 
 } finally {
+  /*
+    VARRE O QUE TIVER SOBRADO, antes de fechar o navegador.
+
+    Sem isto, uma falha no meio do caminho deixa foto na primeira propriedade do
+    escritório de teste, e a próxima execução falha no caso 1.1 por um motivo que
+    não tem nada a ver com o que quebrou. Best-effort de propósito: se a tela já
+    não estiver em pé, não há o que varrer e o erro original é o que importa.
+  */
+  try {
+    await pagina.goto(`${BASE}/MapaProjetos`, { waitUntil: 'networkidle' })
+    await pagina.waitForTimeout(3000)
+    await pagina.locator('button.w-full.text-left.p-3').first().click()
+    await pagina.waitForTimeout(2000)
+    const area = await pagina.locator('.gm-style').first().boundingBox()
+    await pagina.mouse.click(area.x + area.width / 2, area.y + area.height / 2 - 20)
+    await pagina.waitForTimeout(2500)
+    while ((await pagina.locator('button[title="Remover esta foto"]').count()) > 0) {
+      await pagina.locator('img[alt$=".png"]').first().hover()
+      await pagina.waitForTimeout(300)
+      await pagina.locator('button[title="Remover esta foto"]').first().click()
+      await pagina.waitForTimeout(500)
+      await pagina.getByRole('button', { name: 'Remover foto' }).click()
+      await pagina.waitForTimeout(3500)
+    }
+  } catch {
+    console.log('  (nao consegui varrer fotos restantes; confira o pino de teste)')
+  }
+
   await navegador.close()
   unlinkSync(foto1)
   unlinkSync(foto2)

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Edit3, MapPin, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import ClientLink from '@/features/crm/components/ClientLink'
@@ -36,6 +36,15 @@ import type { EnrichedMapProperty } from '../types'
   depois de ver a foto no pino não paga assinatura nova.
 
   No celular as duas colunas viram duas linhas, foto em cima.
+
+  ⚠ ENQUANTO A FOTO ESTÁ EM TELA CHEIA, ESTE DIÁLOGO FINGE NÃO ESTAR AQUI. O
+  lightbox é montado em `document.body`, irmão deste diálogo e não filho, porque
+  ele também serve o balão do pino, que vive dentro do mapa do Google. Para o
+  Radix, portanto, tudo que acontece lá é "fora": Esc fecharia os dois de uma
+  vez, e um clique no fundo preto do lightbox fecharia o resumo por baixo dele.
+  `onEscapeKeyDown` e `onInteractOutside` ficam barrados enquanto `fotoAmpliada`
+  é verdadeiro — não dá para resolver do lado do lightbox, porque o ouvinte de
+  Esc do Radix é de CAPTURA e foi registrado primeiro.
 */
 
 function InfoRow({
@@ -85,6 +94,8 @@ export default function PropertySummaryModal({
   onEditPin: (property: EnrichedMapProperty) => void
   onRemove: (property: EnrichedMapProperty) => void
 }) {
+  const [fotoAmpliada, setFotoAmpliada] = useState(false)
+
   if (!property) return null
 
   /* `linkedProject` é o mesmo do enriquecimento: projeto invisível não conta
@@ -99,7 +110,15 @@ export default function PropertySummaryModal({
       {/* `md:h-[80vh]` e não só `max-h`: a coluna da foto precisa de altura para
           existir, e altura de diálogo que segue o conteúdo encolhe junto com um
           pino que tem três linhas de informação. */}
-      <DialogContent className="max-w-5xl max-h-[92vh] md:h-[85vh] p-0 flex flex-col">
+      <DialogContent
+        className="max-w-5xl max-h-[92vh] md:h-[85vh] p-0 flex flex-col"
+        onEscapeKeyDown={(event) => {
+          if (fotoAmpliada) event.preventDefault()
+        }}
+        onInteractOutside={(event) => {
+          if (fotoAmpliada) event.preventDefault()
+        }}
+      >
         <DialogHeader className="px-6 py-4 border-b border-border flex-shrink-0">
           <DialogTitle className="text-lg font-semibold flex items-center gap-2">
             <MapPin className="w-5 h-5 text-soft" />
@@ -116,7 +135,12 @@ export default function PropertySummaryModal({
         <div className="flex-1 min-h-0 grid grid-rows-[16rem_minmax(0,1fr)] md:grid-rows-1 md:grid-cols-[1.4fr_1fr]">
           {/* Coluna das fotos */}
           <div className="border-b border-border bg-elevated p-4 md:border-r md:border-b-0 md:p-5">
-            <PropertyPhotos property={property} canEdit={canEdit} variante="coluna" />
+            <PropertyPhotos
+              property={property}
+              canEdit={canEdit}
+              variante="coluna"
+              onFotoAmpliada={setFotoAmpliada}
+            />
           </div>
 
           {/* Informações, com scroll próprio */}
