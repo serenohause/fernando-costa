@@ -955,10 +955,13 @@ export function useDeleteMapPropertyPhoto() {
         'A foto não foi removida. É preciso permissão de edição em Mapa de Projetos.',
       )
 
-      if (existing?.file_path) await removePhotoObjects([existing.file_path])
-      return propertyId
+      const arquivoRemovido = existing?.file_path
+        ? await removePhotoObjects([existing.file_path])
+        : true
+
+      return { propertyId, arquivoRemovido }
     },
-    onSuccess: (propertyId) => {
+    onSuccess: ({ propertyId }) => {
       void queryClient.invalidateQueries({ queryKey: mapKeys.photos(propertyId) })
     },
   })
@@ -982,14 +985,24 @@ async function collectPhotoPaths(propertyId: string): Promise<string[]> {
 /*
   Apagar objeto do bucket é sempre EFEITO SECUNDÁRIO: quando isto roda, a linha
   do banco já sumiu. Falhar aqui deixa um arquivo órfão e não pode desfazer o
-  que já aconteceu no banco. Por isso vai para o console e não sobe.
+  que já aconteceu no banco. Por isso não levanta exceção.
+
+  MAS DEVOLVE SE DEU CERTO, e a tela usa isso. A frase do diálogo promete que a
+  foto "sai da propriedade e do armazenamento"; quando a segunda metade falha, o
+  arquivo continua lá, legível por quem souber o caminho DENTRO do próprio
+  escritório. Dizer "Foto removida" nesse caso seria a tela afirmando o que não
+  aconteceu.
 
   A única remoção que NÃO passa por aqui é o passo de compensação do upload, que
   precisa falhar junto com a gravação.
 */
-async function removePhotoObjects(paths: string[]): Promise<void> {
-  if (paths.length === 0) return
+async function removePhotoObjects(paths: string[]): Promise<boolean> {
+  if (paths.length === 0) return true
 
   const { error } = await supabase.storage.from(MAP_PHOTOS_BUCKET).remove(paths)
-  if (error) console.error('[map] falha ao remover foto do Storage:', error)
+  if (error) {
+    console.error('[map] falha ao remover foto do Storage:', error)
+    return false
+  }
+  return true
 }

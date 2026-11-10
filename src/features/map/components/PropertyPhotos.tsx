@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { ImageOff, ImagePlus, Loader2, Maximize2, Plus, Trash2 } from 'lucide-react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
@@ -101,6 +101,7 @@ export default function PropertyPhotos({
     setLightboxOpen(aberta)
     onFotoAmpliada?.(aberta)
   }
+
   const [pendingRemoval, setPendingRemoval] = useState<MapPropertyPhoto | null>(null)
 
   const photos = photosQuery.data ?? []
@@ -111,6 +112,28 @@ export default function PropertyPhotos({
   */
   const safeIndex = photos.length === 0 ? 0 : Math.min(index, photos.length - 1)
   const current = photos[safeIndex]
+
+  /*
+    O AVISO DE "FOTO FECHADA" PRECISA SAIR TAMBÉM QUANDO NINGUÉM FECHA A FOTO.
+
+    `abrirFotoCheia(false)` cobre o gesto: Esc, clique no fundo, botão de fechar.
+    Não cobre o caso em que a foto SOME: remover a última foto esvazia a lista,
+    o componente retorna antes de chegar ao bloco do lightbox, e o callback
+    nunca corre. Quem contém este carrossel (o resumo) ficaria achando que a
+    foto continua ampliada e seguiria recusando Esc e clique fora para sempre,
+    sobrando só o botão Fechar.
+
+    Dois efeitos, e os dois são o mesmo seguro: um para a lista esvaziar, outro
+    para o componente sair da tela.
+  */
+  useEffect(() => {
+    if (lightboxOpen && photos.length === 0) {
+      setLightboxOpen(false)
+      onFotoAmpliada?.(false)
+    }
+  }, [lightboxOpen, photos.length, onFotoAmpliada])
+
+  useEffect(() => () => onFotoAmpliada?.(false), [onFotoAmpliada])
 
   const escolherArquivos = () => inputRef.current?.click()
 
@@ -142,7 +165,20 @@ export default function PropertyPhotos({
     remove.mutate(
       { id: alvo.id, propertyId: property.id },
       {
-        onSuccess: () => toast.success('Foto removida'),
+        /*
+          A SEGUNDA METADE DA REMOÇÃO PODE FALHAR SOZINHA. A linha sai do banco
+          e o arquivo pode ficar no armazenamento (não há cascade entre banco e
+          Storage, migration 0130). Nesse caso a foto some da tela de verdade,
+          e o aviso diz o que de fato ficou para trás, em vez de um "Foto
+          removida" que seria meia verdade.
+        */
+        onSuccess: ({ arquivoRemovido }) => {
+          if (arquivoRemovido) {
+            toast.success('Foto removida')
+            return
+          }
+          toast.warning('A foto saiu da propriedade, mas o arquivo pode ter ficado no armazenamento.')
+        },
         onError: (error) => toast.error(describeDatabaseError(error)),
       },
     )

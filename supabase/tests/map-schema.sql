@@ -113,6 +113,28 @@ begin
 end;
 $$;
 
+-- Sonda que executa como ANONIMO, sem claim nenhum. E o que prova que a chave
+-- publicavel nao alcanca o bucket: a tranca tem duas metades (bucket privado e
+-- policy), e esta sonda cobra a segunda.
+create or replace function pg_temp.chk_anon(p_caso text, p_desc text, p_expected text, p_sql text)
+returns void language plpgsql as $$
+declare v_rows bigint; v_state text; v_out text;
+begin
+  begin
+    perform set_config('role', 'anon', true);
+    perform set_config('request.jwt.claims', '', true);
+    execute p_sql;
+    get diagnostics v_rows = row_count;
+    v_out := 'OK:' || v_rows;
+  exception when others then
+    get stacked diagnostics v_state = returned_sqlstate;
+    v_out := 'ERR:' || v_state;
+  end;
+  perform set_config('role', 'postgres', true);
+  insert into res (caso, descricao, expected, observed) values (p_caso, p_desc, p_expected, v_out);
+end;
+$$;
+
 -- Fixtures --------------------------------------------------------------------
 
 create temp table ids on commit drop as select
@@ -587,6 +609,156 @@ select pg_temp.chk_as('7.9', 'CONTROLE: quem tem SO o menu projects LE os pinos'
   (select u_proj from ids), (select tenant_a from ids), format($q$
   select 1 from public.map_properties where id = %L
 $q$, (select prop_free from ids)));
+
+-- 8. O BUCKET DAS FOTOS DA PROPRIEDADE (migration 0130) -------------------------
+--
+-- POR QUE ESTA SECAO EXISTE, E POR QUE ELA NAO CABIA NA SUITE DE PADRAO
+--   `pattern-invariants.sql` cobre `map_property_photos` inteira, com as 26
+--   asserçoes do padrao. O que ela NAO cobre e o outro lado da feature: o
+--   bucket. storage.objects nao e tabela de negocio deste projeto, nao tem
+--   tenant_id proprio e nao entra naquele registro - o isolamento ali e por
+--   CAMINHO, e so um teste que grave e leia objeto de verdade sabe se o
+--   primeiro segmento esta sendo cobrado.
+--
+--   E regra do CLAUDE.md: nenhuma policy e aceita sem teste de isolamento
+--   correspondente. Os modulos 8 e 11 ja pagaram este pedagio
+--   (budget-schema.sql e diary-schema.sql); esta secao e a mesma forma, com o
+--   bucket e a chave de menu deste modulo.
+--
+-- A CHAVE AQUI E `map`, E E O QUE DIFERENCIA DO MODULO 11: la o envio le a
+-- funcao da pessoa; aqui le can_edit_menu('map'), a mesma chave que cria o
+-- pino. Por isso os atores desta suite servem: u_map tem `map` com can_edit, e
+-- u_proj tem `projects` com can_edit e `map` so com can_view.
+
+-- Dois objetos no bucket, um por escritorio. O caminho comeca pelo tenant_id, e
+-- e esse primeiro segmento que as quatro policies comparam com o claim do JWT.
+-- Entram como postgres, que tem BYPASSRLS: a fixture precisa existir para que a
+-- LEITURA possa ser testada, e e a leitura que esta sob julgamento.
+insert into storage.objects (bucket_id, name) values
+  ('map-property-photos',
+   'c1111111-1111-4111-8111-111111111111/c1400000-0000-4000-8000-000000000001/foto-a.jpg'),
+  ('map-property-photos',
+   'c2222222-2222-4222-8222-222222222222/c2400000-0000-4000-8000-000000000001/foto-b.jpg');
+
+select pg_temp.val('8.1', 'o bucket das fotos e PRIVADO', 'false', $q$
+  select public::text from storage.buckets where id = 'map-property-photos'
+$q$);
+
+select pg_temp.val('8.2', 'o limite de 10 MB esta no bucket', '10485760', $q$
+  select file_size_limit::text from storage.buckets where id = 'map-property-photos'
+$q$);
+
+-- Validacao de cliente nao e validacao: o `accept` do seletor de arquivo e
+-- conveniencia, e qualquer requisicao montada a mao o ignora. Quem recusa e o
+-- bucket. SVG fora da lista de proposito: e superficie de script servida do
+-- mesmo dominio assinado.
+select pg_temp.val('8.3', 'so os tres formatos de imagem estao no bucket',
+  'image/jpeg,image/png,image/webp', $q$
+  select array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'map-property-photos'
+$q$);
+
+select pg_temp.chk_anon('8.4', 'anon nao le objeto nenhum do bucket', 'OK:0', $q$
+  select 1 from storage.objects where bucket_id = 'map-property-photos'
+$q$);
+
+select pg_temp.chk_anon('8.5', 'anon nao grava no bucket', 'ERR:42501', $q$
+  insert into storage.objects (bucket_id, name)
+  values ('map-property-photos', 'c1111111-1111-4111-8111-111111111111/x/anon.jpg')
+$q$);
+
+select pg_temp.chk_as('8.6', 'CONTROLE: colaborador de A LE o objeto da pasta de A', 'OK:1',
+  (select u_map from ids), (select tenant_a from ids), $q$
+  select 1 from storage.objects
+   where bucket_id = 'map-property-photos'
+     and name like 'c1111111-1111-4111-8111-111111111111/%'
+$q$);
+
+select pg_temp.chk_as('8.7', 'colaborador de A nao le o objeto da pasta de B', 'OK:0',
+  (select u_map from ids), (select tenant_a from ids), $q$
+  select 1 from storage.objects
+   where bucket_id = 'map-property-photos'
+     and name like 'c2222222-2222-4222-8222-222222222222/%'
+$q$);
+
+select pg_temp.chk_as('8.8', 'colaborador de B nao le o objeto da pasta de A', 'OK:0',
+  (select u_b from ids), (select tenant_b from ids), $q$
+  select 1 from storage.objects
+   where bucket_id = 'map-property-photos'
+     and name like 'c1111111-1111-4111-8111-111111111111/%'
+$q$);
+
+-- A leitura e LARGA, como a das tabelas do modulo: quem tem so can_view em `map`
+-- tambem ve a foto. Sem este controle, uma policy de SELECT que exigisse
+-- can_edit passaria despercebida ate alguem sem edicao abrir o balao e achar
+-- que a foto sumiu.
+select pg_temp.chk_as('8.9', 'CONTROLE: quem tem SO can_view em map LE o objeto', 'OK:1',
+  (select u_proj from ids), (select tenant_a from ids), $q$
+  select 1 from storage.objects
+   where bucket_id = 'map-property-photos'
+     and name like 'c1111111-1111-4111-8111-111111111111/%'
+$q$);
+
+select pg_temp.chk_as('8.10', 'CONTROLE: quem edita Mapa ENVIA na pasta do proprio escritorio', 'OK:1',
+  (select u_map from ids), (select tenant_a from ids), $q$
+  insert into storage.objects (bucket_id, name)
+  values ('map-property-photos',
+          'c1111111-1111-4111-8111-111111111111/c1400000-0000-4000-8000-000000000002/nova.jpg')
+$q$);
+
+select pg_temp.chk_as('8.11', 'quem NAO edita Mapa nao envia foto', 'ERR:42501',
+  (select u_proj from ids), (select tenant_a from ids), $q$
+  insert into storage.objects (bucket_id, name)
+  values ('map-property-photos',
+          'c1111111-1111-4111-8111-111111111111/c1400000-0000-4000-8000-000000000002/negada.jpg')
+$q$);
+
+-- O equivalente, no Storage, do WITH CHECK sobre tenant_id nas tabelas. O ator e
+-- o mesmo que ACABOU de enviar na propria pasta (8.10): a recusa aqui so pode
+-- ser por causa da pasta.
+select pg_temp.chk_as('8.12', 'quem envia no proprio escritorio nao envia na pasta de OUTRO', 'ERR:42501',
+  (select u_map from ids), (select tenant_a from ids), $q$
+  insert into storage.objects (bucket_id, name)
+  values ('map-property-photos',
+          'c2222222-2222-4222-8222-222222222222/c2400000-0000-4000-8000-000000000001/invasor.jpg')
+$q$);
+
+-- Renomear e como se MOVE arquivo no Storage, e por isso o UPDATE tem WITH
+-- CHECK: sem ele, um objeto do proprio escritorio poderia ser empurrado para
+-- dentro da pasta de outro.
+select pg_temp.chk_as('8.13', 'nao da para RENOMEAR um objeto para a pasta de outro escritorio', 'ERR:42501',
+  (select u_map from ids), (select tenant_a from ids), $q$
+  update storage.objects
+     set name = 'c2222222-2222-4222-8222-222222222222/roubado/foto-a.jpg'
+   where bucket_id = 'map-property-photos'
+     and name = 'c1111111-1111-4111-8111-111111111111/c1400000-0000-4000-8000-000000000001/foto-a.jpg'
+$q$);
+
+-- A POLICY DE DELETE NAO E EXERCITAVEL POR SQL, e o motivo nao e nosso: o
+-- Supabase pendura storage.protect_delete() em storage.objects, que recusa
+-- qualquer DELETE direto antes de a RLS opinar. Toda remocao passa pela API de
+-- Storage. Entao o que da para afirmar aqui e que a policy existe e le as duas
+-- coisas certas - o escritorio e a chave de menu -, e nao o comportamento.
+-- Escrito assim, e nao com um chk_as esperando ERR:42501: caso de negacao que
+-- passa porque OUTRA coisa negou antes e asserção vazia.
+select pg_temp.val('8.14', 'existe policy de DELETE no bucket, e ela le escritorio E a chave do menu', 'true', $q$
+  select (qual like '%auth_tenant_id%' and qual like '%can_edit_menu%')::text
+    from pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname = 'map_property_photos_storage_delete_map_editor'
+$q$);
+
+select pg_temp.val('8.15', 'CONTROLE: nenhuma das quatro policies do bucket vale para anon', '0', $q$
+  select count(*)::text from pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname like 'map_property_photos_storage_%'
+     and 'anon' = any (roles)
+$q$);
+
+select pg_temp.val('8.16', 'CONTROLE: as quatro policies do bucket existem', 'DELETE,INSERT,SELECT,UPDATE', $q$
+  select string_agg(distinct cmd, ',' order by cmd) from pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname like 'map_property_photos_storage_%'
+$q$);
 
 select case when observed = expected then 'PASS' else 'FAIL' end as status,
        caso, descricao, expected, observed
