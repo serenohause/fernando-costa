@@ -228,6 +228,65 @@ try {
   await pagina.waitForTimeout(400)
   caso('4.6  Esc fecha', 0, await pagina.locator('div[role="dialog"][aria-modal="true"]').count())
 
+  /* ── CASO 6: onde cada botão mora, e CASO 7: a foto na coluna do resumo ── */
+  await abrirBalao()
+
+  const balao = pagina.locator('.gm-style-iw').first()
+  caso(
+    '6.1  o balao tem so "Ver Detalhes Completos"',
+    1,
+    await balao.locator('button:has-text("Ver Detalhes Completos")').count(),
+  )
+  for (const [numero, rotulo] of [
+    ['6.2', 'Editar Informações'],
+    ['6.3', 'Ajustar Localização'],
+    ['6.4', 'Remover do Mapa'],
+  ]) {
+    caso(
+      `${numero}  "${rotulo}" saiu do balao`,
+      0,
+      await balao.locator(`button:has-text("${rotulo}")`).count(),
+    )
+  }
+
+  /* A largura da foto no balão, guardada ANTES de abrir o resumo: é a régua do
+     caso 7. Número absoluto aqui seria teste de pixel, que quebra no dia em que
+     alguém mexer no padding do balão; o que importa é a RELAÇÃO. */
+  const larguraNoBalao = (await balao.locator('img[alt$=".png"]').first().boundingBox()).width
+
+  await balao.locator('button:has-text("Ver Detalhes Completos")').click()
+  await pagina.waitForTimeout(1500)
+
+  const resumo = pagina.locator('[role="dialog"]').last()
+  for (const [numero, rotulo] of [
+    ['6.5', 'Editar Informações'],
+    ['6.6', 'Ajustar Localização'],
+    ['6.7', 'Remover do Mapa'],
+    ['6.8', 'Fechar'],
+  ]) {
+    caso(
+      `${numero}  "${rotulo}" esta no resumo`,
+      1,
+      await resumo.locator(`button:has-text("${rotulo}")`).count(),
+    )
+  }
+
+  const fotoNoResumo = resumo.locator('img[alt$=".png"]').first()
+  caso('7.1  o resumo mostra a foto', 1, await fotoNoResumo.count())
+  const caixaNoResumo = await fotoNoResumo.boundingBox()
+  caso('7.2  a foto do resumo e bem maior que a do balao', true, caixaNoResumo.width > larguraNoBalao * 1.5)
+  /* As duas colunas lado a lado: a foto termina antes de a informação começar. */
+  const caixaDaInfo = await resumo.locator('text=Coordenadas').first().boundingBox()
+  caso('7.3  a foto fica a esquerda das informacoes', true, caixaNoResumo.x + caixaNoResumo.width <= caixaDaInfo.x)
+  caso(
+    '7.4  o contador do carrossel acompanha no resumo',
+    '1 / 2',
+    (await resumo.locator('span', { hasText: /^\d+ \/ \d+$/ }).first().textContent())?.trim(),
+  )
+
+  await resumo.locator('button:has-text("Fechar")').click()
+  await pagina.waitForTimeout(1000)
+
   /*
     ── CASO 5: remover as duas, pelo mesmo caminho da pessoa ────────────────
 
@@ -261,37 +320,6 @@ try {
     await pagina.getByRole('button', { name: /Adicionar fotos/ }).count(),
   )
 
-  /* ── CASO 6: onde cada botão mora ──────────────────────────────────────── */
-  const balao = pagina.locator('.gm-style-iw').first()
-  caso(
-    '6.1  o balao tem so "Ver Detalhes Completos"',
-    1,
-    await balao.locator('button:has-text("Ver Detalhes Completos")').count(),
-  )
-  for (const [numero, rotulo] of [
-    ['6.2', 'Editar Informações'],
-    ['6.3', 'Ajustar Localização'],
-    ['6.4', 'Remover do Mapa'],
-  ]) {
-    caso(`${numero}  "${rotulo}" saiu do balao`, 0, await balao.locator(`button:has-text("${rotulo}")`).count())
-  }
-
-  await balao.locator('button:has-text("Ver Detalhes Completos")').click()
-  await pagina.waitForTimeout(1200)
-
-  const resumo = pagina.locator('[role="dialog"]').last()
-  for (const [numero, rotulo] of [
-    ['6.5', 'Editar Informações'],
-    ['6.6', 'Ajustar Localização'],
-    ['6.7', 'Remover do Mapa'],
-    ['6.8', 'Fechar'],
-  ]) {
-    caso(
-      `${numero}  "${rotulo}" esta no resumo`,
-      1,
-      await resumo.locator(`button:has-text("${rotulo}")`).count(),
-    )
-  }
 } finally {
   await navegador.close()
   unlinkSync(foto1)

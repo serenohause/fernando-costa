@@ -59,9 +59,25 @@ import type { EnrichedMapProperty, MapPropertyPhoto } from '../types'
 export default function PropertyPhotos({
   property,
   canEdit,
+  variante = 'balao',
 }: {
   property: EnrichedMapProperty
   canEdit: boolean
+  /*
+    ONDE ESTE CARROSSEL ESTÁ DESENHADO, e é só isso que a variante muda.
+
+    'balao'  dentro do InfoWindow do pino: largura de cartão, altura fixa pela
+             proporção 16/10, foto recortada para preencher (`object-cover`),
+             que é o que faz uma fita de miniaturas parecer uma fita.
+    'coluna' a coluna da esquerda do resumo: ocupa a altura que o diálogo der, e
+             a foto aparece INTEIRA (`object-contain`). Recortar ali seria
+             esconder justamente o que a pessoa abriu o resumo para ver.
+
+    O QUE NÃO MUDA: a consulta, o cache e as ações. Os dois usam a mesma chave
+    de React Query, então abrir o resumo com o balão já aberto não paga uma
+    segunda assinatura de URL.
+  */
+  variante?: 'balao' | 'coluna'
 }) {
   const photosQuery = useMapPropertyPhotos(property.id)
   const upload = useUploadMapPropertyPhotos()
@@ -120,17 +136,22 @@ export default function PropertyPhotos({
   const enviando = upload.isPending
   const removendo = remove.isPending
 
+  const naColuna = variante === 'coluna'
+  const molde = naColuna ? 'flex h-full min-h-[18rem] flex-col' : 'mb-3'
+  const quadro = naColuna ? 'h-full min-h-[18rem] w-full' : 'aspect-[16/10] w-full'
+  const encaixe = naColuna ? 'object-contain' : 'object-cover'
+
   /* Carregando: um retângulo do tamanho final, para o balão não pular quando a
      resposta chegar. */
   if (photosQuery.isLoading) {
-    return <div className="mb-3 aspect-[16/10] w-full animate-pulse rounded-lg bg-muted" />
+    return <div className={`${molde} ${quadro} animate-pulse rounded-lg bg-muted`} />
   }
 
   if (photos.length === 0) {
     if (!canEdit) return null
 
     return (
-      <div className="mb-3">
+      <div className={molde}>
         <input
           ref={inputRef}
           type="file"
@@ -143,7 +164,9 @@ export default function PropertyPhotos({
           type="button"
           onClick={escolherArquivos}
           disabled={enviando}
-          className="flex h-28 w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40 hover:text-foreground disabled:cursor-wait disabled:opacity-70"
+          className={`flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:bg-accent/40 hover:text-foreground disabled:cursor-wait disabled:opacity-70 ${
+            naColuna ? 'h-full min-h-[18rem] flex-1' : 'h-28'
+          }`}
         >
           {enviando ? (
             <>
@@ -163,7 +186,7 @@ export default function PropertyPhotos({
   }
 
   return (
-    <div className="mb-3">
+    <div className={molde}>
       <input
         ref={inputRef}
         type="file"
@@ -173,12 +196,16 @@ export default function PropertyPhotos({
         onChange={aoEscolher}
       />
 
-      <div className="group relative aspect-[16/10] w-full overflow-hidden rounded-lg border border-border bg-muted">
+      <div
+        className={`group relative overflow-hidden rounded-lg border border-border bg-muted ${quadro} ${
+          naColuna ? 'flex-1' : ''
+        }`}
+      >
         {current?.url ? (
           <img
             src={current.url}
             alt={current.file_name}
-            className="h-full w-full cursor-zoom-in object-cover"
+            className={`h-full w-full cursor-zoom-in ${encaixe}`}
             onClick={() => setLightboxOpen(true)}
           />
         ) : (

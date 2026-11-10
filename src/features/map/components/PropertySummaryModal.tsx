@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Edit3, MapPin, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import ClientLink from '@/features/crm/components/ClientLink'
+import PropertyPhotos from './PropertyPhotos'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PROJECT_TYPE, labelOf } from '@/lib/enums'
@@ -27,6 +28,14 @@ import type { EnrichedMapProperty } from '../types'
   AS TRÊS SOMEM SEM PERMISSÃO DE EDIÇÃO no menu `map`, exatamente como sumiam no
   balão. A autoridade continua sendo do banco (migration 0058): esconder botão é
   cortesia, policy é tranca.
+
+  AS FOTOS OCUPAM A COLUNA DA ESQUERDA, e é por isso que o diálogo é largo
+  (`max-w-5xl`, e não o `max-w-lg` do original). No balão a foto é miniatura de
+  cartão; aqui ela é o conteúdo. A coluna usa a variante `coluna` do MESMO
+  componente do balão, com a mesma chave de React Query: abrir o resumo logo
+  depois de ver a foto no pino não paga assinatura nova.
+
+  No celular as duas colunas viram duas linhas, foto em cima.
 */
 
 function InfoRow({
@@ -87,7 +96,10 @@ export default function PropertySummaryModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[85vh] p-0 flex flex-col">
+      {/* `md:h-[80vh]` e não só `max-h`: a coluna da foto precisa de altura para
+          existir, e altura de diálogo que segue o conteúdo encolhe junto com um
+          pino que tem três linhas de informação. */}
+      <DialogContent className="max-w-5xl max-h-[92vh] md:h-[85vh] p-0 flex flex-col">
         <DialogHeader className="px-6 py-4 border-b border-border flex-shrink-0">
           <DialogTitle className="text-lg font-semibold flex items-center gap-2">
             <MapPin className="w-5 h-5 text-soft" />
@@ -95,8 +107,20 @@ export default function PropertySummaryModal({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Conteúdo com scroll */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        {/*
+          NO CELULAR SÃO DUAS LINHAS COM ALTURA DECLARADA, e isso não é detalhe:
+          com as duas linhas livres, a foto esticava e empurrava as informações
+          para fora do diálogo, que ficava sem jeito de rolar até elas. A linha
+          da foto tem 16rem, e o que sobra é da informação, que rola.
+        */}
+        <div className="flex-1 min-h-0 grid grid-rows-[16rem_minmax(0,1fr)] md:grid-rows-1 md:grid-cols-[1.4fr_1fr]">
+          {/* Coluna das fotos */}
+          <div className="border-b border-border bg-elevated p-4 md:border-r md:border-b-0 md:p-5">
+            <PropertyPhotos property={property} canEdit={canEdit} variante="coluna" />
+          </div>
+
+          {/* Informações, com scroll próprio */}
+          <div className="overflow-y-auto px-6 py-4">
           {/* Projeto */}
           <InfoSection title="Projeto">
             <InfoRow label="Nome" value={property.displayName || '—'} />
@@ -199,13 +223,19 @@ export default function PropertySummaryModal({
               />
             </InfoSection>
           )}
+          </div>
         </div>
 
         {/* Footer sticky */}
         <div className="px-6 py-4 border-t border-border flex-shrink-0 bg-card space-y-2">
           {canEdit && (
             <>
-              <div className="grid grid-cols-2 gap-2">
+              {/* As três numa linha só no desktop: cada linha de rodapé é altura
+                  tirada da foto, que é o que a pessoa veio ver. No celular elas
+                  empilham, porque o rótulo não cabe em um terço de 390px.
+                  "Remover do Mapa" fica vermelha e separada de "Fechar" por uma
+                  linha: é a única daqui que não tem volta. */}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <Button variant="outline" onClick={() => onEditInfo(property)} className="w-full">
                   <Edit3 className="w-4 h-4 mr-2" />
                   Editar Informações
@@ -214,18 +244,15 @@ export default function PropertySummaryModal({
                   <MapPin className="w-4 h-4 mr-2" />
                   Ajustar Localização
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => onRemove(property)}
+                  className="w-full text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Remover do Mapa
+                </Button>
               </div>
-              {/* A remoção fica sozinha na linha e vermelha: é a única daqui que
-                  não tem volta, e empilhá-la ao lado de "Fechar" poria o gesto
-                  destrutivo a um pixel do gesto de desistir. */}
-              <Button
-                variant="outline"
-                onClick={() => onRemove(property)}
-                className="w-full text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
-              >
-                <X className="w-4 h-4 mr-2" />
-                Remover do Mapa
-              </Button>
             </>
           )}
           <Button variant="outline" onClick={onClose} className="w-full">
