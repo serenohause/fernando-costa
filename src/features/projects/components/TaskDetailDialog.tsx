@@ -4,6 +4,7 @@ import {
   BookOpen,
   Calendar,
   Check,
+  ClipboardCheck,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -975,10 +976,9 @@ function ObjectiveRow({
 
       <div className="flex items-center gap-1 shrink-0">
         {/* ── Revisão do ambiente (0131) ──
-            Marcado, aparece SÓ o botão que foi escolhido — foi o pedido, e é o
-            que faz a fita de ambientes ser legível de relance. Sem marca, os
-            botões aparecem todos, para quem revisa apertar um. Quem não edita
-            vê a marca e não vê botão nenhum. */}
+            Um elemento só na linha, nos dois estados: "Revisar" abre o menu, e
+            o crachá do que foi marcado abre o mesmo menu para trocar ou limpar.
+            Ver o cabeçalho de `ReviewMarkControl`. */}
         {reviewMarks.length > 0 && (
           <ReviewMarkControl
             item={item}
@@ -1132,13 +1132,19 @@ function ObjectiveRow({
 /*
   O BOTÃO DE REVISÃO DE UM AMBIENTE (migration 0131).
 
-  Três estados, e os três foram pedidos assim:
+  UM GESTO, UM BOTÃO. A primeira versão desta tela mostrava TODOS os botões da
+  etapa lado a lado enquanto o ambiente não tivesse marca — três ambientes com
+  três opções cada viravam nove crachás coloridos na mesma lista, e o escritório
+  pediu o contrário: "um botão que abre um menuzinho, fica menos poluído".
 
-    marcado          um crachá só, o que foi escolhido. Quem edita clica nele
-                     para trocar ou limpar.
-    sem marca        os botões da etapa, lado a lado, prontos para apertar.
-    sem permissão    o crachá quando existe, e nada quando não existe — sem
-                     botão que não faz nada.
+  Então são dois estados, e os dois têm um só elemento na linha:
+
+    sem marca    um botão discreto ("Revisar") que abre o menu com as opções.
+    marcado      o crachá do que foi escolhido, que abre o MESMO menu para
+                 trocar ou limpar.
+
+  Quem não edita vê o crachá quando existe e não vê botão nenhum quando não
+  existe — botão que não faz nada é pior que botão ausente.
 
   A COR E O TEXTO DO CRACHÁ SAEM DA LINHA DA TAREFA, não do cadastro: eles foram
   copiados na marcação, e é o que permite renomear ou apagar o botão em
@@ -1166,37 +1172,52 @@ function ReviewMarkControl({
   const quando = item.review_marked_at ? format(parseISO(item.review_marked_at), 'dd/MM/yyyy') : null
   const rastro = [quem?.name, quando].filter(Boolean).join(' · ')
 
-  if (marcado) {
-    const cracha = (
-      <span
-        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tagStyleOf(item.review_mark_color ?? 'slate').badge}`}
-        title={rastro ? `Revisão: ${marcado} (${rastro})` : `Revisão: ${marcado}`}
-      >
-        {marcado}
-      </span>
-    )
+  /* Sem marca e sem permissão não há o que desenhar. */
+  if (!marcado && !canEdit) return null
 
-    return (
-      <ObjectivePopover label="Revisão do ambiente" disabled={!canEdit} trigger={cracha}>
-        {(fechar) => (
-          <div className="space-y-1">
-            {rastro && <p className="px-1 pb-1 text-xs text-muted-foreground">{rastro}</p>}
-            {marks.map((mark) => (
-              <button
-                key={mark.label}
-                type="button"
-                onClick={() => {
-                  onSet(mark)
-                  fechar()
-                }}
-                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-elevated ${
-                  mark.label === marcado ? 'font-medium' : ''
-                }`}
-              >
-                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tagStyleOf(mark.color).dot}`} />
-                <span className="flex-1 min-w-0 truncate">{mark.label}</span>
-              </button>
-            ))}
+  const trigger = marcado ? (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tagStyleOf(item.review_mark_color ?? 'slate').badge}`}
+      title={rastro ? `Revisão: ${marcado} (${rastro})` : `Revisão: ${marcado}`}
+    >
+      {marcado}
+    </span>
+  ) : (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-border bg-elevated px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      title="Marcar a revisão deste ambiente"
+    >
+      <ClipboardCheck className="h-3 w-3" />
+      Revisar
+    </span>
+  )
+
+  return (
+    <ObjectivePopover label="Revisão do ambiente" disabled={!canEdit} trigger={trigger}>
+      {(fechar) => (
+        <div className="space-y-1">
+          {rastro && <p className="px-1 pb-1 text-xs text-muted-foreground">{rastro}</p>}
+          {marks.map((mark) => (
+            <button
+              key={mark.label}
+              type="button"
+              onClick={() => {
+                onSet(mark)
+                fechar()
+              }}
+              className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-elevated ${
+                mark.label === marcado ? 'font-medium' : ''
+              }`}
+            >
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tagStyleOf(mark.color).dot}`} />
+              <span className="flex-1 min-w-0 truncate">{mark.label}</span>
+              {mark.label === marcado && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+            </button>
+          ))}
+
+          {/* Limpar só existe com marca: num ambiente ainda não revisado seria
+              uma opção que não faz nada. */}
+          {marcado && (
             <button
               type="button"
               onClick={() => {
@@ -1208,28 +1229,10 @@ function ReviewMarkControl({
               <X className="h-3.5 w-3.5" />
               Limpar revisão
             </button>
-          </div>
-        )}
-      </ObjectivePopover>
-    )
-  }
-
-  if (!canEdit) return null
-
-  return (
-    <div className="flex items-center gap-1">
-      {marks.map((mark) => (
-        <button
-          key={mark.label}
-          type="button"
-          onClick={() => onSet(mark)}
-          title={`Marcar como ${mark.label}`}
-          className={`rounded-full border px-2 py-0.5 text-xs font-medium opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100 ${tagStyleOf(mark.color).badge}`}
-        >
-          {mark.label}
-        </button>
-      ))}
-    </div>
+          )}
+        </div>
+      )}
+    </ObjectivePopover>
   )
 }
 

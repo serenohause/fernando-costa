@@ -20,9 +20,11 @@
        projeto. O recorte é `room_id`, e errá-lo põe botão de revisão em
        "Enviar planta baixa".
 
-    3. MARCADO, APARECE SÓ O BOTÃO ESCOLHIDO. Foi o pedido em letra; é o que
-       mantém a fita de ambientes legível, e é o que uma refatoração distraída
-       transforma de volta em três botões.
+    3. UM ELEMENTO SÓ NA LINHA, nos dois estados. Sem marca é o botão "Revisar",
+       que abre o menu; marcado é o crachá do que foi escolhido, que abre o mesmo
+       menu. Foi o segundo pedido do escritório ("um menuzinho, em vez de ficar
+       aparecendo um do lado do outro"), e é o que uma refatoração distraída
+       transforma de volta em três crachás por ambiente.
 
   EXIGE
     - `npm run dev` no ar em http://localhost:5173, com `.env` de DEV
@@ -173,10 +175,44 @@ try {
     process.exit(2)
   }
 
-  const linhaDeAmbiente = cartao.locator('div.group').filter({ hasText: 'Sala de estar' }).first()
+  /*
+    COMEÇA LIMPANDO AS MARCAS DO CARTÃO, e isso não é zelo: o escritório de teste
+    é compartilhado com qualquer execução anterior que tenha parado no meio, e
+    ambiente já marcado mostra o crachá em vez do botão "Revisar". Sem esta
+    varredura, o caso 3.3 contaria menos botões do que ambientes por um motivo
+    que não tem nada a ver com o que ele afirma.
+  */
+  for (let volta = 0; volta < 12; volta++) {
+    const marcado = cartao
+      .locator('div.group')
+      .filter({ hasNotText: 'Revisar' })
+      .locator('button[aria-label="Revisão do ambiente"]')
+      .first()
+    if ((await marcado.count()) === 0) break
+    await marcado.click()
+    await pagina.waitForTimeout(700)
+    await pagina.locator('[data-radix-popper-content-wrapper]').getByRole('button', { name: 'Limpar revisão' }).click()
+    await pagina.waitForTimeout(2000)
+  }
+
+  /*
+    A LINHA É PRESA POR POSIÇÃO, e não por um filtro de texto. `filter` é
+    avaliado a cada uso: uma linha escolhida por "tem o botão Revisar" deixa de
+    casar assim que o teste a marca, e o locator silenciosamente passa a apontar
+    para a PRÓXIMA linha ainda não revisada. Os casos seguintes mediriam outra
+    coisa e passariam ou falhariam por acidente.
+  */
+  const textos = await cartao.locator('div.group').allInnerTexts()
+  const indiceDaLinha = textos.findIndex((texto) => texto.includes('Revisar'))
+  const linhaDeAmbiente = cartao.locator('div.group').nth(indiceDaLinha)
   caso(
-    '3.1  o objetivo de ambiente ganha os dois botões',
-    2,
+    '3.1  o objetivo de ambiente ganha o botão "Revisar"',
+    1,
+    await linhaDeAmbiente.getByText('Revisar').count(),
+  )
+  caso(
+    '3.2  e NENHUMA opção aparece solta na linha',
+    0,
     await linhaDeAmbiente.locator('button:text-is("Aprovado"), button:text-is("Reprovado")').count(),
   )
 
@@ -196,43 +232,55 @@ try {
     .innerText()
   const quantosAmbientes = Number(cabecalhoAmbientes.match(/\/(\d+)/)?.[1] ?? 0)
   caso(
-    '3.2  só os ambientes ganham botão',
+    '3.3  só os ambientes ganham o botão',
     quantosAmbientes,
-    await cartao.locator('button:text-is("Aprovado")').count(),
+    await cartao.getByText('Revisar').count(),
   )
 
   /* ── CASO 4: marcar, trocar e limpar ────────────────────────────────────── */
-  await linhaDeAmbiente.getByRole('button', { name: 'Aprovado' }).click()
+
+  /*
+    O GATILHO É PROCURADO PELO PAPEL, e não pelo texto: ele é o mesmo botão nos
+    dois estados ("Revisar" e, depois de marcado, o crachá), e o que não muda é o
+    nome acessível que o popover lhe dá. Clicar pelo texto quebraria no estado
+    seguinte do próprio teste.
+  */
+  const gatilho = linhaDeAmbiente.getByRole('button', { name: 'Revisão do ambiente' })
+  const menu = pagina.locator('[data-radix-popper-content-wrapper]')
+  const check = linhaDeAmbiente.locator('button[role="checkbox"]').first()
+  /* ANTES e DEPOIS, e não um valor absoluto: o objetivo pode já estar concluído
+     por trabalho anterior no escritório de teste, e o que este teste afirma é
+     que MARCAR não mexe nisso. */
+  const concluidoAntes = await check.isChecked()
+
+  await gatilho.click()
+  await pagina.waitForTimeout(900)
+  caso('4.0  o menu traz as duas opções', 2, await menu.getByRole('button').count())
+
+  await menu.getByRole('button', { name: 'Aprovado' }).click()
   await pagina.waitForTimeout(2500)
 
   caso(
-    '4.1  marcado, sobra só o botão escolhido',
+    '4.1  marcado, o botão "Revisar" dá lugar ao crachá',
     0,
-    await linhaDeAmbiente.locator('button:text-is("Reprovado")').count(),
+    await linhaDeAmbiente.getByText('Revisar').count(),
   )
-  caso('4.2  e ele continua visível', 1, await linhaDeAmbiente.getByText('Aprovado').count())
+  caso('4.2  e o crachá mostra a marca', 1, await linhaDeAmbiente.getByText('Aprovado').count())
   /* A marca não conclui o objetivo: o check continua sendo a trava de etapa. */
-  caso(
-    '4.3  o objetivo NÃO foi concluído pela marca',
-    false,
-    await linhaDeAmbiente.locator('button[role="checkbox"]').first().isChecked(),
-  )
+  caso('4.3  marcar não mexe no check do objetivo', concluidoAntes, await check.isChecked())
 
-  await linhaDeAmbiente.getByText('Aprovado').click()
+  await gatilho.click()
   await pagina.waitForTimeout(900)
-  await pagina.getByRole('button', { name: 'Reprovado' }).last().click()
+  caso('4.4  o menu ganha "Limpar revisão" depois de marcado', 1, await menu.getByRole('button', { name: 'Limpar revisão' }).count())
+  await menu.getByRole('button', { name: 'Reprovado' }).click()
   await pagina.waitForTimeout(2500)
-  caso('4.4  dá para trocar a marca', 1, await linhaDeAmbiente.getByText('Reprovado').count())
+  caso('4.5  dá para trocar a marca', 1, await linhaDeAmbiente.getByText('Reprovado').count())
 
-  await linhaDeAmbiente.getByText('Reprovado').click()
+  await gatilho.click()
   await pagina.waitForTimeout(900)
-  await pagina.getByRole('button', { name: 'Limpar revisão' }).click()
+  await menu.getByRole('button', { name: 'Limpar revisão' }).click()
   await pagina.waitForTimeout(2500)
-  caso(
-    '4.5  limpar devolve os dois botões',
-    2,
-    await linhaDeAmbiente.locator('button:text-is("Aprovado"), button:text-is("Reprovado")').count(),
-  )
+  caso('4.6  limpar devolve o botão "Revisar"', 1, await linhaDeAmbiente.getByText('Revisar').count())
 } finally {
   /*
     DESFAZ A CONFIGURAÇÃO, pela própria tela. Sem isto, o escritório de teste
