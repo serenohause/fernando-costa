@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { MapPin, X } from 'lucide-react'
+import { Edit3, MapPin, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import ClientLink from '@/features/crm/components/ClientLink'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,16 @@ import type { EnrichedMapProperty } from '../types'
   O ENDEREÇO AQUI É O GRAVADO, cru, e não o `cleanAddress` que o popup do mapa
   mostra — é o que o original faz (`property.address`, :59). Os dois textos podem
   divergir num pino antigo, e é assim lá também.
+
+  O RODAPÉ É A DIVERGÊNCIA DELIBERADA. No original ele tem só o botão Fechar, e
+  as três ações de escrita ficam no balão do pino (MapaProjetos.jsx:1240-1270).
+  O escritório pediu a troca: o balão ficou com um botão só, e editar, ajustar
+  localização e remover passaram para cá. O motivo é espaço — o balão abre sobre
+  o mapa, tem largura de cartão e agora começa com o carrossel de fotos.
+
+  AS TRÊS SOMEM SEM PERMISSÃO DE EDIÇÃO no menu `map`, exatamente como sumiam no
+  balão. A autoridade continua sendo do banco (migration 0058): esconder botão é
+  cortesia, policy é tranca.
 */
 
 function InfoRow({
@@ -53,10 +63,18 @@ export default function PropertySummaryModal({
   open,
   onClose,
   property,
+  canEdit,
+  onEditInfo,
+  onEditPin,
+  onRemove,
 }: {
   open: boolean
   onClose: () => void
   property: EnrichedMapProperty | null
+  canEdit: boolean
+  onEditInfo: (property: EnrichedMapProperty) => void
+  onEditPin: (property: EnrichedMapProperty) => void
+  onRemove: (property: EnrichedMapProperty) => void
 }) {
   if (!property) return null
 
@@ -184,7 +202,32 @@ export default function PropertySummaryModal({
         </div>
 
         {/* Footer sticky */}
-        <div className="px-6 py-4 border-t border-border flex-shrink-0 bg-card">
+        <div className="px-6 py-4 border-t border-border flex-shrink-0 bg-card space-y-2">
+          {canEdit && (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={() => onEditInfo(property)} className="w-full">
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Editar Informações
+                </Button>
+                <Button variant="outline" onClick={() => onEditPin(property)} className="w-full">
+                  <MapPin className="w-4 h-4 mr-2" />
+                  Ajustar Localização
+                </Button>
+              </div>
+              {/* A remoção fica sozinha na linha e vermelha: é a única daqui que
+                  não tem volta, e empilhá-la ao lado de "Fechar" poria o gesto
+                  destrutivo a um pixel do gesto de desistir. */}
+              <Button
+                variant="outline"
+                onClick={() => onRemove(property)}
+                className="w-full text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Remover do Mapa
+              </Button>
+            </>
+          )}
           <Button variant="outline" onClick={onClose} className="w-full">
             <X className="w-4 h-4 mr-2" />
             Fechar

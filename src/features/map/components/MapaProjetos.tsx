@@ -1085,9 +1085,6 @@ export default function MapaProjetos() {
                 onSelectProperty={setSelectedProperty}
                 canEdit={canEdit}
                 onViewSummary={handleViewPropertySummary}
-                onEditInfo={handleEditPropertyInfo}
-                onEditPin={handleEditPin}
-                onRemove={handleRemovePinClick}
               />
             ) : (
               /*
@@ -1137,10 +1134,27 @@ export default function MapaProjetos() {
       />
 
       {/* Modal de visualização de resumo */}
+      {/*
+        AS TRÊS AÇÕES DE ESCRITA ENTRAM AQUI, e não no balão do pino. Divergência
+        pedida pelo escritório — ver o cabeçalho de PropertySummaryModal.
+
+        `handleEditPropertyInfo` e `handleRemovePinClick` TROCAM o modal aberto
+        (SUMMARY vira EDIT ou DELETE), então fecham este sozinhos. `handleEditPin`
+        não abre modal nenhum: ele volta para o mapa com o pino arrastável, e por
+        isso precisa do `closeModal` explícito — sem ele o resumo ficaria aberto
+        por cima do mapa que a pessoa acabou de pedir para ajustar.
+      */}
       <PropertySummaryModal
         open={modal?.type === 'SUMMARY'}
         onClose={closeModal}
         property={modal?.type === 'SUMMARY' ? modal.property : null}
+        canEdit={canEdit}
+        onEditInfo={handleEditPropertyInfo}
+        onEditPin={(property) => {
+          closeModal()
+          handleEditPin(property)
+        }}
+        onRemove={handleRemovePinClick}
       />
 
       {/* Modal para confirmar remoção de propriedade */}

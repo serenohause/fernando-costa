@@ -26,10 +26,14 @@ import PropertyPopup from './PropertyPopup'
   cobra por carga de mapa.
 
   O QUE AINDA É REACT, e é o que importa: o balão do pino. `PropertyPopup` é o
-  mesmo componente da tela do Leaflet, com os mesmos botões e as mesmas
-  permissões, desenhado dentro do `InfoWindow` por `createPortal`. Sem o portal
-  seria preciso montar HTML em string e religar `onclick` à mão, e os quatro
-  botões do balão deixariam de passar por `canEdit`.
+  mesmo componente da tela do Leaflet, desenhado dentro do `InfoWindow` por
+  `createPortal`. Sem o portal seria preciso montar HTML em string e religar
+  `onclick` à mão, e o carrossel de fotos, que é React de cabo a rabo, não teria
+  como existir ali dentro.
+
+  AS TRÊS AÇÕES DE ESCRITA NÃO PASSAM MAIS POR AQUI: elas moram no resumo
+  ("Ver Detalhes Completos"), que é um diálogo comum da tela. Ver o cabeçalho de
+  PropertyPopup.
 
   NENHUMA CHAMADA AO SUPABASE ACONTECE AQUI. Os dados chegam por prop, e toda
   ação sai por callback para a tela, que fala com os hooks. É a regra do
@@ -59,9 +63,6 @@ type Props = {
   onSelectProperty: (property: EnrichedMapProperty) => void
   canEdit: boolean
   onViewSummary: (property: EnrichedMapProperty) => void
-  onEditInfo: (property: EnrichedMapProperty) => void
-  onEditPin: (property: EnrichedMapProperty) => void
-  onRemove: (property: EnrichedMapProperty) => void
 }
 
 /* O teto de aproximação ao enquadrar um conjunto, igual ao `maxZoom: 15` que o
@@ -114,9 +115,6 @@ export default function MapaGoogle({
   onSelectProperty,
   canEdit,
   onViewSummary,
-  onEditInfo,
-  onEditPin,
-  onRemove,
 }: Props) {
   const divDoMapa = useRef<HTMLDivElement | null>(null)
   const mapa = useRef<google.maps.Map | null>(null)
@@ -472,24 +470,12 @@ export default function MapaGoogle({
           <PropertyPopup
             property={propriedadeAberta}
             canEdit={canEdit}
-            /* Cada ação fecha o balão antes de avisar a tela: no Leaflet isso era
-               `mapRef.current?.closePopup()` em três handlers de lá, e sem isso o
-               balão fica por cima do diálogo que acabou de abrir. */
+            /* A ação fecha o balão antes de avisar a tela: no Leaflet isso era
+               `mapRef.current?.closePopup()`, e sem isso o balão fica por cima do
+               diálogo que acabou de abrir. */
             onViewSummary={(property) => {
               fecharBalao()
               onViewSummary(property)
-            }}
-            onEditInfo={(property) => {
-              fecharBalao()
-              onEditInfo(property)
-            }}
-            onEditPin={(property) => {
-              fecharBalao()
-              onEditPin(property)
-            }}
-            onRemove={(property) => {
-              fecharBalao()
-              onRemove(property)
             }}
           />,
           divDoBalao.current,

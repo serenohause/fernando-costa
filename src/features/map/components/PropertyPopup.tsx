@@ -1,4 +1,4 @@
-import { Edit3, ExternalLink, MapPin, X } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import ClientLink from '@/features/crm/components/ClientLink'
 import PropertyPhotos from './PropertyPhotos'
@@ -19,9 +19,18 @@ import type { EnrichedMapProperty } from '../types'
   - O bloco de loteamento só aparece com a tag "Loteamento fechado" (:1213),
     mesmo que nome, quadra e lote estejam preenchidos.
 
-  OS TRÊS BOTÕES DE ESCRITA SOMEM SEM PERMISSÃO DE EDIÇÃO no menu `map`. O
-  original não tem essa conferência em lugar nenhum desta tela; o banco tem
-  (migration 0058). Ver o cabeçalho de MapaProjetos.tsx.
+  OS TRÊS BOTÕES DE ESCRITA SAÍRAM DAQUI, e foram para o "Ver Detalhes
+  Completos" (PropertySummaryModal). O original os tem no balão (:1240-1270), e
+  esta é uma divergência PEDIDA pelo escritório, não um deslize: o balão abre
+  sobre o mapa, tem a largura de um cartão e agora começa com o carrossel de
+  fotos, então empilhar quatro botões ali empurrava o conteúdo para fora da
+  tela. Com um botão só, o balão responde "o que é este pino" e o resumo responde
+  "o que eu faço com ele".
+
+  A CONFERÊNCIA DE PERMISSÃO NÃO SUMIU, mudou de lugar: `canEdit` continua
+  chegando aqui porque o carrossel de fotos o usa, e as três ações de escrita
+  passam por ele dentro do resumo. O banco cobra do mesmo jeito (migration
+  0058), em qualquer dos dois caminhos.
 
   O QUE NÃO VEM DO ORIGINAL: o carrossel de fotos no topo. É feature nova
   (migration 0130), pedida pelo escritório, e por isso não tem linha de
@@ -34,16 +43,10 @@ export default function PropertyPopup({
   property,
   canEdit,
   onViewSummary,
-  onEditInfo,
-  onEditPin,
-  onRemove,
 }: {
   property: EnrichedMapProperty
   canEdit: boolean
   onViewSummary: (property: EnrichedMapProperty) => void
-  onEditInfo: (property: EnrichedMapProperty) => void
-  onEditPin: (property: EnrichedMapProperty) => void
-  onRemove: (property: EnrichedMapProperty) => void
 }) {
   return (
     <div className="p-3 min-w-[300px]">
@@ -114,37 +117,6 @@ export default function PropertyPopup({
           <ExternalLink className="w-3 h-3 mr-2" />
           Ver Detalhes Completos
         </Button>
-        {canEdit && (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full text-xs h-8"
-              onClick={() => onEditInfo(property)}
-            >
-              <Edit3 className="w-3 h-3 mr-2" />
-              Editar Informações
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full text-xs h-8"
-              onClick={() => onEditPin(property)}
-            >
-              <MapPin className="w-3 h-3 mr-2" />
-              Ajustar Localização
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full text-xs h-8 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
-              onClick={() => onRemove(property)}
-            >
-              <X className="w-3 h-3 mr-2" />
-              Remover do Mapa
-            </Button>
-          </>
-        )}
       </div>
     </div>
   )

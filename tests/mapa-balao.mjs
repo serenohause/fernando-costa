@@ -1,9 +1,10 @@
 /*
-  O CARROSSEL DE FOTOS DO BALÃO DO PINO, NO NAVEGADOR DE VERDADE.
+  O BALÃO DO PINO NO NAVEGADOR DE VERDADE: o carrossel de fotos, e onde moram os
+  botões de ação.
 
   COMO RODAR
     npm run dev          (em outro terminal, com .env apontando para dev)
-    npm run test:mapa-fotos
+    npm run test:mapa-balao
 
   POR QUE ESTE ARQUIVO EXISTE
     Três coisas desta feature só existem quando o navegador monta a página, e
@@ -21,7 +22,13 @@
     2. OS BOTÕES QUE SÓ APARECEM NO HOVER. Opacidade zero continua clicável em
        teste de unidade. Aqui a conferência é a computada, depois do hover.
 
-    3. O CICLO INTEIRO CONTRA O SUPABASE DE DEV: subir a foto para o bucket
+    3. ONDE CADA BOTÃO MORA. O escritório pediu o balão com um botão só ("Ver
+       Detalhes Completos") e as três ações de escrita dentro do resumo. Isso é
+       combinação entre dois componentes e um gerente de modal: dá para quebrar
+       sem erro nenhum de tipo, deixando um botão órfão no balão ou um resumo
+       sem ação nenhuma para quem edita.
+
+    4. O CICLO INTEIRO CONTRA O SUPABASE DE DEV: subir a foto para o bucket
        privado, ler de volta com URL assinada, desenhar, e remover. A policy, o
        caminho com `tenant_id` na frente e o MIME do bucket só falam quando há
        uma requisição real.
@@ -253,6 +260,38 @@ try {
     1,
     await pagina.getByRole('button', { name: /Adicionar fotos/ }).count(),
   )
+
+  /* ── CASO 6: onde cada botão mora ──────────────────────────────────────── */
+  const balao = pagina.locator('.gm-style-iw').first()
+  caso(
+    '6.1  o balao tem so "Ver Detalhes Completos"',
+    1,
+    await balao.locator('button:has-text("Ver Detalhes Completos")').count(),
+  )
+  for (const [numero, rotulo] of [
+    ['6.2', 'Editar Informações'],
+    ['6.3', 'Ajustar Localização'],
+    ['6.4', 'Remover do Mapa'],
+  ]) {
+    caso(`${numero}  "${rotulo}" saiu do balao`, 0, await balao.locator(`button:has-text("${rotulo}")`).count())
+  }
+
+  await balao.locator('button:has-text("Ver Detalhes Completos")').click()
+  await pagina.waitForTimeout(1200)
+
+  const resumo = pagina.locator('[role="dialog"]').last()
+  for (const [numero, rotulo] of [
+    ['6.5', 'Editar Informações'],
+    ['6.6', 'Ajustar Localização'],
+    ['6.7', 'Remover do Mapa'],
+    ['6.8', 'Fechar'],
+  ]) {
+    caso(
+      `${numero}  "${rotulo}" esta no resumo`,
+      1,
+      await resumo.locator(`button:has-text("${rotulo}")`).count(),
+    )
+  }
 } finally {
   await navegador.close()
   unlinkSync(foto1)

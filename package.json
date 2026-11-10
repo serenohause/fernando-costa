@@ -101,7 +101,7 @@
     "test:asaas": "node tests/asaas-regras.mjs",
     "test:lp-telefone": "node tests/lp-telefone.mjs",
     "test:fluxo-rolagem": "node tests/fluxo-rolagem.mjs",
-    "test:mapa-fotos": "node tests/mapa-fotos.mjs",
+    "test:mapa-balao": "node tests/mapa-balao.mjs",
     "test:tarefa-atrasada": "node tests/tarefa-atrasada.mjs",
     "test:asaas-baixa": "node tests/asaas-baixa-manual.mjs",
     "test:asaas-cobranca": "node tests/asaas-cobranca.mjs",
