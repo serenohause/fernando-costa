@@ -32,10 +32,23 @@
     - no escritório de teste: a etapa "Estudo preliminar" com ambientes ligados e
       pelo menos um cartão com ambientes (o seed do módulo 5 e a 0100 dão isso)
 
+  ⚠ ESTE TESTE APAGA COISA, e isso precisa estar escrito em voz alta: ele
+  DESMARCA até doze ambientes já revisados do primeiro cartão que encontrar, e no
+  fim REMOVE todos os botões de revisão da etapa "Estudo preliminar". Ele não
+  restaura o que achou, ele zera. Em dev isso é desejável; em produção seria
+  apagar revisão de gente e configuração de escritório, sem histórico para
+  devolver.
+
+  POR ISSO ELE CONFERE O BANCO, E NÃO SÓ O ENDEREÇO. A trava de `BASE_URL` só
+  diz que o servidor é local; qual BANCO aquele `npm run dev` está usando é outra
+  pergunta, e o `.env` já apontou para produção numa troca de ambiente pela
+  metade. Antes de digitar a senha, o arquivo compara o projeto Supabase do
+  `.env` com o de desenvolvimento e aborta se não bater.
+
   RESÍDUO
-    Nenhum, e ele é limpo pela própria tela: a revisão é desmarcada e os botões
-    saem da etapa no fim, pelo mesmo caminho que a pessoa usaria. Falha no meio
-    deixa configuração no escritório de teste, e o `finally` tenta desfazer.
+    Nenhum do que ELE cria: a revisão é desmarcada e os botões saem da etapa no
+    fim, pelo mesmo caminho que a pessoa usaria. Falha no meio deixa configuração
+    no escritório de teste, e o `finally` tenta desfazer.
 
   CUIDADO
     Lê a senha do arquivo de credenciais e NUNCA a imprime.
@@ -56,6 +69,37 @@ const ETAPA = 'Estudo preliminar'
   const host = new URL(BASE).hostname
   if (host !== 'localhost' && host !== '127.0.0.1' && host !== '[::1]') {
     console.error(`BASE_URL precisa apontar para a maquina local; recebi "${host}"`)
+    process.exit(2)
+  }
+}
+
+/*
+  A SEGUNDA TRAVA, e é ela que importa aqui: o ambiente ATIVO.
+
+  Este arquivo apaga revisão e configuração (ver o aviso do cabeçalho), e o
+  servidor local serve o banco que o `.env` mandar. Ambiente trocado pela metade
+  é estado real neste projeto - `npm run env:dev` pode trocar o `.env` e falhar o
+  resto -, então confiar em "está local, logo é dev" é confiar na metade errada.
+
+  A conferência é pelo REF do projeto dentro da URL do Supabase, que é o que
+  distingue os dois bancos. Sem `.env`, aborta: rodar sem saber onde se está é o
+  caso que esta trava existe para impedir.
+*/
+const PROJETO_DE_DEV = 'muqaoymjsoyvwqfdanod'
+{
+  let env
+  try {
+    env = readFileSync(`${RAIZ}/.env`, 'utf8')
+  } catch {
+    console.error('nao achei .env; rode `npm run env:dev` antes')
+    process.exit(2)
+  }
+  const url = env.match(/^\s*VITE_SUPABASE_URL\s*=\s*(.*)$/m)?.[1]?.trim() ?? ''
+  if (!url.includes(PROJETO_DE_DEV)) {
+    console.error(
+      'ABORTADO: o .env NAO aponta para o Supabase de desenvolvimento.\n' +
+        '  Este teste apaga revisao e configuracao de etapa. Rode `npm run env:dev` antes.',
+    )
     process.exit(2)
   }
 }

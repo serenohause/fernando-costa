@@ -106,12 +106,21 @@ export const COLUMN_COLOR_VALUES = Object.keys(COLUMN_COLORS) as ColumnColor[]
   coluna visível e legível; devolver `undefined` deixaria o cabeçalho
   transparente e a etapa pareceria quebrada.
 */
+/* `Object.hasOwn` pelo mesmo motivo de `tagStyleOf`, logo abaixo: chave do
+   protótipo ("constructor") passa no check de cor do banco e escaparia do
+   `??`, deixando a coluna sem classe nenhuma. */
+function columnStyleOf(color: string) {
+  return Object.hasOwn(COLUMN_COLORS, color)
+    ? COLUMN_COLORS[color as ColumnColor]
+    : COLUMN_COLORS.muted
+}
+
 export function columnHeaderClass(color: string): string {
-  return (COLUMN_COLORS[color as ColumnColor] ?? COLUMN_COLORS.muted).header
+  return columnStyleOf(color).header
 }
 
 export function columnSwatchClass(color: string): string {
-  return (COLUMN_COLORS[color as ColumnColor] ?? COLUMN_COLORS.muted).swatch
+  return columnStyleOf(color).swatch
 }
 
 /*
@@ -190,8 +199,17 @@ export const TAG_COLORS = {
 export type TagColor = keyof typeof TAG_COLORS
 export const TAG_COLOR_VALUES = Object.keys(TAG_COLORS) as TagColor[]
 
-/* Cor desconhecida cai no neutro, e não em nada: o check do banco aceita
-   qualquer palavra minúscula, e um crachá sem classe ficaria invisível. */
+/*
+  Cor desconhecida cai no neutro, e não em nada: o check do banco aceita qualquer
+  palavra minúscula, e um crachá sem classe ficaria invisível.
+
+  `Object.hasOwn`, E NÃO `??`. O operador olha o valor, e um objeto comum
+  responde por chaves herdadas do protótipo: `TAG_COLORS['constructor']` devolve
+  a função construtora, que é truthy, então o `??` não dispara e `.badge` sai
+  `undefined`. "constructor" passa no check `^[a-z]+$` do banco, então é cor
+  gravável. Não é injeção de classe — o valor nunca é concatenado —, é um crachá
+  sem estilo nenhum, e o conserto custa uma linha.
+*/
 export function tagStyleOf(color: string) {
-  return TAG_COLORS[color as TagColor] ?? TAG_COLORS.slate
+  return Object.hasOwn(TAG_COLORS, color) ? TAG_COLORS[color as TagColor] : TAG_COLORS.slate
 }

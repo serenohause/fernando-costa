@@ -11,7 +11,10 @@
 --      pessoa "consertar" a copia trocando-a por chave estrangeira.
 --   4. Marcar NAO conclui o objetivo, e a constraint que impede marca pela
 --      metade (cor, autor ou instante sem rotulo) esta de pe.
---   5. Rotulo repetido na mesma etapa e recusado.
+--   5. Rotulo repetido na mesma etapa e recusado, e a lista tem teto no BANCO
+--      (0132), e nao so na tela.
+--   6. Marcar e escrita do FLUXO DO PROJETO: quem so visualiza o fluxo nao marca,
+--      e a marca nao aponta para colaborador de outro escritorio.
 --
 -- COMO RODAR
 --   npm run test:kanban:revisao
@@ -207,6 +210,21 @@ select pg_temp.rec('1.8', 'CONTROLE: a recusa de repetido nao deixou meia lista'
   'Aprovado:emerald | Reprovado:rose | Alterado:amber',
   pg_temp.botoes(pg_temp.col((select tenant_a from ids), 'preliminary_study')));
 
+/* O teto de oito existe nos DOIS lados desde a 0132: a tela recusa antes de
+   chamar, e o banco recusa quem chamar por fora. Sem o lado de ca, uma lista de
+   milhares de botoes viraria download e menu infinito para todo o escritorio -
+   o estrago cai em quem nao fez nada. */
+select pg_temp.rec('1.9', 'lista acima de oito botoes e recusada pelo banco', 'ERR:22023',
+  pg_temp.valor_as((select user_cfg_a from ids), (select tenant_a from ids), format($q$
+    select public.replace_kanban_column_review_marks(%L, (
+      select jsonb_agg(jsonb_build_object('label', 'Botao ' || g, 'color', 'slate'))
+        from generate_series(1, 9) g))
+  $q$, pg_temp.col((select tenant_a from ids), 'preliminary_study'))));
+
+select pg_temp.rec('1.10', 'CONTROLE: a recusa do teto nao apagou a lista boa',
+  'Aprovado:emerald | Reprovado:rose | Alterado:amber',
+  pg_temp.botoes(pg_temp.col((select tenant_a from ids), 'preliminary_study')));
+
 -- 2. QUEM ALCANCA ----------------------------------------------------------------
 
 select pg_temp.rec('2.1', 'CONTROLE: colaborador do escritorio LE os botoes', '3',
@@ -244,6 +262,28 @@ select pg_temp.rec('3.1', 'quem edita o Fluxo do Projeto marca a revisao', '1',
            review_marked_at = now()
      where id = %L
   $q$, (select col_arq_a from ids), (select item_a from ids))));
+
+/* O negativo do lado da MARCACAO, que e outra chave de menu: configurar o botao
+   e Configuracoes, marcar e Fluxo do Projeto. Sem este caso, um afrouxamento na
+   policy de task_checklist_items passaria por este arquivo sem ser visto - ele
+   fala de revisao e nao conferia quem pode registrar uma. */
+select pg_temp.rec('3.1b', 'quem SO VISUALIZA o fluxo nao marca a revisao', '0',
+  pg_temp.exec_as((select user_cfg_a from ids), (select tenant_a from ids), format($q$
+    update public.task_checklist_items
+       set review_mark_label = 'Marcado por quem nao edita', review_mark_color = 'rose'
+     where id = %L
+  $q$, (select item_a from ids))));
+
+/* A FK composta e o que impede assinar a revisao com gente de outro escritorio.
+   Dentro do MESMO escritorio o campo vem do cliente e nao e provado aqui - esta
+   registrado como pendencia do projeto inteiro, e nao desta tabela. */
+select pg_temp.rec('3.1c', 'a marca nao aponta para colaborador de outro escritorio', 'ERR:23503',
+  pg_temp.exec_as((select user_arq_a from ids), (select tenant_a from ids), format($q$
+    update public.task_checklist_items
+       set review_mark_label = 'Aprovado', review_mark_color = 'emerald',
+           review_marked_by_id = %L
+     where id = %L
+  $q$, (select col_dir_b from ids), (select item_a from ids))));
 
 select pg_temp.rec('3.2', 'MARCAR NAO CONCLUI o objetivo', 'false',
   (select is_completed::text from public.task_checklist_items where id = (select item_a from ids)));
