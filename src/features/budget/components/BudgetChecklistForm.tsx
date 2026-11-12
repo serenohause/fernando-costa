@@ -222,6 +222,10 @@ export default function BudgetChecklistForm({
               <Input
                 id="checklist-curation"
                 type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                inputMode="decimal"
                 value={values.curation_percent}
                 onChange={(e) => set('curation_percent', e.target.value)}
                 placeholder="0"

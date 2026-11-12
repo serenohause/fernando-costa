@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { MoneyInput } from '@/components/ui/money-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -397,13 +398,12 @@ export default function NegociacaoForm({
           */}
           <div className="space-y-2">
             <Label htmlFor="estimated_value">Valor Estimado (R$)</Label>
-            <Input
+            {/* Número puro no estado, como antes: só a digitação e a exibição
+                mudam. */}
+            <MoneyInput
               id="estimated_value"
-              type="number"
-              step="0.01"
-              min="0"
               value={formData.estimated_value}
-              onChange={(e) => setFormData({ ...formData, estimated_value: e.target.value })}
+              onValueChange={(valor) => setFormData({ ...formData, estimated_value: valor })}
               placeholder="0,00"
             />
           </div>

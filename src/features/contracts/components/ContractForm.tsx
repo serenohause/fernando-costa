@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { MoneyInput } from '@/components/ui/money-input'
 import { Label } from '@/components/ui/label'
 import { MaskedInput } from '@/components/ui/masked-input'
 import {
@@ -25,7 +26,7 @@ import {
   type ContractType,
   type InstallmentFrequency,
 } from '@/lib/enums'
-import { maskTaxId, maskZipcode } from '@/lib/masks'
+import {maskTaxId, maskUf, maskZipcode} from '@/lib/masks'
 import { useNextContractNumber } from '../hooks'
 import { snapshotOfClient } from '../snapshot'
 import type { ContractInput, ContractRow } from '../types'
@@ -508,12 +509,12 @@ export default function ContractForm({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="total_value">Valor Total (R$) *</Label>
-                <Input
+                {/* O estado continua em número puro: o cálculo das parcelas e o
+                    envio leem o mesmo texto de antes. */}
+                <MoneyInput
                   id="total_value"
-                  type="number"
-                  step="0.01"
                   value={formData.total_value}
-                  onChange={(e) => setFormData({ ...formData, total_value: e.target.value })}
+                  onValueChange={(valor) => setFormData({ ...formData, total_value: valor })}
                   placeholder="0,00"
                   required
                 />
@@ -770,10 +771,10 @@ export default function ContractForm({
                   id="client_address_state"
                   value={formData.client_address_state}
                   onChange={(e) =>
-                    setFormData({ ...formData, client_address_state: e.target.value })
+                    setFormData({ ...formData, client_address_state: maskUf(e.target.value) })
                   }
                   placeholder="UF"
-                  maxLength={2}
+                maxLength={2}
                 />
               </div>
             </div>
@@ -851,9 +852,9 @@ export default function ContractForm({
                 <Input
                   id="site_state"
                   value={formData.site_state}
-                  onChange={(e) => setFormData({ ...formData, site_state: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, site_state: maskUf(e.target.value) })}
                   placeholder="UF"
-                  maxLength={2}
+                maxLength={2}
                 />
               </div>
             </div>

@@ -28,10 +28,12 @@
 
 import {
   applyMaskEdit,
+  maskCompetence,
   maskMoney,
   maskMoneyFromDigits,
   maskTaxId,
   maskPhone,
+  maskUf,
   maskZipcode,
   moneyToNumberText,
 } from '../src/lib/masks.ts'
@@ -89,7 +91,17 @@ check('1.6  CEP chega aos 8 dígitos formatado', cep, '74000-000')
 check('1.7  9ª tecla no CEP não entra', digitar(maskZipcode, cep, '1').value, cep)
 
 /*
-  1.8 é o caso que o teto poderia estragar: o campo cheio tem que continuar
+  A competência de uma despesa é "MM/AAAA" e nada mais: quem lê o campo é
+  `parseCompetenceMonth`, e grafia fora do padrão virava competência vazia na
+  gravação, sem avisar ninguém.
+*/
+const competencia = digitarTudo(maskCompetence, '082026')
+check('1.8  competência chega aos 6 dígitos formatada', competencia, '08/2026')
+check('1.9  7ª tecla na competência não entra', digitar(maskCompetence, competencia, '1').value, competencia)
+check('1.10 competência parcial não pendura a barra', digitarTudo(maskCompetence, '08'), '08')
+
+/*
+  1.11 é o caso que o teto poderia estragar: o campo cheio tem que continuar
   editável no meio, e a tecla recusada não pode jogar o cursor para o fim.
 */
 const comDigitoNoMeio = celular.slice(0, 6) + '0' + celular.slice(6)
@@ -99,8 +111,8 @@ const noMeio = applyMaskEdit(maskPhone, {
   previousValue: celular,
   deletion: null,
 })
-check('1.8  tecla no meio de campo cheio não entra', noMeio.value, celular)
-check('1.9  e o cursor não pula para o fim', noMeio.caret, 6)
+check('1.11 tecla no meio de campo cheio não entra', noMeio.value, celular)
+check('1.12 e o cursor não pula para o fim', noMeio.caret, 6)
 
 // 2. COLAR ACIMA DO TETO CONTINUA TOLERANTE — os 48 telefones com +55.
 check('2.1  colar 13 dígitos volta cru, não truncado', colar(maskPhone, '', '+55 62 98765-4321').value, '+55 62 98765-4321')
@@ -190,6 +202,16 @@ check('5.19 vazio volta vazio (o campo é opcional, e vira NULO)', moneyToNumber
 check('5.20 colar "1.500,00" dá o mesmo que colar "1500.00"',
   moneyToNumberText(maskMoneyFromDigits('1.500,00')), moneyToNumberText(maskMoneyFromDigits('150000')))
 
+
+/*
+  A SIGLA DO ESTADO não passa por applyMaskEdit (não é dígito), então é testada
+  direto: ela é transformação de texto, e o que precisa ficar provado é que
+  limita a duas letras, sobe para maiúscula e descarta o que não é letra.
+*/
+check('4.1  sigla minúscula vira maiúscula', maskUf('sp'), 'SP')
+check('4.2  terceira letra não entra', maskUf('goi'), 'GO')
+check('4.3  número e pontuação caem fora', maskUf('1g-o2'), 'GO')
+check('4.4  campo vazio continua vazio', maskUf(''), '')
 
 console.log(`\n${passed}/${passed + failed} casos passaram.`)
 if (failed > 0) process.exit(1)

@@ -9,6 +9,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { MaskedInput } from '@/components/ui/masked-input'
+import { maskPhone, maskTaxId } from '@/lib/masks'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -117,20 +119,29 @@ export default function ClientPersonDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="person-tax">CPF / CNPJ</Label>
-              <Input
+              {/* Mesma máscara do documento do cliente (ClientForm): o campo
+                  guarda o texto COM pontuação, como o COMMENT de clients.tax_id
+                  manda, e a deduplicação continua sendo da coluna gerada. */}
+              <MaskedInput
                 id="person-tax"
+                mask={maskTaxId}
                 value={values.tax_id ?? ''}
-                onChange={(event) => set('tax_id', event.target.value)}
+                onValueChange={(valor) => set('tax_id', valor)}
+                placeholder="000.000.000-00"
+                inputMode="numeric"
                 maxLength={30}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="person-phone">Telefone</Label>
-              <Input
+              <MaskedInput
                 id="person-phone"
+                mask={maskPhone}
                 value={values.phone ?? ''}
-                onChange={(event) => set('phone', event.target.value)}
+                onValueChange={(valor) => set('phone', valor)}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
                 maxLength={50}
               />
             </div>

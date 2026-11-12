@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { CLIENT_TYPE, LEAD_SOURCE, optionsOf, type ClientType, type LeadSource } from '@/lib/enums'
-import { maskPhone, maskTaxId, maskZipcode } from '@/lib/masks'
+import {maskPhone, maskTaxId, maskUf, maskZipcode} from '@/lib/masks'
 import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -602,8 +602,9 @@ export default function ClientForm({
                 <Label htmlFor="address_state">Estado *</Label>
                 <Input
                   id="address_state"
+                  maxLength={2}
                   value={formData.address_state}
-                  onChange={(e) => setFormData({ ...formData, address_state: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, address_state: maskUf(e.target.value) })}
                   placeholder="UF"
                   required
                 />
@@ -835,8 +836,9 @@ export default function ClientForm({
                 <Label htmlFor="address_state_complement">Estado</Label>
                 <Input
                   id="address_state_complement"
+                  maxLength={2}
                   value={formData.address_state}
-                  onChange={(e) => setFormData({ ...formData, address_state: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, address_state: maskUf(e.target.value) })}
                   placeholder="UF"
                 />
               </div>
@@ -1112,7 +1114,7 @@ export default function ClientForm({
                         onChange={(e) =>
                           setFormData({
                             ...formData,
-                            company_address_state: e.target.value.toUpperCase(),
+                            company_address_state: maskUf(e.target.value),
                           })
                         }
                         placeholder="UF"

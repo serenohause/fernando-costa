@@ -104,6 +104,45 @@ export function maskZipcode(value: string): string {
   return maskWithCapacity(value, ZIPCODE_PATTERN, 8)
 }
 
+const COMPETENCE_PATTERN = '00/0000'
+
+/*
+  COMPETÊNCIA DE UMA DESPESA, no formato que a tela já usava: "MM/AAAA".
+
+  O campo existia sem máscara nenhuma, com a dica "MM/YYYY" e nada impedindo
+  "ago/26", "8-2026" ou "agosto". Quem lê o texto é `parseCompetenceMonth`
+  (src/features/financial/schemas.ts), que aceita "MM/AAAA" e o "AAAA-MM-DD" que
+  volta do banco; qualquer outra grafia virava competência vazia na gravação,
+  em silêncio.
+
+  Seis dígitos, mês na frente. Não há validação de faixa aqui, pelo mesmo motivo
+  do resto do arquivo: "13/2026" continua digitável e quem recusa é o schema,
+  com frase em português. O que a máscara garante é a FORMA.
+*/
+export function maskCompetence(value: string): string {
+  return maskWithCapacity(value, COMPETENCE_PATTERN, 6)
+}
+
+/*
+  A SIGLA DO ESTADO, duas letras e maiúsculas.
+
+  Não é máscara de dígito, então não passa por `applyMaskEdit`: é transformação
+  direta no `onChange` do campo, e vale tanto para quem digita quanto para quem
+  cola. Duas letras é a forma do dado, não um teto arbitrário — "Goiás" colado
+  vira "GO", que é a mesma informação escrita como o campo pede.
+
+  O QUE JÁ ESTÁ GRAVADO NÃO É TOCADO. A importação trouxe estado por extenso em
+  linha antiga, e os COMMENTs dessas colunas não exigem sigla; como a conversão
+  mora no `onChange`, quem abre um cadastro velho e mexe em outro campo salva o
+  estado exatamente como estava.
+*/
+export function maskUf(value: string): string {
+  return value
+    .replace(/[^a-zA-Zà-úÀ-Ú]/g, '')
+    .slice(0, 2)
+    .toUpperCase()
+}
+
 /*
   QUANTOS DÍGITOS CADA MÁSCARA COMPORTA.
 
@@ -116,6 +155,7 @@ const CAPACIDADE = new Map<Mask, number>([
   [maskTaxId, 14],
   [maskPhone, 11],
   [maskZipcode, 8],
+  [maskCompetence, 6],
 ])
 
 function countDigits(value: string): number {

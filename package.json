@@ -69,6 +69,7 @@
     "test:rooms": "supabase/tests/run-sql.sh supabase/tests/project-rooms.sql",
     "test:objectives": "node tests/objective-templates.mjs",
     "test:masks": "node tests/masks.mjs",
+    "test:mascaras-formularios": "node tests/mascaras-formularios.mjs",
     "test:notify": "node tests/query-notify.mjs",
     "test:phone-dedup": "supabase/tests/run-sql.sh supabase/tests/client-phone-dedup.sql",
     "test:won": "supabase/tests/run-sql.sh supabase/tests/negotiation-won.sql",

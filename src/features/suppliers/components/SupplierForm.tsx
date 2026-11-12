@@ -25,7 +25,7 @@ import {
   type PartnershipTier,
   type SupplierCategory,
 } from '@/lib/enums'
-import { maskPhone } from '@/lib/masks'
+import {maskPhone, maskUf} from '@/lib/masks'
 import type { SupplierInput, SupplierRow } from '../types'
 
 /*
@@ -456,6 +456,10 @@ export default function SupplierForm({
                 <Input
                   id="supplier-commission"
                   type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  inputMode="decimal"
                   value={values.commission_percent}
                   onChange={(e) => set('commission_percent', e.target.value)}
                   placeholder="0"
@@ -480,8 +484,9 @@ export default function SupplierForm({
                 <Label htmlFor="supplier-state">Estado</Label>
                 <Input
                   id="supplier-state"
+                  maxLength={2}
                   value={values.state}
-                  onChange={(e) => set('state', e.target.value)}
+                  onChange={(e) => set('state', maskUf(e.target.value))}
                 />
               </div>
               <div className="space-y-1 col-span-2">

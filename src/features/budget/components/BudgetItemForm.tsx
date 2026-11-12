@@ -492,6 +492,10 @@ export default function BudgetItemForm({
               <Input
                 id="item-commission"
                 type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                inputMode="decimal"
                 value={values.commission_percent}
                 onChange={(e) => set('commission_percent', e.target.value)}
               />

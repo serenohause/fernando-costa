@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { CLIENT_TYPE, optionsOf, type ClientType } from '@/lib/enums'
-import { maskPhone, maskTaxId, maskZipcode } from '@/lib/masks'
+import {maskPhone, maskTaxId, maskUf, maskZipcode} from '@/lib/masks'
 import { firstIssueMessage } from '@/lib/db-errors'
 import { useLookupZipcode } from '@/features/crm/hooks'
 import { useOpenClientIntake, useSubmitClientIntake } from '../hooks'
@@ -427,8 +427,9 @@ export default function FormularioCliente() {
                       <Label htmlFor="state">Estado</Label>
                       <Input
                         id="state"
+                        maxLength={2}
                         value={formData.state}
-                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, state: maskUf(e.target.value) })}
                         placeholder="UF"
                       />
                     </div>
@@ -525,9 +526,10 @@ export default function FormularioCliente() {
                       <Label htmlFor="address_state">Estado</Label>
                       <Input
                         id="address_state"
+                        maxLength={2}
                         value={formData.address_state}
                         onChange={(e) =>
-                          setFormData({ ...formData, address_state: e.target.value })
+                          setFormData({ ...formData, address_state: maskUf(e.target.value) })
                         }
                         placeholder="UF"
                       />
@@ -616,8 +618,9 @@ export default function FormularioCliente() {
                       <Label htmlFor="site_state">Estado da Obra</Label>
                       <Input
                         id="site_state"
+                        maxLength={2}
                         value={formData.site_state}
-                        onChange={(e) => setFormData({ ...formData, site_state: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, site_state: maskUf(e.target.value) })}
                         placeholder="UF"
                       />
                     </div>

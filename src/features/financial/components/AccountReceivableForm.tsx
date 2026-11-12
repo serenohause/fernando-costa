@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { MoneyInput } from '@/components/ui/money-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -422,12 +423,11 @@ export default function AccountReceivableForm({
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="value">Valor Total (R$) *</Label>
-              <Input
+              {/* O estado segue guardando número puro, que é o que o envio lê. */}
+              <MoneyInput
                 id="value"
-                type="number"
-                step="0.01"
                 value={values.value}
-                onChange={(e) => set('value', e.target.value)}
+                onValueChange={(valor) => set('value', valor)}
                 placeholder="0,00"
                 required
               />
@@ -508,14 +508,15 @@ export default function AccountReceivableForm({
                             <Label className="text-xs text-muted-foreground">
                               Parcela {index + 1}
                             </Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={value}
-                              onChange={(e) =>
+                            {/* A lista de parcelas guarda NÚMERO, e não texto
+                                como o campo de cima: a conversão fica aqui, na
+                                borda, e o resto do cálculo continua igual. */}
+                            <MoneyInput
+                              value={String(value)}
+                              onValueChange={(valor) =>
                                 setInstallments((current) => {
                                   const next = [...current.individualValues]
-                                  next[index] = Number(e.target.value) || 0
+                                  next[index] = Number(valor) || 0
                                   return { ...current, individualValues: next }
                                 })
                               }

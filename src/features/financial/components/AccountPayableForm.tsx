@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { MaskedInput } from '@/components/ui/masked-input'
+import { MoneyInput } from '@/components/ui/money-input'
+import { maskCompetence } from '@/lib/masks'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -279,12 +282,13 @@ export default function AccountPayableForm({
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="value">Valor (R$) *</Label>
-              <Input
+              {/* O estado continua guardando número puro ("1234.56"), que é o
+                  que `Number(values.value)` lê no envio: o MoneyInput só muda o
+                  que se vê e o que se digita. */}
+              <MoneyInput
                 id="value"
-                type="number"
-                step="0.01"
                 value={values.value}
-                onChange={(e) => set('value', e.target.value)}
+                onValueChange={(valor) => set('value', valor)}
                 placeholder="0,00"
                 required
               />
@@ -303,11 +307,15 @@ export default function AccountPayableForm({
 
             <div className="space-y-2">
               <Label htmlFor="competence_month">Competência</Label>
-              <Input
+              {/* "MM/AAAA" é o que `parseCompetenceMonth` entende; qualquer
+                  outra grafia virava competência vazia na gravação, calada. */}
+              <MaskedInput
                 id="competence_month"
+                mask={maskCompetence}
                 value={values.competence_month}
-                onChange={(e) => set('competence_month', e.target.value)}
-                placeholder="MM/YYYY"
+                onValueChange={(valor) => set('competence_month', valor)}
+                placeholder="MM/AAAA"
+                inputMode="numeric"
               />
             </div>
           </div>
