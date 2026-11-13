@@ -63,9 +63,21 @@ export const contractInputSchema = z
     contract_type: z.enum(Constants.public.Enums.contract_type, {
       error: 'Selecione o tipo de contrato.',
     }),
+    /*
+      O TETO E AS DUAS CASAS SÃO DA COLUNA, e não invenção desta tela:
+      `contracts.total_value` é `numeric(14,2)`. Sem eles, um valor colado com
+      vinte dígitos passava pelo Zod e só era recusado lá embaixo, com a
+      mensagem crua do Postgres; e 10,005 era arredondado para 10,01 EM
+      SILÊNCIO, gravando um número diferente do digitado. É a mesma regra que o
+      módulo financeiro já aplica (src/features/financial/schemas.ts).
+    */
     total_value: z
       .number('Informe o valor total do contrato.')
-      .min(0, 'O valor total não pode ser negativo.'),
+      .min(0, 'O valor total não pode ser negativo.')
+      .max(999_999_999_999.99, 'Valor acima do que o sistema aceita.')
+      .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, {
+        message: 'O valor tem no máximo duas casas decimais (centavos).',
+      }),
 
     /* Nullable como a coluna: Contracts.jsx:353 trata explicitamente o contrato
        sem cliente e o vincula depois. */

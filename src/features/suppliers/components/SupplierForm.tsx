@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { UfInput } from '@/components/ui/uf-input'
 import { Label } from '@/components/ui/label'
 import { MaskedInput } from '@/components/ui/masked-input'
 import {
@@ -25,7 +26,7 @@ import {
   type PartnershipTier,
   type SupplierCategory,
 } from '@/lib/enums'
-import {maskPhone, maskUf} from '@/lib/masks'
+import { maskPhone } from '@/lib/masks'
 import type { SupplierInput, SupplierRow } from '../types'
 
 /*
@@ -482,11 +483,10 @@ export default function SupplierForm({
               </div>
               <div className="space-y-1">
                 <Label htmlFor="supplier-state">Estado</Label>
-                <Input
+                <UfInput
                   id="supplier-state"
-                  maxLength={2}
                   value={values.state}
-                  onChange={(e) => set('state', maskUf(e.target.value))}
+                  onValueChange={(valor) => set('state', valor)}
                 />
               </div>
               <div className="space-y-1 col-span-2">

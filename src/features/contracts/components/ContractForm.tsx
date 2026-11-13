@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { UfInput } from '@/components/ui/uf-input'
 import { MoneyInput } from '@/components/ui/money-input'
 import { Label } from '@/components/ui/label'
 import { MaskedInput } from '@/components/ui/masked-input'
@@ -26,7 +27,7 @@ import {
   type ContractType,
   type InstallmentFrequency,
 } from '@/lib/enums'
-import {maskTaxId, maskUf, maskZipcode} from '@/lib/masks'
+import { maskTaxId, maskZipcode } from '@/lib/masks'
 import { useNextContractNumber } from '../hooks'
 import { snapshotOfClient } from '../snapshot'
 import type { ContractInput, ContractRow } from '../types'
@@ -767,14 +768,12 @@ export default function ContractForm({
 
               <div className="space-y-2">
                 <Label htmlFor="client_address_state">Estado</Label>
-                <Input
+                <UfInput
                   id="client_address_state"
                   value={formData.client_address_state}
-                  onChange={(e) =>
-                    setFormData({ ...formData, client_address_state: maskUf(e.target.value) })
+                  onValueChange={(valor) => setFormData({ ...formData, client_address_state: valor })
                   }
                   placeholder="UF"
-                maxLength={2}
                 />
               </div>
             </div>
@@ -849,12 +848,11 @@ export default function ContractForm({
 
               <div className="space-y-2">
                 <Label htmlFor="site_state">Estado</Label>
-                <Input
+                <UfInput
                   id="site_state"
                   value={formData.site_state}
-                  onChange={(e) => setFormData({ ...formData, site_state: maskUf(e.target.value) })}
+                  onValueChange={(valor) => setFormData({ ...formData, site_state: valor })}
                   placeholder="UF"
-                maxLength={2}
                 />
               </div>
             </div>

@@ -141,6 +141,32 @@ function contaDiretora() {
   return { email, senha }
 }
 
+
+/*
+  A GUARDA QUE VALE É A DO SERVIDOR QUE ESTÁ NO AR, e não a do arquivo.
+
+  A conferência do `.env` acima acontece em disco, e o Vite lê o `.env` UMA VEZ,
+  no boot. Um `npm run dev` que subiu apontando para produção e um `.env` trocado
+  depois passam pela primeira trava e falam com o banco errado. Por isso, logo
+  depois do login, este teste pergunta à PÁGINA com qual projeto Supabase ela
+  acabou de autenticar: a chave da sessão no localStorage é `sb-<ref>-auth-token`.
+*/
+const conferirBancoDaPagina = async () => {
+  const refs = await pagina.evaluate(() =>
+    Object.keys(window.localStorage).flatMap((chave) => {
+      const achado = chave.match(/^sb-([a-z0-9]+)-auth-token$/)
+      return achado ? [achado[1]] : []
+    }),
+  )
+  if (refs.length === 0 || !refs.every((ref) => ref === PROJETO_DE_DEV)) {
+    console.error(
+      `ABORTADO: a pagina autenticou em ${refs.join(', ') || '(nenhum projeto)'}, e nao no de dev.\n` +
+        '  O servidor em pe foi iniciado com outro .env. Derrube o `npm run dev` e suba de novo.',
+    )
+    process.exit(2)
+  }
+}
+
 const navegador = await chromium.launch()
 const pagina = await navegador.newPage({ viewport: { width: 1440, height: 950 } })
 
@@ -159,6 +185,7 @@ try {
   await pagina.fill('#password', senha)
   await pagina.click('button[type="submit"]')
   await pagina.waitForTimeout(2500)
+  await conferirBancoDaPagina()
 
   /* ── CASO 1: o editor acompanha o toggle de ambientes ───────────────────── */
   await abrirEtapa()

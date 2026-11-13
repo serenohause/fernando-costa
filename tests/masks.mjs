@@ -205,13 +205,24 @@ check('5.20 colar "1.500,00" dá o mesmo que colar "1500.00"',
 
 /*
   A SIGLA DO ESTADO não passa por applyMaskEdit (não é dígito), então é testada
-  direto: ela é transformação de texto, e o que precisa ficar provado é que
-  limita a duas letras, sobe para maiúscula e descarta o que não é letra.
+  direto.
+
+  OS CASOS 4.3 A 4.6 SÃO O CONSERTO DE UM DEFEITO QUE ESTA FUNÇÃO TEVE: a
+  primeira versão pegava as duas primeiras letras, e duas primeiras letras não
+  são a sigla. "Mato Grosso" virava MA, que é Maranhão; "Paraná" e "Paraíba"
+  viravam PA, que é Pará; "Roraima" virava RO, que é Rondônia. Sigla VÁLIDA de
+  estado ERRADO é o pior resultado possível, porque nada na tela acusa.
 */
 check('4.1  sigla minúscula vira maiúscula', maskUf('sp'), 'SP')
-check('4.2  terceira letra não entra', maskUf('goi'), 'GO')
-check('4.3  número e pontuação caem fora', maskUf('1g-o2'), 'GO')
-check('4.4  campo vazio continua vazio', maskUf(''), '')
+check('4.2  número e pontuação caem fora', maskUf('1g-o2'), 'GO')
+check('4.3  Mato Grosso é MT, e não MA (Maranhão)', maskUf('Mato Grosso'), 'MT')
+check('4.4  Paraná é PR e Paraíba é PB, nenhum dos dois é PA', [maskUf('Paraná'), maskUf('Paraíba')], ['PR', 'PB'])
+check('4.5  Roraima é RR, e não RO (Rondônia)', maskUf('Roraima'), 'RR')
+check('4.6  nome sem acento e em minúscula também resolve', maskUf('sao paulo'), 'SP')
+check('4.7  o que a tabela não conhece volta CRU, sem corte', maskUf('Califórnia'), 'Califórnia')
+check('4.8  campo vazio continua vazio', maskUf(''), '')
+/* × e ÷ caem no meio da faixa Latin-1 e não são letra: `\p{L}` os descarta. */
+check('4.9  símbolo que não é letra não vira sigla', maskUf('×÷'), '')
 
 console.log(`\n${passed}/${passed + failed} casos passaram.`)
 if (failed > 0) process.exit(1)

@@ -99,6 +99,32 @@ function contaDiretora() {
   return { email, senha }
 }
 
+
+/*
+  A GUARDA QUE VALE É A DO SERVIDOR QUE ESTÁ NO AR, e não a do arquivo.
+
+  A conferência do `.env` acima acontece em disco, e o Vite lê o `.env` UMA VEZ,
+  no boot. Um `npm run dev` que subiu apontando para produção e um `.env` trocado
+  depois passam pela primeira trava e falam com o banco errado. Por isso, logo
+  depois do login, este teste pergunta à PÁGINA com qual projeto Supabase ela
+  acabou de autenticar: a chave da sessão no localStorage é `sb-<ref>-auth-token`.
+*/
+const conferirBancoDaPagina = async () => {
+  const refs = await pagina.evaluate(() =>
+    Object.keys(window.localStorage).flatMap((chave) => {
+      const achado = chave.match(/^sb-([a-z0-9]+)-auth-token$/)
+      return achado ? [achado[1]] : []
+    }),
+  )
+  if (refs.length === 0 || !refs.every((ref) => ref === PROJETO_DE_DEV)) {
+    console.error(
+      `ABORTADO: a pagina autenticou em ${refs.join(', ') || '(nenhum projeto)'}, e nao no de dev.\n` +
+        '  O servidor em pe foi iniciado com outro .env. Derrube o `npm run dev` e suba de novo.',
+    )
+    process.exit(2)
+  }
+}
+
 const navegador = await chromium.launch()
 const pagina = await navegador.newPage({ viewport: { width: 1440, height: 950 } })
 
@@ -116,6 +142,7 @@ try {
   await pagina.fill('#password', senha)
   await pagina.click('button[type="submit"]')
   await pagina.waitForTimeout(2500)
+  await conferirBancoDaPagina()
 
   /* ── 1. Conta a pagar: dinheiro e competência ───────────────────────────── */
   await pagina.goto(`${BASE}/AccountsPayable`, { waitUntil: 'networkidle' })
@@ -163,6 +190,20 @@ try {
 
   caso('3.1  valor do contrato vira dinheiro', '95.000,00', await digitar('#total_value', '9500000'))
   caso('3.2  estado para em duas letras maiúsculas', 'GO', await digitar('#client_address_state', 'goi'))
+
+  /* COLAR É OUTRO CAMINHO, e é onde o corte em duas letras fazia estrago: "Mato
+     Grosso" virava MA, que é Maranhão. A tabela dos 27 resolve pelo nome. */
+  await pagina.locator('#site_state').fill('Mato Grosso')
+  await pagina.waitForTimeout(400)
+  caso('3.3  "Mato Grosso" colado vira MT, e não MA', 'MT', await pagina.locator('#site_state').inputValue())
+
+  await pagina.locator('#site_state').fill('Califórnia')
+  await pagina.waitForTimeout(400)
+  caso(
+    '3.4  estado que a tabela não conhece entra cru, sem corte',
+    'Califórnia',
+    await pagina.locator('#site_state').inputValue(),
+  )
   await pagina.keyboard.press('Escape')
   await pagina.waitForTimeout(1000)
 

@@ -3,7 +3,7 @@ import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { maskUf } from '@/lib/masks'
+import { UfInput } from '@/components/ui/uf-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -279,11 +279,10 @@ export default function ProjectForm({
 
             <div className="space-y-2">
               <Label htmlFor="state">Estado</Label>
-              <Input
+              <UfInput
                 id="state"
-                maxLength={2}
                 value={values.state}
-                onChange={(e) => set('state', maskUf(e.target.value))}
+                onValueChange={(valor) => set('state', valor)}
                 placeholder="UF"
               />
             </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { UfInput } from '@/components/ui/uf-input'
 import { Label } from '@/components/ui/label'
 import { MaskedInput } from '@/components/ui/masked-input'
 import { Textarea } from '@/components/ui/textarea'
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { CLIENT_TYPE, LEAD_SOURCE, optionsOf, type ClientType, type LeadSource } from '@/lib/enums'
-import {maskPhone, maskTaxId, maskUf, maskZipcode} from '@/lib/masks'
+import { maskPhone, maskTaxId, maskZipcode } from '@/lib/masks'
 import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -600,11 +601,10 @@ export default function ClientForm({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="address_state">Estado *</Label>
-                <Input
+                <UfInput
                   id="address_state"
-                  maxLength={2}
                   value={formData.address_state}
-                  onChange={(e) => setFormData({ ...formData, address_state: maskUf(e.target.value) })}
+                  onValueChange={(valor) => setFormData({ ...formData, address_state: valor })}
                   placeholder="UF"
                   required
                 />
@@ -834,11 +834,10 @@ export default function ClientForm({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="address_state_complement">Estado</Label>
-                <Input
+                <UfInput
                   id="address_state_complement"
-                  maxLength={2}
                   value={formData.address_state}
-                  onChange={(e) => setFormData({ ...formData, address_state: maskUf(e.target.value) })}
+                  onValueChange={(valor) => setFormData({ ...formData, address_state: valor })}
                   placeholder="UF"
                 />
               </div>
@@ -1107,14 +1106,12 @@ export default function ClientForm({
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="company_address_state">UF</Label>
-                      <Input
+                      <UfInput
                         id="company_address_state"
-                        maxLength={2}
                         value={formData.company_address_state}
-                        onChange={(e) =>
-                          setFormData({
+                        onValueChange={(valor) => setFormData({
                             ...formData,
-                            company_address_state: maskUf(e.target.value),
+                            company_address_state: valor,
                           })
                         }
                         placeholder="UF"

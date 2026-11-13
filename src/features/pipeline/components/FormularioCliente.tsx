@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { UfInput } from '@/components/ui/uf-input'
 import { Label } from '@/components/ui/label'
 import { MaskedInput } from '@/components/ui/masked-input'
 import {
@@ -21,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { CLIENT_TYPE, optionsOf, type ClientType } from '@/lib/enums'
-import {maskPhone, maskTaxId, maskUf, maskZipcode} from '@/lib/masks'
+import { maskPhone, maskTaxId, maskZipcode } from '@/lib/masks'
 import { firstIssueMessage } from '@/lib/db-errors'
 import { useLookupZipcode } from '@/features/crm/hooks'
 import { useOpenClientIntake, useSubmitClientIntake } from '../hooks'
@@ -425,11 +426,10 @@ export default function FormularioCliente() {
 
                     <div className="space-y-2">
                       <Label htmlFor="state">Estado</Label>
-                      <Input
+                      <UfInput
                         id="state"
-                        maxLength={2}
                         value={formData.state}
-                        onChange={(e) => setFormData({ ...formData, state: maskUf(e.target.value) })}
+                        onValueChange={(valor) => setFormData({ ...formData, state: valor })}
                         placeholder="UF"
                       />
                     </div>
@@ -524,12 +524,10 @@ export default function FormularioCliente() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="address_state">Estado</Label>
-                      <Input
+                      <UfInput
                         id="address_state"
-                        maxLength={2}
                         value={formData.address_state}
-                        onChange={(e) =>
-                          setFormData({ ...formData, address_state: maskUf(e.target.value) })
+                        onValueChange={(valor) => setFormData({ ...formData, address_state: valor })
                         }
                         placeholder="UF"
                       />
@@ -616,11 +614,10 @@ export default function FormularioCliente() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="site_state">Estado da Obra</Label>
-                      <Input
+                      <UfInput
                         id="site_state"
-                        maxLength={2}
                         value={formData.site_state}
-                        onChange={(e) => setFormData({ ...formData, site_state: maskUf(e.target.value) })}
+                        onValueChange={(valor) => setFormData({ ...formData, site_state: valor })}
                         placeholder="UF"
                       />
                     </div>

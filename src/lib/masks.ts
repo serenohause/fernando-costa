@@ -124,33 +124,96 @@ export function maskCompetence(value: string): string {
 }
 
 /*
-  A SIGLA DO ESTADO, duas letras e maiúsculas.
+  A SIGLA DO ESTADO.
 
-  Não é máscara de dígito, então não passa por `applyMaskEdit`: é transformação
-  direta no `onChange` do campo, e vale tanto para quem digita quanto para quem
-  cola. Duas letras é a forma do dado, não um teto arbitrário — "Goiás" colado
-  vira "GO", que é a mesma informação escrita como o campo pede.
+  ⚠ PEGAR AS DUAS PRIMEIRAS LETRAS NÃO É A SIGLA, e esta função já nasceu errada
+  uma vez por causa disso. "Mato Grosso" cortado em duas letras vira "MA", que é
+  MARANHÃO; "Paraná" e "Paraíba" viram "PA", que é Pará; "Roraima" vira "RO", que
+  é Rondônia; "Amapá" vira "AM", que é Amazonas. Quatro siglas VÁLIDAS de estados
+  ERRADOS, e ninguém volta para conferir — exatamente o defeito que o cabeçalho
+  deste arquivo proíbe: "o campo mostra um valor plausível e errado".
 
-  O QUE JÁ ESTÁ GRAVADO NÃO É TOCADO. A importação trouxe estado por extenso em
-  linha antiga, e os COMMENTs dessas colunas não exigem sigla; como a conversão
-  mora no `onChange`, quem abre um cadastro velho e mexe em outro campo salva o
-  estado exatamente como estava.
+  Então são três caminhos, e nenhum deles inventa:
+
+    até duas letras   vira maiúscula. É a sigla sendo digitada.
+    nome conhecido    vira a sigla certa, pela TABELA abaixo. "Mato Grosso" dá
+                      MT, e não MA.
+    o resto           VOLTA CRU. Mesma regra do telefone de 13 dígitos: o que a
+                      máscara não sabe representar ela não corta.
+
+  O que está GRAVADO não passa por aqui: a conversão mora no `onChange` do campo,
+  então um cadastro antigo com "Goiás" por extenso continua "Goiás" até alguém
+  mexer naquele campo.
 */
-export function maskUf(value: string): string {
-  return value
-    .replace(/[^a-zA-Zà-úÀ-Ú]/g, '')
-    .slice(0, 2)
-    .toUpperCase()
+
+/* Os 27, com o nome como se escreve. A chave é o nome normalizado (sem acento,
+   minúsculo), montada abaixo — digitar "sao paulo" ou "São Paulo" dá no mesmo. */
+const ESTADOS: Record<string, string> = {
+  Acre: 'AC',
+  Alagoas: 'AL',
+  Amapá: 'AP',
+  Amazonas: 'AM',
+  Bahia: 'BA',
+  Ceará: 'CE',
+  'Distrito Federal': 'DF',
+  'Espírito Santo': 'ES',
+  Goiás: 'GO',
+  Maranhão: 'MA',
+  'Mato Grosso': 'MT',
+  'Mato Grosso do Sul': 'MS',
+  'Minas Gerais': 'MG',
+  Pará: 'PA',
+  Paraíba: 'PB',
+  Paraná: 'PR',
+  Pernambuco: 'PE',
+  Piauí: 'PI',
+  'Rio de Janeiro': 'RJ',
+  'Rio Grande do Norte': 'RN',
+  'Rio Grande do Sul': 'RS',
+  Rondônia: 'RO',
+  Roraima: 'RR',
+  'Santa Catarina': 'SC',
+  'São Paulo': 'SP',
+  Sergipe: 'SE',
+  Tocantins: 'TO',
 }
 
-/*
-  QUANTOS DÍGITOS CADA MÁSCARA COMPORTA.
+function semAcento(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
 
-  Serve para a DIGITAÇÃO, não para a exibição — a diferença é o conserto de um
-  bug reportado. Antes, digitar além do limite fazia a máscara devolver o valor
-  cru: o campo perdia a formatação inteira no meio da digitação e virava um
-  amontoado de números.
-*/
+function nomeNormalizado(value: string): string {
+  return semAcento(value).trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+const SIGLA_POR_NOME = new Map<string, string>(
+  Object.entries(ESTADOS).map(([nome, sigla]) => [nomeNormalizado(nome), sigla]),
+)
+
+/** As 27 siglas, para reconhecer o que já está escrito certo. */
+const SIGLAS = new Set(Object.values(ESTADOS))
+
+export function maskUf(value: string): string {
+  /* `\p{L}` e não a faixa a-zà-ú: aquela deixava passar × e ÷, que caem no meio
+     da faixa Latin-1 e não são letra nenhuma. */
+  const letras = value.replace(/[^\p{L}]/gu, '')
+
+  if (letras.length <= 2) return letras.toUpperCase()
+
+  const porNome = SIGLA_POR_NOME.get(nomeNormalizado(value))
+  if (porNome) return porNome
+
+  const comoSigla = letras.slice(0, 2).toUpperCase()
+  /* "SP " com sobra de espaço, ou "sp" colado com lixo: se o que sobrou são
+     exatamente duas letras de uma sigla real, vale. Fora disso, cru. */
+  if (letras.length === 2 && SIGLAS.has(comoSigla)) return comoSigla
+
+  return value
+}
+
+/** Quantas letras a sigla comporta. A digitação para aqui; colar não. */
+export const UF_MAX_LETRAS = 2
+
 const CAPACIDADE = new Map<Mask, number>([
   [maskTaxId, 14],
   [maskPhone, 11],
