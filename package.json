@@ -108,6 +108,7 @@
     "test:tarefa-atrasada": "node tests/tarefa-atrasada.mjs",
     "test:asaas-baixa": "node tests/asaas-baixa-manual.mjs",
     "test:asaas-cobranca": "node tests/asaas-cobranca.mjs",
+    "test:ajuda": "node tests/ajuda-filtragem.mjs",
     "seed:asaas": "node supabase/seed/10-asaas-cobranca.mjs"
   },
   "dependencies": {
