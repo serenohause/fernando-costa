@@ -754,7 +754,7 @@ export default function Negociacoes() {
         />
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-card border border-border shadow-xs w-full sm:w-auto overflow-x-auto flex-nowrap">
+          <TabsList className="bg-card border border-border shadow-xs w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap">
             <TabsTrigger
               value="kanban"
               className="gap-1 sm:gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap"

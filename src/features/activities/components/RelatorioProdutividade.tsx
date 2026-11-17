@@ -413,7 +413,7 @@ export default function RelatorioProdutividade() {
         />
       ) : (
         <Tabs defaultValue="ranking" className="space-y-4">
-          <TabsList className="w-full sm:w-auto overflow-x-auto flex-nowrap">
+          <TabsList className="w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap">
             <TabsTrigger value="ranking" className="whitespace-nowrap">
               Ranking Colaboradores
             </TabsTrigger>

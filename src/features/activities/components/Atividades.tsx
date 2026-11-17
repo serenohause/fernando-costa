@@ -446,7 +446,7 @@ export default function Atividades() {
 
       <div className="mb-6">
         <Tabs value={quickFilter} onValueChange={(value) => setQuickFilter(value as QuickFilter)}>
-          <TabsList className="bg-card border w-full sm:w-auto overflow-x-auto flex-nowrap">
+          <TabsList className="bg-card border w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap">
             <TabsTrigger value="todas" className="whitespace-nowrap">
               Todas
             </TabsTrigger>

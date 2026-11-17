@@ -330,7 +330,7 @@ export default function Projects() {
             value={statusFilter}
             onValueChange={(value) => setStatusFilter(value as ProjectStatusFilter)}
           >
-            <TabsList className="bg-card border w-full sm:w-auto overflow-x-auto flex-nowrap">
+            <TabsList className="bg-card border w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap">
               <TabsTrigger value="all" className="whitespace-nowrap">
                 Todos
               </TabsTrigger>
