@@ -1,0 +1,3756 @@
+<!doctype html>
+<!--
+  ============================================================================
+  PROTÓTIPO: TOUR GUIADO  (substitui o painel lateral do "?")
+  ============================================================================
+
+  ORIGEM: prototypes/ajuda.html (aprovado) e o que está no ar em
+  src/features/help/. O painel lateral (HelpPanel.tsx, Sheet modal={false})
+  ficava por cima da tela e às vezes do que a pessoa precisava usar. Decisão do
+  usuário: o "?" passa a INICIAR um tour da tela atual, apontando para os
+  elementos reais dela. O texto completo continua na Central de ajuda.
+
+  Mesma regra do ajuda.html: o sistema não tem tour nenhum, então não há
+  original a copiar. Cada decisão abaixo vem de um arquivo que JÁ EXISTE no app
+  e está anotada com o arquivo de origem. A linguagem visual nova é zero: o
+  balão é o Popover do app, os botões são os Button do app.
+
+  ESCOPO DECIDIDO PELO USUÁRIO (não reabrir):
+  - "?" do cabeçalho inicia o tour da tela atual. Sem painel.
+  - Tour: overlay escurecendo a tela com recorte (spotlight) no elemento da
+    vez; balão pequeno ancorado ao lado, título curto, 1-2 frases, contador
+    "2 de 7", Anterior / Próximo / Concluir, X para fechar, Esc fecha. Balão
+    nunca cobre o elemento. Rola até o elemento se ele estiver fora da tela.
+  - Passo cujo elemento não está na tela é PULADO antes de começar.
+  - Central de ajuda continua página com o texto completo; cada guia ganha
+    "Me mostrar na tela", que navega e inicia o tour. Etiqueta de acesso e
+    "Marcar como lido" continuam.
+  - Biblioteca: driver.js, MIT.
+
+  ----------------------------------------------------------------------------
+  BIBLIOTECA: driver.js 1.10.2, versão exata, por jsDelivr com SRI
+  ----------------------------------------------------------------------------
+  Conferência de autenticidade (feita em 2026-11-17):
+  - npm `driver.js`: único mantenedor `kamranahmedse`, que publicou TODAS as
+    versões desde a 1.0.0 (2023). Licença MIT. Zero dependências. Nenhum
+    script de instalação (postinstall/preinstall) em nenhuma versão.
+  - Repositório: o `repository` do pacote mudou de
+    github.com/kamranahmedse/driver.js para github.com/nilbuild/driver.js na
+    1.6.0. Não é fork nem troca de dono: é o mesmo usuário renomeado. O
+    endereço antigo responde 301 para o novo; `nilbuild` é conta de usuário
+    criada em 2013, nome "Kamran Ahmed", e o repositório é o original de
+    2018 (27 mil estrelas, homepage driverjs.com). Releases no GitHub batem
+    com as versões do npm.
+  - Por que 1.10.2 e não a 1.14.0 (latest): a regra é estável com mais de 2
+    semanas. 1.11.0 a 1.14.0 saíram entre 08 e 13/11/2026 (menos de 2
+    semanas). 1.10.2 é de 18/10/2026. A 1.3.x citada no brief é de 2025 e
+    ficou para trás: a 1.10 já traz `skipMissingElement`, foco preso no
+    balão e `aria-*`, que este tour usa.
+  - Arquivo lido antes de usar: dist/driver.js.iife.js (27,8 kB) não faz
+    fetch, XHR, eval nem acessa cookie/localStorage; as únicas URLs são os
+    namespaces do SVG.
+  - No React: `npm i driver.js@1.10.2 --save-exact` (sem ^). O CSS do pacote
+    entra e é sobrescrito pelo bloco "BALÃO DO TOUR" abaixo.
+
+  ----------------------------------------------------------------------------
+  DECISÕES QUE O BRIEF DEIXOU ABERTAS
+  ----------------------------------------------------------------------------
+  1. "?" EM TELA SEM TOUR: balão curto ancorado no próprio "?", SEM escurecer
+     a tela, dizendo que a tela ainda não tem tour, com o botão "Abrir Central
+     de ajuda". NÃO navega sozinho: levar a pessoa para outra página sem ela
+     pedir tira ela do que estava fazendo. Na própria Central o balão diz onde
+     ficam os botões "Me mostrar na tela".
+  2. PASSO PULADO, DOIS MOTIVOS, MESMA CONTA:
+     - o elemento não está na tela (botão que a tela esconde de quem só vê,
+       como Novo Projeto; aviso que só aparece com dado, como o aviso âmbar de
+       negociações paradas);
+     - o passo ensina um gesto de edição sobre um elemento que continua
+       visível para quem só vê (a alça de arrastar de Projects.tsx aparece
+       sempre, só perde o cursor; a aba Ativas aparece, os botões de ganha /
+       perdida não). Esses passos levam `edit: true`, a mesma marca de
+       GuideTask em src/features/help/types.ts.
+     Os passos são filtrados ANTES de o tour começar, e não pelo
+     `skipMissingElement` do driver: o contador do driver conta o total de
+     passos declarados, e "2 de 7" com 3 pulados mostraria um 7 falso. Filtrar
+     antes deixa o contador honesto.
+  3. QUEM SÓ VÊ FICA SABENDO: no primeiro balão, uma linha "Seu acesso aqui é
+     só ver: N passos de edição ficaram de fora." É a etiqueta "Seu acesso"
+     do ajuda.html (assinatura aprovada), dita no único lugar em que ela
+     importa no tour. Quem edita não vê linha nenhuma.
+  4. BALÃO NO CELULAR (largura < 40rem, o `sm` do Tailwind): vira FAIXA de
+     ponta a ponta, embaixo da tela, com 0.5rem de margem. Se o elemento
+     destacado cair embaixo, a faixa sobe para o topo. O driver sozinho, em
+     400px, espreme o balão ao lado de elementos que ocupam a largura toda e
+     cai no "over" (por cima do alvo); a faixa resolve com uma regra só.
+  5. OVERLAY: preto a 50% no claro, o `bg-black/50` que o app já usa como véu
+     sobre conteúdo (PropertyPhotos.tsx:340). NÃO o `bg-black/80` de Dialog e
+     Sheet: aquele esconde a tela, e o tour precisa que ela continue legível em
+     volta do recorte. No ESCURO, 70% (`bg-black/70`, PropertyPhotos.tsx:275):
+     a 50% sobre fundo quase preto o recorte mal se distingue (visto no
+     navegador). Recorte com 6px de folga e raio --radius (8px).
+  6. CLIQUE FORA FECHA o tour, como o overlay de Dialog/AlertDialog do app.
+     O elemento destacado NÃO é clicável durante o tour
+     (`disableActiveInteraction`): o tour mostra, não executa. Clicar em Novo
+     Projeto no meio do tour abriria o formulário por baixo do overlay.
+  7. BALÃO SEM SETA: o Popover do app (ui/popover.tsx) não tem seta. A
+     distância do alvo é 8px.
+  8. FOCO: o driver prende o Tab no balão e foca o primeiro botão. Ao fechar,
+     o foco volta ao "?" (o último passo de todo tour é o próprio "?").
+  9. MOVIMENTO: com prefers-reduced-motion, `animate: false` e rolagem
+     instantânea. Sem isso, fade de 0.4s (padrão do driver) e rolagem suave.
+  10. CENTRAL: o texto completo, que morava no painel, vira a página do guia
+     dentro da Central (`/Ajuda?guia=projects`), com o mesmo conteúdo do
+     painel: Como fazer, Ligação com outros módulos, Marcar como lido. No
+     cartão: "Me mostrar na tela" (ação principal), "Ler guia" e Lido.
+  11. "SIMULAR SÓ VER" vale para todas as telas (Projetos e Pipeline, as que
+     mudam). Minhas Atividades é liberada pela função e não tem nada de
+     edição: o tour dela é igual para todos.
+
+  ----------------------------------------------------------------------------
+  PALETA  (nenhum hex inventado)
+  ----------------------------------------------------------------------------
+  Os tokens de src/index.css, nos mesmos HSL, claro e escuro, iguais ao
+  ajuda.html: --background, --card, --popover, --primary(-foreground),
+  --muted, --muted-foreground, --accent, --border, --input, --ring,
+  --elevated, --text-soft, --text-faint, --sidebar-*, --radius,
+  --species-new-* (aviso azul de briefing, fase), --species-late-* (atraso).
+  Overlay do tour: preto (bg-black do Tailwind) a 0.5 no claro e 0.7 no
+  escuro, ver decisão 5.
+  Sombra do balão: `shadow-md` do Tailwind (a do PopoverContent).
+  O que NÃO veio: violeta, âmbar, verde e as cores de coluna do funil. As
+  telas de fundo são SIMPLIFICADAS em tokens neutros, como no ajuda.html: elas
+  existem para o tour ter onde apontar, não são redesenho daquelas telas.
+
+  ----------------------------------------------------------------------------
+  TIPOGRAFIA
+  ----------------------------------------------------------------------------
+  SEM Google Fonts, de propósito (mesma exceção do ajuda.html e do
+  notificacoes-sino.html): o app não carrega webfont. Carregar uma aqui
+  faria o tour parecer outro sistema. Papéis no balão, todos já no app:
+  - título: text-sm font-semibold (título curto, cabe numa linha)
+  - texto: text-sm text-soft (o passo do guia em HelpPanel.tsx)
+  - contador: text-xs text-muted-foreground tabular-nums (contagem da Central)
+  - linha de acesso: text-xs text-soft sobre bg-muted, com cadeado (a linha de
+    "tarefas que ficaram de fora" do HelpPanel.tsx)
+
+  ----------------------------------------------------------------------------
+  ELEMENTO DE ASSINATURA
+  ----------------------------------------------------------------------------
+  O CONTADOR QUE NÃO MENTE + a linha de acesso do primeiro balão. Quem só vê
+  faz um tour de 4 passos e lê "1 de 4", não "1 de 7" com buracos; e o
+  primeiro balão diz por que são 4. O tour é da pessoa, como o guia era.
+
+  ----------------------------------------------------------------------------
+  O QUE FOI DESCARTADO, e por que (autocrítica)
+  ----------------------------------------------------------------------------
+  - Visual padrão do driver (Helvetica, botões cinza de 3px, seta branca):
+    seria a única peça do sistema com outra cara.
+  - Tour que abre diálogo (Novo Projeto → formulário): passos que dependem
+    de diálogo aberto ficam só na Central. Abrir diálogo pelo tour é executar
+    ação em nome da pessoa.
+  - Tour automático no primeiro acesso: mesmo motivo do ajuda.html, já existe
+    uma parede no primeiro login (TrocarSenhaProvisoria).
+  - Barra de progresso dentro do balão: o "2 de 7" já diz isso, e o balão
+    precisa ser pequeno.
+  - Mostrar passo pulado como "desabilitado" dentro do tour: seria apontar
+    para um buraco na tela.
+
+  ----------------------------------------------------------------------------
+  REPRODUTÍVEL COM OS COMPONENTES QUE JÁ EXISTEM
+  ----------------------------------------------------------------------------
+  "?": o mesmo Button ghost icon de HelpButton.tsx; só muda o onClick, o
+  title/aria-label ("Tour guiado desta tela") e sai o aria-controls do painel.
+  Âncora dos passos: atributo `data-tour="<tela>-<peça>"` nos elementos reais
+  (PageHeader, Input de busca, TabsList, alça, ClientLink, menu de três
+  pontos, cartão do Kanban...). Passo = { el, title, text, edit? }.
+  Balão: classe `tour-pop` (popoverClass do driver), estilizada abaixo com
+  os mesmos valores de PopoverContent (rounded-md border bg-popover p-4
+  shadow-md, w-72) e Button outline/default size sm.
+  Página do guia na Central: os mesmos blocos do HelpPanel.tsx
+  (rounded-lg border bg-elevated p-4), agora em Card.
+  Ícones: Lucide, nomes do lucide-react.
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Protótipo · Tour guiado · HausOne</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/driver.js@1.10.2/dist/driver.css"
+      integrity="sha384-q84NOjxOvSzdVT3EjRGos6w4J4t7ysF+ueMkf5CCMevHRH2IkF+sEvNvofEU67dW"
+      crossorigin="anonymous"
+    />
+    <style>
+      /* ===================================================================
+         TOKENS — valores copiados de src/index.css, sem alteração.
+         =================================================================== */
+      :root {
+        --background: 210 40% 98%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --popover: 0 0% 100%;
+        --primary: 222.2 47.4% 11.2%;
+        --primary-foreground: 210 40% 98%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --accent: 210 40% 96.1%;
+        --accent-foreground: 222.2 47.4% 11.2%;
+        --border: 214.3 31.8% 91.4%;
+        --input: 214.3 31.8% 91.4%;
+        --ring: 222.2 84% 4.9%;
+        --elevated: 210 40% 98%;
+        --text-soft: 215.3 19.3% 34.5%;
+        --text-faint: 215 20.2% 65.1%;
+        --radius: 0.5rem;
+
+        --sidebar-background: 0 0% 100%;
+        --sidebar-foreground: 215.4 16.3% 36%;
+        --sidebar-primary: 222.2 47.4% 11.2%;
+        --sidebar-primary-foreground: 210 40% 98%;
+        --sidebar-accent: 210 40% 94%;
+        --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+        --sidebar-border: 214.3 31.8% 91.4%;
+
+        --species-new-surface: 213.8 100% 96.9%;
+        --species-new-border: 213.3 96.9% 87.3%;
+        --species-new-ink: 226.2 70.7% 48.4%;
+        --species-late-surface: 355.7 100% 97.3%;
+        --species-late-border: 352.7 96.1% 90%;
+        --species-late-ink: 346.8 77.2% 49.8%;
+      }
+
+      .dark {
+        --background: 222 8% 4.5%;
+        --foreground: 210 14% 96%;
+        --card: 222 8% 8%;
+        --popover: 222 8% 10%;
+        --primary: 210 14% 96%;
+        --primary-foreground: 222 10% 10%;
+        --muted: 222 7% 13%;
+        --muted-foreground: 215 9% 67%;
+        --accent: 222 7% 16%;
+        --accent-foreground: 210 14% 96%;
+        --border: 222 8% 20%;
+        --input: 222 8% 22%;
+        --ring: 213 12% 70%;
+        --elevated: 222 8% 12%;
+        --text-soft: 215 11% 81%;
+        --text-faint: 215 8% 55%;
+
+        --sidebar-background: 222 8% 6%;
+        --sidebar-foreground: 215 10% 78%;
+        --sidebar-primary: 210 14% 96%;
+        --sidebar-primary-foreground: 222 10% 10%;
+        --sidebar-accent: 222 7% 14%;
+        --sidebar-accent-foreground: 210 14% 96%;
+        --sidebar-border: 222 8% 17%;
+
+        --species-new-surface: 226.2 57% 21%;
+        --species-new-border: 224.4 64.3% 32.9%;
+        --species-new-ink: 213.1 93.9% 67.8%;
+        --species-late-surface: 343.1 87.7% 15.9%;
+        --species-late-border: 341.5 74.6% 30.4%;
+        --species-late-ink: 351 95% 71%;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        border-color: hsl(var(--border));
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+      }
+
+      button {
+        font-family: inherit;
+      }
+
+      /* focus-visible:ring-1 ring-ring — o foco do Button de ui/button.tsx. */
+      :focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 1px hsl(var(--ring));
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      svg.lucide {
+        flex-shrink: 0;
+      }
+
+      /* ===================================================================
+         CHROME DO PROTÓTIPO — tudo que NÃO é produto. Borda tracejada de
+         propósito, igual notificacoes-sino.html.
+         =================================================================== */
+      .proto-page {
+        max-width: 90rem;
+        margin: 0 auto;
+        padding: 2rem 1rem 6rem;
+      }
+
+      .proto-title {
+        font-size: 1.125rem;
+        font-weight: 300;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin: 0;
+      }
+
+      .proto-kicker {
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        color: hsl(var(--muted-foreground));
+        margin: 0.25rem 0 0;
+      }
+
+      .proto-lede {
+        max-width: 50rem;
+        font-size: 0.875rem;
+        color: hsl(var(--muted-foreground));
+        margin: 1rem 0 0;
+      }
+
+      .proto-controls {
+        margin: 1.5rem 0;
+        border: 1px dashed hsl(var(--text-faint));
+        border-radius: calc(var(--radius) + 4px);
+        padding: 0.875rem 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem 1.5rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .proto-controls__tag {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--muted-foreground));
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+      }
+
+      .proto-controls__tag svg {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+
+      .proto-controls__group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .proto-seg {
+        display: inline-flex;
+        border: 1px dashed hsl(var(--text-faint));
+        border-radius: calc(var(--radius) - 2px);
+        padding: 2px;
+        gap: 2px;
+      }
+
+      .proto-seg button {
+        border: 0;
+        background: transparent;
+        color: hsl(var(--text-soft));
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 0.25rem 0.625rem;
+        border-radius: calc(var(--radius) - 4px);
+        cursor: pointer;
+      }
+
+      .proto-seg button[aria-pressed='true'] {
+        background: hsl(var(--muted));
+        color: hsl(var(--foreground));
+      }
+
+      .proto-check {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        cursor: pointer;
+      }
+
+      .proto-check input {
+        accent-color: hsl(var(--text-soft));
+      }
+
+      .proto-section {
+        margin-top: 3rem;
+      }
+
+      .proto-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--muted-foreground));
+        margin: 0 0 0.25rem;
+      }
+
+      .proto-callouts {
+        margin: 0.75rem 0 0;
+        padding-left: 1.25rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+        max-width: 56rem;
+      }
+
+      .proto-callouts li + li {
+        margin-top: 0.5rem;
+      }
+
+      .proto-open-questions {
+        margin-top: 3rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        background: hsl(var(--card));
+        padding: 1.5rem;
+      }
+
+      .proto-open-questions h2 {
+        font-size: 0.9375rem;
+        margin: 0 0 0.75rem;
+      }
+
+      .proto-open-questions ol {
+        margin: 0;
+        padding-left: 1.25rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .proto-open-questions li + li {
+        margin-top: 0.5rem;
+      }
+
+      /* Marca de "isto é novo" — chrome de protótipo, liga e desliga. */
+      .show-new .is-new {
+        outline: 1.5px dashed hsl(var(--text-faint));
+        outline-offset: 2px;
+      }
+
+      /* ===================================================================
+         A CASCA. Um contêiner de consulta (container query) no lugar da
+         janela: assim a mesma regra serve para a tela larga e para a moldura
+         de 400px do botão "Celular", sem duplicar CSS. Os limites são os do
+         Tailwind: sm 40rem, md 48rem, lg 64rem.
+         =================================================================== */
+      .shell {
+        position: relative;
+        height: 46rem;
+        background: hsl(var(--background));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        overflow: hidden;
+        container: shell / inline-size;
+      }
+
+      .shell.is-phone {
+        width: 25rem;
+        max-width: 100%;
+        height: 52rem;
+        margin: 0 auto;
+      }
+
+      /* ---------- Sidebar — AppLayout.tsx <aside>: w-72, bg-sidebar,
+         border-r, translate no mobile, z 50. ---------- */
+      .sb {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 18rem;
+        max-width: 100%;
+        background: hsl(var(--sidebar-background));
+        border-right: 1px solid hsl(var(--sidebar-border));
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-out;
+        z-index: 50;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .sb.is-open {
+        transform: none;
+      }
+
+      .sb__logo {
+        height: 4rem;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 1.5rem;
+        border-bottom: 1px solid hsl(var(--sidebar-border));
+      }
+
+      .sb__brand {
+        text-align: center;
+        width: 100%;
+        min-width: 0;
+        padding: 0.5rem 0;
+      }
+
+      .sb__tenant {
+        font-weight: 300;
+        font-size: 1.125rem;
+        letter-spacing: 0.15em;
+        line-height: 1.25;
+        text-transform: uppercase;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .sb__product {
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        color: hsl(var(--muted-foreground));
+        margin: 0.25rem 0 0;
+      }
+
+      .sb__close {
+        border: 0;
+        background: transparent;
+        padding: 0.375rem;
+        border-radius: var(--radius);
+        color: hsl(var(--muted-foreground));
+        cursor: pointer;
+        display: inline-flex;
+      }
+
+      .sb__close:hover {
+        background: hsl(var(--sidebar-accent));
+      }
+
+      .sb__close svg {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      .sb__nav {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.5rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      /* Item: px-4 py-3 rounded-xl text-sm font-medium, ícone w-5 text-faint. */
+      .nav-item {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border: 0;
+        background: transparent;
+        border-radius: calc(var(--radius) + 4px);
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: hsl(var(--sidebar-foreground));
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.2s;
+        user-select: none;
+      }
+
+      .nav-item svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .nav-item:hover {
+        background: hsl(var(--sidebar-accent));
+        color: hsl(var(--sidebar-accent-foreground));
+      }
+
+      .nav-item:hover svg {
+        color: hsl(var(--sidebar-foreground));
+      }
+
+      .nav-item.is-active {
+        background: hsl(var(--sidebar-primary));
+        color: hsl(var(--sidebar-primary-foreground));
+        box-shadow:
+          0 10px 15px -3px rgb(15 23 42 / 0.2),
+          0 4px 6px -4px rgb(15 23 42 / 0.2);
+      }
+
+      .nav-item.is-active svg {
+        color: hsl(var(--sidebar-primary-foreground));
+      }
+
+      .nav-item.has-active-child {
+        background: hsl(var(--sidebar-accent));
+        color: hsl(var(--sidebar-accent-foreground));
+      }
+
+      .nav-item__chev {
+        margin-left: auto;
+        display: inline-flex;
+        transition: transform 0.2s;
+      }
+
+      .nav-item__chev svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .nav-item[aria-expanded='true'] .nav-item__chev {
+        transform: rotate(90deg);
+      }
+
+      .nav-sub {
+        margin-left: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .nav-sub .nav-item {
+        padding: 0.5rem 1rem;
+      }
+
+      .nav-sub .nav-item svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .sb__user {
+        padding: 1rem;
+        border-top: 1px solid hsl(var(--sidebar-border));
+        flex-shrink: 0;
+      }
+
+      .user-card {
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 1rem;
+        border-radius: calc(var(--radius) + 4px);
+        border: 0;
+        width: 100%;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .user-card:hover {
+        background: hsl(var(--sidebar-accent));
+      }
+
+      .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 9999px;
+        background: hsl(var(--muted));
+        color: hsl(var(--text-soft));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+
+      .user-card__name {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: hsl(var(--foreground));
+      }
+
+      .user-card__area {
+        display: block;
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .user-card > svg {
+        width: 1rem;
+        height: 1rem;
+        margin-left: auto;
+        color: hsl(var(--text-faint));
+      }
+
+      /* Button variant="ghost" w-full justify-start — o "Sair" do AppLayout.
+         O "Central de ajuda" é o mesmo botão, uma linha acima. */
+      .sb-btn {
+        width: 100%;
+        height: 2.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0.5rem;
+        padding: 0 1rem;
+        border: 0;
+        background: transparent;
+        border-radius: calc(var(--radius) - 2px);
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: hsl(var(--sidebar-foreground));
+        cursor: pointer;
+      }
+
+      .sb-btn:hover {
+        background: hsl(var(--sidebar-accent));
+        color: hsl(var(--sidebar-accent-foreground));
+      }
+
+      .sb-btn svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .sb-btn.is-active {
+        background: hsl(var(--sidebar-accent));
+        color: hsl(var(--sidebar-accent-foreground));
+      }
+
+      .sb-btn + .sb-btn {
+        margin-top: 0.25rem;
+      }
+
+      .scrim {
+        position: absolute;
+        inset: 0;
+        background: rgb(0 0 0 / 0.2);
+        backdrop-filter: blur(4px);
+        z-index: 49;
+      }
+
+      .scrim[hidden] {
+        display: none;
+      }
+
+      /* ---------- Área principal ---------- */
+      .main {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Cabeçalho: h-16 bg-card border-b px-4 lg:px-8. */
+      .hdr {
+        height: 4rem;
+        flex-shrink: 0;
+        background: hsl(var(--card));
+        border-bottom: 1px solid hsl(var(--border));
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 1rem;
+        position: relative;
+        z-index: 10;
+      }
+
+      .hdr__burger {
+        border: 0;
+        background: transparent;
+        padding: 0.5rem;
+        border-radius: var(--radius);
+        cursor: pointer;
+        color: hsl(var(--text-soft));
+        display: inline-flex;
+      }
+
+      .hdr__burger:hover {
+        background: hsl(var(--accent));
+      }
+
+      .hdr__burger svg {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      .hdr__spacer {
+        flex: 1;
+      }
+
+      .hdr__actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      /* Button ghost size icon — h-9 w-9 rounded-md hover:bg-accent. */
+      .icon-button {
+        position: relative;
+        height: 2.25rem;
+        width: 2.25rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: hsl(var(--foreground));
+        border-radius: calc(var(--radius) - 2px);
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+        flex-shrink: 0;
+      }
+
+      .icon-button:hover,
+      .icon-button[aria-expanded='true'] {
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+      }
+
+      .icon-button svg {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      .content {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0.75rem 0.75rem 6rem;
+      }
+
+      /* Navegação de baixo, md:hidden — Início, CRM, Tarefas, Projetos. */
+      .bnav {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 4rem;
+        background: hsl(var(--card));
+        border-top: 1px solid hsl(var(--border));
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        z-index: 10;
+      }
+
+      .bnav button {
+        flex: 1;
+        height: 100%;
+        border: 0;
+        background: transparent;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: hsl(var(--text-faint));
+        font-size: 0.75rem;
+        cursor: pointer;
+      }
+
+      .bnav button.is-active {
+        color: hsl(var(--foreground));
+      }
+
+      .bnav svg {
+        width: 1.5rem;
+        height: 1.5rem;
+        margin-bottom: 0.25rem;
+      }
+
+      @container shell (min-width: 40rem) {
+        .content {
+          padding: 1rem 1rem 6rem;
+        }
+      }
+
+      @container shell (min-width: 48rem) {
+        .bnav {
+          display: none;
+        }
+        .content {
+          padding-bottom: 2rem;
+        }
+      }
+
+      @container shell (min-width: 64rem) {
+        .sb {
+          transform: none;
+        }
+        .sb__close,
+        .hdr__burger,
+        .scrim {
+          display: none;
+        }
+        .main {
+          padding-left: 18rem;
+        }
+        .hdr {
+          padding: 0 2rem;
+        }
+        .content {
+          padding: 2rem;
+        }
+      }
+
+      /* ===================================================================
+         CONTEÚDO DAS TELAS — peças de ui/ e shared/ do app.
+         =================================================================== */
+      .crumbs {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: hsl(var(--text-soft));
+        margin-bottom: 1rem;
+      }
+
+      .crumbs svg {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+
+      .crumbs .crumbs__sep {
+        color: hsl(var(--text-faint));
+      }
+
+      .crumbs strong {
+        color: hsl(var(--foreground));
+        font-weight: 500;
+      }
+
+      .page-head {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+
+      @container shell (min-width: 40rem) {
+        .page-head {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+      }
+
+      .page-head h1 {
+        font-size: 1.5rem;
+        line-height: 2rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        margin: 0;
+      }
+
+      .page-head p {
+        color: hsl(var(--muted-foreground));
+        margin: 0.25rem 0 0;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        white-space: nowrap;
+        border-radius: calc(var(--radius) - 2px);
+        font-size: 0.875rem;
+        font-weight: 500;
+        height: 2.25rem;
+        padding: 0 1rem;
+        border: 0;
+        cursor: pointer;
+        transition: background-color 0.15s;
+        user-select: none;
+      }
+
+      .btn svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .btn--primary {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+        box-shadow:
+          0 10px 15px -3px rgb(15 23 42 / 0.2),
+          0 4px 6px -4px rgb(15 23 42 / 0.2);
+      }
+
+      .btn--primary:hover {
+        background: hsl(var(--primary) / 0.9);
+      }
+
+      .btn--outline {
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        border: 1px solid hsl(var(--input));
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      .btn--outline:hover {
+        background: hsl(var(--accent));
+      }
+
+      .btn--ghost {
+        background: transparent;
+        color: hsl(var(--text-soft));
+      }
+
+      .btn--ghost:hover {
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+      }
+
+      .btn--sm {
+        height: 2rem;
+        padding: 0 0.75rem;
+        font-size: 0.75rem;
+      }
+
+      .btn[disabled] {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      .card {
+        background: hsl(var(--card));
+        border-radius: calc(var(--radius) + 4px);
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      .card__pad {
+        padding: 1.5rem;
+      }
+
+      .card h2 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .card h2 svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .muted {
+        color: hsl(var(--muted-foreground));
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        border-radius: calc(var(--radius) - 2px);
+        border: 1px solid hsl(var(--border));
+        padding: 0.125rem 0.625rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        line-height: 1rem;
+        white-space: nowrap;
+      }
+
+      .badge svg {
+        width: 0.75rem;
+        height: 0.75rem;
+      }
+
+      .badge--neutral {
+        background: hsl(var(--elevated));
+        color: hsl(var(--text-soft));
+      }
+
+      .badge--blue {
+        background: hsl(var(--species-new-surface));
+        color: hsl(var(--species-new-ink));
+        border-color: hsl(var(--species-new-border));
+      }
+
+      .badge--rose {
+        background: hsl(var(--species-late-surface));
+        color: hsl(var(--species-late-ink));
+        border-color: hsl(var(--species-late-border));
+      }
+
+      .alert-rose {
+        background: hsl(var(--species-late-surface));
+        border: 1px solid hsl(var(--species-late-border));
+        border-radius: calc(var(--radius) + 4px);
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.875rem;
+        color: hsl(var(--species-late-ink));
+        margin-bottom: 1.5rem;
+      }
+
+      .alert-blue {
+        background: hsl(var(--species-new-surface));
+        border: 1px solid hsl(var(--species-new-border));
+        border-radius: calc(var(--radius) + 4px);
+        padding: 1rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        color: hsl(var(--species-new-ink));
+        margin-bottom: 1.5rem;
+        font-size: 0.875rem;
+      }
+
+      .alert-rose svg,
+      .alert-blue svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        flex-shrink: 0;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      @container shell (min-width: 48rem) {
+        .stats {
+          grid-template-columns: repeat(4, 1fr);
+        }
+      }
+
+      .stat__top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+      }
+
+      .stat__top svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .stat__num {
+        font-size: 1.5rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .stat__label {
+        font-size: 0.875rem;
+        color: hsl(var(--text-soft));
+        margin: 0;
+      }
+
+      .grid-cards {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: 1fr;
+      }
+
+      @container shell (min-width: 48rem) {
+        .grid-cards {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      @container shell (min-width: 64rem) {
+        .grid-cards--3 {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      .tile-card {
+        padding: 1rem;
+        border-radius: var(--radius);
+        border: 1px solid hsl(var(--border));
+        background: hsl(var(--elevated));
+      }
+
+      .tile-card--late {
+        background: hsl(var(--species-late-surface));
+        border-color: hsl(var(--species-late-border));
+      }
+
+      .tile-card h4 {
+        margin: 0;
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+
+      .tile-card .small {
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+        margin: 0.125rem 0 0;
+      }
+
+      .bar {
+        margin-top: 0.75rem;
+        height: 0.375rem;
+        border-radius: 9999px;
+        background: hsl(var(--muted));
+        overflow: hidden;
+      }
+
+      .bar > span {
+        display: block;
+        height: 100%;
+        background: hsl(var(--text-soft));
+        border-radius: 9999px;
+      }
+
+      .tile-card--late .bar > span {
+        background: hsl(var(--species-late-ink));
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+      }
+
+      th {
+        text-align: left;
+        padding: 0.75rem 1rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: hsl(var(--text-soft));
+        border-bottom: 1px solid hsl(var(--border));
+        white-space: nowrap;
+      }
+
+      td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid hsl(var(--border));
+        color: hsl(var(--text-soft));
+        white-space: nowrap;
+      }
+
+      td:first-child {
+        color: hsl(var(--foreground));
+        font-weight: 500;
+      }
+
+      tr.is-late td {
+        background: hsl(var(--species-late-surface) / 0.5);
+      }
+
+      tr.is-late .due {
+        color: hsl(var(--species-late-ink));
+        font-weight: 500;
+      }
+
+      .search {
+        position: relative;
+        margin-bottom: 1rem;
+      }
+
+      .search svg {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 1.25rem;
+        height: 1.25rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .search input {
+        width: 100%;
+        height: 2.25rem;
+        border: 1px solid hsl(var(--input));
+        border-radius: calc(var(--radius) - 2px);
+        background: hsl(var(--card));
+        color: hsl(var(--foreground));
+        padding: 0 0.75rem 0 2.5rem;
+        font-size: 0.875rem;
+        font-family: inherit;
+      }
+
+      .search input::placeholder {
+        color: hsl(var(--muted-foreground));
+      }
+
+      .tabs {
+        display: inline-flex;
+        height: 2.25rem;
+        align-items: center;
+        border-radius: var(--radius);
+        background: hsl(var(--muted));
+        padding: 0.25rem;
+        margin-bottom: 1.5rem;
+        max-width: 100%;
+        overflow-x: auto;
+      }
+
+      .tabs--card {
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+      }
+
+      .tabs button {
+        border: 0;
+        background: transparent;
+        color: hsl(var(--muted-foreground));
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 0.25rem 0.75rem;
+        border-radius: calc(var(--radius) - 2px);
+        white-space: nowrap;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+      }
+
+      .tabs button svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .tabs button[aria-selected='true'] {
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      .tabs--primary button[aria-selected='true'] {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+      }
+
+      .row-card {
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .row-card + .row-card {
+        margin-top: 0.5rem;
+      }
+
+      .row-card > svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .row-card__icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: calc(var(--radius) + 4px);
+        background: hsl(var(--species-new-surface));
+        color: hsl(var(--species-new-ink));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .row-card__icon svg {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      .row-card__main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 1.5rem;
+      }
+
+      .row-card__name {
+        min-width: 12rem;
+        flex: 1;
+      }
+
+      .row-card__name p {
+        margin: 0;
+      }
+
+      .row-card__name p:first-child {
+        font-weight: 500;
+      }
+
+      .row-card__name p + p {
+        font-size: 0.875rem;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .row-card__meta {
+        font-size: 0.875rem;
+        color: hsl(var(--text-soft));
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+      }
+
+      .row-card__meta svg {
+        width: 1rem;
+        height: 1rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .kanban {
+        display: flex;
+        gap: 1rem;
+        overflow-x: auto;
+        padding-bottom: 1rem;
+      }
+
+      .kanban__col {
+        min-width: 17rem;
+        width: 17rem;
+        flex-shrink: 0;
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      .kanban__head {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid hsl(var(--border));
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+
+      .kanban__count {
+        background: hsl(var(--muted));
+        border-radius: calc(var(--radius) - 2px);
+        padding: 0 0.5rem;
+        font-size: 0.75rem;
+      }
+
+      .kanban__body {
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-height: 8rem;
+      }
+
+      .deal {
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) + 4px);
+        padding: 1rem;
+        background: hsl(var(--card));
+        font-size: 0.75rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .deal strong {
+        display: block;
+        font-size: 0.875rem;
+        color: hsl(var(--foreground));
+        margin-bottom: 0.5rem;
+      }
+
+      .deal__value {
+        font-size: 1rem;
+        font-weight: 700;
+        color: hsl(var(--foreground));
+        margin-top: 0.5rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .placeholder {
+        padding: 3rem 1.5rem;
+        text-align: center;
+      }
+
+      .placeholder__tile {
+        width: 4rem;
+        height: 4rem;
+        border-radius: 1rem;
+        background: hsl(var(--muted));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+      }
+
+      .placeholder__tile svg {
+        width: 2rem;
+        height: 2rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .placeholder h3 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+      }
+
+      .placeholder p {
+        color: hsl(var(--muted-foreground));
+        max-width: 28rem;
+        margin: 0 auto;
+      }
+
+      .sec-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--muted-foreground));
+        margin: 0 0 0.75rem;
+      }
+
+      .sec + .sec {
+        margin-top: 1.5rem;
+      }
+
+      .task {
+        border: 1px solid hsl(var(--border));
+        background: hsl(var(--elevated));
+        border-radius: var(--radius);
+        padding: 1rem;
+      }
+
+      .task + .task {
+        margin-top: 0.75rem;
+      }
+
+      .task__title {
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .task ol {
+        margin: 0.5rem 0 0;
+        padding-left: 1.25rem;
+        font-size: 0.875rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .task ol li + li {
+        margin-top: 0.25rem;
+      }
+
+      .task ol li::marker {
+        color: hsl(var(--text-faint));
+        font-variant-numeric: tabular-nums;
+      }
+
+      .task__note {
+        margin: 0.5rem 0 0;
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .needs {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+        margin-left: 0.25rem;
+        white-space: nowrap;
+      }
+
+      .needs svg {
+        width: 0.75rem;
+        height: 0.75rem;
+      }
+
+      .hidden-note {
+        margin-top: 0.75rem;
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+        background: hsl(var(--muted));
+        border-radius: var(--radius);
+        padding: 0.75rem;
+        font-size: 0.75rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .hidden-note svg {
+        width: 0.875rem;
+        height: 0.875rem;
+        margin-top: 0.125rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .links {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .link-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.625rem 0.5rem;
+        margin: 0 -0.5rem;
+        border-radius: calc(var(--radius) - 2px);
+        border: 0;
+        background: transparent;
+        width: calc(100% + 1rem);
+        text-align: left;
+        color: inherit;
+        font-size: 0.875rem;
+        cursor: pointer;
+      }
+
+      button.link-row:hover {
+        background: hsl(var(--muted));
+      }
+
+      .link-row > svg {
+        width: 1rem;
+        height: 1rem;
+        margin-top: 0.125rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .link-row__text {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .link-row__name {
+        display: block;
+        font-weight: 500;
+        color: hsl(var(--foreground));
+      }
+
+      .link-row__why {
+        display: block;
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .link-row.is-off .link-row__name {
+        color: hsl(var(--muted-foreground));
+        font-weight: 400;
+      }
+
+      /* Checkbox de ui/checkbox.tsx: h-4 w-4 rounded-sm border-primary,
+         marcado bg-primary com o Check do Lucide. */
+      .cbx {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: hsl(var(--text-soft));
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .cbx__box {
+        position: relative;
+        width: 1rem;
+        height: 1rem;
+        flex-shrink: 0;
+      }
+
+      .cbx input {
+        appearance: none;
+        -webkit-appearance: none;
+        margin: 0;
+        width: 1rem;
+        height: 1rem;
+        border: 1px solid hsl(var(--primary));
+        border-radius: calc(var(--radius) - 4px);
+        background: transparent;
+        cursor: pointer;
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        display: block;
+      }
+
+      .cbx input:checked {
+        background: hsl(var(--primary));
+      }
+
+      .cbx input:focus-visible {
+        box-shadow: 0 0 0 1px hsl(var(--ring));
+      }
+
+      .cbx__box svg {
+        position: absolute;
+        inset: 0;
+        width: 1rem;
+        height: 1rem;
+        padding: 1px;
+        color: hsl(var(--primary-foreground));
+        pointer-events: none;
+        display: none;
+      }
+
+      .cbx input:checked + svg {
+        display: block;
+      }
+
+      /* ===================================================================
+         CENTRAL DE AJUDA
+         =================================================================== */
+      .summary {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      @container shell (min-width: 48rem) {
+        .summary {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+      }
+
+      .summary__text h2 {
+        margin: 0;
+      }
+
+      .summary__text p {
+        margin: 0.25rem 0 0;
+        font-size: 0.875rem;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .summary__progress {
+        min-width: 14rem;
+      }
+
+      /* Progress de ui/progress.tsx: h-2 rounded-full bg-primary/20. */
+      .progress {
+        height: 0.5rem;
+        width: 100%;
+        border-radius: 9999px;
+        background: hsl(var(--primary) / 0.2);
+        overflow: hidden;
+      }
+
+      .progress > span {
+        display: block;
+        height: 100%;
+        background: hsl(var(--primary));
+        transition: width 0.3s;
+      }
+
+      .progress-label {
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+        margin: 0.375rem 0 0;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .trail {
+        margin-top: 1.5rem;
+      }
+
+      .trail__head {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      /* O número da trilha no ladrilho de EmptyState.tsx (rounded-2xl
+         bg-muted), em escala de cabeçalho. */
+      .trail__num {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 1rem;
+        background: hsl(var(--muted));
+        color: hsl(var(--text-soft));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        flex-shrink: 0;
+      }
+
+      .trail__titles {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .trail__titles h2 {
+        margin: 0;
+      }
+
+      .trail__titles p {
+        margin: 0.25rem 0 0;
+        font-size: 0.875rem;
+        color: hsl(var(--muted-foreground));
+      }
+
+      .trail__count {
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        padding-top: 0.25rem;
+      }
+
+      .gcard {
+        padding: 1rem;
+        border-radius: var(--radius);
+        border: 1px solid hsl(var(--border));
+        background: hsl(var(--elevated));
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .gcard__top {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+      }
+
+      .gcard__icon {
+        width: 2rem;
+        height: 2rem;
+        border-radius: var(--radius);
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: hsl(var(--text-soft));
+        flex-shrink: 0;
+      }
+
+      .gcard__icon svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .gcard__name {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .gcard__purpose {
+        font-size: 0.8125rem;
+        color: hsl(var(--muted-foreground));
+        margin: 0;
+        flex: 1;
+      }
+
+      .gcard__foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.25rem;
+      }
+
+      .gcard.is-read .gcard__name {
+        color: hsl(var(--muted-foreground));
+      }
+
+      .offtrail {
+        margin-top: 1.5rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--muted-foreground));
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+      }
+
+      .offtrail svg {
+        width: 1rem;
+        height: 1rem;
+        margin-top: 0.125rem;
+        color: hsl(var(--text-faint));
+      }
+
+      /* ===================================================================
+         LINK DE CLIENTE — CardLink.tsx: text-left underline-offset-2
+         hover:underline hover:text-foreground.
+         =================================================================== */
+      .client-link {
+        border: 0;
+        background: transparent;
+        padding: 0;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        text-underline-offset: 2px;
+        cursor: pointer;
+        border-radius: calc(var(--radius) - 4px);
+      }
+
+      .client-link:hover {
+        text-decoration: underline;
+        color: hsl(var(--foreground));
+      }
+
+      .grip {
+        display: inline-flex;
+        color: hsl(var(--text-faint));
+      }
+
+      .grip svg {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      .grip.can-drag {
+        cursor: grab;
+      }
+
+      /* Cinco cartões de PipelineHeader.tsx: grid 2 / md:3 / lg:5, gap-3,
+         Card p-4, ícone em quadrado p-2 rounded-lg. Cores de estado ficam
+         neutras aqui (tela simplificada). */
+      .pstats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+
+      @container shell (min-width: 48rem) {
+        .pstats {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      @container shell (min-width: 64rem) {
+        .pstats {
+          grid-template-columns: repeat(5, 1fr);
+        }
+      }
+
+      .pstat {
+        padding: 1rem;
+        border: 1px solid hsl(var(--border));
+      }
+
+      .pstat__icon {
+        display: inline-flex;
+        padding: 0.5rem;
+        border-radius: var(--radius);
+        background: hsl(var(--muted));
+        color: hsl(var(--text-soft));
+        margin-bottom: 0.5rem;
+      }
+
+      .pstat__icon svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .pstat p {
+        margin: 0;
+      }
+
+      .pstat__label {
+        font-size: 0.75rem;
+        color: hsl(var(--text-soft));
+        margin-bottom: 0.25rem !important;
+      }
+
+      .pstat__value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .pstat__sub {
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+      }
+
+      /* Kanban de NegociacaoKanban.tsx: coluna w-[300px], cartão p-4. */
+      .kanban__col {
+        min-width: 300px;
+        width: 300px;
+      }
+
+      .deal__top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+
+      .deal__top strong {
+        margin-bottom: 0;
+      }
+
+      .deal__client {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+        font-weight: 500;
+      }
+
+      .deal__client svg {
+        width: 0.875rem;
+        height: 0.875rem;
+        color: hsl(var(--text-faint));
+      }
+
+      .deal.can-drag {
+        cursor: grab;
+      }
+
+      .icon-button--sm {
+        height: 1.75rem;
+        width: 1.75rem;
+        margin-top: -0.25rem;
+      }
+
+      .icon-button--sm svg {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+
+      .action-row {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 1.5rem;
+      }
+
+      /* ===================================================================
+         PÁGINA DO GUIA, dentro da Central — o conteúdo que era do painel.
+         =================================================================== */
+      .guide-head {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      @container shell (min-width: 48rem) {
+        .guide-head {
+          flex-direction: row;
+          align-items: flex-start;
+          justify-content: space-between;
+        }
+      }
+
+      .guide-head h1 {
+        font-size: 1.5rem;
+        line-height: 2rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        margin: 0;
+      }
+
+      .guide-head p {
+        color: hsl(var(--muted-foreground));
+        margin: 0.25rem 0 0;
+        max-width: 40rem;
+      }
+
+      .guide-head__meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+      }
+
+      .guide-head__actions {
+        flex-shrink: 0;
+      }
+
+      .guide-body {
+        margin-top: 1.5rem;
+        display: grid;
+        gap: 1.5rem;
+        grid-template-columns: 1fr;
+      }
+
+      @container shell (min-width: 64rem) {
+        .guide-body {
+          grid-template-columns: 2fr 1fr;
+          align-items: start;
+        }
+      }
+
+      .guide-foot {
+        margin-top: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .gcard__actions {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+      }
+
+      /* ===================================================================
+         BALÃO DO TOUR — sobrescreve o CSS do driver.js 1.10.2 por inteiro.
+         Valores de PopoverContent (ui/popover.tsx): w-72 rounded-md border
+         bg-popover p-4 shadow-md. Botões: Button size="sm" (ui/button.tsx).
+         =================================================================== */
+      .driver-popover.tour-pop {
+        box-sizing: border-box;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        color: hsl(var(--foreground));
+        background: hsl(var(--popover));
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) - 2px);
+        padding: 1rem;
+        width: 18rem;
+        min-width: 0;
+        max-width: calc(100vw - 1rem);
+        box-shadow:
+          0 4px 6px -1px rgb(0 0 0 / 0.1),
+          0 2px 4px -2px rgb(0 0 0 / 0.1);
+      }
+
+      .driver-popover.tour-pop * {
+        box-sizing: border-box;
+      }
+
+      .tour-pop .driver-popover-arrow {
+        display: none;
+      }
+
+      .tour-pop .driver-popover-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        line-height: 1.25rem;
+        padding-right: 1.75rem;
+        color: hsl(var(--foreground));
+      }
+
+      .tour-pop .driver-popover-title[style*='block'] + .driver-popover-description {
+        margin-top: 0.25rem;
+      }
+
+      .tour-pop .driver-popover-description {
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        color: hsl(var(--text-soft));
+      }
+
+      /* X: o mesmo botão de fechar do ProjectDiaryDrawer / HelpPanel
+         (p-1.5 hover:bg-elevated rounded-lg, X w-4 text-muted-foreground). */
+      .tour-pop .driver-popover-close-btn {
+        all: unset;
+        position: absolute;
+        top: 0.625rem;
+        right: 0.625rem;
+        width: 1.75rem;
+        height: 1.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius);
+        color: hsl(var(--muted-foreground));
+        cursor: pointer;
+        transition: background-color 0.15s;
+      }
+
+      .tour-pop .driver-popover-close-btn:hover {
+        background: hsl(var(--elevated));
+        color: hsl(var(--muted-foreground));
+      }
+
+      .tour-pop .driver-popover-close-btn svg {
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .tour-pop .driver-popover-footer {
+        margin-top: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+
+      .tour-pop .driver-popover-progress-text {
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .tour-pop .driver-popover-navigation-btns {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        flex-grow: 1;
+      }
+
+      .tour-pop .driver-popover-navigation-btns button + button {
+        margin-left: 0;
+      }
+
+      /* Button size="sm": h-8 rounded-md px-3 text-xs font-medium. */
+      .tour-pop .driver-popover-footer-btn {
+        all: unset;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        height: 2rem;
+        padding: 0 0.75rem;
+        border-radius: calc(var(--radius) - 2px);
+        font-size: 0.75rem;
+        font-weight: 500;
+        line-height: 1;
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.15s;
+      }
+
+      /* Anterior = variant outline. */
+      .tour-pop .driver-popover-prev-btn {
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        border: 1px solid hsl(var(--input));
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      .tour-pop .driver-popover-prev-btn:hover {
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+      }
+
+      /* Próximo / Concluir = variant default. */
+      .tour-pop .driver-popover-next-btn {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+        box-shadow:
+          0 1px 3px 0 rgb(0 0 0 / 0.1),
+          0 1px 2px -1px rgb(0 0 0 / 0.1);
+      }
+
+      .tour-pop .driver-popover-next-btn:hover {
+        background: hsl(var(--primary) / 0.9);
+      }
+
+      /* disabled:opacity-50 do Button. */
+      .tour-pop .driver-popover-footer .driver-popover-btn-disabled {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      .tour-pop .driver-popover-footer-btn:focus-visible,
+      .tour-pop .driver-popover-close-btn:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 1px hsl(var(--ring));
+      }
+
+      /* A linha de acesso do primeiro balão — a nota "ficaram de fora" do
+         HelpPanel.tsx (bg-muted rounded-lg p-3 text-xs text-soft). */
+      .tour-access {
+        margin-top: 0.75rem;
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+        background: hsl(var(--muted));
+        border-radius: var(--radius);
+        padding: 0.625rem 0.75rem;
+        font-size: 0.75rem;
+        line-height: 1rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .tour-access svg {
+        width: 0.875rem;
+        height: 0.875rem;
+        flex-shrink: 0;
+        color: hsl(var(--text-faint));
+      }
+
+      /* Balão sem rodapé de navegação (o aviso "tela sem tour"): só o botão
+         de abrir a Central. */
+      .tour-pop.is-notice .driver-popover-prev-btn,
+      .tour-pop.is-notice .driver-popover-progress-text {
+        display: none !important;
+      }
+
+      .tour-pop.is-notice .driver-popover-next-btn {
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        border: 1px solid hsl(var(--input));
+        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      }
+
+      .tour-pop.is-notice .driver-popover-next-btn:hover {
+        background: hsl(var(--accent));
+      }
+
+      .tour-pop.is-notice.no-action .driver-popover-footer {
+        display: none !important;
+      }
+
+      /* CELULAR: faixa de ponta a ponta. Posição calculada no JS (embaixo, ou
+         em cima se o alvo cair embaixo) e aplicada por variável; o !important
+         vence o left/top inline que o driver escreve a cada reposicionamento. */
+      .driver-popover.tour-pop.is-strip {
+        left: var(--strip-left) !important;
+        top: var(--strip-top) !important;
+        width: var(--strip-width) !important;
+        right: auto !important;
+        bottom: auto !important;
+        max-width: none !important;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .driver-fade .driver-overlay,
+        .driver-fade .driver-popover {
+          animation: none !important;
+        }
+      }
+
+      /* ===================================================================
+         REGISTRO DO TOUR — chrome de protótipo, tracejado.
+         =================================================================== */
+      .proto-log {
+        margin-top: 1.5rem;
+        border: 1px dashed hsl(var(--text-faint));
+        border-radius: calc(var(--radius) + 4px);
+        padding: 1rem;
+        font-size: 0.8125rem;
+        color: hsl(var(--text-soft));
+      }
+
+      .proto-log h2 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: hsl(var(--muted-foreground));
+        margin: 0 0 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+      }
+
+      .proto-log h2 svg {
+        width: 0.875rem;
+        height: 0.875rem;
+      }
+
+      .proto-log ol {
+        margin: 0;
+        padding-left: 1.5rem;
+      }
+
+      .proto-log li + li {
+        margin-top: 0.25rem;
+      }
+
+      .proto-log li::marker {
+        font-variant-numeric: tabular-nums;
+        color: hsl(var(--text-faint));
+      }
+
+      .proto-log .is-skipped {
+        color: hsl(var(--muted-foreground));
+      }
+
+      .proto-log .is-skipped .proto-log__title {
+        text-decoration: line-through;
+      }
+
+      .proto-log__why {
+        font-size: 0.75rem;
+        color: hsl(var(--muted-foreground));
+        margin-left: 0.375rem;
+      }
+
+      .proto-log p {
+        margin: 0;
+      }
+    </style>
+  </head>
+
+  <body class="show-new">
+    <div class="proto-page">
+      <div>
+        <h1 class="proto-title">Ajuda: tour guiado da tela</h1>
+        <p class="proto-kicker">HAUSONE · PROTÓTIPO</p>
+      </div>
+
+      <p class="proto-lede">
+        O <strong>?</strong> do cabeçalho deixa de abrir o painel lateral e passa a mostrar a tela
+        atual, peça por peça: escurece o resto, recorta o elemento da vez e põe ao lado um balão
+        curto. Tour pronto em Projetos, Pipeline e Minhas Atividades. O texto completo de cada guia
+        continua na Central de ajuda, que ganha o botão <strong>Me mostrar na tela</strong>.
+      </p>
+
+      <!-- ============================================================
+           CONTROLES DE PROTÓTIPO — não existem no produto.
+           ============================================================ -->
+      <div class="proto-controls" role="group" aria-label="Controles do protótipo">
+        <span class="proto-controls__tag"><i data-lucide="flask-conical"></i>Controle de protótipo</span>
+
+        <div class="proto-controls__group">
+          <span>Perfil:</span>
+          <div class="proto-seg" id="profileSeg">
+            <button type="button" data-profile="architect" aria-pressed="false">Arquiteto</button>
+            <button type="button" data-profile="finance" aria-pressed="false">Financeiro</button>
+            <button type="button" data-profile="director" aria-pressed="true">Diretor</button>
+          </div>
+        </div>
+
+        <div class="proto-controls__group">
+          <span>Largura:</span>
+          <div class="proto-seg" id="widthSeg">
+            <button type="button" data-width="desktop" aria-pressed="true">Tela larga</button>
+            <button type="button" data-width="phone" aria-pressed="false">Celular 400px</button>
+          </div>
+        </div>
+
+        <div class="proto-controls__group">
+          <span>Tema:</span>
+          <div class="proto-seg" id="themeSeg">
+            <button type="button" data-theme="light" aria-pressed="true">Claro</button>
+            <button type="button" data-theme="dark" aria-pressed="false">Escuro</button>
+          </div>
+        </div>
+
+        <label class="proto-check">
+          <input type="checkbox" id="forceView" />
+          Simular "só ver"
+        </label>
+
+        <label class="proto-check">
+          <input type="checkbox" id="showNew" checked />
+          Tracejar o que é novo
+        </label>
+      </div>
+
+      <!-- ============================================================
+           A CASCA DO APP (a mesma do ajuda.html)
+           ============================================================ -->
+      <div class="shell" id="shell">
+        <aside class="sb" id="sidebar" aria-label="Barra lateral">
+          <div class="sb__logo">
+            <div class="sb__brand">
+              <p class="sb__tenant">Escritório Exemplo</p>
+              <p class="sb__product">HAUSONE</p>
+            </div>
+            <button class="sb__close" type="button" id="sbClose" aria-label="Fechar menu">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+          <nav class="sb__nav" id="nav"></nav>
+          <div class="sb__user">
+            <button class="user-card" type="button" data-go="Perfil">
+              <span class="avatar" id="userInitials">PE</span>
+              <span style="min-width: 0">
+                <span class="user-card__name" id="userName">Pessoa Exemplo</span>
+                <span class="user-card__area" id="userArea">Projetos</span>
+              </span>
+              <i data-lucide="settings-2"></i>
+            </button>
+            <button class="sb-btn" type="button" data-go="Ajuda" id="centralBtn">
+              <i data-lucide="life-buoy"></i>
+              Central de ajuda
+            </button>
+            <button class="sb-btn" type="button">
+              <i data-lucide="log-out"></i>
+              Sair
+            </button>
+          </div>
+        </aside>
+
+        <div class="scrim" id="scrim" hidden></div>
+
+        <div class="main">
+          <header class="hdr">
+            <button class="hdr__burger" type="button" id="burger" aria-label="Abrir menu">
+              <i data-lucide="menu"></i>
+            </button>
+            <div class="hdr__spacer"></div>
+            <div class="hdr__actions" id="hdrActions"></div>
+          </header>
+
+          <main class="content" id="content" tabindex="-1"></main>
+
+          <nav class="bnav" aria-label="Navegação inferior">
+            <button type="button" data-go="Dashboard" data-tab="Dashboard">
+              <i data-lucide="layout-dashboard"></i>Início
+            </button>
+            <button type="button" data-go="Clients" data-tab="Clients">
+              <i data-lucide="users"></i>CRM
+            </button>
+            <button type="button" data-go="Tasks" data-tab="Tasks">
+              <i data-lucide="square-check-big"></i>Tarefas
+            </button>
+            <button type="button" data-go="Projects" data-tab="Projects">
+              <i data-lucide="folder-kanban"></i>Projetos
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      <!-- Registro do tour da tela atual: o que entra, o que pula e por quê. -->
+      <section class="proto-log" id="protoLog" aria-live="polite"></section>
+
+      <!-- ============================================================
+           NOTAS
+           ============================================================ -->
+      <section class="proto-section">
+        <p class="proto-label">Como ler</p>
+        <ul class="proto-callouts">
+          <li>
+            <strong>Clique no ? do cabeçalho</strong> em Projetos, Pipeline ou Minhas Atividades.
+            Próximo e Anterior andam (as setas do teclado também); X, Esc ou clique fora fecham. O
+            perfil abre no Diretor, que tem Projetos e Pipeline. Minhas Atividades é só do
+            Arquiteto (e de Estagiário e Coordenador): troque o perfil para ver.
+          </li>
+          <li>
+            <strong>Marque "Simular só ver"</strong> e repita o tour de Projetos: de 7 passos vão a
+            4. Novo Projeto e o menu de três pontos somem da tela (como em Projects.tsx), e a alça
+            continua lá mas o passo de arrastar sai. O primeiro balão diz quantos ficaram de fora. O
+            registro tracejado embaixo da casca mostra cada passo e o motivo.
+          </li>
+          <li>
+            <strong>No Pipeline, o passo do aviso âmbar pula sempre</strong> nos dados deste
+            protótipo, porque nenhuma negociação está parada: é o caso de elemento que só aparece
+            com dado.
+          </li>
+          <li>
+            <strong>Celular 400px</strong>: o balão vira faixa embaixo da casca; quando o elemento
+            da vez está na metade de baixo, a faixa sobe. O overlay cobre a página inteira (no app,
+            a tela do celular é a página inteira).
+          </li>
+          <li>
+            <strong>Central de ajuda</strong> (rodapé da barra lateral): cada guia pronto tem "Me
+            mostrar na tela", que abre a tela e começa o tour, e "Ler guia", com o texto completo que
+            antes ficava no painel.
+          </li>
+          <li>
+            <strong>? em outra tela</strong> (ex.: CRM, Contratos): balão curto no próprio ?, sem
+            escurecer nada, com o botão para a Central.
+          </li>
+          <li>
+            Dados fictícios ("Cliente Fictício A", "Casa Exemplo Ipê", valores redondos). Nada vem do
+            escritório.
+          </li>
+        </ul>
+      </section>
+
+      <div class="proto-open-questions">
+        <h2>O que ficou para você decidir</h2>
+        <ol>
+          <li>
+            <strong>Escuro do overlay:</strong> 50% no tema claro e 70% no escuro (decisão 5 no topo
+            do arquivo). Mais escuro foca melhor, mais claro deixa a tela em volta legível. Se
+            quiser o mesmo dos diálogos, 80%.
+          </li>
+          <li>
+            <strong>Texto dos balões</strong> é rascunho, tirado dos guias em
+            <code>src/features/help/guides/</code> e encurtado para 1–2 frases. Revisar antes de
+            virar texto oficial.
+          </li>
+          <li>
+            <strong>Painel lateral sai de vez?</strong> Neste desenho ele não existe mais: o "?" só
+            faz tour e o texto completo vive na Central. HelpPanel.tsx seria removido.
+          </li>
+        </ol>
+      </div>
+    </div>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/driver.js@1.10.2/dist/driver.js.iife.js"
+      integrity="sha384-5g481DgM/VdK19dNiL3kmTG/tz1fQriwUvSide6vc77uYGaXh0s5GLQCUN6dgI8n"
+      crossorigin="anonymous"
+    ></script>
+
+    <script>
+      /* =====================================================================
+         DADOS DO SISTEMA — cópia de navigation.ts, permissions-matrix.ts e da
+         migration 0004 (+ 0084 para `settings`). Rótulos = menus.label_pt.
+         ===================================================================== */
+      const MENUS = [
+        { key: 'dashboard_overview', label: 'Visão Geral', sort: 10, parent: null, page: 'Dashboard', icon: 'layout-dashboard' },
+        { key: 'dashboard_executive', label: 'Painel Executivo', sort: 20, parent: null, page: 'DashboardExecutivo', icon: 'trending-up' },
+        { key: 'dashboard_commercial', label: 'Painel Comercial', sort: 30, parent: null, page: 'DashboardComercial', icon: 'briefcase' },
+        { key: 'crm', label: 'CRM', sort: 40, parent: null, page: 'Clients', icon: 'users' },
+        { key: 'pipeline', label: 'Pipeline', sort: 50, parent: null, page: 'Negociacoes', icon: 'handshake' },
+        { key: 'contracts', label: 'Contratos & Propostas', sort: 60, parent: null, page: 'Contracts', icon: 'file-text' },
+        { key: 'projects', label: 'Projetos', sort: 70, parent: null, page: 'Projects', icon: 'folder-kanban' },
+        { key: 'map', label: 'Mapa de Projetos', sort: 80, parent: null, page: 'MapaProjetos', icon: 'map-pin' },
+        { key: 'project_flow', label: 'Fluxo do Projeto', sort: 90, parent: null, page: 'Tasks', icon: 'square-check-big' },
+        { key: 'my_activities', label: 'Minhas Atividades', sort: 95, parent: null, page: 'MinhasAtividades', icon: 'activity', onlyForRoles: ['architect', 'intern', 'coordinator'] },
+        { key: 'activities', label: 'Atividades', sort: 100, parent: null, page: 'Atividades', icon: 'activity', hideForRoles: ['architect', 'intern'] },
+        { key: 'suppliers', label: 'Fornecedores', sort: 110, parent: null, page: 'Fornecedores', icon: 'store' },
+        { key: 'client_budget', label: 'Orçamento por Cliente', sort: 120, parent: null, page: 'OrcamentoCliente', icon: 'clipboard-list' },
+        { key: 'financial', label: 'Financeiro', sort: 130, parent: null, page: null, icon: 'wallet', onlyForRoles: ['director', 'finance', 'admin_staff'] },
+        { key: 'receivables', label: 'Recebíveis', sort: 140, parent: 'financial', page: 'AccountsReceivable', icon: 'circle-arrow-down' },
+        { key: 'payables', label: 'Pagamentos', sort: 150, parent: 'financial', page: 'AccountsPayable', icon: 'circle-arrow-up' },
+        { key: 'team_group', label: 'Equipe', sort: 160, parent: null, page: null, icon: 'circle-user', onlyForRoles: ['director', 'finance', 'admin_staff'] },
+        { key: 'team', label: 'Equipe', sort: 170, parent: 'team_group', page: 'Collaborators', icon: 'circle-user' },
+        { key: 'access_control', label: 'Controle de Acesso', sort: 180, parent: 'team_group', page: 'AprovacoesAcesso', icon: 'shield-check' },
+        { key: 'settings', label: 'Configurações', sort: 900, parent: null, page: 'Settings', icon: 'sliders-horizontal' },
+      ]
+      const ROLE_ONLY_KEYS = new Set(['my_activities', 'activities'])
+
+      const ALL = MENUS.filter((m) => m.page && m.key !== 'my_activities' && m.key !== 'settings').map((m) => ({ menuKey: m.key, can_view: true, can_edit: true }))
+      const PRESETS = {
+        'Perfil Projetos': [
+          { menuKey: 'projects', can_view: true, can_edit: true },
+          { menuKey: 'map', can_view: true, can_edit: true },
+          { menuKey: 'project_flow', can_view: true, can_edit: true },
+          { menuKey: 'activities', can_view: true, can_edit: true },
+          { menuKey: 'crm', can_view: true, can_edit: false },
+          { menuKey: 'suppliers', can_view: true, can_edit: false },
+          { menuKey: 'client_budget', can_view: true, can_edit: false },
+        ],
+        'Perfil Financeiro': [
+          { menuKey: 'dashboard_executive', can_view: true, can_edit: false },
+          { menuKey: 'receivables', can_view: true, can_edit: true },
+          { menuKey: 'payables', can_view: true, can_edit: true },
+          { menuKey: 'contracts', can_view: true, can_edit: true },
+          { menuKey: 'suppliers', can_view: true, can_edit: false },
+          { menuKey: 'client_budget', can_view: true, can_edit: true },
+        ],
+        'Perfil Diretor': ALL,
+      }
+
+      const PROFILES = {
+        architect: { role: 'architect', preset: 'Perfil Projetos', name: 'Pessoa Exemplo', initials: 'PE', area: 'Projetos', home: 'MinhasAtividades' },
+        finance: { role: 'finance', preset: 'Perfil Financeiro', name: 'Pessoa Exemplo', initials: 'PE', area: 'Financeiro', home: 'AccountsReceivable' },
+        director: { role: 'director', preset: 'Perfil Diretor', name: 'Pessoa Exemplo', initials: 'PE', area: 'Administrativo', home: 'Negociacoes' },
+      }
+
+      /* =====================================================================
+         GUIAS. `menu` liga o guia à permissão. Tarefa com `edit: true` some
+         para quem só vê (a tela esconde o botão); passo com `needs` aparece
+         marcado (a tela desabilita o botão e avisa).
+         ===================================================================== */
+      const GUIDES = {
+        /* ---------- 0 Primeiros passos ---------- */
+        first_login: {
+          title: 'Entrar e criar sua senha', icon: 'key-round', always: true,
+          purpose: 'No primeiro acesso o sistema pede para trocar a senha provisória, criada pelo Diretor, por uma senha sua de pelo menos 8 caracteres.',
+        },
+        profile: {
+          title: 'Meu Perfil', icon: 'settings-2', always: true, page: 'Perfil',
+          purpose: 'Seus dados, sua foto e sua senha. Chega-se pelo seu nome, no rodapé da barra lateral.',
+        },
+        sidebar: {
+          title: 'A barra lateral', icon: 'panel-left', always: true,
+          purpose: 'Mostra só as telas liberadas para você. Se falta alguma, quem libera é o Diretor, em Equipe.',
+        },
+        search: {
+          title: 'Buscar', icon: 'search', always: true,
+          purpose: 'A lupa do cabeçalho procura clientes, projetos, contratos e tarefas de uma vez.',
+        },
+        notifications: {
+          title: 'Notificações', icon: 'bell', always: true,
+          purpose: 'O sino avisa quando alguém te atribui uma tarefa ou quando um prazo seu vence.',
+        },
+        my_activities: {
+          title: 'Minhas Atividades', icon: 'activity', menu: 'my_activities', page: 'MinhasAtividades', full: true, byRole: true,
+          purpose: 'Seu resumo: as atividades atribuídas a você, os prazos e os projetos em que você é o responsável no Fluxo do Projeto.',
+          tasks: [
+            {
+              title: 'Ver o que vence hoje e o que atrasou',
+              steps: [
+                'Os quatro cartões do topo contam Atividades de Hoje, Em Execução, Em Atraso e Concluídas (Semana).',
+                'Se houver atraso, aparece a faixa rosa "Você possui N atividades em atraso".',
+                'Na tabela Suas Atividades, a linha atrasada fica rosada e o prazo, em vermelho.',
+              ],
+            },
+            {
+              title: 'Começar e concluir uma atividade',
+              steps: [
+                'Clique em Ver Todas as Atividades.',
+                'Na linha da atividade, clique em Começar agora. O tempo começa a contar.',
+                'Ao terminar, clique em Concluir. O tempo total fica gravado na atividade.',
+              ],
+              note: 'Quem executa é o responsável ou o coordenador da atividade.',
+            },
+            {
+              title: 'Acompanhar os seus projetos',
+              steps: [
+                'O cartão Meus Projetos (Responsável) lista os projetos em que você responde por algum cartão do Fluxo do Projeto.',
+                'Cada projeto mostra a fase atual, a próxima entrega e o progresso. O selo Atrasado indica tarefa vencida.',
+                'Clique no projeto para abrir Detalhes do Projeto, com a lista Tarefas do Projeto.',
+                'O ícone ao lado do título abre o projeto no Fluxo do Projeto, numa aba nova.',
+              ],
+            },
+            {
+              title: 'Um projeto meu não aparece. Por quê?',
+              steps: [
+                'Só entram projetos em que você é o responsável de pelo menos um cartão no Fluxo do Projeto.',
+                'Projetos Concluídos ou Suspensos saem da lista.',
+                'Quem define o responsável do cartão é quem edita o Fluxo do Projeto.',
+              ],
+            },
+          ],
+          links: [
+            { key: 'project_flow', why: 'Onde se define quem é o responsável de cada cartão.' },
+            { key: 'activities', why: 'Onde se começa e conclui a atividade.', via: 'pelo botão Ver Todas as Atividades' },
+            { key: 'notifications', why: 'Avisa de tarefa nova e de prazo vencido.' },
+          ],
+        },
+
+        /* ---------- 1 Captar ---------- */
+        pipeline: {
+          title: 'Pipeline', icon: 'handshake', menu: 'pipeline', page: 'Negociacoes', full: true,
+          purpose: 'O funil de vendas: cada oportunidade anda de Lead recebido até Fechamento e termina Ganha ou Perdida.',
+          tasks: [
+            {
+              title: 'Ler o funil',
+              steps: [
+                'A aba Funil mostra as negociações ativas por etapa. Ativas, Ganhas e Perdidas mostram as mesmas em lista.',
+                'Use o campo Buscar por negociação, cliente ou responsável...',
+                'Em Ganhas, os cartões do topo somam Total Ganhas (30d), Soma Total e Ticket Médio.',
+              ],
+            },
+            {
+              title: 'Registrar uma oportunidade', edit: true,
+              steps: [
+                'Clique em Nova Oportunidade.',
+                'Preencha Nome da Negociação, Tipos de Serviço e Responsável pela Negociação, que são obrigatórios.',
+                'Escolha o Cliente, a Etapa do Funil e a Origem do Lead. Se a origem for Indicação, informe o Nome do Indicador.',
+                'Clique em Criar Negociação.',
+              ],
+            },
+            {
+              title: 'Andar com a oportunidade no funil', edit: true,
+              steps: [
+                'Na aba Funil, arraste o cartão para a coluna seguinte: Lead recebido, Qualificado, Proposta enviada, Em negociação, Fechamento.',
+                'Arrastar só muda a etapa, inclusive para Fechamento. Não encerra a negociação.',
+                'O aviso amarelo do topo lista as negociações paradas há mais de 5 dias.',
+              ],
+            },
+            {
+              title: 'Encerrar: ganha ou perdida', edit: true,
+              steps: [
+                'Na aba Ativas, coluna Ações: o visto verde marca como ganha, o X vermelho marca como perdida.',
+                'Ganha exige cliente vinculado. O link do formulário de briefing é copiado para você enviar ao cliente, e vale 24 horas. Errou? Clique em Desfazer no próprio aviso.',
+                'Perdida abre o formulário com status Perdida e a data de hoje. Escolha o Motivo da Perda e salve.',
+              ],
+            },
+            {
+              title: 'Conferir o briefing que o cliente mandou',
+              steps: [
+                { t: 'Clique em Conferir, no aviso azul, ou em Briefings recebidos.' },
+                { t: 'O briefing não altera o cadastro sozinho. Compare campo a campo e clique em Aplicar no que estiver certo.', needs: 'crm' },
+                { t: 'Com tudo conferido, Gerar contrato cria o contrato em Contratos & Propostas.', needs: 'pipeline' },
+              ],
+            },
+          ],
+          links: [
+            { key: 'crm', why: 'O cliente da negociação e os dados aplicados do briefing.' },
+            { key: 'intake_form', why: 'O que o cliente vê ao abrir o link.' },
+            { key: 'contracts', why: 'Onde nasce o contrato gerado do briefing.' },
+            { key: 'dashboard_commercial', why: 'O desempenho do funil por mês.' },
+          ],
+        },
+        intake_form: {
+          title: 'Formulário de briefing', icon: 'clipboard-check', needsMenu: 'pipeline',
+          purpose: 'Link público, válido por 24 horas, que o cliente preenche sem login depois que a negociação é marcada como Ganha. A resposta chega em Briefings recebidos.',
+        },
+
+        /* ---------- 2 CRM ---------- */
+        crm: { title: 'CRM', icon: 'users', menu: 'crm', page: 'Clients', purpose: 'A base de leads e clientes do escritório: cadastro, titulares e contatos de cada um.' },
+
+        /* ---------- 3 Orçamento e fornecedores ---------- */
+        client_budget: { title: 'Orçamento por Cliente', icon: 'clipboard-list', menu: 'client_budget', page: 'OrcamentoCliente', purpose: 'Checklist do que orçar para cada cliente, por fase do projeto, com responsável e status.' },
+        suppliers: { title: 'Fornecedores', icon: 'store', menu: 'suppliers', page: 'Fornecedores', purpose: 'Cadastro de fornecedores com tipologia, marca e nível de parceria.' },
+
+        /* ---------- 4 Contratos ---------- */
+        contracts: { title: 'Contratos & Propostas', icon: 'file-text', menu: 'contracts', page: 'Contracts', purpose: 'Contratos e propostas comerciais por cliente e projeto. O contrato pode nascer do briefing conferido no Pipeline.' },
+
+        /* ---------- 5 Projetos ---------- */
+        projects: {
+          title: 'Projetos', icon: 'folder-kanban', menu: 'projects', page: 'Projects', full: true,
+          purpose: 'A lista dos projetos do escritório, com cliente, tipo, cidade, responsável pela negociação, prazos de fase e status.',
+          tasks: [
+            {
+              title: 'Encontrar um projeto',
+              steps: [
+                'Digite no campo Buscar por nome do projeto ou cliente...',
+                'Use as abas Todos, Em desenvolvimento, Em aprovação e Concluídos.',
+                'Projetos em Prospecção, Em contrato ou Suspenso só aparecem na aba Todos.',
+              ],
+            },
+            {
+              title: 'Cadastrar um projeto novo', edit: true,
+              steps: [
+                'Clique em Novo Projeto, no alto da tela.',
+                'Preencha Nome do Projeto e Tipo de Projeto, que são obrigatórios.',
+                'Se quiser, escolha Cliente, Cidade, Estado, Endereço da Obra, Data de Início, Status e Ambientes.',
+                'Clique em Criar Projeto.',
+              ],
+              note: 'Responsável pela Negociação é só controle comercial. O responsável operacional se define no Fluxo do Projeto.',
+            },
+            {
+              title: 'Editar ou excluir', edit: true,
+              steps: [
+                'Na linha do projeto, abra o menu de três pontos.',
+                'Editar abre o formulário; salve com Salvar Alterações.',
+                'Excluir pede confirmação, e a exclusão não pode ser desfeita.',
+              ],
+            },
+            {
+              title: 'Mudar a ordem da lista', edit: true,
+              steps: [
+                'Segure a alça à esquerda da linha e arraste até a nova posição.',
+                'A ordem vale para todo o escritório. O aviso Ordem atualizada! confirma.',
+              ],
+            },
+            {
+              title: 'Abrir o cliente do projeto',
+              steps: ['O nome do cliente, abaixo do nome do projeto, abre a ficha dele no CRM, se você tem acesso ao CRM.'],
+            },
+          ],
+          links: [
+            { key: 'project_flow', why: 'Os cartões de cada fase e o responsável operacional.' },
+            { key: 'crm', why: 'O cadastro do cliente do projeto.' },
+            { key: 'map', why: 'O projeto no mapa, pela cidade e endereço da obra.' },
+            { key: 'contracts', why: 'O contrato ligado ao projeto.' },
+          ],
+        },
+        project_flow: { title: 'Fluxo do Projeto', icon: 'square-check-big', menu: 'project_flow', page: 'Tasks', purpose: 'O quadro com os cartões de cada projeto por fase. É aqui que se define o responsável operacional.' },
+        map: { title: 'Mapa de Projetos', icon: 'map-pin', menu: 'map', page: 'MapaProjetos', purpose: 'A localização de todos os projetos no mapa.' },
+
+        /* ---------- 6 Atividades ---------- */
+        activities: { title: 'Atividades', icon: 'activity', menu: 'activities', page: 'Atividades', purpose: 'O trabalho atribuído a cada pessoa, com prazo e prioridade, e os botões Começar agora e Concluir, que registram o tempo.' },
+        productivity: { title: 'Relatório de Produtividade', icon: 'chart-column', special: 'productivity', purpose: 'Análise de desempenho e métricas de execução, por colaborador e por projeto. Não tem item na barra lateral.' },
+
+        /* ---------- 7 Financeiro ---------- */
+        receivables: { title: 'Recebíveis', icon: 'circle-arrow-down', menu: 'receivables', page: 'AccountsReceivable', purpose: 'As receitas do escritório: o que há a receber dos contratos e o que já foi recebido.' },
+        payables: { title: 'Pagamentos', icon: 'circle-arrow-up', menu: 'payables', page: 'AccountsPayable', purpose: 'As despesas do escritório (na tela, Contas a Pagar): o que vence e o que já foi pago.' },
+
+        /* ---------- 8 Painéis ---------- */
+        dashboard_overview: { title: 'Visão Geral', icon: 'layout-dashboard', menu: 'dashboard_overview', page: 'Dashboard', purpose: 'O resumo do escritório, com receita prevista e receita recebida.' },
+        dashboard_executive: { title: 'Painel Executivo', icon: 'trending-up', menu: 'dashboard_executive', page: 'DashboardExecutivo', purpose: 'Projetos, prazos e produtividade, filtrados por período, projeto e colaborador.' },
+        dashboard_commercial: { title: 'Painel Comercial', icon: 'briefcase', menu: 'dashboard_commercial', page: 'DashboardComercial', purpose: 'O desempenho do funil comercial por mês e ano.' },
+
+        /* ---------- 9 Administração ---------- */
+        team: { title: 'Equipe', icon: 'circle-user', menu: 'team', page: 'Collaborators', purpose: 'Cadastro da equipe: função, área e status de cada pessoa.' },
+        permissions: { title: 'Permissões', icon: 'lock', needsMenu: 'team', purpose: 'A matriz por tela, com Ver e Editar para cada pessoa. Os perfis prontos (Comercial, Projetos, Financeiro, Diretor) preenchem tudo de uma vez.' },
+        impersonate: { title: 'Acessar como', icon: 'user-cog', special: 'impersonate', purpose: 'Só para o Diretor: entra no sistema como outra pessoa para ver o que ela vê. Cada acesso fica registrado.' },
+        access_control: { title: 'Controle de Acesso', icon: 'shield-check', menu: 'access_control', page: 'AprovacoesAcesso', purpose: 'Aprovações de Acesso: quem pediu para entrar no sistema e espera resposta.' },
+        settings: { title: 'Configurações', icon: 'sliders-horizontal', menu: 'settings', page: 'Settings', purpose: 'As opções do escritório que antes só mudavam por código, como os tipos de serviço do Pipeline e as colunas do quadro.' },
+
+        /* ---------- A própria Central ---------- */
+        help_center: { title: 'Central de ajuda', icon: 'life-buoy', always: true, page: 'Ajuda', hiddenInTrails: true, purpose: 'Os guias das telas que você usa, em trilhas na ordem do caminho do cliente. Marque como lido se quiser se orientar; nada aqui é obrigatório.' },
+      }
+
+      const TRAILS = [
+        { n: 0, title: 'Primeiros passos', desc: 'Entrar, achar as telas e acompanhar o que é seu.', guides: ['first_login', 'profile', 'sidebar', 'search', 'notifications', 'my_activities'] },
+        { n: 1, title: 'Captar', desc: 'Do primeiro contato à oportunidade ganha.', guides: ['pipeline', 'intake_form'] },
+        { n: 2, title: 'CRM', desc: 'O cadastro de quem é cliente.', guides: ['crm'] },
+        { n: 3, title: 'Orçamento e fornecedores', desc: 'O que orçar para o cliente, e com quem.', guides: ['client_budget', 'suppliers'] },
+        { n: 4, title: 'Contratos', desc: 'Do briefing conferido ao contrato.', guides: ['contracts'] },
+        { n: 5, title: 'Projetos', desc: 'O projeto em execução, fase a fase.', guides: ['projects', 'project_flow', 'map'] },
+        { n: 6, title: 'Atividades', desc: 'O trabalho de cada pessoa e o tempo gasto.', guides: ['activities', 'productivity'] },
+        { n: 7, title: 'Financeiro', desc: 'O que entra e o que sai.', guides: ['receivables', 'payables'] },
+        { n: 8, title: 'Painéis', desc: 'Os números do escritório.', guides: ['dashboard_overview', 'dashboard_executive', 'dashboard_commercial'] },
+        { n: 9, title: 'Administração', desc: 'Equipe, acessos e configurações.', guides: ['team', 'permissions', 'impersonate', 'access_control', 'settings'] },
+      ]
+
+      const PAGE_TITLES = { Ajuda: 'Central de ajuda', Perfil: 'Meu Perfil' }
+      MENUS.forEach((m) => m.page && (PAGE_TITLES[m.page] = m.label))
+
+      /* =====================================================================
+         OS TOURS. Um por tela, na ordem em que a tela se lê de cima para
+         baixo. `el` = o `data-tour` do elemento real. `edit: true` = passo que
+         ensina gesto de edição (mesma marca de GuideTask.edit): sai para quem
+         só vê, mesmo se o elemento continuar na tela. Passo que depende de
+         diálogo aberto NÃO entra: fica no texto da Central.
+         ===================================================================== */
+      const HELP_STEP = {
+        el: '#helpBtn',
+        title: 'Ver de novo',
+        text: 'Este botão repete o tour desta tela. O passo a passo completo fica na Central de ajuda.',
+      }
+
+      const TOURS = {
+        Projects: {
+          guide: 'projects',
+          menu: 'projects',
+          steps: [
+            { el: '[data-tour="projects-new"]', edit: true, title: 'Cadastrar um projeto', text: 'Novo Projeto abre o formulário. Nome do Projeto e Tipo de Projeto são obrigatórios.' },
+            { el: '[data-tour="projects-search"]', title: 'Encontrar um projeto', text: 'Busque pelo nome do projeto ou do cliente.' },
+            { el: '[data-tour="projects-tabs"]', title: 'Filtrar por status', text: 'Prospecção, Em contrato e Suspenso não têm aba: esses projetos só aparecem em Todos.' },
+            { el: '[data-tour="projects-grip"]', edit: true, title: 'Mudar a ordem', text: 'Segure a alça e arraste a linha. A ordem vale para todo o escritório.' },
+            { el: '[data-tour="projects-client"]', title: 'Abrir o cliente', text: 'O nome do cliente abre a ficha dele no CRM, se você tem acesso ao CRM.' },
+            { el: '[data-tour="projects-menu"]', edit: true, title: 'Editar ou excluir', text: 'No menu de três pontos ficam Editar e Excluir. Excluir pede confirmação e não pode ser desfeito.' },
+            HELP_STEP,
+          ],
+        },
+        Negociacoes: {
+          guide: 'pipeline',
+          menu: 'pipeline',
+          steps: [
+            { el: '[data-tour="pipeline-new"]', edit: true, title: 'Registrar uma oportunidade', text: 'Nova Oportunidade abre o formulário. Nome, Tipos de Serviço e Responsável são obrigatórios.' },
+            { el: '[data-tour="pipeline-stalled"]', title: 'Negociações paradas', text: 'O aviso amarelo lista as negociações sem movimento há mais de 5 dias.' },
+            { el: '[data-tour="pipeline-intake"]', title: 'Briefing a conferir', text: 'O briefing do cliente não altera o cadastro sozinho. Conferir abre a comparação campo a campo.' },
+            { el: '[data-tour="pipeline-briefings"]', title: 'Briefings recebidos', text: 'Todos os briefings que chegaram, inclusive os já conferidos. É dali que sai o contrato.' },
+            { el: '[data-tour="pipeline-search"]', title: 'Buscar', text: 'Procura por negociação, cliente ou responsável.' },
+            { el: '[data-tour="pipeline-tabs"]', title: 'Funil e listas', text: 'Funil mostra as negociações ativas por etapa. Ativas, Ganhas e Perdidas mostram em lista.' },
+            { el: '[data-tour="pipeline-tab-active"]', edit: true, title: 'Encerrar: ganha ou perdida', text: 'Na aba Ativas, coluna Ações: o visto marca como ganha, o X como perdida. Ganha exige cliente vinculado.' },
+            { el: '[data-tour="pipeline-card"]', edit: true, title: 'Andar no funil', text: 'Arraste o cartão para a coluna seguinte. Arrastar só muda a etapa, não encerra a negociação.' },
+            { el: '[data-tour="pipeline-card-menu"]', edit: true, title: 'Editar ou excluir', text: 'No menu de três pontos do cartão ficam Editar e Excluir.' },
+            HELP_STEP,
+          ],
+        },
+        MinhasAtividades: {
+          guide: 'my_activities',
+          menu: null,
+          steps: [
+            { el: '[data-tour="my-late"]', title: 'O que atrasou', text: 'A faixa rosa aparece quando alguma atividade sua passa do prazo.' },
+            { el: '[data-tour="my-stats"]', title: 'Seus números', text: 'Atividades de hoje, em execução, em atraso e concluídas na semana.' },
+            { el: '[data-tour="my-all"]', title: 'Começar e concluir', text: 'Começar agora e Concluir ficam em Atividades, por este botão. O tempo fica gravado na atividade.' },
+            { el: '[data-tour="my-project"]', title: 'Seus projetos', text: 'Projetos em que você é responsável por algum cartão do Fluxo do Projeto. Clique para ver fase e tarefas.' },
+            { el: '[data-tour="my-late-row"]', title: 'Suas Atividades', text: 'A linha rosada é atividade atrasada, com o prazo em vermelho.' },
+            HELP_STEP,
+          ],
+        },
+      }
+
+      /* =====================================================================
+         ESTADO
+         ===================================================================== */
+      const state = {
+        profile: 'director',
+        page: 'Projects',
+        guideView: null,
+        phone: false,
+        forceView: false,
+        sidebarOpen: false,
+        expanded: new Set(),
+        read: new Set(),
+        tab: {},
+      }
+
+      const prof = () => PROFILES[state.profile]
+
+      function presetMap() {
+        const map = new Map()
+        PRESETS[prof().preset].forEach((p) => map.set(p.menuKey, p))
+        return map
+      }
+
+      /* buildNavigation de navigation.ts, linha por linha (igual ajuda.html). */
+      function buildNavigation() {
+        const role = prof().role
+        const canView = new Set([...presetMap().values()].filter((p) => p.can_view).map((p) => p.menuKey))
+        const top = MENUS.filter((m) => m.parent === null)
+          .sort((a, b) => a.sort - b.sort)
+          .map((m) => {
+            const subItems = MENUS.filter((c) => c.parent === m.key).sort((a, b) => a.sort - b.sort)
+            if (!m.page && subItems.length === 0) return null
+            return subItems.length ? { ...m, subItems } : { ...m }
+          })
+          .filter(Boolean)
+        const passes = (m) => {
+          if (m.onlyForRoles) return m.onlyForRoles.includes(role)
+          if (m.hideForRoles) return !m.hideForRoles.includes(role)
+          return true
+        }
+        const byRole = top.filter(passes)
+        if (role === 'director') return byRole
+        return byRole
+          .filter((item) => {
+            if (ROLE_ONLY_KEYS.has(item.key)) return true
+            if (item.subItems) return item.subItems.some((s) => canView.has(s.key))
+            return canView.has(item.key)
+          })
+          .map((item) => (item.subItems ? { ...item, subItems: item.subItems.filter((s) => canView.has(s.key)) } : item))
+      }
+
+      function openMenus() {
+        const set = new Set()
+        buildNavigation().forEach((item) => {
+          if (item.subItems) item.subItems.forEach((s) => set.add(s.key))
+          else set.add(item.key)
+        })
+        return set
+      }
+
+      /* can_edit_menu(); "Simular só ver" tira a edição de todos os menus. */
+      function editOn(key) {
+        if (state.forceView) return false
+        if (prof().role === 'director') return true
+        return presetMap().get(key)?.can_edit === true
+      }
+
+      function menuOfPage(page) {
+        return MENUS.find((m) => m.page === page)
+      }
+
+      function guideVisible(key) {
+        const g = GUIDES[key]
+        const open = openMenus()
+        if (g.always) return true
+        if (g.needsMenu) return open.has(g.needsMenu)
+        if (g.special === 'productivity') return open.has('activities') && editOn('activities')
+        if (g.special === 'impersonate') return open.has('team') && prof().role === 'director'
+        if (g.menu) return open.has(g.menu)
+        return false
+      }
+
+      function guideAccess(key) {
+        const g = GUIDES[key]
+        if (g.byRole) return { kind: 'role', edit: true }
+        if (!g.menu) return { kind: 'none', edit: true }
+        const edit = editOn(g.menu)
+        return { kind: edit ? 'edit' : 'view', edit }
+      }
+
+      const tourOfGuide = (key) => Object.keys(TOURS).find((p) => TOURS[p].guide === key) || null
+
+      /* =====================================================================
+         RENDER — barra lateral e cabeçalho
+         ===================================================================== */
+      const $ = (id) => document.getElementById(id)
+      const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+      function renderNav() {
+        $('nav').innerHTML = buildNavigation()
+          .map((item) => {
+            if (item.subItems) {
+              const activeChild = item.subItems.some((s) => s.page === state.page)
+              const open = state.expanded.has(item.key) || activeChild
+              return `<div>
+                <button class="nav-item ${activeChild ? 'has-active-child' : ''}" type="button" data-toggle="${item.key}" aria-expanded="${open}">
+                  <i data-lucide="${item.icon}"></i>${esc(item.label)}
+                  <span class="nav-item__chev"><i data-lucide="chevron-right"></i></span>
+                </button>
+                ${open ? `<div class="nav-sub">${item.subItems
+                  .map((s) => `<button class="nav-item ${s.page === state.page ? 'is-active' : ''}" type="button" data-go="${s.page}" ${s.page === state.page ? 'aria-current="page"' : ''}>
+                      <i data-lucide="${s.icon}"></i>${esc(s.label)}
+                      ${s.page === state.page ? '<span class="nav-item__chev"><i data-lucide="chevron-right"></i></span>' : ''}
+                    </button>`)
+                  .join('')}</div>` : ''}
+              </div>`
+            }
+            const active = item.page === state.page
+            return `<button class="nav-item ${active ? 'is-active' : ''}" type="button" data-go="${item.page}" ${active ? 'aria-current="page"' : ''}>
+              <i data-lucide="${item.icon}"></i>${esc(item.label)}
+              ${active ? '<span class="nav-item__chev"><i data-lucide="chevron-right"></i></span>' : ''}
+            </button>`
+          })
+          .join('')
+        $('userArea').textContent = prof().area
+        $('centralBtn').classList.toggle('is-active', state.page === 'Ajuda')
+      }
+
+      function renderHeader() {
+        const role = prof().role
+        const dark = document.documentElement.classList.contains('dark')
+        let shortcuts = ''
+        if (role === 'architect') {
+          shortcuts = `<button class="icon-button" type="button" title="Minhas Atividades" aria-label="Minhas Atividades" data-go="MinhasAtividades"><i data-lucide="square-check-big"></i></button>
+            <button class="icon-button" type="button" title="Fluxo do Projeto" aria-label="Fluxo do Projeto" data-go="Tasks"><i data-lucide="columns-2"></i></button>`
+        } else if (role === 'director') {
+          shortcuts = `<button class="icon-button" type="button" title="Painel Executivo" aria-label="Painel Executivo" data-go="DashboardExecutivo"><i data-lucide="trending-up"></i></button>`
+        }
+        /* O "?" de HelpButton.tsx: mesmo Button ghost icon, logo depois do
+           sino. Sem aria-controls/aria-expanded: não há mais painel. */
+        $('hdrActions').innerHTML = `
+          <button class="icon-button" type="button" title="Notificações" aria-label="Notificações"><i data-lucide="bell"></i></button>
+          <button class="icon-button is-new" type="button" id="helpBtn" title="Tour guiado desta tela" aria-label="Tour guiado desta tela"><i data-lucide="circle-help"></i></button>
+          <button class="icon-button" type="button" id="themeBtn" title="Alternar tema" aria-label="Alternar tema claro e escuro"><i data-lucide="${dark ? 'sun' : 'moon'}"></i></button>
+          <button class="icon-button" type="button" title="Buscar" aria-label="Buscar"><i data-lucide="search"></i></button>
+          ${shortcuts}
+          <button class="icon-button" type="button" title="Criar" aria-label="Criar"><i data-lucide="plus"></i></button>`
+      }
+
+      /* =====================================================================
+         RENDER — telas (simplificadas, dados fictícios, com os data-tour)
+         ===================================================================== */
+      function crumbs(title) {
+        return `<nav class="crumbs" aria-label="Trilha de navegação"><i data-lucide="house"></i><span class="crumbs__sep"><i data-lucide="chevron-right"></i></span><strong>${esc(title || PAGE_TITLES[state.page] || state.page)}</strong></nav>`
+      }
+
+      /* PageHeader.tsx: o botão só existe para quem edita. */
+      function pageHead(title, subtitle, action, tourKey) {
+        return `<div class="page-head"><div><h1>${esc(title)}</h1>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div>${
+          action ? `<button class="btn btn--primary" type="button" data-tour="${tourKey}"><i data-lucide="plus"></i>${esc(action)}</button>` : ''
+        }</div>`
+      }
+
+      function tabs(id, items, extra, tourKey, itemTour) {
+        const current = state.tab[id] ?? 0
+        return `<div class="tabs ${extra || ''}" role="tablist" ${tourKey ? `data-tour="${tourKey}"` : ''}>${items
+          .map((it, i) => {
+            const [icon, label] = Array.isArray(it) ? it : [null, it]
+            const t = itemTour && itemTour[i] ? `data-tour="${itemTour[i]}"` : ''
+            return `<button type="button" role="tab" aria-selected="${i === current}" data-tab-group="${id}" data-tab-index="${i}" ${t}>${icon ? `<i data-lucide="${icon}"></i>` : ''}${label}</button>`
+          })
+          .join('')}</div>`
+      }
+
+      function screenMinhasAtividades() {
+        return `${crumbs()}
+          <div class="page-head"><div><h1>Minhas Atividades</h1><p>Visão geral das suas tarefas e prazos</p></div></div>
+          <div class="alert-rose" role="status" data-tour="my-late"><i data-lucide="circle-alert"></i>⚠️ Você possui 1 atividade em atraso.</div>
+          <div class="stats" data-tour="my-stats">
+            ${[['calendar', 2, 'Atividades de Hoje'], ['circle-play', 1, 'Em Execução'], ['circle-alert', 1, 'Em Atraso'], ['circle-check', 3, 'Concluídas (Semana)']]
+              .map(([i, n, l]) => `<div class="card card__pad"><div class="stat__top"><i data-lucide="${i}"></i><span class="stat__num">${n}</span></div><p class="stat__label">${l}</p></div>`)
+              .join('')}
+          </div>
+          <div style="margin-bottom: 1.5rem"><button class="btn btn--outline" type="button" data-go="Atividades" data-tour="my-all"><i data-lucide="activity"></i>Ver Todas as Atividades</button></div>
+          <div class="card card__pad" style="margin-bottom: 1.5rem">
+            <h2><i data-lucide="folder-kanban"></i>Meus Projetos (Responsável)</h2>
+            <p class="muted" style="font-size: 0.875rem; margin: 0.25rem 0 1rem">Projetos onde você é o responsável no Fluxo do Projeto</p>
+            <div class="grid-cards grid-cards--3">
+              <div class="tile-card" data-tour="my-project"><h4>Casa Exemplo Ipê</h4><p class="small">Cliente Fictício A</p>
+                <p style="margin: 0.75rem 0 0"><span class="badge badge--blue">📍 Layout</span></p>
+                <p class="small" style="margin-top: 0.5rem">Próxima entrega: 20/11/2026</p>
+                <div class="bar"><span style="width: 40%"></span></div><p class="small">Progresso: 40%</p></div>
+              <div class="tile-card tile-card--late"><h4 style="display:flex;justify-content:space-between;gap:.5rem">Loja Exemplo Centro <span class="badge badge--rose">Atrasado</span></h4><p class="small">Cliente Fictício B</p>
+                <p style="margin: 0.75rem 0 0"><span class="badge badge--blue">📍 Anteprojeto</span></p>
+                <div class="bar"><span style="width: 65%"></span></div><p class="small">Progresso: 65%</p></div>
+            </div>
+          </div>
+          <div class="card card__pad">
+            <h2 style="margin-bottom: 1rem">Suas Atividades</h2>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Atividade</th><th>Projeto</th><th>Prioridade</th><th>Prazo</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr class="is-late" data-tour="my-late-row"><td>Prancha de perspectivas</td><td>Loja Exemplo Centro</td><td>Média</td><td class="due">14/11/2026</td><td><span class="badge badge--neutral">Não iniciada</span></td></tr>
+                <tr><td>Revisar layout da sala</td><td>Casa Exemplo Ipê</td><td>Alta</td><td>17/11/2026</td><td><span class="badge badge--blue">Em andamento</span></td></tr>
+                <tr><td>Lista de ambientes</td><td>Casa Exemplo Ipê</td><td>Baixa</td><td>21/11/2026</td><td><span class="badge badge--neutral">Não iniciada</span></td></tr>
+              </tbody></table></div>
+          </div>`
+      }
+
+      function screenProjects() {
+        const edit = editOn('projects')
+        const crm = openMenus().has('crm')
+        const rows = [
+          ['Casa Exemplo Ipê', 'Cliente Fictício A', 'Arquitetura + Interiores', 'Cidade Exemplo / SP', 'Em desenvolvimento'],
+          ['Loja Exemplo Centro', 'Cliente Fictício B', 'Arquitetura', 'Cidade Exemplo / SP', 'Em aprovação'],
+          ['Sala Comercial Exemplo', 'Cliente Fictício C', 'Todos', 'Outra Cidade / MG', 'Prospecção'],
+        ]
+        return `${crumbs()}${pageHead('Projetos', 'Gerencie os projetos do escritório', edit ? 'Novo Projeto' : null, 'projects-new')}
+          <div class="search" data-tour="projects-search"><i data-lucide="search"></i><input type="text" placeholder="Buscar por nome do projeto ou cliente..." aria-label="Buscar projeto" /></div>
+          ${tabs('projects', ['Todos', 'Em desenvolvimento', 'Em aprovação', 'Concluídos'], 'tabs--card', 'projects-tabs')}
+          ${rows
+            .map((r, i) => {
+              const first = i === 0
+              /* ClientLink: só vira link para quem abre o CRM. */
+              const client = crm
+                ? `<button class="client-link" type="button" data-go="Clients" ${first ? 'data-tour="projects-client"' : ''}>${r[1]}</button>`
+                : `<span ${first ? 'data-tour="projects-client"' : ''}>${r[1]}</span>`
+              return `<div class="card row-card">
+                <span class="grip ${edit ? 'can-drag' : ''}" ${first ? 'data-tour="projects-grip"' : ''}><i data-lucide="grip-vertical"></i></span>
+                <span class="row-card__icon"><i data-lucide="folder-kanban"></i></span>
+                <div class="row-card__main">
+                  <div class="row-card__name"><p>${r[0]}</p><p>${client}</p></div>
+                  <span class="badge badge--neutral">${r[2]}</span>
+                  <span class="row-card__meta"><i data-lucide="map-pin"></i>${r[3]}</span>
+                  <span class="badge ${r[4] === 'Em desenvolvimento' ? 'badge--blue' : 'badge--neutral'}">${r[4]}</span>
+                </div>
+                ${edit ? `<button class="icon-button" type="button" aria-label="Ações do projeto" style="height:2rem;width:2rem" ${first ? 'data-tour="projects-menu"' : ''}><i data-lucide="ellipsis-vertical" style="width:1rem;height:1rem"></i></button>` : ''}
+              </div>`
+            })
+            .join('')}`
+      }
+
+      function screenPipeline() {
+        const edit = editOn('pipeline')
+        const cols = [
+          ['Lead recebido', [['Casa de campo (exemplo)', 'Cliente Fictício C', 'R$ 10.000,00']]],
+          ['Qualificado', [['Apartamento (exemplo)', 'Cliente Fictício D', 'R$ 20.000,00']]],
+          ['Proposta enviada', []],
+          ['Em negociação', [['Escritório (exemplo)', 'Cliente Fictício E', 'R$ 30.000,00']]],
+          ['Fechamento', []],
+        ]
+        const stats = [
+          ['trending-up', 'Negociações Ativas', '3', ''],
+          ['dollar-sign', 'Valor em Negociação', 'R$ 60.000', ''],
+          ['target', 'Ganho (30 dias)', 'R$ 40.000', '2 negócios'],
+          ['percent', 'Taxa de Conversão', '66.7%', '2 ganhos'],
+          ['trending-down', 'Ticket Médio', 'R$ 20.000', ''],
+        ]
+        let first = true
+        return `${crumbs()}${pageHead('Pipeline', 'Gerencie seu funil de vendas e oportunidades', edit ? 'Nova Oportunidade' : null, 'pipeline-new')}
+          <div class="alert-blue" data-tour="pipeline-intake"><i data-lucide="clipboard-check"></i><div style="flex:1"><strong style="display:block">1 briefing com dados a conferir</strong>O briefing não altera o cadastro sozinho. Confira o que difere e aplique o que estiver certo.</div><button class="btn btn--outline btn--sm" type="button">Conferir</button></div>
+          <div class="pstats">${stats
+            .map(([i, l, v, s]) => `<div class="card pstat"><span class="pstat__icon"><i data-lucide="${i}"></i></span><p class="pstat__label">${l}</p><p class="pstat__value">${v}</p>${s ? `<p class="pstat__sub">${s}</p>` : ''}</div>`)
+            .join('')}</div>
+          <div class="action-row"><button class="btn btn--outline btn--sm" type="button" data-tour="pipeline-briefings"><i data-lucide="clipboard-check"></i>Briefings recebidos (1)</button></div>
+          <div class="search" style="margin-bottom:1.5rem" data-tour="pipeline-search"><i data-lucide="search" style="width:1rem;height:1rem"></i><input type="text" placeholder="Buscar por negociação, cliente ou responsável..." aria-label="Buscar negociação" /></div>
+          ${tabs('pipeline', [['kanban', 'Funil'], ['list', 'Ativas'], ['circle-check-big', 'Ganhas'], ['circle-x', 'Perdidas']], 'tabs--card tabs--primary', 'pipeline-tabs', [null, 'pipeline-tab-active'])}
+          <div class="kanban">${cols
+            .map(
+              ([name, deals]) => `<div class="kanban__col"><div class="kanban__head">${name}<span class="kanban__count">${deals.length}</span></div>
+                <div class="kanban__body">${deals
+                  .map((d) => {
+                    const t = first
+                    first = false
+                    return `<div class="deal ${edit ? 'can-drag' : ''}" ${t ? 'data-tour="pipeline-card"' : ''}>
+                      <div class="deal__top"><strong>${d[0]}</strong>${edit ? `<button class="icon-button icon-button--sm" type="button" aria-label="Ações da negociação" ${t ? 'data-tour="pipeline-card-menu"' : ''}><i data-lucide="ellipsis-vertical"></i></button>` : ''}</div>
+                      <div class="deal__client"><i data-lucide="user"></i>${d[1]}</div>
+                      <div class="deal__value">${d[2]}</div></div>`
+                  })
+                  .join('')}</div></div>`,
+            )
+            .join('')}</div>`
+      }
+
+      function screenPlaceholder() {
+        const title = PAGE_TITLES[state.page] || state.page
+        return `${crumbs()}${pageHead(title, null, null)}
+          <div class="card placeholder">
+            <div class="placeholder__tile"><i data-lucide="square-dashed"></i></div>
+            <h3>Tela fora deste protótipo</h3>
+            <p>Aqui só a casca. O <strong>?</strong> do cabeçalho mostra o balão de tela sem tour.</p>
+          </div>`
+      }
+
+      /* ---------- Central de ajuda ---------- */
+      function accessBadge(key, withPrefix) {
+        const a = guideAccess(key)
+        const pre = withPrefix ? '<span class="sr-only">Seu acesso: </span>' : ''
+        if (a.kind === 'role') return `<span class="badge badge--neutral">${pre}<i data-lucide="user"></i>Liberada pela sua função</span>`
+        if (a.kind === 'edit') return `<span class="badge badge--neutral">${pre}<i data-lucide="pencil"></i>Ver e editar</span>`
+        if (a.kind === 'view') return `<span class="badge badge--neutral">${pre}<i data-lucide="eye"></i>Só ver</span>`
+        return ''
+      }
+
+      function showButton(key) {
+        const page = tourOfGuide(key)
+        if (!page) return ''
+        return `<button class="btn btn--outline btn--sm is-new" type="button" data-show="${key}"><i data-lucide="mouse-pointer-click"></i>Me mostrar na tela</button>`
+      }
+
+      function guideCard(key) {
+        const g = GUIDES[key]
+        const isRead = state.read.has(key)
+        return `<article class="gcard ${isRead ? 'is-read' : ''}">
+          <div class="gcard__top"><span class="gcard__icon"><i data-lucide="${g.icon}"></i></span><h3 class="gcard__name">${esc(g.title)}</h3></div>
+          <p class="gcard__purpose">${esc(g.purpose)}</p>
+          <div class="gcard__foot">
+            ${
+              g.full
+                ? `<span class="gcard__actions">${showButton(key)}<button class="btn btn--ghost btn--sm" type="button" data-read-guide="${key}"><i data-lucide="book-open"></i>Ler guia</button></span>
+                   <label class="cbx"><span class="cbx__box"><input type="checkbox" data-read="${key}" ${isRead ? 'checked' : ''} /><i data-lucide="check"></i></span>Lido</label>`
+                : `<span class="badge badge--neutral">Guia em breve</span>${accessBadge(key)}`
+            }
+          </div>
+        </article>`
+      }
+
+      function screenCentral() {
+        if (state.guideView) return screenGuide(state.guideView)
+        const trails = TRAILS.map((t) => ({ ...t, visible: t.guides.filter(guideVisible) })).filter((t) => t.visible.length)
+        const hiddenTrails = TRAILS.length - trails.length
+        const fullGuides = trails.flatMap((t) => t.visible).filter((k) => GUIDES[k].full)
+        const readCount = fullGuides.filter((k) => state.read.has(k)).length
+        const allGuides = trails.flatMap((t) => t.visible).length
+        const pct = fullGuides.length ? Math.round((readCount / fullGuides.length) * 100) : 0
+
+        return `${crumbs()}
+          <div class="page-head"><div><h1>Central de ajuda</h1><p>Os guias das telas que você usa, na ordem do caminho do cliente. Leia quando quiser: nada aqui é obrigatório.</p></div></div>
+          <div class="card card__pad summary">
+            <div class="summary__text">
+              <h2>Sua trilha</h2>
+              <p>Montada pelo seu acesso: ${trails.length} trilhas, ${allGuides} guias. Marcar como lido é só para você se orientar.</p>
+            </div>
+            <div class="summary__progress">
+              <div class="progress" role="progressbar" aria-label="Guias lidos" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
+              <p class="progress-label">${readCount} de ${fullGuides.length} guias prontos lidos</p>
+            </div>
+          </div>
+          ${trails
+            .map((t) => {
+              const full = t.visible.filter((k) => GUIDES[k].full)
+              const read = full.filter((k) => state.read.has(k)).length
+              return `<section class="card card__pad trail" aria-labelledby="trail-${t.n}">
+                <div class="trail__head">
+                  <span class="trail__num" aria-hidden="true">${t.n}</span>
+                  <div class="trail__titles"><h2 id="trail-${t.n}">${esc(t.title)}</h2><p>${esc(t.desc)}</p></div>
+                  <span class="trail__count">${full.length ? `${read} de ${full.length} lidos` : 'em breve'}</span>
+                </div>
+                <div class="grid-cards grid-cards--3">${t.visible.map(guideCard).join('')}</div>
+              </section>`
+            })
+            .join('')}
+          ${hiddenTrails ? `<p class="offtrail"><i data-lucide="info"></i>${hiddenTrails} ${hiddenTrails === 1 ? 'trilha não aparece' : 'trilhas não aparecem'} porque ${hiddenTrails === 1 ? 'depende' : 'dependem'} de telas que você não tem. Elas entram aqui quando o Diretor liberar o menu, em Equipe.</p>` : ''}`
+      }
+
+      /* A página do guia: o mesmo conteúdo que o HelpPanel.tsx mostrava. */
+      function screenGuide(key) {
+        const g = GUIDES[key]
+        const access = guideAccess(key)
+        const open = openMenus()
+        const visible = g.tasks.filter((t) => !t.edit || access.edit)
+        const hidden = g.tasks.length - visible.length
+
+        const tasksHtml = visible
+          .map(
+            (t) => `<div class="task"><p class="task__title">${esc(t.title)}</p><ol>${t.steps
+              .map((s) => {
+                const step = typeof s === 'string' ? { t: s } : s
+                const blocked = step.needs && !editOn(step.needs)
+                const label = MENUS.find((m) => m.key === step.needs)?.label
+                return `<li>${esc(step.t)}${blocked ? `<span class="needs"><i data-lucide="lock"></i>precisa de edição em ${esc(label)}</span>` : ''}</li>`
+              })
+              .join('')}</ol>${t.note ? `<p class="task__note">${esc(t.note)}</p>` : ''}</div>`,
+          )
+          .join('')
+
+        const linksHtml = g.links
+          .map((l) => {
+            const target = GUIDES[l.key]
+            const can = guideVisible(l.key) || (l.via && target.menu === 'activities')
+            const navigable = target.page && (open.has(target.menu) || target.always)
+            const via = l.via && !open.has(target.menu) ? ` (${l.via})` : ''
+            if (!can) {
+              return `<li><div class="link-row is-off"><i data-lucide="${target.icon}"></i><span class="link-row__text"><span class="link-row__name">${esc(target.title)}</span><span class="link-row__why">${esc(l.why)} Fora do seu acesso.</span></span></div></li>`
+            }
+            if (navigable) {
+              return `<li><button class="link-row" type="button" data-go="${target.page}"><i data-lucide="${target.icon}"></i><span class="link-row__text"><span class="link-row__name">${esc(target.title)}</span><span class="link-row__why">${esc(l.why)}</span></span><i data-lucide="chevron-right"></i></button></li>`
+            }
+            return `<li><div class="link-row"><i data-lucide="${target.icon}"></i><span class="link-row__text"><span class="link-row__name">${esc(target.title)}</span><span class="link-row__why">${esc(l.why)}${esc(via)}</span></span></div></li>`
+          })
+          .join('')
+
+        return `${crumbs('Central de ajuda')}
+          <div style="margin-bottom:1rem"><button class="btn btn--ghost btn--sm" type="button" data-back-central><i data-lucide="arrow-left"></i>Central de ajuda</button></div>
+          <div class="guide-head is-new">
+            <div>
+              <h1 id="guideTitle" tabindex="-1">${esc(g.title)}</h1>
+              <p>${esc(g.purpose)}</p>
+              <div class="guide-head__meta">${accessBadge(key, true)}</div>
+            </div>
+            <div class="guide-head__actions">${showButton(key)}</div>
+          </div>
+          <div class="guide-body">
+            <section class="card card__pad" aria-labelledby="howto">
+              <p class="sec-label" id="howto">Como fazer</p>
+              ${tasksHtml}
+              ${hidden ? `<p class="hidden-note"><i data-lucide="lock"></i><span>${hidden} ${hidden === 1 ? 'tarefa desta tela pede' : 'tarefas desta tela pedem'} permissão de edição, e o seu acesso aqui é só ver. Quem libera é o Diretor, em Equipe, na matriz de Permissões.</span></p>` : ''}
+            </section>
+            <section class="card card__pad" aria-labelledby="links">
+              <p class="sec-label" id="links">Ligação com outros módulos</p>
+              <ul class="links">${linksHtml}</ul>
+            </section>
+          </div>
+          <div class="guide-foot">
+            <label class="cbx"><span class="cbx__box"><input type="checkbox" data-read="${key}" ${state.read.has(key) ? 'checked' : ''} /><i data-lucide="check"></i></span>Marcar como lido</label>
+          </div>`
+      }
+
+      function renderContent() {
+        const map = { MinhasAtividades: screenMinhasAtividades, Projects: screenProjects, Negociacoes: screenPipeline, Ajuda: screenCentral }
+        $('content').innerHTML = (map[state.page] || screenPlaceholder)()
+        document.querySelectorAll('.bnav [data-go]').forEach((b) => b.classList.toggle('is-active', b.dataset.go === state.page))
+      }
+
+      /* =====================================================================
+         O TOUR
+         ===================================================================== */
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+      let tour = null
+
+      function isShown(node) {
+        if (!node) return false
+        const r = node.getBoundingClientRect()
+        return r.width > 0 && r.height > 0 && getComputedStyle(node).visibility !== 'hidden'
+      }
+
+      /* Resolve os passos ANTES de começar: entra, ou sai com o motivo. */
+      function resolveTour(page) {
+        const def = TOURS[page]
+        if (!def) return null
+        const canEdit = def.menu ? editOn(def.menu) : true
+        const steps = def.steps.map((s) => {
+          const node = document.querySelector(s.el)
+          let status = 'shown'
+          if (s.edit && !canEdit) status = 'edit'
+          else if (!isShown(node)) status = 'absent'
+          return { ...s, node, status }
+        })
+        const shown = steps.filter((s) => s.status === 'shown')
+        const editOut = steps.filter((s) => s.status === 'edit').length
+        return { def, steps, shown, editOut, canEdit }
+      }
+
+      const isPhoneWidth = () => $('shell').getBoundingClientRect().width < 640
+
+      /* Rolagem: o driver só rola quando o alvo sai da JANELA. Dentro da área
+         de conteúdo (que rola sozinha) ele pode estar cortado e a janela não
+         saber; então garantimos aqui. No celular sobra espaço para a faixa. */
+      function ensureVisible(node) {
+        if (!node) return
+        const content = $('content')
+        if (!content.contains(node)) return
+        const c = content.getBoundingClientRect()
+        const r = node.getBoundingClientRect()
+        const reserve = isPhoneWidth() ? 160 : 24
+        if (r.top < c.top + 8 || r.bottom > c.bottom - reserve) {
+          const target = content.scrollTop + (r.top - c.top) - Math.max(16, (c.height - reserve - r.height) / 2)
+          content.scrollTo({ top: Math.max(0, target), behavior: 'auto' })
+        }
+      }
+
+      /* Celular: faixa embaixo da casca; sobe se o alvo cair embaixo. */
+      function placeStrip() {
+        if (!tour) return
+        const pop = document.querySelector('.driver-popover.tour-pop')
+        const node = tour.getActiveElement()
+        if (!pop) return
+        const phone = isPhoneWidth()
+        pop.classList.toggle('is-strip', phone)
+        if (!phone || !node) return
+        const f = $('shell').getBoundingClientRect()
+        const left = Math.max(f.left, 0) + 8
+        const right = Math.min(f.right, window.innerWidth) - 8
+        const topEdge = Math.max(f.top, 0) + 8
+        const bottomEdge = Math.min(f.bottom, window.innerHeight) - 8
+        const h = pop.offsetHeight
+        const r = node.getBoundingClientRect()
+        let top = bottomEdge - h
+        if (r.bottom + 6 > top) {
+          const above = topEdge
+          top = r.top - 6 >= above + h ? above : r.top - 6 - h > 0 ? r.top - 6 - h : above
+        }
+        pop.style.setProperty('--strip-left', `${left}px`)
+        pop.style.setProperty('--strip-width', `${right - left}px`)
+        pop.style.setProperty('--strip-top', `${top}px`)
+      }
+
+      function closeIcon(popover) {
+        popover.closeButton.innerHTML = '<i data-lucide="x"></i>'
+        lucide.createIcons()
+      }
+
+      const baseConfig = () => ({
+        animate: !reducedMotion.matches,
+        smoothScroll: !reducedMotion.matches,
+        overlayColor: 'rgb(0, 0, 0)',
+        overlayOpacity: document.documentElement.classList.contains('dark') ? 0.7 : 0.5,
+        stagePadding: 6,
+        stageRadius: 8,
+        popoverOffset: 8,
+        popoverClass: 'tour-pop',
+        allowClose: true,
+        overlayClickBehavior: 'close',
+        disableActiveInteraction: true,
+        allowKeyboardControl: true,
+        closeBtnLabel: 'Fechar tour',
+        nextBtnText: 'Próximo',
+        prevBtnText: 'Anterior',
+        doneBtnText: 'Concluir',
+      })
+
+      function startTour(page = state.page) {
+        if (tour) tour.destroy()
+        const t = resolveTour(page)
+        if (!t) return noTourNotice()
+        renderLog(t)
+        const total = t.shown.length
+        const accessLine = t.editOut
+          ? `<span class="tour-access"><i data-lucide="lock"></i><span>Seu acesso aqui é só ver: ${t.editOut} ${t.editOut === 1 ? 'passo de edição ficou' : 'passos de edição ficaram'} de fora.</span></span>`
+          : ''
+        tour = window.driver.js.driver({
+          ...baseConfig(),
+          showProgress: true,
+          progressText: '{{current}} de {{total}}',
+          steps: t.shown.map((s, i) => ({
+            element: s.node,
+            popover: { title: s.title, description: esc(s.text) + (i === 0 ? accessLine : '') },
+            onHighlightStarted: (node) => ensureVisible(node),
+          })),
+          onPopoverRender: (popover) => {
+            closeIcon(popover)
+            lucide.createIcons()
+            popover.wrapper.setAttribute('aria-roledescription', 'tour')
+            requestAnimationFrame(placeStrip)
+          },
+          onHighlighted: () => requestAnimationFrame(placeStrip),
+          onDestroyed: () => {
+            tour = null
+            detachStrip()
+            $('helpBtn')?.focus()
+          },
+        })
+        attachStrip()
+        tour.drive()
+        return total
+      }
+
+      /* Tela sem tour: balão curto no "?", sem escurecer, sem navegar. */
+      function noTourNotice() {
+        if (tour) tour.destroy()
+        renderLog(null)
+        const inCentral = state.page === 'Ajuda'
+        tour = window.driver.js.driver({
+          ...baseConfig(),
+          overlayOpacity: 0,
+          stagePadding: 2,
+          stageRadius: 6,
+          showProgress: false,
+          showButtons: inCentral ? ['close'] : ['next', 'close'],
+          nextBtnText: 'Abrir Central de ajuda',
+          doneBtnText: 'Abrir Central de ajuda',
+          steps: [
+            {
+              element: '#helpBtn',
+              popover: inCentral
+                ? { title: 'Você está na Central', description: 'Cada guia pronto tem o botão Me mostrar na tela, que abre a tela e começa o tour.' }
+                : { title: 'Esta tela ainda não tem tour', description: 'O que ela faz está na Central de ajuda.' },
+            },
+          ],
+          onPopoverRender: (popover) => {
+            closeIcon(popover)
+            popover.wrapper.classList.add('is-notice')
+            if (inCentral) popover.wrapper.classList.add('no-action')
+            requestAnimationFrame(placeStrip)
+          },
+          onDoneClick: () => {
+            tour.destroy()
+            go('Ajuda')
+          },
+          onDestroyed: () => {
+            tour = null
+            detachStrip()
+            $('helpBtn')?.focus()
+          },
+        })
+        attachStrip()
+        tour.drive()
+      }
+
+      function onStripMove() {
+        placeStrip()
+      }
+
+      function attachStrip() {
+        window.addEventListener('resize', onStripMove)
+        window.addEventListener('scroll', onStripMove, { passive: true })
+      }
+
+      function detachStrip() {
+        window.removeEventListener('resize', onStripMove)
+        window.removeEventListener('scroll', onStripMove)
+      }
+
+      /* Registro tracejado (só protótipo): os passos e por que cada um pulou. */
+      function renderLog(t) {
+        const r = t || resolveTour(state.page)
+        const title = PAGE_TITLES[state.page] || state.page
+        if (!r) {
+          $('protoLog').innerHTML = `<h2><i data-lucide="flask-conical"></i>Tour desta tela (${esc(title)})</h2><p>Sem tour. O "?" mostra o balão curto${state.page === 'Ajuda' ? ' da Central' : ' com o botão para a Central'}.</p>`
+          lucide.createIcons()
+          return
+        }
+        const why = { edit: 'pulado: ensina edição, e o acesso é só ver', absent: 'pulado: o elemento não está na tela' }
+        $('protoLog').innerHTML = `<h2><i data-lucide="flask-conical"></i>Tour desta tela (${esc(title)}): ${r.shown.length} de ${r.steps.length} passos entram</h2>
+          <ol>${r.steps
+            .map((s) => `<li class="${s.status === 'shown' ? '' : 'is-skipped'}"><span class="proto-log__title">${esc(s.title)}</span>${s.status === 'shown' ? '' : `<span class="proto-log__why">${why[s.status]}</span>`}</li>`)
+            .join('')}</ol>`
+        lucide.createIcons()
+      }
+
+      /* =====================================================================
+         ORQUESTRAÇÃO
+         ===================================================================== */
+      function renderAll() {
+        renderNav()
+        renderHeader()
+        renderContent()
+        const sb = $('sidebar')
+        sb.classList.toggle('is-open', state.sidebarOpen)
+        $('scrim').hidden = !state.sidebarOpen
+        lucide.createIcons()
+        renderLog()
+      }
+
+      /* redirectTargetFor de src/features/auth/access.ts. */
+      const FORBIDDEN_FOR_IC = ['AccountsPayable', 'AccountsReceivable', 'Dashboard', 'DashboardExecutivo', 'DashboardComercial']
+
+      function go(page, guideView = null) {
+        if (prof().role === 'architect' && FORBIDDEN_FOR_IC.includes(page)) page = 'MinhasAtividades'
+        state.page = page
+        state.guideView = page === 'Ajuda' ? guideView : null
+        state.sidebarOpen = false
+        renderAll()
+        $('content').scrollTop = 0
+      }
+
+      function setProfile(p) {
+        state.profile = p
+        document.querySelectorAll('#profileSeg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.profile === p)))
+        const open = openMenus()
+        const menu = menuOfPage(state.page)
+        const pageOk = state.page === 'Ajuda' || state.page === 'Perfil' || (menu && open.has(menu.key))
+        if (!pageOk) state.page = prof().home
+        if (state.guideView && !guideVisible(state.guideView)) state.guideView = null
+        renderAll()
+      }
+
+      function setTheme(dark) {
+        document.documentElement.classList.toggle('dark', dark)
+        document.querySelectorAll('#themeSeg button').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.theme === 'dark') === dark)))
+        renderHeader()
+        lucide.createIcons()
+      }
+
+      document.addEventListener('click', (e) => {
+        const t = e.target.closest('button, a, input')
+        if (!t) {
+          if (e.target.id === 'scrim') {
+            state.sidebarOpen = false
+            renderAll()
+          }
+          return
+        }
+        if (t.closest('.driver-popover')) return
+        if (t.dataset.profile) return setProfile(t.dataset.profile)
+        if (t.dataset.theme) return setTheme(t.dataset.theme === 'dark')
+        if (t.dataset.width) {
+          state.phone = t.dataset.width === 'phone'
+          $('shell').classList.toggle('is-phone', state.phone)
+          document.querySelectorAll('#widthSeg button').forEach((b) => b.setAttribute('aria-pressed', String(b === t)))
+          return
+        }
+        if (t.dataset.read) {
+          const k = t.dataset.read
+          t.checked ? state.read.add(k) : state.read.delete(k)
+          renderAll()
+          document.querySelector(`#content [data-read="${k}"]`)?.focus()
+          return
+        }
+        if (t.id === 'helpBtn') return startTour()
+        if (t.id === 'themeBtn') {
+          setTheme(!document.documentElement.classList.contains('dark'))
+          $('themeBtn').focus()
+          return
+        }
+        if (t.id === 'burger') {
+          state.sidebarOpen = true
+          return renderAll()
+        }
+        if (t.id === 'sbClose') {
+          state.sidebarOpen = false
+          return renderAll()
+        }
+        if (t.dataset.toggle) {
+          const k = t.dataset.toggle
+          state.expanded.has(k) ? state.expanded.delete(k) : state.expanded.add(k)
+          renderAll()
+          document.querySelector(`[data-toggle="${k}"]`)?.focus()
+          return
+        }
+        if (t.dataset.tabGroup) {
+          const g = t.dataset.tabGroup
+          const i = t.dataset.tabIndex
+          state.tab[g] = Number(i)
+          renderAll()
+          document.querySelector(`[data-tab-group="${g}"][data-tab-index="${i}"]`)?.focus()
+          return
+        }
+        /* "Me mostrar na tela": navega e começa o tour. */
+        if (t.dataset.show) {
+          const page = tourOfGuide(t.dataset.show)
+          go(page)
+          requestAnimationFrame(() => startTour(page))
+          return
+        }
+        if (t.dataset.readGuide) {
+          go('Ajuda', t.dataset.readGuide)
+          $('guideTitle')?.focus({ preventScroll: true })
+          return
+        }
+        if ('backCentral' in t.dataset) {
+          go('Ajuda')
+          return
+        }
+        if (t.dataset.go) return go(t.dataset.go)
+      })
+
+      $('forceView').addEventListener('change', (e) => {
+        state.forceView = e.target.checked
+        renderAll()
+      })
+
+      $('showNew').addEventListener('change', (e) => document.body.classList.toggle('show-new', e.target.checked))
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || tour) return
+        if (state.sidebarOpen) {
+          state.sidebarOpen = false
+          renderAll()
+        }
+      })
+
+      renderAll()
+    </script>
+  </body>
+</html>
