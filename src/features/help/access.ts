@@ -1,7 +1,15 @@
 import type { CollaboratorRole } from '@/lib/enums'
 import type { MenuRow, NavItem, PermissionRow } from '@/features/auth/types'
 import { GUIDES, TRAILS } from './guides/index.ts'
-import type { AccessKind, Guide, GuideStep, GuideTask, HelpAccess, Trail } from './types'
+import type {
+  AccessKind,
+  Guide,
+  GuideStep,
+  GuideTask,
+  HelpAccess,
+  TourStep,
+  Trail,
+} from './types'
 
 /*
   QUEM VÊ QUAL GUIA. Nada aqui é regra nova: o guia só lê o que a barra lateral
@@ -138,4 +146,60 @@ export function buildTrails(access: HelpAccess): { trails: TrailView[]; hiddenTr
 /* O guia da tela atual, pelo nome da rota. */
 export function guideKeyForPage(page: string): string | null {
   return Object.keys(GUIDES).find((k) => GUIDES[k].page === page) ?? null
+}
+
+/*
+  O ÚLTIMO PASSO DE TODO TOUR é o próprio "?" do cabeçalho: diz onde repetir e
+  onde está o texto completo, e é para ele que o foco volta ao fechar.
+*/
+export const HELP_TOUR_STEP: TourStep = {
+  target: 'header-help',
+  title: 'Ver de novo',
+  body: 'Este botão repete o tour desta tela. O passo a passo completo fica na Central de ajuda.',
+}
+
+/* O guia que tem tour para a tela atual, pelo nome da rota. */
+export function tourGuideKeyForPage(page: string): string | null {
+  return Object.keys(GUIDES).find((k) => GUIDES[k].page === page && GUIDES[k].tour) ?? null
+}
+
+export type TourStepStatus = 'shown' | 'edit' | 'absent'
+
+export type ResolvedTour = {
+  /* Só os passos que ficam, já com o "?" no fim. O contador conta estes. */
+  steps: TourStep[]
+  /* Todos os passos declarados, com o motivo de cada um que saiu. */
+  all: { step: TourStep; status: TourStepStatus }[]
+  /* Passos de edição que saíram porque o acesso é só ver: a linha do 1º balão. */
+  editOut: number
+}
+
+/*
+  OS PASSOS SÃO FILTRADOS ANTES DE O TOUR COMEÇAR, e não pelo
+  `skipMissingElement` do driver: o contador dele conta o total declarado, e
+  "2 de 7" com três pulados mostraria um 7 falso. Dois motivos, mesma conta:
+
+  - `edit` e a pessoa só vê (a mesma regra de `visibleTasks`): sai, mesmo que o
+    elemento continue na tela. Vem primeiro, para a linha de acesso contar
+    também o botão que a tela escondeu (Novo Projeto).
+  - o elemento não está na tela (`isPresent` falso): sai.
+*/
+export function resolveTour(
+  access: HelpAccess,
+  guide: Guide,
+  isPresent: (target: string) => boolean,
+): ResolvedTour {
+  const declared = [...(guide.tour ?? []), HELP_TOUR_STEP]
+  const canEdit = guideAccessKind(access, guide) !== 'view'
+  const all = declared.map((step) => {
+    let status: TourStepStatus = 'shown'
+    if (step.edit && !canEdit) status = 'edit'
+    else if (!isPresent(step.target)) status = 'absent'
+    return { step, status }
+  })
+  return {
+    steps: all.filter((s) => s.status === 'shown').map((s) => s.step),
+    all,
+    editOut: all.filter((s) => s.status === 'edit').length,
+  }
 }

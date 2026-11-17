@@ -168,6 +168,7 @@ export default function MinhasAtividades() {
   }, [activities])
 
   const orderedActivities = useMemo(() => sortMyActivities(activities), [activities])
+  const firstLateId = orderedActivities.find((activity) => isOverdue(activity))?.id
 
   /* O original mostra este mesmo bloco enquanto o colaborador não chegou. */
   if (collaboratorQuery.isLoading || !currentCollaborator) {
@@ -200,7 +201,10 @@ export default function MinhasAtividades() {
       </div>
 
       {counters.late > 0 && (
-        <Card className="bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900">
+        <Card
+          data-tour="my-late"
+          className="bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900"
+        >
           <div className="p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
             <p className="text-sm text-rose-800 dark:text-rose-200">
@@ -211,7 +215,7 @@ export default function MinhasAtividades() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div data-tour="my-stats" className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className={CARD}>
           <div className="p-6">
             <div className="flex items-center justify-between mb-2">
@@ -257,7 +261,7 @@ export default function MinhasAtividades() {
 
       <div className="flex gap-3">
         <Link to={createPageUrl('Atividades')}>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" data-tour="my-all">
             <ActivityIcon className="w-4 h-4" />
             Ver Todas as Atividades
           </Button>
@@ -303,9 +307,10 @@ export default function MinhasAtividades() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myProjects.map((project) => (
+              {myProjects.map((project, index) => (
                 <div
                   key={project.id}
+                  data-tour={index === 0 ? 'my-project' : undefined}
                   onClick={() => setSelectedProject(project)}
                   className={`p-4 rounded-lg border transition-all cursor-pointer hover:shadow-md ${
                     project.hasOverdueTasks
@@ -538,10 +543,13 @@ export default function MinhasAtividades() {
                 <tbody>
                   {orderedActivities.map((activity: ActivityRow) => {
                     const late = isOverdue(activity)
+                    /* A primeira linha atrasada leva o `data-tour` do tour guiado. */
+                    const firstLate = late && activity.id === firstLateId
 
                     return (
                       <tr
                         key={activity.id}
+                        data-tour={firstLate ? 'my-late-row' : undefined}
                         className={`border-b border-border transition-colors hover:bg-elevated ${
                           late ? 'bg-rose-50/50 dark:bg-rose-950/20' : ''
                         }`}

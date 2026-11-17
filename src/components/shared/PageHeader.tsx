@@ -10,12 +10,15 @@ export default function PageHeader({
   actionLabel,
   onAction,
   icon: Icon,
+  actionTour,
 }: {
   title: string
   subtitle?: string
   actionLabel?: string
   onAction?: () => void
   icon?: LucideIcon
+  /* `data-tour` do botão de ação, para o tour guiado da tela. */
+  actionTour?: string
 }) {
   return (
     <motion.div
@@ -38,6 +41,7 @@ export default function PageHeader({
           */}
           <Button
             onClick={onAction}
+            data-tour={actionTour}
             className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-slate-900/20 transition-all hover:shadow-xl hover:shadow-slate-900/30"
           >
             {Icon ? <Icon className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}

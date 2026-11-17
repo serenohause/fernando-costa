@@ -1,4 +1,5 @@
-// Quem vê qual guia, na Central de ajuda e no painel "?".
+// Quem vê qual guia, na Central de ajuda, e quais passos do tour guiado do "?"
+// ficam para cada pessoa.
 //
 // COMO RODAR
 //   npm run test:ajuda
@@ -21,7 +22,9 @@ import {
   guideKeyForPage,
   guideVisible,
   linkView,
+  resolveTour,
   stepBlockedBy,
+  tourGuideKeyForPage,
   visibleTasks,
 } from '../src/features/help/access.ts'
 import { GUIDES } from '../src/features/help/guides/index.ts'
@@ -171,6 +174,72 @@ eq('P2  /MinhasAtividades', 'my_activities', guideKeyForPage('MinhasAtividades')
 eq('P3  /Ajuda', 'help_center', guideKeyForPage('Ajuda'))
 eq('P4  /Perfil', 'profile', guideKeyForPage('Perfil'))
 eq('P5  tela sem guia', null, guideKeyForPage('ClientDetail'))
+
+/* ------------------------------------------------------------------ */
+/* TOUR GUIADO (prototypes/tour-guiado.html). `resolveTour` recebe quem está na
+   tela como função, no lugar do DOM: aqui a tela é um conjunto de `data-tour`.
+   Passo `edit` sai para quem só vê MESMO com o elemento na tela; passo cujo
+   elemento não está na tela sai sempre. O contador conta só o que fica. */
+console.log('\nTour guiado\n')
+const tela = (...alvos) => {
+  const set = new Set(alvos)
+  return (target) => set.has(target)
+}
+const titulos = (r) => r.steps.map((s) => s.title)
+const PROJ_EDITA = tela('projects-new', 'projects-search', 'projects-tabs', 'projects-grip', 'projects-client', 'projects-menu', 'header-help')
+/* Quem só vê: Projects.tsx esconde Novo Projeto e o menu; a alça continua. */
+const PROJ_SO_VE = tela('projects-search', 'projects-tabs', 'projects-grip', 'projects-client', 'header-help')
+
+eq('T1  tela do tour pela rota', ['projects', 'pipeline', 'my_activities', null, null],
+  ['Projects', 'Negociacoes', 'MinhasAtividades', 'Clients', 'Ajuda'].map(tourGuideKeyForPage))
+eq('T2  todo tour termina no "?" do cabeçalho', [true, true, true],
+  ['projects', 'pipeline', 'my_activities'].map((k) => {
+    const r = resolveTour(dir, GUIDES[k], () => true)
+    return r.steps.at(-1).target === 'header-help'
+  }))
+eq('T3  data-tour no formato <tela>-<peça>', true,
+  Object.values(GUIDES).flatMap((g) => g.tour ?? []).every((s) => /^[a-z]+(-[a-z]+)+$/.test(s.target)))
+eq('T4  data-tour sem repetição dentro do tour', [true, true, true],
+  ['projects', 'pipeline', 'my_activities'].map((k) => {
+    const alvos = GUIDES[k].tour.map((s) => s.target)
+    return new Set(alvos).size === alvos.length
+  }))
+
+const tDir = resolveTour(dir, GUIDES.projects, PROJ_EDITA)
+eq('T5  Diretor, Projetos: os sete passos', 7, tDir.steps.length)
+eq('T6  Diretor, Projetos: nenhum de edição fora', 0, tDir.editOut)
+eq('T7  Arquiteto (Perfil Projetos edita): os sete', 7, resolveTour(arq, GUIDES.projects, PROJ_EDITA).steps.length)
+
+const tCom = resolveTour(com, GUIDES.projects, PROJ_SO_VE)
+eq('T8  só ver, Projetos: de 7 vão a 4', ['Encontrar um projeto', 'Filtrar por status', 'Abrir o cliente', 'Ver de novo'], titulos(tCom))
+eq('T9  só ver, Projetos: três de edição fora (o 1º balão avisa)', 3, tCom.editOut)
+eq('T10 só ver: a alça na tela não segura o passo de arrastar', 'edit',
+  tCom.all.find((s) => s.step.target === 'projects-grip').status)
+eq('T11 só ver: passo de edição sai mesmo com o elemento na tela', 4,
+  resolveTour(com, GUIDES.projects, PROJ_EDITA).steps.length)
+eq('T12 quem edita, elemento fora da tela: pula sem contar como edição',
+  { n: 6, editOut: 0, status: 'absent' },
+  (() => {
+    const r = resolveTour(dir, GUIDES.projects, tela('projects-search', 'projects-tabs', 'projects-grip', 'projects-client', 'projects-menu', 'header-help'))
+    return { n: r.steps.length, editOut: r.editOut, status: r.all[0].status }
+  })())
+
+/* Pipeline: o aviso âmbar só existe com negociação parada. */
+const PIPE = ['pipeline-new', 'pipeline-intake', 'pipeline-briefings', 'pipeline-search', 'pipeline-tabs', 'pipeline-tab-active', 'pipeline-card', 'pipeline-card-menu', 'header-help']
+const tPipe = resolveTour(dir, GUIDES.pipeline, tela(...PIPE))
+eq('T13 Diretor, Pipeline sem negociação parada: 9 de 10', 9, tPipe.steps.length)
+eq('T14 o passo do aviso âmbar pulou por ausência', 'absent',
+  tPipe.all.find((s) => s.step.target === 'pipeline-stalled').status)
+const tPipeVe = resolveTour(soVer, GUIDES.pipeline, tela(...PIPE.filter((t) => t !== 'pipeline-new' && t !== 'pipeline-card-menu')))
+eq('T15 Pipeline só ver: o que fica', ['Briefing a conferir', 'Briefings recebidos', 'Buscar', 'Funil e listas', 'Ver de novo'], titulos(tPipeVe))
+eq('T16 Pipeline só ver: quatro de edição fora', 4, tPipeVe.editOut)
+
+/* Minhas Atividades é liberada pela função: o tour é igual para todos. */
+const MINHAS = ['my-late', 'my-stats', 'my-all', 'my-project', 'my-late-row', 'header-help']
+eq('T17 Minhas Atividades: seis passos, nada de edição', { n: 6, editOut: 0 },
+  (({ steps, editOut }) => ({ n: steps.length, editOut }))(resolveTour(arq, GUIDES.my_activities, tela(...MINHAS))))
+eq('T18 sem atraso, faixa e linha rosada pulam', ['Seus números', 'Começar e concluir', 'Seus projetos', 'Ver de novo'],
+  titulos(resolveTour(arq, GUIDES.my_activities, tela('my-stats', 'my-all', 'my-project', 'header-help'))))
 
 console.log(`\n${passed}/${passed + failed} casos passaram.`)
 if (failed > 0) process.exit(1)

@@ -104,6 +104,9 @@ export default function NegociacaoKanban({
 
   const byStage = (stage: FunnelStage) => negotiations.filter((n) => n.funnel_stage === stage)
 
+  /* O primeiro cartão do funil, na ordem das colunas: leva os `data-tour`. */
+  const firstId = COLUMNS.flatMap((column) => byStage(column.id))[0]?.id
+
   const isOverdue = (negotiation: NegotiationRow) =>
     Boolean(
       negotiation.expected_close_date &&
@@ -158,6 +161,7 @@ export default function NegociacaoKanban({
                             ref={dragProvided.innerRef}
                             {...dragProvided.draggableProps}
                             {...dragProvided.dragHandleProps}
+                            data-tour={negotiation.id === firstId ? 'pipeline-card' : undefined}
                             className={`${canEdit ? 'cursor-grab active:cursor-grabbing' : ''} bg-card border border-border transition-shadow ${
                               dragSnapshot.isDragging
                                 ? 'shadow-2xl ring-2 ring-faint'
@@ -187,6 +191,11 @@ export default function NegociacaoKanban({
                                         variant="ghost"
                                         size="icon"
                                         className="h-7 w-7 -mt-1 shrink-0"
+                                        data-tour={
+                                          negotiation.id === firstId
+                                            ? 'pipeline-card-menu'
+                                            : undefined
+                                        }
                                       >
                                         <MoreVertical className="h-3.5 w-3.5" />
                                       </Button>

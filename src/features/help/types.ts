@@ -20,6 +20,21 @@ export type GuideTask = {
   note?: string
 }
 
+/*
+  PASSO DE TOUR (prototypes/tour-guiado.html). `target` é o valor do atributo
+  `data-tour` do elemento real, no formato `<tela>-<peça>` (`projects-new`,
+  `pipeline-card-menu`). `edit: true` é a mesma marca de GuideTask: passo que
+  ensina gesto de edição sai para quem só vê, MESMO que o elemento continue na
+  tela (a alça de arrastar de Projects.tsx aparece sempre). Passo que depende de
+  diálogo aberto não entra: fica no texto da Central.
+*/
+export type TourStep = {
+  target: string
+  title: string
+  body: string
+  edit?: boolean
+}
+
 export type GuideLink = {
   key: string
   why: string
@@ -44,6 +59,9 @@ export type Guide = {
   /* Guia completo. Sem `tasks`, o guia é "em breve": só a frase de propósito. */
   tasks?: GuideTask[]
   links?: GuideLink[]
+  /* Tour da tela `page`, na ordem em que ela se lê de cima para baixo. O passo
+     final, no "?" do cabeçalho, entra sozinho (HELP_TOUR_STEP). */
+  tour?: TourStep[]
 }
 
 export type Trail = {

@@ -643,10 +643,13 @@ export default function Negociacoes() {
         actionLabel={canEdit ? 'Nova Oportunidade' : undefined}
         onAction={canEdit ? openCreateForm : undefined}
         icon={Plus}
+        actionTour="pipeline-new"
       />
 
       {stalled.length > 0 && (
-        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl flex items-start gap-3">
+        <div
+          data-tour="pipeline-stalled"
+          className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-amber-900 dark:text-amber-300">
@@ -668,7 +671,9 @@ export default function Negociacoes() {
         linguagem que a página já tem para "isto pede sua atenção".
       */}
       {pendingIntakes.length > 0 && (
-        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl flex items-start gap-3">
+        <div
+          data-tour="pipeline-intake"
+          className="mb-6 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl flex items-start gap-3">
           <ClipboardCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="font-medium text-blue-900 dark:text-blue-300">
@@ -723,7 +728,12 @@ export default function Negociacoes() {
       */}
       {submittedIntakes.length > 0 && (
         <div className="mb-6 flex justify-end">
-          <Button variant="outline" size="sm" onClick={() => setBriefingsOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            data-tour="pipeline-briefings"
+            onClick={() => setBriefingsOpen(true)}
+          >
             <ClipboardCheck className="w-4 h-4 mr-2" />
             Briefings recebidos ({submittedIntakes.length})
           </Button>
@@ -732,7 +742,7 @@ export default function Negociacoes() {
 
       {(hasNegotiations || isFiltering) && (
         <div className="mb-6">
-          <div className="relative flex-1">
+          <div className="relative flex-1" data-tour="pipeline-search">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
             <Input
               placeholder="Buscar por negociação, cliente ou responsável..."
@@ -754,7 +764,10 @@ export default function Negociacoes() {
         />
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-card border border-border shadow-xs w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap">
+          <TabsList
+            data-tour="pipeline-tabs"
+            className="bg-card border border-border shadow-xs w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap"
+          >
             <TabsTrigger
               value="kanban"
               className="gap-1 sm:gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap"
@@ -764,6 +777,7 @@ export default function Negociacoes() {
             </TabsTrigger>
             <TabsTrigger
               value="ativas"
+              data-tour="pipeline-tab-active"
               className="gap-1 sm:gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap"
             >
               <List className="h-4 w-4" />

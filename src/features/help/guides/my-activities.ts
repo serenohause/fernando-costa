@@ -54,4 +54,31 @@ export const myActivitiesGuide: Guide = {
     },
     { key: 'notifications', why: 'Avisa de tarefa nova e de prazo vencido.' },
   ],
+  tour: [
+    {
+      target: 'my-late',
+      title: 'O que atrasou',
+      body: 'A faixa rosa aparece quando alguma atividade sua passa do prazo.',
+    },
+    {
+      target: 'my-stats',
+      title: 'Seus números',
+      body: 'Atividades de hoje, em execução, em atraso e concluídas na semana.',
+    },
+    {
+      target: 'my-all',
+      title: 'Começar e concluir',
+      body: 'Começar agora e Concluir ficam em Atividades, por este botão. O tempo fica gravado na atividade.',
+    },
+    {
+      target: 'my-project',
+      title: 'Seus projetos',
+      body: 'Projetos em que você é responsável por algum cartão do Fluxo do Projeto. Clique para ver fase e tarefas.',
+    },
+    {
+      target: 'my-late-row',
+      title: 'Suas Atividades',
+      body: 'A linha rosada é atividade atrasada, com o prazo em vermelho.',
+    },
+  ],
 }

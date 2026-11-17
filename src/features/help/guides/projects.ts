@@ -58,4 +58,39 @@ export const projectsGuide: Guide = {
     { key: 'map', why: 'O projeto no mapa, pela cidade e endereço da obra.' },
     { key: 'contracts', why: 'O contrato ligado ao projeto.' },
   ],
+  tour: [
+    {
+      target: 'projects-new',
+      edit: true,
+      title: 'Cadastrar um projeto',
+      body: 'Novo Projeto abre o formulário. Nome do Projeto e Tipo de Projeto são obrigatórios.',
+    },
+    {
+      target: 'projects-search',
+      title: 'Encontrar um projeto',
+      body: 'Busque pelo nome do projeto ou do cliente.',
+    },
+    {
+      target: 'projects-tabs',
+      title: 'Filtrar por status',
+      body: 'Prospecção, Em contrato e Suspenso não têm aba: esses projetos só aparecem em Todos.',
+    },
+    {
+      target: 'projects-grip',
+      edit: true,
+      title: 'Mudar a ordem',
+      body: 'Segure a alça e arraste a linha. A ordem vale para todo o escritório.',
+    },
+    {
+      target: 'projects-client',
+      title: 'Abrir o cliente',
+      body: 'O nome do cliente abre a ficha dele no CRM, se você tem acesso ao CRM.',
+    },
+    {
+      target: 'projects-menu',
+      edit: true,
+      title: 'Editar ou excluir',
+      body: 'No menu de três pontos ficam Editar e Excluir. Excluir pede confirmação e não pode ser desfeito.',
+    },
+  ],
 }

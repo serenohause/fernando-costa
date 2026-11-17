@@ -243,10 +243,16 @@ export default function Projects() {
 
   const hasProjects = projects.length > 0
 
-  const rowMenu = (project: ProjectRow) => (
+  /* `first`: a primeira linha leva os `data-tour` do tour guiado. */
+  const rowMenu = (project: ProjectRow, first: boolean) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          data-tour={first ? 'projects-menu' : undefined}
+        >
           <MoreVertical className="w-4 h-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -298,6 +304,7 @@ export default function Projects() {
         title="Projetos"
         subtitle="Gerencie os projetos do escritório"
         actionLabel={canEdit ? 'Novo Projeto' : undefined}
+        actionTour="projects-new"
         onAction={
           canEdit
             ? () => {
@@ -310,7 +317,7 @@ export default function Projects() {
 
       {hasProjects && (
         <div className="mb-6 space-y-4">
-          <div className="relative">
+          <div className="relative" data-tour="projects-search">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-faint" />
             <Input
               type="text"
@@ -330,7 +337,10 @@ export default function Projects() {
             value={statusFilter}
             onValueChange={(value) => setStatusFilter(value as ProjectStatusFilter)}
           >
-            <TabsList className="bg-card border w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap">
+            <TabsList
+              data-tour="projects-tabs"
+              className="bg-card border w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap"
+            >
               <TabsTrigger value="all" className="whitespace-nowrap">
                 Todos
               </TabsTrigger>
@@ -406,6 +416,7 @@ export default function Projects() {
                         <div className="p-4 flex items-center gap-4">
                           <div
                             {...dragProvided.dragHandleProps}
+                            data-tour={index === 0 ? 'projects-grip' : undefined}
                             className={canEdit ? 'cursor-grab active:cursor-grabbing' : ''}
                           >
                             <GripVertical className="w-5 h-5 text-faint" />
@@ -424,6 +435,7 @@ export default function Projects() {
                                   <ClientLink
                                     clientId={project.client?.id}
                                     name={project.client?.name}
+                                    dataTour={index === 0 ? 'projects-client' : undefined}
                                   />
                                 </p>
                                 <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -436,7 +448,7 @@ export default function Projects() {
                                   <StatusBadge status={labelOf(PROJECT_STATUS, project.status)} />
                                 </div>
                               </div>
-                              {canEdit && rowMenu(project)}
+                              {canEdit && rowMenu(project, index === 0)}
                             </div>
 
                             {/* Desktop: grade */}
@@ -449,6 +461,7 @@ export default function Projects() {
                                   <ClientLink
                                     clientId={project.client?.id}
                                     name={project.client?.name}
+                                    dataTour={index === 0 ? 'projects-client' : undefined}
                                   />
                                 </p>
                               </div>
@@ -480,7 +493,7 @@ export default function Projects() {
                               <div className="flex items-center justify-end gap-3">
                                 <StatusBadge status={labelOf(PROJECT_STATUS, project.status)} />
                                 {/* Quem não pode editar vê a lista sem os botões de ação. */}
-                                {canEdit && rowMenu(project)}
+                                {canEdit && rowMenu(project, index === 0)}
                               </div>
                             </div>
                           </div>

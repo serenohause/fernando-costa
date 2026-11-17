@@ -26,12 +26,15 @@ export default function ClientLink({
   name,
   fallback = 'Sem cliente',
   className,
+  dataTour,
 }: {
   clientId: string | null | undefined
   name: string | null | undefined
   /* O que aparece quando não há cliente. Cada tela já tinha o seu texto. */
   fallback?: string
   className?: string
+  /* `data-tour` para o tour guiado da tela. */
+  dataTour?: string
 }) {
   const navigate = useNavigate()
   const { canView: canViewCrm } = useMenuPermissions('crm')
@@ -41,6 +44,7 @@ export default function ClientLink({
       enabled={canViewCrm && Boolean(clientId)}
       onClick={() => navigate(createPageUrl('ClientDetail') + `?id=${clientId}`)}
       className={className}
+      dataTour={dataTour}
     >
       {name ?? fallback}
     </CardLink>

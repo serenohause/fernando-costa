@@ -25,20 +25,28 @@ export default function CardLink({
   onClick,
   enabled = true,
   className,
+  dataTour,
   children,
 }: {
   onClick: () => void
   enabled?: boolean
   className?: string
+  /* `data-tour` para o tour guiado da tela. */
+  dataTour?: string
   children: ReactNode
 }) {
   if (!enabled) {
-    return <span className={className}>{children}</span>
+    return (
+      <span className={className} data-tour={dataTour}>
+        {children}
+      </span>
+    )
   }
 
   return (
     <button
       type="button"
+      data-tour={dataTour}
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => {
         event.stopPropagation()
