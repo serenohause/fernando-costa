@@ -52,6 +52,9 @@ const breadcrumbMap: Record<string, BreadcrumbItem[]> = {
   // Equipe
   Collaborators: [{ label: 'Equipe', page: null }, { label: 'Colaboradores' }],
   AprovacoesAcesso: [{ label: 'Equipe', page: null }, { label: 'Controle de Acesso' }],
+
+  // Ajuda (prototypes/ajuda.html)
+  Ajuda: [{ label: 'Central de ajuda' }],
 }
 
 export function useBreadcrumb(currentPageName: string | undefined): BreadcrumbItem[] {

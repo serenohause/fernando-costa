@@ -7,6 +7,7 @@ import {
   ChevronRight,
   FolderKanban,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Settings2,
   Menu,
@@ -29,6 +30,8 @@ import TabNavigationWrapper, {
   useTabNavigation,
 } from '@/components/navigation/TabNavigationWrapper'
 import QuickActions from '@/components/header/QuickActions'
+import HelpButton from '@/components/header/HelpButton'
+import HelpProvider from '@/features/help/components/HelpProvider'
 import NotificationBell from '@/features/notifications/components/NotificationBell'
 import AcessoIndisponivel from '@/features/auth/components/AcessoIndisponivel'
 import AcessoPendente from '@/features/auth/components/AcessoPendente'
@@ -281,369 +284,395 @@ export default function AppLayout() {
       escuro — ver o comentário no src/index.css. Cartão sempre um degrau acima
       da página; a hierarquia nunca inverte.
     */
-    <div className="min-h-screen bg-background">
-      {/*
-        A FAIXA E A PRIMEIRA COISA DA ARVORE e empurra o resto: a sidebar sai de
-        top-0 para top-14, o cabecalho grudado tambem, e a area de rolagem perde
-        3,5rem de altura. Altura fixa (h-14) justamente para o deslocamento ser
-        um numero so em todas as larguras.
-      */}
-      {acessarComo && <ImpersonationBanner estado={acessarComo} />}
+    <HelpProvider
+      pageName={currentPageName}
+      pageTitle={breadcrumbItems[breadcrumbItems.length - 1]?.label ?? currentPageName}
+    >
+      <div className="min-h-screen bg-background">
+        {/*
+          A FAIXA E A PRIMEIRA COISA DA ARVORE e empurra o resto: a sidebar sai de
+          top-0 para top-14, o cabecalho grudado tambem, e a area de rolagem perde
+          3,5rem de altura. Altura fixa (h-14) justamente para o deslocamento ser
+          um numero so em todas as larguras.
+        */}
+        {acessarComo && <ImpersonationBanner estado={acessarComo} />}
 
-      {/* Mobile sidebar overlay */}
-      <AnimatePresence>
-        {sidebarOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/20 backdrop-blur-xs lg:hidden"
-            style={{ zIndex: 49 }}
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Sidebar */}
-      <aside
-        className={`
-        fixed left-0 w-72 bg-sidebar border-r border-sidebar-border
-        ${acessarComo ? 'top-14 h-[calc(100%-3.5rem)]' : 'top-0 h-full'}
-        transform transition-transform duration-300 ease-out
-        lg:translate-x-0
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}
-        style={{ zIndex: 50 }}
-      >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
-            {/*
-              O nome sai do tenant (`TenantName`), e não mais da string
-              "FERNANDO COSTA" que estava aqui. Tipografia intocada: font-light,
-              text-lg, tracking-[0.15em], leading-tight e o "HAUSONE"
-              embaixo são os do original.
-
-              `uppercase` é NOVO e não muda um pixel do que se vê: a caixa alta
-              era literal na string, e o banco guarda "Fernando Costa". Fazendo
-              pelo CSS, o dado continua sendo o nome que a pessoa cadastrou.
-
-              `truncate` + `min-w-0` é o transbordo, que o original nunca
-              precisou tratar porque o nome cabia. Sem eles, um nome comprido
-              quebra em duas linhas dentro de um cabeçalho de altura fixa (h-16)
-              e empurra o "HAUSONE" para fora.
-            */}
-            <div className="text-center w-full min-w-0 py-2">
-              <h1 className="font-light text-foreground text-lg tracking-[0.15em] leading-tight uppercase truncate">
-                <TenantName />
-              </h1>
-              <p className="text-[10px] text-muted-foreground tracking-[0.3em] mt-1">HAUSONE</p>
-            </div>
-            <button
+        {/* Mobile sidebar overlay */}
+        <AnimatePresence>
+          {sidebarOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/20 backdrop-blur-xs lg:hidden"
+              style={{ zIndex: 49 }}
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1.5 hover:bg-sidebar-accent rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5 text-muted-foreground" />
-            </button>
-          </div>
+            />
+          )}
+        </AnimatePresence>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-            {navigationQuery.isEmpty && (
-              <p className="px-4 py-3 text-sm text-muted-foreground">
-                Nenhum menu liberado para o seu acesso.
-              </p>
-            )}
-            {navigation.map((item) => {
-              if (item.subItems) {
-                // Menu com subitens
-                const isExpanded = expandedMenus.includes(item.key)
-                const hasActiveSubItem = item.subItems.some((sub) => currentPageName === sub.page)
+        {/* Sidebar */}
+        <aside
+          className={`
+          fixed left-0 w-72 bg-sidebar border-r border-sidebar-border
+          ${acessarComo ? 'top-14 h-[calc(100%-3.5rem)]' : 'top-0 h-full'}
+          transform transition-transform duration-300 ease-out
+          lg:translate-x-0
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+          style={{ zIndex: 50 }}
+        >
+          <div className="flex flex-col h-full">
+            {/* Logo */}
+            <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
+              {/*
+                O nome sai do tenant (`TenantName`), e não mais da string
+                "FERNANDO COSTA" que estava aqui. Tipografia intocada: font-light,
+                text-lg, tracking-[0.15em], leading-tight e o "HAUSONE"
+                embaixo são os do original.
+
+                `uppercase` é NOVO e não muda um pixel do que se vê: a caixa alta
+                era literal na string, e o banco guarda "Fernando Costa". Fazendo
+                pelo CSS, o dado continua sendo o nome que a pessoa cadastrou.
+
+                `truncate` + `min-w-0` é o transbordo, que o original nunca
+                precisou tratar porque o nome cabia. Sem eles, um nome comprido
+                quebra em duas linhas dentro de um cabeçalho de altura fixa (h-16)
+                e empurra o "HAUSONE" para fora.
+              */}
+              <div className="text-center w-full min-w-0 py-2">
+                <h1 className="font-light text-foreground text-lg tracking-[0.15em] leading-tight uppercase truncate">
+                  <TenantName />
+                </h1>
+                <p className="text-[10px] text-muted-foreground tracking-[0.3em] mt-1">HAUSONE</p>
+              </div>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden p-1.5 hover:bg-sidebar-accent rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+              {navigationQuery.isEmpty && (
+                <p className="px-4 py-3 text-sm text-muted-foreground">
+                  Nenhum menu liberado para o seu acesso.
+                </p>
+              )}
+              {navigation.map((item) => {
+                if (item.subItems) {
+                  // Menu com subitens
+                  const isExpanded = expandedMenus.includes(item.key)
+                  const hasActiveSubItem = item.subItems.some((sub) => currentPageName === sub.page)
+                  return (
+                    <div key={item.key} className="space-y-1">
+                      <motion.button
+                        whileHover={{ x: 4 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setExpandedMenus((prev) =>
+                            prev.includes(item.key)
+                              ? prev.filter((m) => m !== item.key)
+                              : [...prev, item.key],
+                          )
+                        }}
+                        className={`
+                          w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+                          transition-all duration-200 group select-none
+                          ${
+                            hasActiveSubItem
+                              ? 'text-sidebar-accent-foreground bg-sidebar-accent'
+                              : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                          }
+                        `}
+                      >
+                        <item.icon
+                          className={`w-5 h-5 transition-all select-none ${hasActiveSubItem ? 'text-sidebar-foreground' : 'text-faint group-hover:text-sidebar-foreground group-hover:scale-110'}`}
+                        />
+                        {item.name}
+                        <motion.div
+                          animate={{ rotate: isExpanded ? 90 : 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="ml-auto"
+                        >
+                          <ChevronRight className="w-4 h-4 text-faint" />
+                        </motion.div>
+                      </motion.button>
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="ml-4 space-y-1 overflow-hidden"
+                          >
+                            {item.subItems.map((subItem) => {
+                              const isActive = currentPageName === subItem.page
+                              return (
+                                <motion.div
+                                  key={subItem.page}
+                                  whileHover={{ x: 4 }}
+                                  whileTap={{ scale: 0.98 }}
+                                >
+                                  <Link
+                                    to={createPageUrl(subItem.page)}
+                                    onClick={() => setSidebarOpen(false)}
+                                    className={`
+                                      flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium
+                                      transition-all duration-200 group select-none
+                                      ${
+                                        isActive
+                                          ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-slate-900/20'
+                                          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                                      }
+                                    `}
+                                  >
+                                    <subItem.icon
+                                      className={`w-4 h-4 transition-all select-none ${isActive ? 'text-sidebar-primary-foreground' : 'text-faint group-hover:text-sidebar-foreground group-hover:scale-110'}`}
+                                    />
+                                    {subItem.name}
+                                    {isActive && (
+                                      <motion.div
+                                        initial={{ scale: 0, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        className="ml-auto"
+                                      >
+                                        <ChevronRight className="w-4 h-4" />
+                                      </motion.div>
+                                    )}
+                                  </Link>
+                                </motion.div>
+                              )
+                            })}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )
+                }
+
+                // Menu sem subitens
+                const isActive = currentPageName === item.page
                 return (
-                  <div key={item.key} className="space-y-1">
-                    <motion.button
-                      whileHover={{ x: 4 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        setExpandedMenus((prev) =>
-                          prev.includes(item.key)
-                            ? prev.filter((m) => m !== item.key)
-                            : [...prev, item.key],
-                        )
-                      }}
+                  <motion.div key={item.page} whileHover={{ x: 4 }} whileTap={{ scale: 0.98 }}>
+                    <Link
+                      to={createPageUrl(item.page!)}
+                      onClick={() => setSidebarOpen(false)}
                       className={`
-                        w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+                        flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
                         transition-all duration-200 group select-none
                         ${
-                          hasActiveSubItem
-                            ? 'text-sidebar-accent-foreground bg-sidebar-accent'
+                          isActive
+                            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-slate-900/20'
                             : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                         }
                       `}
                     >
                       <item.icon
-                        className={`w-5 h-5 transition-all select-none ${hasActiveSubItem ? 'text-sidebar-foreground' : 'text-faint group-hover:text-sidebar-foreground group-hover:scale-110'}`}
+                        className={`w-5 h-5 transition-all select-none ${isActive ? 'text-sidebar-primary-foreground' : 'text-faint group-hover:text-sidebar-foreground group-hover:scale-110'}`}
                       />
                       {item.name}
-                      <motion.div
-                        animate={{ rotate: isExpanded ? 90 : 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="ml-auto"
-                      >
-                        <ChevronRight className="w-4 h-4 text-faint" />
-                      </motion.div>
-                    </motion.button>
-                    <AnimatePresence>
-                      {isExpanded && (
+                      {isActive && (
                         <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="ml-4 space-y-1 overflow-hidden"
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="ml-auto"
                         >
-                          {item.subItems.map((subItem) => {
-                            const isActive = currentPageName === subItem.page
-                            return (
-                              <motion.div
-                                key={subItem.page}
-                                whileHover={{ x: 4 }}
-                                whileTap={{ scale: 0.98 }}
-                              >
-                                <Link
-                                  to={createPageUrl(subItem.page)}
-                                  onClick={() => setSidebarOpen(false)}
-                                  className={`
-                                    flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium
-                                    transition-all duration-200 group select-none
-                                    ${
-                                      isActive
-                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-slate-900/20'
-                                        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                                    }
-                                  `}
-                                >
-                                  <subItem.icon
-                                    className={`w-4 h-4 transition-all select-none ${isActive ? 'text-sidebar-primary-foreground' : 'text-faint group-hover:text-sidebar-foreground group-hover:scale-110'}`}
-                                  />
-                                  {subItem.name}
-                                  {isActive && (
-                                    <motion.div
-                                      initial={{ scale: 0, opacity: 0 }}
-                                      animate={{ scale: 1, opacity: 1 }}
-                                      className="ml-auto"
-                                    >
-                                      <ChevronRight className="w-4 h-4" />
-                                    </motion.div>
-                                  )}
-                                </Link>
-                              </motion.div>
-                            )
-                          })}
+                          <ChevronRight className="w-4 h-4" />
                         </motion.div>
                       )}
-                    </AnimatePresence>
-                  </div>
+                    </Link>
+                  </motion.div>
                 )
-              }
+              })}
+            </nav>
 
-              // Menu sem subitens
-              const isActive = currentPageName === item.page
-              return (
-                <motion.div key={item.page} whileHover={{ x: 4 }} whileTap={{ scale: 0.98 }}>
-                  <Link
-                    to={createPageUrl(item.page!)}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`
-                      flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
-                      transition-all duration-200 group select-none
-                      ${
-                        isActive
-                          ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-slate-900/20'
-                          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                      }
-                    `}
-                  >
-                    <item.icon
-                      className={`w-5 h-5 transition-all select-none ${isActive ? 'text-sidebar-primary-foreground' : 'text-faint group-hover:text-sidebar-foreground group-hover:scale-110'}`}
-                    />
-                    {item.name}
-                    {isActive && (
-                      <motion.div
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="ml-auto"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </motion.div>
-                    )}
-                  </Link>
-                </motion.div>
-              )
-            })}
-          </nav>
-
-          {/* User section */}
-          <div className="p-4 border-t border-sidebar-border">
-            {/*
-              O BLOCO DO USUÁRIO VIROU A PORTA DO PERFIL — pedido do usuário.
-              É onde a pessoa já olha para conferir com quem está logada, e era
-              o único lugar da tela que falava dela sem oferecer nada.
-
-              `/Perfil` não tem item na barra e não tem menu: todo mundo edita o
-              próprio perfil, então não há permissão a consultar.
-            */}
-            {currentCollaborator && (
-              <Link
-                to={createPageUrl('Perfil')}
-                onClick={() => setSidebarOpen(false)}
-                className="mb-3 flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-sidebar-accent transition-colors group"
-              >
-                <AvatarPicture
-                  avatarPath={currentCollaborator.avatar_path}
-                  name={currentCollaborator.name}
-                  size={36}
-                />
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-foreground truncate">
-                    {currentCollaborator.name}
-                  </span>
-                  <span className="block text-xs text-muted-foreground truncate">
-                    {currentCollaborator.area
-                      ? labelOf(COLLABORATOR_AREA, currentCollaborator.area)
-                      : 'Sem área'}
-                  </span>
-                </span>
-                <Settings2 className="w-4 h-4 ml-auto text-faint group-hover:text-sidebar-foreground shrink-0" />
-              </Link>
-            )}
-            {/*
-              "EXCLUIR CONTA" SAIU, PROVISORIAMENTE — decisão do usuário.
-
-              O botão existe no original (Layout.jsx), onde dispara um e-mail
-              pela integração do base44 pedindo a exclusão a um administrador.
-              Esse canal nunca foi portado: aqui ele pedia confirmação e, em
-              seguida, mostrava SEMPRE "Erro ao enviar solicitação". Ou seja,
-              prometia uma ação que não existia e terminava em erro toda vez.
-
-              Para trazer de volta: o gesto precisa de destino. O caminho que
-              cabe neste sistema é o mesmo de `access_requests` — uma fila que
-              o Diretor aprova ou recusa pela tela, em vez de e-mail. Enquanto
-              não houver esse destino, botão nenhum aqui é melhor que botão que
-              só sabe falhar.
-            */}
-            <Button
-              variant="ghost"
-              onClick={handleLogout}
-              className="w-full justify-start text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent select-none"
-            >
-              <LogOut className="w-4 h-4 mr-2 select-none" />
-              Sair
-            </Button>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <div className="lg:pl-72">
-        {/* Top bar */}
-        <header
-          className={`h-16 bg-card border-b border-border sticky ${acessarComo ? 'top-14' : 'top-0'}`}
-          style={{ paddingTop: 'env(safe-area-inset-top)', zIndex: 'var(--z-header)' }}
-        >
-          <div className="h-full flex items-center justify-between px-4 lg:px-8">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 hover:bg-accent rounded-lg transition-colors select-none"
-            >
-              <Menu className="w-5 h-5 text-soft select-none" />
-            </button>
-            <div className="flex-1" />
-            <div className="flex items-center gap-2">
+            {/* User section */}
+            <div className="p-4 border-t border-sidebar-border">
               {/*
-                O SINO É O PRIMEIRO DO GRUPO DA DIREITA, antes do tema e dos
-                atalhos — decisão do usuário sobre o protótipo aprovado. Ele é o
-                único item do cabeçalho que muda de estado sozinho, e quem
-                procura notificação procura na ponta.
+                O BLOCO DO USUÁRIO VIROU A PORTA DO PERFIL — pedido do usuário.
+                É onde a pessoa já olha para conferir com quem está logada, e era
+                o único lugar da tela que falava dela sem oferecer nada.
 
-                SÓ AQUI, e não na casca LeadsShell: aquela é da equipe do
-                produto, que não é colaboradora de escritório nenhum e por isso
-                não tem `recipient_id` para receber aviso de tarefa. O sino lá
-                só saberia mostrar uma caixa vazia para sempre.
+                `/Perfil` não tem item na barra e não tem menu: todo mundo edita o
+                próprio perfil, então não há permissão a consultar.
               */}
-              <NotificationBell />
-              <ThemeToggle />
-              <QuickActions currentCollaborator={currentCollaborator} />
+              {currentCollaborator && (
+                <Link
+                  to={createPageUrl('Perfil')}
+                  onClick={() => setSidebarOpen(false)}
+                  className="mb-3 flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-sidebar-accent transition-colors group"
+                >
+                  <AvatarPicture
+                    avatarPath={currentCollaborator.avatar_path}
+                    name={currentCollaborator.name}
+                    size={36}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground truncate">
+                      {currentCollaborator.name}
+                    </span>
+                    <span className="block text-xs text-muted-foreground truncate">
+                      {currentCollaborator.area
+                        ? labelOf(COLLABORATOR_AREA, currentCollaborator.area)
+                        : 'Sem área'}
+                    </span>
+                  </span>
+                  <Settings2 className="w-4 h-4 ml-auto text-faint group-hover:text-sidebar-foreground shrink-0" />
+                </Link>
+              )}
+              {/*
+                "EXCLUIR CONTA" SAIU, PROVISORIAMENTE — decisão do usuário.
+
+                O botão existe no original (Layout.jsx), onde dispara um e-mail
+                pela integração do base44 pedindo a exclusão a um administrador.
+                Esse canal nunca foi portado: aqui ele pedia confirmação e, em
+                seguida, mostrava SEMPRE "Erro ao enviar solicitação". Ou seja,
+                prometia uma ação que não existia e terminava em erro toda vez.
+
+                Para trazer de volta: o gesto precisa de destino. O caminho que
+                cabe neste sistema é o mesmo de `access_requests` — uma fila que
+                o Diretor aprova ou recusa pela tela, em vez de e-mail. Enquanto
+                não houver esse destino, botão nenhum aqui é melhor que botão que
+                só sabe falhar.
+              */}
+              {/*
+                A PORTA DA CENTRAL DE AJUDA (prototypes/ajuda.html): entre o
+                cartão do Perfil e o "Sair", com o mesmo botão do "Sair". Como
+                /Perfil, todo mundo tem, e não há menu a permissionar.
+              */}
+              <Button
+                asChild
+                variant="ghost"
+                className={`w-full justify-start select-none ${
+                  currentPageName === 'Ajuda'
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent'
+                }`}
+              >
+                <Link to={createPageUrl('Ajuda')} onClick={() => setSidebarOpen(false)}>
+                  <LifeBuoy className="w-4 h-4 mr-2 select-none" />
+                  Central de ajuda
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                className="mt-1 w-full justify-start text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent select-none"
+              >
+                <LogOut className="w-4 h-4 mr-2 select-none" />
+                Sair
+              </Button>
             </div>
           </div>
-        </header>
+        </aside>
 
-        {/* Page content */}
-        {/* IMPORTANT: TabNavigationWrapper must NOT create a new stacking context.
-            Modals, dropdowns, and overlays depend on escaping this container via portals. */}
-        <TabNavigationWrapper currentTab={currentTab}>
-          <TabNavigationContent
-            breadcrumbItems={breadcrumbItems}
-            currentPageName={currentPageName}
+        {/* Main content */}
+        <div className="lg:pl-72">
+          {/* Top bar */}
+          <header
+            className={`h-16 bg-card border-b border-border sticky ${acessarComo ? 'top-14' : 'top-0'}`}
+            style={{ paddingTop: 'env(safe-area-inset-top)', zIndex: 'var(--z-header)' }}
           >
-            <Outlet />
-          </TabNavigationContent>
-        </TabNavigationWrapper>
+            <div className="h-full flex items-center justify-between px-4 lg:px-8">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden p-2 hover:bg-accent rounded-lg transition-colors select-none"
+              >
+                <Menu className="w-5 h-5 text-soft select-none" />
+              </button>
+              <div className="flex-1" />
+              <div className="flex items-center gap-2">
+                {/*
+                  O SINO É O PRIMEIRO DO GRUPO DA DIREITA, antes do tema e dos
+                  atalhos — decisão do usuário sobre o protótipo aprovado. Ele é o
+                  único item do cabeçalho que muda de estado sozinho, e quem
+                  procura notificação procura na ponta.
 
-        {/* Mobile Bottom Navigation */}
-        <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border select-none"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)', zIndex: 'var(--z-header)' }}
-        >
-          <div className="flex items-center justify-around h-16">
-            <Link
-              to={createPageUrl('Dashboard')}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                currentPageName === 'Dashboard'
-                  ? 'text-foreground'
-                  : 'text-faint'
-              }`}
+                  SÓ AQUI, e não na casca LeadsShell: aquela é da equipe do
+                  produto, que não é colaboradora de escritório nenhum e por isso
+                  não tem `recipient_id` para receber aviso de tarefa. O sino lá
+                  só saberia mostrar uma caixa vazia para sempre.
+                */}
+                <NotificationBell />
+                {/* O "?" logo depois do sino, que continua o primeiro do grupo. */}
+                <HelpButton />
+                <ThemeToggle />
+                <QuickActions currentCollaborator={currentCollaborator} />
+              </div>
+            </div>
+          </header>
+
+          {/* Page content */}
+          {/* IMPORTANT: TabNavigationWrapper must NOT create a new stacking context.
+              Modals, dropdowns, and overlays depend on escaping this container via portals. */}
+          <TabNavigationWrapper currentTab={currentTab}>
+            <TabNavigationContent
+              breadcrumbItems={breadcrumbItems}
+              currentPageName={currentPageName}
             >
-              <LayoutDashboard className="w-6 h-6 mb-1 select-none" />
-              <span className="text-xs select-none">Início</span>
-            </Link>
-            <Link
-              to={createPageUrl('Clients')}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                currentPageName === 'Clients'
-                  ? 'text-foreground'
-                  : 'text-faint'
-              }`}
-            >
-              <Users className="w-6 h-6 mb-1 select-none" />
-              <span className="text-xs select-none">CRM</span>
-            </Link>
-            <Link
-              to={createPageUrl('Tasks')}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                currentPageName === 'Tasks'
-                  ? 'text-foreground'
-                  : 'text-faint'
-              }`}
-            >
-              <CheckSquare className="w-6 h-6 mb-1 select-none" />
-              <span className="text-xs select-none">Tarefas</span>
-            </Link>
-            <Link
-              to={createPageUrl('Projects')}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                currentPageName === 'Projects'
-                  ? 'text-foreground'
-                  : 'text-faint'
-              }`}
-            >
-              <FolderKanban className="w-6 h-6 mb-1 select-none" />
-              <span className="text-xs select-none">Projetos</span>
-            </Link>
-          </div>
-        </nav>
+              <Outlet />
+            </TabNavigationContent>
+          </TabNavigationWrapper>
+
+          {/* Mobile Bottom Navigation */}
+          <nav
+            className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border select-none"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)', zIndex: 'var(--z-header)' }}
+          >
+            <div className="flex items-center justify-around h-16">
+              <Link
+                to={createPageUrl('Dashboard')}
+                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                  currentPageName === 'Dashboard'
+                    ? 'text-foreground'
+                    : 'text-faint'
+                }`}
+              >
+                <LayoutDashboard className="w-6 h-6 mb-1 select-none" />
+                <span className="text-xs select-none">Início</span>
+              </Link>
+              <Link
+                to={createPageUrl('Clients')}
+                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                  currentPageName === 'Clients'
+                    ? 'text-foreground'
+                    : 'text-faint'
+                }`}
+              >
+                <Users className="w-6 h-6 mb-1 select-none" />
+                <span className="text-xs select-none">CRM</span>
+              </Link>
+              <Link
+                to={createPageUrl('Tasks')}
+                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                  currentPageName === 'Tasks'
+                    ? 'text-foreground'
+                    : 'text-faint'
+                }`}
+              >
+                <CheckSquare className="w-6 h-6 mb-1 select-none" />
+                <span className="text-xs select-none">Tarefas</span>
+              </Link>
+              <Link
+                to={createPageUrl('Projects')}
+                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                  currentPageName === 'Projects'
+                    ? 'text-foreground'
+                    : 'text-faint'
+                }`}
+              >
+                <FolderKanban className="w-6 h-6 mb-1 select-none" />
+                <span className="text-xs select-none">Projetos</span>
+              </Link>
+            </div>
+          </nav>
+        </div>
       </div>
-    </div>
+    </HelpProvider>
   )
 }

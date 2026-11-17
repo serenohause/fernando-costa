@@ -24,6 +24,7 @@ import DashboardExecutivo from '@/features/dashboards/components/DashboardExecut
 import Home from '@/features/dashboards/components/Home'
 import Settings from '@/features/settings/components/Settings'
 import Perfil from '@/features/profile/components/Perfil'
+import HelpCenter from '@/features/help/components/HelpCenter'
 import LeadsShell from '@/features/leads/components/LeadsShell'
 
 /*
@@ -120,6 +121,9 @@ export function AppRoutes() {
             Todo mundo edita o próprio perfil, então não há menu a permissionar
             — e uma entrada na barra seria uma linha a mais para todos. */}
         <Route path="/Perfil" element={<Perfil />} />
+        {/* Central de ajuda: fora de `menus`, pelo mesmo motivo de /Perfil.
+            Chega-se pelo rodapé da barra lateral e pelo painel "?". */}
+        <Route path="/Ajuda" element={<HelpCenter />} />
         <Route path="*" element={<PagePlaceholder />} />
       </Route>
     </Routes>
