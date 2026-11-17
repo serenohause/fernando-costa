@@ -60,4 +60,44 @@ export const settingsGuide: Guide = {
     { key: 'pipeline', why: 'Onde aparecem os tipos de serviço.' },
     { key: 'project_flow', why: 'O quadro com as etapas e os status operacionais.' },
   ],
+  tour: [
+    {
+      target: 'settings-sections',
+      title: 'As seções',
+      body: 'Clique numa seção para abrir. Quem só vê enxerga tudo, mas sem os botões de criar e editar.',
+    },
+    {
+      target: 'settings-kanban',
+      title: 'Quadros',
+      body: 'As etapas do Fluxo do Projeto, com nome, cor do cabeçalho e percentual de progresso.',
+    },
+    {
+      target: 'settings-tags',
+      title: 'Status Operacional',
+      body: 'Os crachás do cartão do quadro. Enquanto estiver marcado no cartão, o status pausa o prazo da tarefa.',
+    },
+    {
+      target: 'settings-integrations',
+      title: 'Integrações',
+      body: 'A conexão com o Google Agenda do escritório e as chaves de automação.',
+    },
+    {
+      target: 'settings-new',
+      edit: true,
+      title: 'Novo tipo de serviço',
+      body: 'Novo Tipo abre o formulário: Nome e Peso no tipo de contrato. O tipo aparece ao criar uma negociação no Pipeline.',
+    },
+    {
+      target: 'settings-type',
+      edit: true,
+      title: 'Editar e ordenar',
+      body: 'O lápis da linha edita. Arraste pela alça à esquerda para mudar a ordem.',
+    },
+    {
+      target: 'settings-type-switch',
+      edit: true,
+      title: 'Desativar',
+      body: 'O interruptor tira o tipo das negociações novas; as antigas continuam com ele. Não há exclusão.',
+    },
+  ],
 }

@@ -190,17 +190,21 @@ const PROJ_EDITA = tela('projects-new', 'projects-search', 'projects-tabs', 'pro
 /* Quem só vê: Projects.tsx esconde Novo Projeto e o menu; a alça continua. */
 const PROJ_SO_VE = tela('projects-search', 'projects-tabs', 'projects-grip', 'projects-client', 'header-help')
 
-eq('T1  tela do tour pela rota', ['projects', 'pipeline', 'my_activities', null, null],
+eq('T1  tela do tour pela rota', ['projects', 'pipeline', 'my_activities', 'crm', null],
   ['Projects', 'Negociacoes', 'MinhasAtividades', 'Clients', 'Ajuda'].map(tourGuideKeyForPage))
-eq('T2  todo tour termina no "?" do cabeçalho', [true, true, true],
-  ['projects', 'pipeline', 'my_activities'].map((k) => {
+const COM_TOUR = Object.keys(GUIDES).filter((k) => GUIDES[k].tour?.length)
+eq('T1b todo guia com tela própria tem tour', [],
+  Object.keys(GUIDES).filter((k) => GUIDES[k].page && k !== 'help_center' && !GUIDES[k].tour?.length))
+eq('T1c cada tour é achado pela rota do guia', COM_TOUR, COM_TOUR.filter((k) => tourGuideKeyForPage(GUIDES[k].page) === k))
+eq('T2  todo tour termina no "?" do cabeçalho', COM_TOUR.map(() => true),
+  COM_TOUR.map((k) => {
     const r = resolveTour(dir, GUIDES[k], () => true)
     return r.steps.at(-1).target === 'header-help'
   }))
 eq('T3  data-tour no formato <tela>-<peça>', true,
   Object.values(GUIDES).flatMap((g) => g.tour ?? []).every((s) => /^[a-z]+(-[a-z]+)+$/.test(s.target)))
-eq('T4  data-tour sem repetição dentro do tour', [true, true, true],
-  ['projects', 'pipeline', 'my_activities'].map((k) => {
+eq('T4  data-tour sem repetição dentro do tour', COM_TOUR.map(() => true),
+  COM_TOUR.map((k) => {
     const alvos = GUIDES[k].tour.map((s) => s.target)
     return new Set(alvos).size === alvos.length
   }))

@@ -226,7 +226,7 @@ export default function Perfil() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 shrink-0">
+          <div className="flex flex-col gap-2 shrink-0" data-tour="profile-photo">
             <input
               ref={fileRef}
               type="file"
@@ -286,7 +286,10 @@ export default function Perfil() {
       />
 
       {/* ── Dados pessoais ────────────────────────────────────────────── */}
-      <section className="bg-card rounded-xl border border-border p-5 space-y-4">
+      <section
+        className="bg-card rounded-xl border border-border p-5 space-y-4"
+        data-tour="profile-data"
+      >
         <div className="flex items-center gap-2">
           <UserCircle className="w-4 h-4 text-muted-foreground" />
           <h2 className="font-medium text-foreground">Dados pessoais</h2>
@@ -325,14 +328,21 @@ export default function Perfil() {
         </p>
 
         <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={!dirty || updateProfile.isPending}>
+          <Button
+            onClick={handleSave}
+            disabled={!dirty || updateProfile.isPending}
+            data-tour="profile-save"
+          >
             {updateProfile.isPending ? 'Salvando...' : 'Salvar alterações'}
           </Button>
         </div>
       </section>
 
       {/* ── Senha ─────────────────────────────────────────────────────── */}
-      <section className="bg-card rounded-xl border border-border p-5 space-y-4">
+      <section
+        className="bg-card rounded-xl border border-border p-5 space-y-4"
+        data-tour="profile-password"
+      >
         <div className="flex items-center gap-2">
           <KeyRound className="w-4 h-4 text-muted-foreground" />
           <h2 className="font-medium text-foreground">Senha</h2>

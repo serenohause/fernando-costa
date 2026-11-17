@@ -27,9 +27,12 @@ import { Button } from '@/components/ui/button'
 export default function MonthYearFilter({
   selectedDate,
   onChange,
+  dataTour,
 }: {
   selectedDate: Date
   onChange: (date: Date) => void
+  /* `data-tour` do seletor, para o tour guiado da tela. */
+  dataTour?: string
 }) {
   const handlePrevMonth = () => {
     onChange(subMonths(selectedDate, 1))
@@ -52,7 +55,10 @@ export default function MonthYearFilter({
   }
 
   return (
-    <div className="flex items-center gap-2 bg-card rounded-xl border border-border p-2 w-full sm:w-auto">
+    <div
+      data-tour={dataTour}
+      className="flex items-center gap-2 bg-card rounded-xl border border-border p-2 w-full sm:w-auto"
+    >
       <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-9 w-9 min-w-[36px]">
         <ChevronLeft className="w-4 h-4" />
       </Button>

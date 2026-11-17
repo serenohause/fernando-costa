@@ -51,4 +51,41 @@ export const dashboardExecutiveGuide: Guide = {
     { key: 'activities', why: 'As atividades contadas nos cartões do topo.' },
     { key: 'productivity', why: 'O detalhe das atividades concluídas, por pessoa e por projeto.' },
   ],
+  tour: [
+    {
+      target: 'executive-filters',
+      title: 'Filtros do topo',
+      body: 'Projeto e colaborador valem para o painel inteiro. O período muda só Concluídas e Produtividade.',
+    },
+    {
+      target: 'executive-activities',
+      title: 'Atividades',
+      body: 'Em andamento, concluídas, atrasadas e produtividade. Se você só vê as suas atividades, os cartões dizem Minhas atividades.',
+    },
+    {
+      target: 'executive-projects',
+      title: 'Projetos ativos',
+      body: 'Total Ativo, Aguardando Cliente, Em Risco e Bloqueados. Clique no cartão para ver a lista dos projetos.',
+    },
+    {
+      target: 'executive-phases',
+      title: 'Distribuição por Fase',
+      body: 'Clique numa barra para ver os projetos daquela fase.',
+    },
+    {
+      target: 'executive-team',
+      title: 'Carga de cada pessoa',
+      body: 'Quantos projetos ativos cada Arquiteto, Estagiário ou Coordenador tem. Clique na pessoa para ver os projetos dela.',
+    },
+    {
+      target: 'executive-progress',
+      title: 'Evolução dos Projetos',
+      body: 'O Progresso Médio dos projetos ativos. Projetos < 30% e Projetos > 80% abrem a lista ao clicar.',
+    },
+    {
+      target: 'executive-list',
+      title: 'Ordenados por progresso',
+      body: 'Cada projeto com fase, responsável e percentual. A barra fica vermelha abaixo de 30% e verde acima de 80%.',
+    },
+  ],
 }

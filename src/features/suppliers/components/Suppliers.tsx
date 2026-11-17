@@ -224,6 +224,7 @@ export default function Suppliers() {
         </div>
         {canEdit && (
           <Button
+            data-tour="suppliers-new"
             onClick={() => {
               setEditing(null)
               setFormOpen(true)
@@ -237,7 +238,7 @@ export default function Suppliers() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6" data-tour="suppliers-filters">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
           <Input
@@ -378,9 +379,10 @@ export default function Suppliers() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredSuppliers.map((supplier) => (
+              {filteredSuppliers.map((supplier, index) => (
                 <tr
                   key={supplier.id}
+                  data-tour={index === 0 ? 'suppliers-row' : undefined}
                   ref={registerFocusRef(supplier.id)}
                   onClick={() => {
                     setSelected(supplier)
@@ -442,6 +444,7 @@ export default function Suppliers() {
                     {/* Sem o `|| 'Ativo'` do original: a coluna é NOT NULL com
                         default `active`, então não há linha sem status. */}
                     <span
+                      data-tour={index === 0 ? 'suppliers-status' : undefined}
                       className={`text-xs font-medium px-2 py-1 rounded-full ${
                         STATUS_PILL[supplier.status]
                       }`}

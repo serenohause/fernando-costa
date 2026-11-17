@@ -48,4 +48,41 @@ export const dashboardOverviewGuide: Guide = {
     { key: 'contracts', why: 'Os contratos fechados no mês.' },
     { key: 'project_flow', why: 'As tarefas das próximas entregas.' },
   ],
+  tour: [
+    {
+      target: 'overview-month',
+      title: 'Escolher o mês',
+      body: 'O mês muda os quatro cartões do topo e a Performance Comercial. Os outros blocos não dependem dele.',
+    },
+    {
+      target: 'overview-finance',
+      title: 'Resumo financeiro',
+      body: 'Receita Prevista, Receita Recebida e Despesas Pagas do mês. Resultado é a recebida menos as despesas pagas.',
+    },
+    {
+      target: 'overview-overdue',
+      title: 'Contas em Atraso',
+      body: 'O número conta todas as parcelas a receber vencidas e não pagas. A lista mostra três.',
+    },
+    {
+      target: 'overview-client',
+      title: 'Abrir o cliente',
+      body: 'O nome do cliente abre a ficha dele no CRM, se você tem acesso ao CRM.',
+    },
+    {
+      target: 'overview-commercial',
+      title: 'Performance Comercial',
+      body: 'Contratos aprovados com assinatura no mês, em quantidade e em valor.',
+    },
+    {
+      target: 'overview-stages',
+      title: 'Projetos por Etapa',
+      body: 'Não iniciado, Em andamento e Finalizado. Cada projeto conta em um só.',
+    },
+    {
+      target: 'overview-deliveries',
+      title: 'Próximas Entregas',
+      body: 'Tarefas do Fluxo do Projeto com prazo nos próximos 15 dias. Os dias ficam em vermelho quando faltam 3 ou menos.',
+    },
+  ],
 }

@@ -73,6 +73,11 @@ export default function Collaborators() {
   const collaboratorsQuery = useCollaborators()
   const collaborators = collaboratorsQuery.data ?? []
 
+  /* As linhas que levam os `data-tour` do tour guiado: a primeira, e a primeira
+     com o selo sem login. */
+  const firstId = collaborators[0]?.id
+  const firstNoLoginId = collaborators.find((c) => c.email && !c.user_id)?.id
+
   /*
     Referência estável de propósito: CollaboratorForm reinicia o formulário
     quando `initialData` muda, como no original. Recriar o objeto a cada render
@@ -195,7 +200,10 @@ export default function Collaborators() {
     {
       header: 'Colaborador',
       cell: (row) => (
-        <div className="flex items-center gap-3">
+        <div
+          className="flex items-center gap-3"
+          data-tour={row.id === firstId ? 'team-person' : undefined}
+        >
           {/*
             A FOTO DE PERFIL DA PESSOA, quando ela tem uma (migration 0088). Sem
             foto continua a inicial no quadrado violeta, que é o visual desta
@@ -237,7 +245,10 @@ export default function Collaborators() {
               clique: editar e preencher a senha provisória.
             */}
             {!row.user_id && (
-              <span className="text-xs text-muted-foreground border border-border rounded-full px-2 py-0.5">
+              <span
+                data-tour={row.id === firstNoLoginId ? 'team-no-login' : undefined}
+                className="text-xs text-muted-foreground border border-border rounded-full px-2 py-0.5"
+              >
                 sem login
               </span>
             )}
@@ -274,7 +285,12 @@ export default function Collaborators() {
         isDirector ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                data-tour={row.id === firstId ? 'team-menu' : undefined}
+              >
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -373,6 +389,7 @@ export default function Collaborators() {
         title="Equipe"
         subtitle="Gerencie sua equipe e permissões"
         actionLabel="Novo Membro"
+        actionTour="team-new"
         onAction={handleCreateClick}
       />
 

@@ -67,4 +67,43 @@ export const activitiesGuide: Guide = {
     { key: 'productivity', why: 'O tempo registrado em Começar agora e Concluir vira relatório.' },
     { key: 'projects', why: 'O projeto a que a atividade está ligada.' },
   ],
+  tour: [
+    {
+      target: 'activities-new',
+      edit: true,
+      title: 'Criar uma atividade',
+      body: 'Nova Atividade abre o formulário. Descrição, Responsável, Data Início e Data Término são obrigatórios.',
+    },
+    {
+      target: 'activities-manager',
+      title: 'Visão Gerencial',
+      body: 'A tela abre com as suas atividades e as de quem você coordena. Ligue para ver as do escritório inteiro.',
+    },
+    {
+      target: 'activities-tabs',
+      title: 'Hoje, Semana, Atrasadas',
+      body: 'O número ao lado de cada aba conta as atividades dela. As atrasadas ficam no topo da lista.',
+    },
+    {
+      target: 'activities-filters',
+      title: 'Refinar a lista',
+      body: 'Filtre por prioridade, responsável, projeto e status.',
+    },
+    {
+      target: 'activities-reorder',
+      edit: true,
+      title: 'Ordem de execução',
+      body: 'Reordenar escolhe um colaborador e deixa arrastar as atividades dele. O número da ordem aparece ao lado da descrição.',
+    },
+    {
+      target: 'activities-row',
+      title: 'Atualizar uma atividade',
+      body: 'Clique na linha para abrir Editar Atividade e ajustar status, datas e observações.',
+    },
+    {
+      target: 'activities-run',
+      title: 'Começar e concluir',
+      body: 'Começar agora conta o tempo. Ao terminar, Concluir grava o tempo total na linha.',
+    },
+  ],
 }

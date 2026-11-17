@@ -111,7 +111,7 @@ export default function Dashboard() {
           <p className="text-muted-foreground mt-1">Visão executiva consolidada</p>
         </div>
         <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-          <SelectTrigger className="w-48 bg-card">
+          <SelectTrigger className="w-48 bg-card" data-tour="overview-month">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -163,7 +163,10 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div
+              data-tour="overview-finance"
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+            >
               <StatsCard
                 title="Receita Prevista"
                 value={formatCurrencyBRL(financial.forecastRevenue)}
@@ -202,7 +205,10 @@ export default function Dashboard() {
           )}
 
           {/* BLOCO 2 - Alertas Financeiros */}
-          <Card className="border-rose-200 dark:border-rose-900 bg-rose-50/30 dark:bg-rose-950/20">
+          <Card
+            data-tour="overview-overdue"
+            className="border-rose-200 dark:border-rose-900 bg-rose-50/30 dark:bg-rose-950/20"
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
                 <div className="p-2 bg-rose-100 dark:bg-rose-950/40 rounded-lg">
@@ -231,7 +237,7 @@ export default function Dashboard() {
               ) : (
                 <div className="space-y-2">
                   {/* Cinco vêm, três aparecem — também é o original (linha 344). */}
-                  {overdueReceivables.slice(0, 3).map((item) => (
+                  {overdueReceivables.slice(0, 3).map((item, index) => (
                     <div
                       key={item.id}
                       className="flex items-center justify-between p-3 bg-card rounded-lg border border-rose-100 dark:border-rose-900"
@@ -241,7 +247,11 @@ export default function Dashboard() {
                             cópia `client_name`, congelada quando a parcela
                             nasceu. */}
                         <p className="font-medium text-foreground text-sm">
-                          <ClientLink clientId={item.client?.id} name={item.client?.name} />
+                          <ClientLink
+                            clientId={item.client?.id}
+                            name={item.client?.name}
+                            dataTour={index === 0 ? 'overview-client' : undefined}
+                          />
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           Vencimento: {formatDateBR(item.due_date)}
@@ -258,7 +268,7 @@ export default function Dashboard() {
           </Card>
 
           {/* BLOCO 3 - Performance Comercial do Mês */}
-          <div>
+          <div data-tour="overview-commercial">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
               Performance Comercial
             </h2>
@@ -287,7 +297,7 @@ export default function Dashboard() {
           </div>
 
           {/* BLOCO 4 - Status Operacional */}
-          <Card>
+          <Card data-tour="overview-stages">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
                 <div className="p-2 bg-violet-100 dark:bg-violet-950/40 rounded-lg">
@@ -328,7 +338,7 @@ export default function Dashboard() {
           </Card>
 
           {/* BLOCO 5 - Próximas Entregas */}
-          <Card>
+          <Card data-tour="overview-deliveries">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
                 <div className="p-2 bg-blue-100 dark:bg-blue-950/40 rounded-lg">

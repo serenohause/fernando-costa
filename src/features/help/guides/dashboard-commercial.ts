@@ -45,4 +45,46 @@ export const dashboardCommercialGuide: Guide = {
     { key: 'pipeline', why: 'Onde as negociações andam no funil.' },
     { key: 'dashboard_overview', why: 'Os contratos fechados no mês, ao lado do financeiro.' },
   ],
+  tour: [
+    {
+      target: 'commercial-month',
+      title: 'Escolher o mês',
+      body: 'O mês muda os ganhos, as perdas e o Tempo Médio de Fechamento. O funil de hoje não depende dele.',
+    },
+    {
+      target: 'commercial-funnel',
+      title: 'O funil de hoje',
+      body: 'Negociações ativas, valor em negociação, ticket médio e as em risco, de prazo vencido. Clique no cartão para ver a lista.',
+    },
+    {
+      target: 'commercial-won',
+      title: 'Ganhos do mês',
+      body: 'Ganhas, valor, ticket médio e Taxa de Conversão, que é ganhas sobre finalizadas. Os cartões de quantidade e de valor abrem a lista.',
+    },
+    {
+      target: 'commercial-lost',
+      title: 'Perdas do mês',
+      body: 'Quantidade Perdida, Valor Perdido e Taxa de Perda. Os dois primeiros abrem a lista ao clicar.',
+    },
+    {
+      target: 'commercial-stages',
+      title: 'Ativas por etapa',
+      body: 'Quantas negociações ativas e quanto valor há em cada etapa do funil.',
+    },
+    {
+      target: 'commercial-speed',
+      title: 'Tempo Médio de Fechamento',
+      body: 'Dias da entrada no funil ao fechamento, nas negociações ganhas no mês escolhido.',
+    },
+    {
+      target: 'commercial-stalled',
+      title: 'Negociações paradas',
+      body: 'As negociações sem movimentação há mais de 30 dias, com cliente, responsável e etapa.',
+    },
+    {
+      target: 'commercial-client',
+      title: 'Abrir o cliente',
+      body: 'O nome do cliente abre a ficha dele no CRM, se você tem acesso ao CRM.',
+    },
+  ],
 }

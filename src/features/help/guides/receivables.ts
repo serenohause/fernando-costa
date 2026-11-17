@@ -66,4 +66,48 @@ export const receivablesGuide: Guide = {
     { key: 'settings', why: 'Onde se liga a conta Asaas do escritório.' },
     { key: 'dashboard_overview', why: 'A receita prevista e a recebida do mês.' },
   ],
+  tour: [
+    {
+      target: 'receivables-new',
+      edit: true,
+      title: 'Lançar um recebível',
+      body: 'Novo Recebível abre o formulário. Descrição, Valor Total (R$) e Vencimento são obrigatórios.',
+    },
+    {
+      target: 'receivables-export',
+      title: 'Exportar PDF',
+      body: 'Gera o relatório do que está na tela, com os filtros aplicados.',
+    },
+    {
+      target: 'receivables-stats',
+      title: 'Os totais',
+      body: 'Total, Recebido, Previsto e Em atraso somam só o que está filtrado na lista.',
+    },
+    {
+      target: 'receivables-month',
+      title: 'Trocar de mês',
+      body: 'A lista mostra as contas com vencimento no mês escolhido. Hoje, quando aparece, volta ao mês atual.',
+    },
+    {
+      target: 'receivables-client',
+      title: 'Filtrar por cliente',
+      body: 'Digite pelo menos duas letras do cliente ou do projeto.',
+    },
+    {
+      target: 'receivables-status',
+      title: 'Filtrar por status',
+      body: 'Todos, Em atraso, Previsto e Recebido. O número conta as contas de cada um.',
+    },
+    {
+      target: 'receivables-row',
+      title: 'Acompanhar a cobrança',
+      body: 'Clique na linha para abrir o painel da cobrança no Asaas, com o link de pagamento para copiar.',
+    },
+    {
+      target: 'receivables-menu',
+      edit: true,
+      title: 'Dar baixa, editar ou remover',
+      body: 'No menu de três pontos ficam Gerar cobrança (ou Ver cobrança), Marcar como Pago, Editar e Remover.',
+    },
+  ],
 }

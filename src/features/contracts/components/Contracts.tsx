@@ -530,6 +530,7 @@ export default function Contracts() {
         title="Contratos & Propostas"
         subtitle="Gerencie contratos e propostas comerciais"
         actionLabel={canEdit ? 'Nova Proposta' : undefined}
+        actionTour="contracts-new"
         onAction={
           canEdit
             ? () => {
@@ -542,7 +543,7 @@ export default function Contracts() {
 
       {hasContracts && (
         <div className="mb-6 space-y-4">
-          <div className="relative">
+          <div className="relative" data-tour="contracts-search">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-faint" />
             <Input
               type="text"
@@ -559,7 +560,7 @@ export default function Contracts() {
             aparecendo em "Todos".
           */}
           <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-            <TabsList className="bg-card border">
+            <TabsList className="bg-card border" data-tour="contracts-tabs">
               <TabsTrigger value="all">Todos</TabsTrigger>
               <TabsTrigger value="negotiating">{CONTRACT_STATUS.negotiating}</TabsTrigger>
               <TabsTrigger value="approved">Aprovados</TabsTrigger>
@@ -570,7 +571,9 @@ export default function Contracts() {
                 são recortes da mesma lista e a ordem delas veio do original.
                 Entrar no meio delas mudaria o gesto de quem já usa a tela.
               */}
-              <TabsTrigger value="kanban">Kanban</TabsTrigger>
+              <TabsTrigger value="kanban" data-tour="contracts-tab-kanban">
+                Kanban
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -644,6 +647,7 @@ export default function Contracts() {
                         <div className="p-4 flex items-center gap-4">
                           <div
                             {...dragProvided.dragHandleProps}
+                            data-tour={index === 0 ? 'contracts-grip' : undefined}
                             className={canEdit ? 'cursor-grab active:cursor-grabbing' : ''}
                           >
                             <GripVertical className="w-5 h-5 text-faint" />
@@ -706,6 +710,7 @@ export default function Contracts() {
                               {contract.installments_generated ? (
                                 <Badge
                                   variant="outline"
+                                  data-tour={index === 0 ? 'contracts-installments' : undefined}
                                   className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900"
                                 >
                                   Geradas
@@ -713,6 +718,7 @@ export default function Contracts() {
                               ) : (
                                 <Badge
                                   variant="outline"
+                                  data-tour={index === 0 ? 'contracts-installments' : undefined}
                                   className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900"
                                 >
                                   Pendente
@@ -723,7 +729,12 @@ export default function Contracts() {
                               {canEdit && (
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      data-tour={index === 0 ? 'contracts-menu' : undefined}
+                                    >
                                       <MoreVertical className="w-4 h-4" />
                                     </Button>
                                   </DropdownMenuTrigger>

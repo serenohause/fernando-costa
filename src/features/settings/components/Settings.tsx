@@ -28,18 +28,21 @@ const SECTIONS = [
     key: 'kanban',
     label: 'Quadros',
     description: 'Etapas do Fluxo do Projeto',
+    tour: 'settings-kanban',
     icon: Columns3,
   },
   {
     key: 'operational_tags',
     label: 'Status Operacional',
     description: 'Crachás do cartão do quadro',
+    tour: 'settings-tags',
     icon: Tag,
   },
   {
     key: 'integrations',
     label: 'Integrações',
     description: 'Google Agenda e chaves de automação',
+    tour: 'settings-integrations',
     icon: Plug,
   },
 ] as const
@@ -60,7 +63,7 @@ export default function Settings() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        <nav className="lg:w-64 shrink-0">
+        <nav className="lg:w-64 shrink-0" data-tour="settings-sections">
           <div className="bg-card rounded-xl border border-border p-2 space-y-1">
             {SECTIONS.map((item) => {
               const Icon = item.icon
@@ -71,6 +74,7 @@ export default function Settings() {
                   type="button"
                   onClick={() => setSection(item.key)}
                   aria-current={active ? 'page' : undefined}
+                  data-tour={'tour' in item ? item.tour : undefined}
                   className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-start gap-3 ${
                     active
                       ? 'bg-primary/10 text-primary'

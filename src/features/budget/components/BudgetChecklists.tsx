@@ -159,6 +159,11 @@ export default function BudgetChecklists() {
   const checklists = useMemo(() => checklistsQuery.data ?? [], [checklistsQuery.data])
   const collaborators = useMemo(() => collaboratorsQuery.data ?? [], [collaboratorsQuery.data])
 
+  /* O primeiro cartão com PDF anexado: leva o `data-tour` do clipe. */
+  const firstAttachedId = checklists.find(
+    (checklist) => (totalsQuery.data?.get(checklist.id)?.attachment_count ?? 0) > 0,
+  )?.id
+
   /* A linha RECÉM-LIDA para o detalhe, e a cópia guardada quando o filtro do topo
      a tirou da lista — mesmo desenho de Suppliers.tsx. É o que mantém o select de
      status do cabeçalho do detalhe mostrando o que acabou de ser gravado. */
@@ -202,6 +207,7 @@ export default function BudgetChecklists() {
         </div>
         {canEdit && (
           <Button
+            data-tour="budget-new"
             onClick={() => setFormOpen(true)}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
@@ -212,7 +218,7 @@ export default function BudgetChecklists() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6" data-tour="budget-filters">
         {/*
           `'all'` no lugar do `value={null}` do original: item de Select com valor
           vazio não é aceito pelo Radix. Mesma tradução já feita em Fornecedores e
@@ -314,12 +320,15 @@ export default function BudgetChecklists() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {checklists.map((checklist) => {
+          {checklists.map((checklist, index) => {
             const totals = totalsQuery.data?.get(checklist.id) ?? ZERO_TOTALS
+            /* O primeiro cartão leva os `data-tour` do tour guiado. */
+            const first = index === 0
 
             return (
               <div
                 key={checklist.id}
+                data-tour={first ? 'budget-card' : undefined}
                 className="bg-card border border-border rounded-xl p-5 hover:shadow-md hover:border-faint transition-all"
               >
                 <div className="flex items-start justify-between mb-3">
@@ -331,6 +340,7 @@ export default function BudgetChecklists() {
                         clientId={checklist.client?.id}
                         name={checklist.client?.name}
                         fallback="Cliente não definido"
+                        dataTour={first ? 'budget-client' : undefined}
                       />
                     </p>
                     <p className="text-sm text-muted-foreground mt-0.5">
@@ -341,6 +351,7 @@ export default function BudgetChecklists() {
                     {totals.attachment_count > 0 && (
                       <div
                         className="flex items-center gap-1 text-faint"
+                        data-tour={checklist.id === firstAttachedId ? 'budget-attachments' : undefined}
                         title={`${totals.attachment_count} PDF${
                           totals.attachment_count > 1 ? 's' : ''
                         } anexado${totals.attachment_count > 1 ? 's' : ''}`}
@@ -353,6 +364,7 @@ export default function BudgetChecklists() {
                       <DropdownMenuTrigger asChild>
                         <button
                           onClick={(e) => e.stopPropagation()}
+                          data-tour={first ? 'budget-card-menu' : undefined}
                           className="p-1 rounded hover:bg-muted text-faint hover:text-soft transition-colors"
                         >
                           <MoreVertical className="w-4 h-4" />

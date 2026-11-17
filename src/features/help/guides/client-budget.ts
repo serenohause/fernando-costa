@@ -63,4 +63,38 @@ export const clientBudgetGuide: Guide = {
     { key: 'crm', why: 'O cadastro do cliente do checklist.' },
     { key: 'projects', why: 'O projeto ligado ao checklist.' },
   ],
+  tour: [
+    {
+      target: 'budget-new',
+      edit: true,
+      title: 'Criar um checklist',
+      body: 'Novo Checklist abre o formulário. Só o Cliente é obrigatório.',
+    },
+    {
+      target: 'budget-filters',
+      title: 'Filtrar',
+      body: 'Os três filtros recortam a lista por status, responsável e fase do projeto.',
+    },
+    {
+      target: 'budget-card',
+      title: 'Abrir o checklist',
+      body: 'Clique no cartão para abrir o checklist. Ele mostra os itens finalizados, o Total Estimado e o Total Aprovado.',
+    },
+    {
+      target: 'budget-client',
+      title: 'Abrir o cliente',
+      body: 'O nome do cliente abre a ficha dele no CRM, se você tem acesso ao CRM.',
+    },
+    {
+      target: 'budget-attachments',
+      title: 'PDFs anexados',
+      body: 'O clipe indica quantos PDFs o checklist tem anexados.',
+    },
+    {
+      target: 'budget-card-menu',
+      edit: true,
+      title: 'Excluir',
+      body: 'No menu de três pontos fica Excluir. Itens, cotações e PDFs vão junto, e a exclusão não pode ser desfeita.',
+    },
+  ],
 }

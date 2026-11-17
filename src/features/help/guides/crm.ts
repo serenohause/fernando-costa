@@ -64,4 +64,33 @@ export const crmGuide: Guide = {
     { key: 'contracts', why: 'Os contratos do cliente.' },
     { key: 'projects', why: 'Os projetos do cliente.' },
   ],
+  tour: [
+    {
+      target: 'crm-new',
+      edit: true,
+      title: 'Cadastrar um lead',
+      body: 'Novo Lead abre o formulário. Nome do Cliente, Telefone/WhatsApp, Cidade, Estado e País são obrigatórios.',
+    },
+    {
+      target: 'crm-search',
+      title: 'Encontrar um cliente',
+      body: 'Busque por nome, email, telefone, cidade ou CPF/CNPJ. A busca também acha as pessoas de Titulares e contatos.',
+    },
+    {
+      target: 'crm-client',
+      title: 'Abrir a ficha',
+      body: 'Clique na linha para abrir a ficha do cliente. A linha de um cônjuge ou contato diz de quem ele é.',
+    },
+    {
+      target: 'crm-contract',
+      title: 'Com contrato',
+      body: 'O selo marca quem já tem contrato com o escritório.',
+    },
+    {
+      target: 'crm-menu',
+      edit: true,
+      title: 'Editar ou remover',
+      body: 'No menu de três pontos ficam Editar Perfil e Remover. Remover pede confirmação e não pode ser desfeito.',
+    },
+  ],
 }

@@ -71,4 +71,44 @@ export const contractsGuide: Guide = {
     { key: 'projects', why: 'O projeto criado na aprovação.' },
     { key: 'project_flow', why: 'O cartão inicial criado na aprovação.' },
   ],
+  tour: [
+    {
+      target: 'contracts-new',
+      edit: true,
+      title: 'Criar uma proposta',
+      body: 'Nova Proposta abre o formulário. Tipo de Contrato e Valor Total (R$) são obrigatórios. A proposta nasce Em negociação.',
+    },
+    {
+      target: 'contracts-search',
+      title: 'Encontrar um contrato',
+      body: 'Busque pelo nº do contrato, cliente ou projeto.',
+    },
+    {
+      target: 'contracts-tabs',
+      title: 'Filtrar por status',
+      body: 'Rescindido não tem aba: esses contratos só aparecem em Todos.',
+    },
+    {
+      target: 'contracts-tab-kanban',
+      title: 'Kanban',
+      body: 'Mostra os contratos em colunas, uma por status.',
+    },
+    {
+      target: 'contracts-grip',
+      edit: true,
+      title: 'Mudar a ordem',
+      body: 'Segure a alça e arraste a linha para mudar a ordem da lista.',
+    },
+    {
+      target: 'contracts-installments',
+      title: 'Parcelas',
+      body: 'Geradas ou Pendente diz se as parcelas do contrato já foram criadas em Recebíveis.',
+    },
+    {
+      target: 'contracts-menu',
+      edit: true,
+      title: 'Aprovar, gerar parcelas, editar',
+      body: 'No menu de três pontos ficam Editar, Aprovar Proposta, Gerar Parcelas e Remover. Aprovar cria o projeto e o cartão no Fluxo do Projeto.',
+    },
+  ],
 }

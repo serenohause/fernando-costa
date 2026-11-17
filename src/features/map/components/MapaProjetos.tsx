@@ -713,6 +713,7 @@ export default function MapaProjetos() {
               setTimeout(() => setIsButtonDisabled(false), 500)
             }}
             disabled={isButtonDisabled}
+            data-tour="map-new"
             variant={addingMode ? 'default' : 'outline'}
             className={addingMode ? 'bg-primary' : ''}
           >
@@ -732,7 +733,9 @@ export default function MapaProjetos() {
         {/* Lista lateral - 30% */}
         <div className="w-[30%] flex flex-col gap-4 overflow-hidden">
           {/* Busca Geográfica (destaque) */}
-          <Card className="p-4 bg-gradient-to-br from-blue-50 dark:from-blue-950/40 to-card border-2 border-blue-200 dark:border-blue-900">
+          <Card
+            data-tour="map-geo"
+            className="p-4 bg-gradient-to-br from-blue-50 dark:from-blue-950/40 to-card border-2 border-blue-200 dark:border-blue-900">
             <div className="relative">
               <label className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -805,7 +808,7 @@ export default function MapaProjetos() {
           </Card>
 
           {/* Filtros */}
-          <Card className="p-4 space-y-4">
+          <Card className="p-4 space-y-4" data-tour="map-filters">
             {/* Busca por Cliente (CRM) */}
             <div className="relative">
               <label className="text-sm font-medium text-soft mb-2 block">
@@ -979,9 +982,10 @@ export default function MapaProjetos() {
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredProperties.map((property) => (
+                {filteredProperties.map((property, index) => (
                   <button
                     key={property.id}
+                    data-tour={index === 0 ? 'map-list' : undefined}
                     onClick={() => handleCenterOnProperty(property)}
                     className={`w-full text-left p-3 rounded-lg border transition-all hover:border-muted-foreground hover:shadow-sm ${
                       selectedProperty?.id === property.id
@@ -1009,10 +1013,10 @@ export default function MapaProjetos() {
 
         {/* Mapa - 70% */}
         {/* overflow-hidden must NOT be used here — it would clip the dialog/modal z-index stacking */}
-        <Card className="flex-1 relative" style={{ overflow: 'visible' }}>
+        <Card className="flex-1 relative" style={{ overflow: 'visible' }} data-tour="map-canvas">
           {/* Controles do mapa */}
           {chaveDoMapa && (
-            <div className="absolute top-4 right-4 z-1000 flex gap-2">
+            <div className="absolute top-4 right-4 z-1000 flex gap-2" data-tour="map-layers">
               {/*
                 O ORIGINAL PÕE `bg-white` NOS DOIS BOTÕES (:1080 e :1089),
                 inclusive por cima da variante `default` do botão ATIVO, que tem

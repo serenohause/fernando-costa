@@ -226,7 +226,7 @@ export default function DashboardComercial() {
         </div>
 
         {/* Filtro de Período (Mês e Ano) */}
-        <div className="flex gap-2 items-center">
+        <div data-tour="commercial-month" className="flex gap-2 items-center">
           <CalendarIcon className="w-5 h-5 text-faint" />
           <Select
             value={selectedMonth.toString()}
@@ -303,7 +303,7 @@ export default function DashboardComercial() {
             <p className="text-xs text-muted-foreground mb-4">
               Posição atual do funil — independe do mês selecionado
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div data-tour="commercial-funnel" className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card
                 className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-all group"
                 onClick={() => openDrillDown('ativas')}
@@ -407,7 +407,7 @@ export default function DashboardComercial() {
               <Award className="w-5 h-5" />
               Performance de Fechamento (Ganhos)
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div data-tour="commercial-won" className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card
                 className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-all group"
                 onClick={() => openDrillDown('ganhas')}
@@ -479,7 +479,7 @@ export default function DashboardComercial() {
               <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
               Negociações Perdidas
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div data-tour="commercial-lost" className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card
                 className="border-0 shadow-sm cursor-pointer hover:shadow-lg transition-all group"
                 onClick={() => openDrillDown('perdidas')}
@@ -559,7 +559,7 @@ export default function DashboardComercial() {
             <p className="text-xs text-muted-foreground mb-4">
               Posição atual do funil — independe do mês selecionado
             </p>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div data-tour="commercial-stages" className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <Card className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">Negociações Ativas por Etapa</CardTitle>
@@ -654,7 +654,7 @@ export default function DashboardComercial() {
               Velocidade e Gargalos
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Card className="border-0 shadow-sm">
+              <Card data-tour="commercial-speed" className="border-0 shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium text-soft">
                     Tempo Médio de Fechamento
@@ -672,7 +672,7 @@ export default function DashboardComercial() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-sm lg:col-span-2">
+              <Card data-tour="commercial-stalled" className="border-0 shadow-sm lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
@@ -695,7 +695,7 @@ export default function DashboardComercial() {
                         Nenhuma negociação parada
                       </p>
                     ) : (
-                      velocity.stalled.map(({ negotiation, daysStalled }) => (
+                      velocity.stalled.map(({ negotiation, daysStalled }, index) => (
                         <div
                           key={negotiation.id}
                           className="flex items-center justify-between p-3 bg-rose-50 dark:bg-rose-950/20 rounded-lg border border-rose-200 dark:border-rose-900"
@@ -712,6 +712,7 @@ export default function DashboardComercial() {
                                 <ClientLink
                                   clientId={negotiation.client?.id}
                                   name={negotiation.client?.name}
+                                  dataTour={index === 0 ? 'commercial-client' : undefined}
                                 />
                               </p>
                               <span className="text-xs text-faint">•</span>

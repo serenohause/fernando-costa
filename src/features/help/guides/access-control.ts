@@ -40,4 +40,28 @@ export const accessControlGuide: Guide = {
     { key: 'permissions', why: 'Liberar as telas de quem acabou de ser aprovado.' },
     { key: 'team', why: 'Onde a pessoa aprovada aparece.' },
   ],
+  tour: [
+    {
+      target: 'access-empty',
+      title: 'Nada esperando',
+      body: 'Sem pedidos, aparece Nenhuma solicitação pendente. Quando alguém pedir acesso, o pedido entra aqui.',
+    },
+    {
+      target: 'access-request',
+      title: 'Cada pedido',
+      body: 'Nome, e-mail, Data da solicitação, Última tentativa, Tentativas e Origem.',
+    },
+    {
+      target: 'access-approve',
+      edit: true,
+      title: 'Aprovar',
+      body: 'Aprovar abre a janela Aprovar Acesso. A pessoa entra sem nenhuma tela liberada: configure as permissões em Equipe logo depois.',
+    },
+    {
+      target: 'access-reject',
+      edit: true,
+      title: 'Recusar',
+      body: 'Recusar pede confirmação. Ninguém é avisado por e-mail: se quiser dar retorno, use outro canal.',
+    },
+  ],
 }

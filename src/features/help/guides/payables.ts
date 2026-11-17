@@ -64,4 +64,48 @@ export const payablesGuide: Guide = {
     { key: 'projects', why: 'O projeto a que a despesa está ligada.' },
     { key: 'dashboard_overview', why: 'As despesas pagas e o resultado do mês.' },
   ],
+  tour: [
+    {
+      target: 'payables-new',
+      edit: true,
+      title: 'Lançar uma despesa',
+      body: 'Nova Conta abre o formulário. Para um pagamento recorrente, marque Este pagamento é recorrente.',
+    },
+    {
+      target: 'payables-export',
+      title: 'Exportar PDF',
+      body: 'Gera o relatório do que está na tela, com os filtros aplicados.',
+    },
+    {
+      target: 'payables-stats',
+      title: 'Os totais',
+      body: 'Total, Pago, Previsto e Em atraso somam só o que está filtrado na lista.',
+    },
+    {
+      target: 'payables-month',
+      title: 'Trocar de mês',
+      body: 'A lista mostra as contas com vencimento no mês escolhido. Hoje, quando aparece, volta ao mês atual.',
+    },
+    {
+      target: 'payables-search',
+      title: 'Buscar',
+      body: 'Digite pelo menos duas letras do fornecedor ou do projeto.',
+    },
+    {
+      target: 'payables-status',
+      title: 'Filtrar por status',
+      body: 'Todos, Em atraso, Previsto e Pago. O número conta as contas de cada um.',
+    },
+    {
+      target: 'payables-recurring',
+      title: 'Só os recorrentes',
+      body: 'Mostrar Recorrentes deixa na lista só os pagamentos recorrentes.',
+    },
+    {
+      target: 'payables-menu',
+      edit: true,
+      title: 'Pagar, editar ou excluir',
+      body: 'No menu de três pontos ficam Editar, Marcar como Pago e Excluir. Na conta recorrente, também Pausar, Reativar e Encerrar Recorrência.',
+    },
+  ],
 }

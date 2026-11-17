@@ -531,6 +531,19 @@ export default function TaskKanban({
 
   const responsibles = operationalCandidates(collaborators)
 
+  /*
+    TOUR GUIADO. O primeiro cartão do quadro, na ordem das colunas, leva os
+    `data-tour` do cartão; a coluna seguinte à dele, o do arraste; a foto, o
+    primeiro cartão que tem responsável.
+  */
+  const boardTasks = columns.flatMap((column) => tasksInColumn(tasks, column.id))
+  const firstTaskId = boardTasks[0]?.id
+  const firstColumnIndex = columns.findIndex(
+    (column) => tasksInColumn(tasks, column.id).length > 0,
+  )
+  const moveColumnId = firstColumnIndex >= 0 ? columns[firstColumnIndex + 1]?.id : undefined
+  const firstResponsibleTaskId = boardTasks.find((task) => task.responsible)?.id
+
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return
 
@@ -643,7 +656,7 @@ export default function TaskKanban({
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div className="flex gap-4 pb-4 h-full" style={{ width: 'max-content' }}>
-              {columns.map((column) => {
+              {columns.map((column, columnIndex) => {
                 const columnTasks = tasksInColumn(tasks, column.id)
 
                 return (
@@ -654,6 +667,13 @@ export default function TaskKanban({
                     {/* Cabeçalho fixo da coluna */}
                     <div
                       className={`px-4 py-3 rounded-t-xl ${column.headerClass} sticky top-0 z-10`}
+                      data-tour={
+                        columnIndex === 0
+                          ? 'flow-column'
+                          : column.id === moveColumnId
+                            ? 'flow-move'
+                            : undefined
+                      }
                     >
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="font-semibold text-foreground truncate">{column.label}</h3>
@@ -762,6 +782,7 @@ export default function TaskKanban({
                                         setSelectedTaskId(task.id)
                                       }}
                                       aria-label={`Abrir detalhes de ${task.title}`}
+                                      data-tour={task.id === firstTaskId ? 'flow-card' : undefined}
                                       className={`p-3 bg-card border-0 shadow-xs hover:shadow-md transition-all cursor-pointer ${
                                         dragSnapshot.isDragging ? 'shadow-lg rotate-2' : ''
                                       } ${
@@ -814,6 +835,11 @@ export default function TaskKanban({
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-6 w-6 shrink-0"
+                                                data-tour={
+                                                  task.id === firstTaskId
+                                                    ? 'flow-card-menu'
+                                                    : undefined
+                                                }
                                               >
                                                 <MoreVertical className="w-3 h-3" />
                                               </Button>
@@ -1030,7 +1056,15 @@ export default function TaskKanban({
                                             </span>
                                           )}
                                           {task.responsible && (
-                                            <span title={task.responsible.name} className="inline-flex">
+                                            <span
+                                              title={task.responsible.name}
+                                              className="inline-flex"
+                                              data-tour={
+                                                task.id === firstResponsibleTaskId
+                                                  ? 'flow-responsible'
+                                                  : undefined
+                                              }
+                                            >
                                               <AvatarPicture
                                                 avatarPath={task.responsible.avatar_path}
                                                 name={task.responsible.name}

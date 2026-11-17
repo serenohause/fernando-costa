@@ -255,6 +255,15 @@ export default function Atividades() {
       onError: (error) => toast.error('Erro ao concluir: ' + describeDatabaseError(error)),
     })
 
+  /* As linhas que levam o `data-tour` do tour guiado: a primeira que a pessoa
+     abre para editar e a primeira com Começar agora ou Concluir. */
+  const firstOpenableId = visibleActivities.find((activity) => canEditRow(activity))?.id
+  const firstRunnableId = visibleActivities.find(
+    (activity) =>
+      canEditRow(activity) &&
+      (activity.status === 'not_started' || activity.status === 'in_progress'),
+  )?.id
+
   const activeCollaborators = (collaboratorsQuery.data ?? []).filter(
     (collaborator) => collaborator.status === 'active',
   )
@@ -263,7 +272,10 @@ export default function Atividades() {
     {
       header: 'Atividade',
       cell: (row) => (
-        <div className="flex items-start gap-2">
+        <div
+          className="flex items-start gap-2"
+          data-tour={row.id === firstOpenableId ? 'activities-row' : undefined}
+        >
           {isOverdue(row) && (
             <AlertCircle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0 mt-1" />
           )}
@@ -333,6 +345,7 @@ export default function Atividades() {
         <div className="flex items-center gap-2">
           <BotoesExecucao
             activity={row}
+            dataTour={row.id === firstRunnableId ? 'activities-run' : undefined}
             canExecute={canEditRow(row)}
             onStart={handleStart}
             onComplete={handleComplete}
@@ -393,6 +406,7 @@ export default function Atividades() {
               ? 'Suas atividades e as da equipe que você coordena'
               : 'Suas atividades operacionais'
         }
+        actionTour="activities-new"
         actionLabel={canEdit ? 'Nova Atividade' : undefined}
         onAction={
           canEdit
@@ -417,7 +431,10 @@ export default function Atividades() {
         padrão passou a ser o próprio trabalho.
       */}
       {readsAllActivities && (
-        <div className="mb-6 flex items-center gap-3 p-4 bg-elevated rounded-xl border border-border">
+        <div
+          data-tour="activities-manager"
+          className="mb-6 flex items-center gap-3 p-4 bg-elevated rounded-xl border border-border"
+        >
           <Switch
             id="visao-gerencial"
             checked={visaoGerencial}
@@ -446,7 +463,10 @@ export default function Atividades() {
 
       <div className="mb-6">
         <Tabs value={quickFilter} onValueChange={(value) => setQuickFilter(value as QuickFilter)}>
-          <TabsList className="bg-card border w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap">
+          <TabsList
+            data-tour="activities-tabs"
+            className="bg-card border w-full sm:w-auto overflow-x-auto overflow-y-hidden flex-nowrap"
+          >
             <TabsTrigger value="todas" className="whitespace-nowrap">
               Todas
             </TabsTrigger>
@@ -488,7 +508,10 @@ export default function Atividades() {
       </div>
 
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1">
+        <div
+          data-tour="activities-filters"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1"
+        >
           {/*
             O original usa `<SelectItem value={null}>` para a opção "todas"
             (linhas 537, 550, 564 e 578). O Select do Radix recusa valor vazio ou
@@ -576,7 +599,11 @@ export default function Atividades() {
         </div>
 
         {canEdit && (
-          <Button variant="outline" onClick={() => setReorderOpen(true)}>
+          <Button
+            variant="outline"
+            data-tour="activities-reorder"
+            onClick={() => setReorderOpen(true)}
+          >
             <ArrowUpDown className="w-4 h-4 mr-2" />
             Reordenar
           </Button>

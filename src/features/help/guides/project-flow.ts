@@ -68,4 +68,38 @@ export const projectFlowGuide: Guide = {
     { key: 'contracts', why: 'A aprovação do contrato cria o cartão inicial.' },
     { key: 'settings', why: 'As etapas do quadro e os botões de revisão dos ambientes.' },
   ],
+  tour: [
+    {
+      target: 'flow-filters',
+      title: 'Filtrar o quadro',
+      body: 'Mostre só os cartões de um responsável ou de um projeto.',
+    },
+    {
+      target: 'flow-column',
+      title: 'Etapas',
+      body: 'Cada coluna é uma etapa do projeto. O número diz quantos cartões estão nela.',
+    },
+    {
+      target: 'flow-card',
+      title: 'Abrir o cartão',
+      body: 'Clique para ver Descrição, Objetivos, responsável e prazos. O ponto vermelho marca prioridade alta; a borda vermelha, prazo vencido.',
+    },
+    {
+      target: 'flow-move',
+      edit: true,
+      title: 'Andar pelas etapas',
+      body: 'Arraste o cartão para a próxima coluna. Para avançar, os objetivos obrigatórios (com *) precisam estar marcados. Voltar nunca é bloqueado.',
+    },
+    {
+      target: 'flow-card-menu',
+      edit: true,
+      title: 'Atalhos do cartão',
+      body: 'No menu de três pontos ficam Alterar Responsável, o status operacional e o atalho para o Diário do Projeto.',
+    },
+    {
+      target: 'flow-responsible',
+      title: 'Responsável operacional',
+      body: 'A foto é o responsável do cartão. Ele acompanha o projeto em Minhas Atividades.',
+    },
+  ],
 }

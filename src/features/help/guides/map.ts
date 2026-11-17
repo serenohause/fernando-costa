@@ -59,4 +59,37 @@ export const mapGuide: Guide = {
     { key: 'projects', why: 'O projeto ligado a cada pino.' },
     { key: 'crm', why: 'O cliente de cada propriedade.' },
   ],
+  tour: [
+    {
+      target: 'map-new',
+      edit: true,
+      title: 'Marcar uma propriedade',
+      body: 'Clique em + Nova Propriedade no Mapa e depois no ponto exato do mapa. O endereço é detectado sozinho.',
+    },
+    {
+      target: 'map-geo',
+      title: 'Buscar Localização',
+      body: 'Leva o mapa a qualquer endereço ou lugar, inclusive fora do Brasil.',
+    },
+    {
+      target: 'map-filters',
+      title: 'Filtrar as propriedades',
+      body: 'Busque por cliente ou nome do projeto e filtre por status, cidade e finalidade.',
+    },
+    {
+      target: 'map-list',
+      title: 'Achar no mapa',
+      body: 'Clique numa propriedade da lista para centralizar o mapa nela.',
+    },
+    {
+      target: 'map-layers',
+      title: 'Camadas',
+      body: 'Troque entre Mapa, Satélite, Híbrido e Relevo.',
+    },
+    {
+      target: 'map-canvas',
+      title: 'Detalhes no pino',
+      body: 'Clique num pino para abrir o balão, com fotos, cliente, status e endereço. Ver Detalhes Completos abre o resumo.',
+    },
+  ],
 }

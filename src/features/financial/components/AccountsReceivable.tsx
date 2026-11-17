@@ -332,11 +332,17 @@ export default function AccountsReceivable() {
     toast.success('PDF exportado com sucesso')
   }
 
+  /* A linha que leva o `data-tour` do tour guiado. */
+  const firstRowId = visibleRows[0]?.id
+
   const columns: Column<ReceivableRow>[] = [
     {
       header: 'Descrição',
       cell: (row) => (
-        <div className="flex items-center gap-3">
+        <div
+          className="flex items-center gap-3"
+          data-tour={row.id === firstRowId ? 'receivables-row' : undefined}
+        >
           <div
             className={`w-10 h-10 rounded-xl flex items-center justify-center ${
               row.is_overdue
@@ -427,7 +433,10 @@ export default function AccountsReceivable() {
         canEdit ? (
           /* O clique no menu não pode abrir o painel atrás dele: a linha inteira
              é clicável, e o gatilho vive dentro dela. */
-          <div onClick={(evento) => evento.stopPropagation()}>
+          <div
+            data-tour={row.id === firstRowId ? 'receivables-menu' : undefined}
+            onClick={(evento) => evento.stopPropagation()}
+          >
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -491,6 +500,7 @@ export default function AccountsReceivable() {
       <PageHeader
         title="Recebíveis"
         subtitle="Gerencie suas receitas e recebimentos"
+        actionTour="receivables-new"
         actionLabel={canEdit ? 'Novo Recebível' : undefined}
         onAction={
           canEdit
@@ -508,6 +518,7 @@ export default function AccountsReceivable() {
           onClick={handleExportPDF}
           disabled={visibleRows.length === 0}
           className="gap-2"
+          data-tour="receivables-export"
         >
           {/* SVG do original, e não um ícone do Lucide: é o único lugar da tela
               onde ele desenha o ícone à mão. */}
@@ -524,7 +535,7 @@ export default function AccountsReceivable() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div data-tour="receivables-stats" className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card className="p-4 bg-card border-0 shadow-xs">
           <p className="text-sm text-muted-foreground">Total</p>
           <p className="text-xl font-bold text-foreground">{formatCurrencyBRL(stats.total)}</p>
@@ -551,11 +562,15 @@ export default function AccountsReceivable() {
 
       {/* Filtro de Mês/Ano */}
       <div className="mb-6">
-        <MonthYearFilter selectedDate={selectedMonthYear} onChange={setSelectedMonthYear} />
+        <MonthYearFilter
+          selectedDate={selectedMonthYear}
+          onChange={setSelectedMonthYear}
+          dataTour="receivables-month"
+        />
       </div>
 
       {/* Filtro de Cliente */}
-      <div className="mb-6">
+      <div className="mb-6" data-tour="receivables-client">
         {/* `block` e `flex` juntos vêm do original — o `flex` vence, e é assim
             que o rótulo está no ar. */}
         <label
@@ -576,7 +591,7 @@ export default function AccountsReceivable() {
       </div>
 
       {/* Filtros de Status */}
-      <div className="mb-6 flex flex-wrap gap-2 overflow-x-auto">
+      <div data-tour="receivables-status" className="mb-6 flex flex-wrap gap-2 overflow-x-auto">
         <button
           onClick={() => setStatusFilter('all')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

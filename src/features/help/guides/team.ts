@@ -53,4 +53,28 @@ export const teamGuide: Guide = {
     { key: 'access_control', why: 'Os pedidos de acesso que esperam resposta.' },
     { key: 'first_login', why: 'O que a pessoa vê ao entrar com a senha provisória.' },
   ],
+  tour: [
+    {
+      target: 'team-new',
+      edit: true,
+      title: 'Cadastrar uma pessoa',
+      body: 'Novo Membro abre o formulário. Para a pessoa entrar no sistema, preencha Senha provisória, com pelo menos 8 caracteres.',
+    },
+    {
+      target: 'team-person',
+      title: 'Cada pessoa',
+      body: 'A linha mostra nome, função e área, com E-mail, Carga Horária e Status ao lado.',
+    },
+    {
+      target: 'team-no-login',
+      title: 'Sem login',
+      body: 'A pessoa está cadastrada, mas ainda não entra no sistema. Preencher Senha provisória em Editar cria o login.',
+    },
+    {
+      target: 'team-menu',
+      edit: true,
+      title: 'Editar, permissões, remover',
+      body: 'No menu de três pontos ficam Editar, Permissões, Acessar como e Remover. Remover não pode ser desfeito.',
+    },
+  ],
 }

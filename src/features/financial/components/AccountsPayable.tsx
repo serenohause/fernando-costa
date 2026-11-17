@@ -372,6 +372,9 @@ export default function AccountsPayable() {
     toast.success('PDF exportado com sucesso')
   }
 
+  /* A linha que leva o `data-tour` do tour guiado. */
+  const firstRowId = visiblePayables[0]?.id
+
   const columns: Column<PayableRow>[] = [
     {
       header: 'Descrição',
@@ -474,7 +477,12 @@ export default function AccountsPayable() {
         canEdit ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                data-tour={row.id === firstRowId ? 'payables-menu' : undefined}
+              >
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -543,6 +551,7 @@ export default function AccountsPayable() {
       <PageHeader
         title="Contas a Pagar"
         subtitle="Gerencie as despesas do escritório"
+        actionTour="payables-new"
         actionLabel={canEdit ? 'Nova Conta' : undefined}
         onAction={
           canEdit
@@ -560,6 +569,7 @@ export default function AccountsPayable() {
           onClick={handleExportPDF}
           disabled={visiblePayables.length === 0}
           className="gap-2"
+          data-tour="payables-export"
         >
           {/* O ícone é o SVG solto do original (linhas 929-931), e não um Lucide
               parecido. */}
@@ -576,7 +586,7 @@ export default function AccountsPayable() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div data-tour="payables-stats" className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card className="p-4 bg-card border-0 shadow-xs">
           <p className="text-sm text-muted-foreground">Total</p>
           <p className="text-xl font-bold text-foreground">{formatCurrencyBRL(stats.total)}</p>
@@ -603,11 +613,15 @@ export default function AccountsPayable() {
 
       {/* Filtro de Mês/Ano */}
       <div className="mb-6">
-        <MonthYearFilter selectedDate={selectedMonthYear} onChange={setSelectedMonthYear} />
+        <MonthYearFilter
+          selectedDate={selectedMonthYear}
+          onChange={setSelectedMonthYear}
+          dataTour="payables-month"
+        />
       </div>
 
       {/* Filtro de Busca */}
-      <div className="mb-6">
+      <div className="mb-6" data-tour="payables-search">
         <label className="text-sm font-medium text-soft mb-2 flex items-center gap-2">
           <Users className="w-4 h-4" />
           Busca
@@ -622,7 +636,7 @@ export default function AccountsPayable() {
       </div>
 
       {/* Filtros de Status */}
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div data-tour="payables-status" className="mb-6 flex flex-wrap gap-2">
         <button
           onClick={() => setStatusFilter('all')}
           className={`${FILTER_BUTTON} ${
@@ -661,6 +675,7 @@ export default function AccountsPayable() {
         <Button
           variant={showRecurringOnly ? 'default' : 'outline'}
           size="sm"
+          data-tour="payables-recurring"
           onClick={() => setShowRecurringOnly(!showRecurringOnly)}
           className={showRecurringOnly ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}
         >

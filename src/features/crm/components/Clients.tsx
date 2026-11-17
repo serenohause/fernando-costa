@@ -176,11 +176,19 @@ export default function Clients() {
     })
   }
 
+  /* A primeira linha (e o primeiro selo / menu da lista) leva os `data-tour`. */
+  const firstRow = clients[0]
+  const firstContractRow = clients.find((client) => client.hasContract)
+  const firstMenuRow = clients.find((client) => !client.person)
+
   const columns: Column<ClientListRow>[] = [
     {
       header: 'Cliente',
       cell: (row) => (
-        <div className="flex items-center gap-3">
+        <div
+          className="flex items-center gap-3"
+          data-tour={row === firstRow ? 'crm-client' : undefined}
+        >
           {/* slate-100 → slate-200 do original são exatamente `--muted` e
               `--border` do tema; no escuro o degrau se mantém. */}
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-muted to-border flex items-center justify-center">
@@ -195,6 +203,7 @@ export default function Clients() {
               {row.hasContract && (
                 <Badge
                   variant="outline"
+                  data-tour={row === firstContractRow ? 'crm-contract' : undefined}
                   className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
                 >
                   Com contrato
@@ -263,7 +272,12 @@ export default function Clients() {
         canEdit && !row.person ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                data-tour={row === firstMenuRow ? 'crm-menu' : undefined}
+              >
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -322,11 +336,12 @@ export default function Clients() {
         subtitle="Gerencie sua base de leads e clientes"
         actionLabel={canEdit ? 'Novo Lead' : undefined}
         onAction={canEdit ? handleCreateClick : undefined}
+        actionTour="crm-new"
       />
 
       {(hasClients || isSearching) && (
         <div className="mb-6">
-          <div className="relative">
+          <div className="relative" data-tour="crm-search">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-faint w-4 h-4" />
             <Input
               type="text"

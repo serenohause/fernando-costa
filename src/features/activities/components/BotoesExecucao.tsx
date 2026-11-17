@@ -36,9 +36,12 @@ export default function BotoesExecucao({
   canExecute,
   onStart,
   onComplete,
+  dataTour,
 }: {
   activity: ActivityRow
   canExecute: boolean
+  /* `data-tour` do botão, para o tour guiado de Atividades. */
+  dataTour?: string
   onStart: (activity: ActivityRow) => void
   onComplete: (activity: ActivityRow) => void
 }) {
@@ -54,6 +57,7 @@ export default function BotoesExecucao({
     return (
       <Button
         size="sm"
+        data-tour={dataTour}
         onClick={(event) => {
           event.stopPropagation()
           onStart(activity)
@@ -70,7 +74,7 @@ export default function BotoesExecucao({
 
   if (activity.status === 'in_progress') {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-tour={dataTour}>
         {runningMinutes !== null && (
           <div className="flex items-center gap-1 text-xs text-soft bg-muted px-2 py-1 rounded">
             <Clock className="w-3 h-3" />

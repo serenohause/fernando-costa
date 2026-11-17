@@ -92,6 +92,7 @@ export default function ServiceTypesSection({ canEdit }: { canEdit: boolean }) {
         </div>
         {canEdit && (
           <Button
+            data-tour="settings-new"
             onClick={() => {
               setEditing(null)
               setDialogOpen(true)
@@ -138,7 +139,10 @@ export default function ServiceTypesSection({ canEdit }: { canEdit: boolean }) {
           className="bg-card rounded-xl border border-border divide-y divide-border"
           handleLabel={(type) => `Arrastar ${type.label} para reordenar`}
           renderItem={(type, handle) => (
-            <div className="flex items-center gap-3 px-4 py-3">
+            <div
+              className="flex items-center gap-3 px-4 py-3"
+              data-tour={type.id === types[0]?.id ? 'settings-type' : undefined}
+            >
               {handle}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -181,6 +185,7 @@ export default function ServiceTypesSection({ canEdit }: { canEdit: boolean }) {
               */}
               <div className="flex items-center gap-2 pl-2">
                 <Switch
+                  data-tour={type.id === types[0]?.id ? 'settings-type-switch' : undefined}
                   checked={type.is_active}
                   disabled={!canEdit || updateMutation.isPending}
                   aria-label={`${type.is_active ? 'Desativar' : 'Ativar'} ${type.label}`}

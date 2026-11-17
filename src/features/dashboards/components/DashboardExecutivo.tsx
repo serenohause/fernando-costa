@@ -264,7 +264,7 @@ export default function DashboardExecutivo() {
       </div>
 
       {/* Filtros Globais */}
-      <Card className="border-0 shadow-sm bg-elevated">
+      <Card data-tour="executive-filters" className="border-0 shadow-sm bg-elevated">
         <CardContent className="pt-6">
           <div className="grid grid-cols-3 gap-4">
             <Select value={period} onValueChange={(value) => setPeriod(value as ExecutivePeriod)}>
@@ -364,7 +364,7 @@ export default function DashboardExecutivo() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div data-tour="executive-activities" className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm text-muted-foreground font-normal flex items-center gap-2">
@@ -456,7 +456,7 @@ export default function DashboardExecutivo() {
               <FolderKanban className="w-5 h-5" />
               Visão Geral de Projetos Ativos
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div data-tour="executive-projects" className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
               <Card
                 className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-all"
                 onClick={() => setDrilldown({ title: 'Projetos Ativos', projects })}
@@ -560,7 +560,7 @@ export default function DashboardExecutivo() {
               </Card>
             </div>
 
-            <Card className="border-0 shadow-sm">
+            <Card data-tour="executive-phases" className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-base">Distribuição por Fase</CardTitle>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -588,7 +588,7 @@ export default function DashboardExecutivo() {
               Capacidade do Time
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Card className="border-0 shadow-sm lg:col-span-2">
+              <Card data-tour="executive-team" className="border-0 shadow-sm lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="text-base">Projetos por Colaborador</CardTitle>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -700,7 +700,7 @@ export default function DashboardExecutivo() {
             </h2>
 
             {/* Cards de Resumo */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div data-tour="executive-progress" className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <Card className="border-0 shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium text-soft">Progresso Médio</CardTitle>
@@ -776,13 +776,17 @@ export default function DashboardExecutivo() {
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {progress.sorted.map((row) => {
+                    {progress.sorted.map((row, index) => {
                       const percent = row.progressPercent
                       const progressColor =
                         percent < 30 ? 'bg-rose-500' : percent > 80 ? 'bg-green-500' : 'bg-blue-500'
 
                       return (
-                        <div key={row.project.id} className="p-4 bg-elevated rounded-lg">
+                        <div
+                          key={row.project.id}
+                          data-tour={index === 0 ? 'executive-list' : undefined}
+                          className="p-4 bg-elevated rounded-lg"
+                        >
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex-1">
                               <div className="flex items-center gap-2">

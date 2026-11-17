@@ -204,7 +204,7 @@ export default function AprovacoesAcesso() {
           }}
         />
       ) : solicitacoes.length === 0 ? (
-        <Card className="p-12 text-center">
+        <Card className="p-12 text-center" data-tour="access-empty">
           <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-8 h-8 text-faint" />
           </div>
@@ -215,8 +215,12 @@ export default function AprovacoesAcesso() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {solicitacoes.map((solicitacao) => (
-            <Card key={solicitacao.id} className="p-6">
+          {solicitacoes.map((solicitacao, index) => (
+            <Card
+              key={solicitacao.id}
+              className="p-6"
+              data-tour={index === 0 ? 'access-request' : undefined}
+            >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
@@ -242,6 +246,7 @@ export default function AprovacoesAcesso() {
                   <Button
                     size="sm"
                     onClick={() => handleAprovar(solicitacao)}
+                    data-tour={index === 0 ? 'access-approve' : undefined}
                     className="bg-green-600 text-white hover:bg-green-700"
                   >
                     <CheckCircle2 className="w-4 h-4 mr-1" />
@@ -251,6 +256,7 @@ export default function AprovacoesAcesso() {
                     size="sm"
                     variant="outline"
                     onClick={() => handleRecusar(solicitacao)}
+                    data-tour={index === 0 ? 'access-reject' : undefined}
                     className="text-rose-600 border-rose-200 hover:bg-rose-50 dark:text-rose-400 dark:border-rose-900 dark:hover:bg-rose-950/40"
                   >
                     <XCircle className="w-4 h-4 mr-1" />

@@ -40,4 +40,28 @@ export const suppliersGuide: Guide = {
   links: [
     { key: 'client_budget', why: 'Onde os fornecedores são cotados e escolhidos para cada item.' },
   ],
+  tour: [
+    {
+      target: 'suppliers-new',
+      edit: true,
+      title: 'Cadastrar um fornecedor',
+      body: 'Novo Fornecedor abre o formulário. Nome, Tipologia e WhatsApp são obrigatórios.',
+    },
+    {
+      target: 'suppliers-filters',
+      title: 'Encontrar um fornecedor',
+      body: 'Busque por nome ou marca, sem se preocupar com acentos. Ao lado, filtre por tipologia, nível de parceria e status.',
+    },
+    {
+      target: 'suppliers-row',
+      title: 'Abrir o fornecedor',
+      body: 'Clique na linha para abrir o painel com contato, parceria, logística e métricas. O botão WhatsApp abre a conversa.',
+    },
+    {
+      target: 'suppliers-status',
+      edit: true,
+      title: 'Inativar em vez de excluir',
+      body: 'No painel, Inativar muda o status para Inativo sem apagar nada. Fornecedor que já cotou num orçamento não pode ser excluído.',
+    },
+  ],
 }

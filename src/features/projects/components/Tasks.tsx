@@ -351,7 +351,10 @@ export default function Tasks() {
         }
       />
 
-      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-6">
+      <div
+        className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-6"
+        data-tour="flow-filters"
+      >
         <Select value={responsibleFilter} onValueChange={setResponsibleFilter}>
           <SelectTrigger className="w-full sm:w-48 bg-card">
             <SelectValue placeholder="Responsável" />
