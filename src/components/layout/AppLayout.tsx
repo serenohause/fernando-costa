@@ -284,10 +284,7 @@ export default function AppLayout() {
       escuro — ver o comentário no src/index.css. Cartão sempre um degrau acima
       da página; a hierarquia nunca inverte.
     */
-    <HelpProvider
-      pageName={currentPageName}
-      pageTitle={breadcrumbItems[breadcrumbItems.length - 1]?.label ?? currentPageName}
-    >
+    <HelpProvider pageName={currentPageName}>
       <div className="min-h-screen bg-background">
         {/*
           A FAIXA E A PRIMEIRA COISA DA ARVORE e empurra o resto: a sidebar sai de

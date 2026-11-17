@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useAppNavigation,
   useCollaboratorPermissions,
@@ -83,4 +84,53 @@ export function useHelpRead() {
   )
 
   return { read: current.read as ReadonlySet<string>, setRead }
+}
+
+/*
+  ESPERAR A TELA CARREGAR antes de começar um tour. "Me mostrar na tela" navega
+  e o tour não pode nascer sobre o esqueleto de carregando: os passos são
+  filtrados pelo que está no DOM, e na tela vazia de loading quase tudo pularia.
+
+  "Carregada" = nenhuma query SEM DADO buscando agora, por três leituras
+  seguidas (100 ms entre elas), e passado `minDelay` — a entrada da rota
+  (RouteTransition, 0,2 s) e a do PageHeader (0,3 s) ainda mexem nos elementos.
+  Releitura de fundo de query que já tem dado não segura nada. Dez segundos é o
+  teto: rede lenta não deixa o tour preso para sempre.
+
+  Devolve a função que cancela a espera.
+*/
+export function useWaitForScreen() {
+  const queryClient = useQueryClient()
+
+  return useCallback(
+    (minDelay: number, onReady: () => void): (() => void) => {
+      const startedAt = performance.now()
+      let calm = 0
+      let timer: number | undefined
+      let cancelled = false
+
+      const loading = () =>
+        queryClient.isFetching({ predicate: (query) => query.state.data === undefined })
+
+      const tick = () => {
+        if (cancelled) return
+        calm = loading() === 0 ? calm + 1 : 0
+        const elapsed = performance.now() - startedAt
+        if ((calm >= 3 && elapsed >= minDelay) || elapsed > 10_000) {
+          onReady()
+          return
+        }
+        timer = window.setTimeout(tick, 100)
+      }
+
+      if (minDelay === 0 && loading() === 0) onReady()
+      else tick()
+
+      return () => {
+        cancelled = true
+        window.clearTimeout(timer)
+      }
+    },
+    [queryClient],
+  )
 }

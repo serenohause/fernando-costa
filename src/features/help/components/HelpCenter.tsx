@@ -1,14 +1,18 @@
+import { Link, useSearchParams } from 'react-router'
 import { BookOpen, Info } from 'lucide-react'
 import PageHeader from '@/components/shared/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { buildTrails, guideAccessKind, isFullGuide } from '../access'
+import { createPageUrl } from '@/lib/page-url'
+import { buildTrails, guideAccessKind, guideVisible, isFullGuide } from '../access'
 import { GUIDES } from '../guides/index.ts'
 import { useHelp } from '../help-context'
 import AccessBadge from './AccessBadge'
+import GuidePage from './GuidePage'
 import ReadCheckbox from './ReadCheckbox'
+import ShowOnScreenButton from './ShowOnScreenButton'
 
 /*
   CENTRAL DE AJUDA (`/Ajuda`), fora de `menus`, como `/Perfil`: todo mundo tem,
@@ -21,6 +25,24 @@ import ReadCheckbox from './ReadCheckbox'
   dele). E nunca fica vazia: "Primeiros passos" vale para todo mundo.
 */
 export default function HelpCenter() {
+  const help = useHelp()
+  const [params] = useSearchParams()
+  const guideParam = params.get('guia')
+
+  /* `?guia=<chave>`: a página do guia, só se ele é completo e é da pessoa. */
+  if (
+    guideParam &&
+    GUIDES[guideParam] &&
+    isFullGuide(GUIDES[guideParam]) &&
+    guideVisible(help.access, guideParam)
+  ) {
+    return <GuidePage key={guideParam} guideKey={guideParam} />
+  }
+
+  return <HelpCenterTrails />
+}
+
+function HelpCenterTrails() {
   const help = useHelp()
   const { trails, hiddenTrails } = buildTrails(help.access)
 
@@ -125,10 +147,15 @@ function GuideCard({ guideKey }: { guideKey: string }) {
       <div className="flex items-center justify-between gap-2 flex-wrap mt-1">
         {isFullGuide(guide) ? (
           <>
-            <Button variant="outline" size="sm" onClick={() => help.openHelp(guideKey)}>
-              <BookOpen />
-              Abrir guia
-            </Button>
+            <span className="flex items-center gap-1 flex-wrap">
+              <ShowOnScreenButton guideKey={guideKey} />
+              <Button asChild variant="ghost" size="sm" className="text-soft">
+                <Link to={`${createPageUrl('Ajuda')}?guia=${guideKey}`}>
+                  <BookOpen />
+                  Ler guia
+                </Link>
+              </Button>
+            </span>
             <ReadCheckbox
               checked={isRead}
               onChange={(value) => help.setRead(guideKey, value)}

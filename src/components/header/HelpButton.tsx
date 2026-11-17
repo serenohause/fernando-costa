@@ -1,11 +1,12 @@
 import { CircleHelp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { HELP_PANEL_ID, useHelp } from '@/features/help/help-context'
+import { useHelp } from '@/features/help/help-context'
 
 /*
-  O "?" do cabeçalho global, logo depois do sino. Um botão só, que lê a rota,
-  cobre todas as telas — metade delas não usa PageHeader. Mesmo Button ghost
-  icon do ThemeToggle.
+  O "?" do cabeçalho global, logo depois do sino. Inicia o tour guiado da tela
+  atual (prototypes/tour-guiado.html); tela sem tour mostra um balão curto aqui
+  mesmo. Um botão só, que lê a rota, cobre todas as telas. Mesmo Button ghost
+  icon do ThemeToggle. `data-tour="header-help"` é o último passo de todo tour.
 */
 export default function HelpButton() {
   const help = useHelp()
@@ -15,12 +16,11 @@ export default function HelpButton() {
       ref={help.triggerRef}
       variant="ghost"
       size="icon"
-      title="Ajuda desta tela"
-      aria-label="Ajuda desta tela"
-      aria-controls={HELP_PANEL_ID}
-      aria-expanded={help.isOpen}
-      onClick={help.toggleHelp}
-      className="select-none aria-expanded:bg-accent aria-expanded:text-accent-foreground"
+      title="Tour guiado desta tela"
+      aria-label="Tour guiado desta tela"
+      data-tour="header-help"
+      onClick={help.startPageTour}
+      className="select-none"
     >
       <CircleHelp className="w-5 h-5 select-none" />
     </Button>

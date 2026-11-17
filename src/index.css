@@ -6,6 +6,11 @@
   usadas por dialog, sheet, dropdown, select, popover e tooltip.
 */
 @import 'tw-animate-css';
+/*
+  O CSS do driver.js (tour guiado da ajuda). Entra inteiro e é sobrescrito pelo
+  bloco "BALÃO DO TOUR" no fim deste arquivo.
+*/
+@import 'driver.js/dist/driver.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -491,3 +496,225 @@
   quatro das oito regras no caminho (medido). Uma propriedade declarada uma vez
   substitui tudo isso.
 */
+
+/*
+  BALÃO DO TOUR — sobrescreve o CSS do driver.js 1.10.2 por inteiro
+  (prototypes/tour-guiado.html). Valores de PopoverContent (ui/popover.tsx):
+  w-72 rounded-md border bg-popover p-4 shadow-md, sem seta. Botões: Button
+  size="sm" (ui/button.tsx), Anterior outline, Próximo/Concluir default.
+  Fora de @layer de propósito: o CSS do pacote também é sem camada, e camada
+  perde para regra sem camada.
+*/
+.driver-popover.tour-pop {
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+  background: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  padding: 1rem;
+  width: 18rem;
+  min-width: 0;
+  max-width: calc(100vw - 1rem);
+  @apply shadow-md;
+}
+
+.driver-popover.tour-pop * {
+  box-sizing: border-box;
+}
+
+.tour-pop .driver-popover-arrow {
+  display: none;
+}
+
+.tour-pop .driver-popover-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  padding-right: 1.75rem;
+  color: hsl(var(--foreground));
+}
+
+.tour-pop .driver-popover-title[style*='block'] + .driver-popover-description {
+  margin-top: 0.25rem;
+}
+
+.tour-pop .driver-popover-description {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: hsl(var(--text-soft));
+}
+
+/* X: o botão de fechar do ProjectDiaryDrawer (p-1.5 hover:bg-elevated
+   rounded-lg, X w-4 text-muted-foreground). */
+.tour-pop .driver-popover-close-btn {
+  all: unset;
+  position: absolute;
+  top: 0.625rem;
+  right: 0.625rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.tour-pop .driver-popover-close-btn:hover {
+  background: hsl(var(--elevated));
+  color: hsl(var(--muted-foreground));
+}
+
+.tour-pop .driver-popover-close-btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.tour-pop .driver-popover-footer {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tour-pop .driver-popover-progress-text {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tour-pop .driver-popover-navigation-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-grow: 1;
+}
+
+.tour-pop .driver-popover-navigation-btns button + button {
+  margin-left: 0;
+}
+
+/* Button size="sm": h-8 rounded-md px-3 text-xs font-medium. */
+.tour-pop .driver-popover-footer-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s;
+}
+
+/* Anterior = variant outline. */
+.tour-pop .driver-popover-prev-btn {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--input));
+  @apply shadow-xs;
+}
+
+.tour-pop .driver-popover-prev-btn:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+/* Próximo / Concluir = variant default. */
+.tour-pop .driver-popover-next-btn {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  @apply shadow-sm;
+}
+
+.tour-pop .driver-popover-next-btn:hover {
+  background: hsl(var(--primary) / 0.9);
+}
+
+/* disabled:opacity-50 do Button. */
+.tour-pop .driver-popover-footer .driver-popover-btn-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.tour-pop .driver-popover-footer-btn:focus-visible,
+.tour-pop .driver-popover-close-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px hsl(var(--ring));
+}
+
+/* A linha de acesso do primeiro balão (bg-muted rounded-lg text-xs text-soft,
+   com cadeado). */
+.tour-access {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: hsl(var(--text-soft));
+}
+
+.tour-access svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  color: hsl(var(--text-faint));
+}
+
+/* Balão de tela sem tour: só o botão de abrir a Central, em outline. */
+.tour-pop.is-notice .driver-popover-prev-btn,
+.tour-pop.is-notice .driver-popover-progress-text {
+  display: none !important;
+}
+
+.tour-pop.is-notice .driver-popover-next-btn {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--input));
+  @apply shadow-xs;
+}
+
+.tour-pop.is-notice .driver-popover-next-btn:hover {
+  background: hsl(var(--accent));
+}
+
+.tour-pop.is-notice.no-action .driver-popover-footer {
+  display: none !important;
+}
+
+/* CELULAR (< 40rem): faixa de ponta a ponta. A posição sai de tour.ts
+   (embaixo, ou em cima se o alvo cair embaixo) por variável; o !important vence
+   o left/top inline que o driver escreve a cada reposicionamento. */
+.driver-popover.tour-pop.is-strip {
+  left: var(--strip-left) !important;
+  top: var(--strip-top) !important;
+  width: var(--strip-width) !important;
+  right: auto !important;
+  bottom: auto !important;
+  max-width: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-fade .driver-overlay,
+  .driver-fade .driver-popover {
+    animation: none !important;
+  }
+}
